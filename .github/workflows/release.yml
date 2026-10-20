@@ -56,9 +56,23 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
 
+      # Releases ship the updater (ADR-0013): refuse to build unsigned or with placeholder config.
+      - name: Check updater configuration
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if grep -qE "REPLACE_WITH|OWNER/REPO" apps/desktop/src-tauri/tauri.release.conf.json \
+             || [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "::error::Updater signing is not configured, see docs/releasing.md"
+            exit 1
+          fi
+
       - uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: apps/desktop
           tagName: ${{ github.ref_name }}
@@ -66,4 +80,8 @@ jobs:
           releaseBody: 'See the assets below to download and install this version.'
           releaseDraft: true
           prerelease: false
-          args: ${{ matrix.args }}
+          # Stable channel: latest.json is attached to every release; the app reads the latest
+          # published (non-draft, non-prerelease) one.
+          uploadUpdaterJson: true
+          updaterJsonPreferNsis: true
+          args: --config src-tauri/tauri.release.conf.json ${{ matrix.args }}

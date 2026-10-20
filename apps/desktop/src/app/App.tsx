@@ -1,4 +1,5 @@
 import { AppShell } from './AppShell';
+import { UpdateBanner } from './UpdateBanner';
 import { CampaignScreen } from '@/features/campaign/CampaignScreen';
 import { useLanguageSync } from '@/shared/i18n/useLanguageSync';
 import { useCampaign, useGameEventsSync } from '@/shared/game/useGame';
@@ -14,7 +15,10 @@ export function App() {
   if (isPending) return null;
   return (
     <ErrorBoundary name="DndStudio">
-      {campaign ? <AppShell campaign={campaign} /> : <CampaignScreen />}
+      <div className="app-root">
+        <UpdateBanner />
+        {campaign ? <AppShell campaign={campaign} /> : <CampaignScreen />}
+      </div>
     </ErrorBoundary>
   );
 }

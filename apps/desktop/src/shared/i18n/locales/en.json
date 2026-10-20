@@ -51,13 +51,17 @@
     "protocol_mismatch": "Update the client or the server",
     "nothing_to_restore": "There is nothing to restore",
     "save_failed": "Could not save the campaign",
-    "no_backup": "No backups found for this campaign"
+    "no_backup": "No backups found for this campaign",
+    "updater_disabled": "Updates are not configured in this build",
+    "update_failed": "Could not check or install the update",
+    "no_update": "There is no update to install"
   },
   "menu": {
     "label": "Main menu",
     "file": "File",
     "view": "View",
-    "breadcrumbs": "Breadcrumbs"
+    "breadcrumbs": "Breadcrumbs",
+    "help": "Help"
   },
   "layout": {
     "gm": "Game master layout",
@@ -124,5 +128,13 @@
       "debug": "Debug and above",
       "trace": "Everything"
     }
+  },
+  "update": {
+    "check": "Check for updates",
+    "upToDate": "You have the latest version",
+    "available": "DndStudio {{version}} is available",
+    "install": "Install and restart",
+    "installing": "Installing…",
+    "later": "Later"
   }
 }

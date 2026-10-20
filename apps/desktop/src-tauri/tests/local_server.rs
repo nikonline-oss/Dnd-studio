@@ -200,3 +200,31 @@ fn export_bindings() {
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(dnd_desktop_lib::BINDINGS_PATH);
     dnd_desktop_lib::export_bindings(&path).unwrap();
 }
+
+/// The release-only config (merged by `release.yml` via `--config`) must stay valid for the
+/// updater plugin and keep producing signed updater artifacts.
+#[test]
+fn release_config_enables_signed_updates() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tauri.release.conf.json");
+    let config: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+    assert_eq!(config["bundle"]["createUpdaterArtifacts"], true);
+    let updater: tauri_plugin_updater::Config =
+        serde_json::from_value(config["plugins"]["updater"].clone()).unwrap();
+    assert_eq!(updater.endpoints.len(), 1);
+    assert_eq!(updater.endpoints[0].scheme(), "https");
+    assert!(
+        updater.endpoints[0]
+            .path()
+            .ends_with("/releases/latest/download/latest.json")
+    );
+}
+
+/// Dev builds must not carry an updater config (the plugin would then need a real key).
+#[test]
+fn dev_config_has_no_updater() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tauri.conf.json");
+    let config: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+    assert!(config["plugins"]["updater"].is_null());
+}

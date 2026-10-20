@@ -8,6 +8,7 @@ Open-source экосистема для настольных ролевых иг
 - Продукт и архитектура: [CLAUDE.md](CLAUDE.md)
 - Архитектурные решения: [docs/adr](docs/adr/README.md)
 - Протокол: [docs/protocol.md](docs/protocol.md)
+- Релизы и автообновление: [docs/releasing.md](docs/releasing.md)
 
 ## Разработка
 

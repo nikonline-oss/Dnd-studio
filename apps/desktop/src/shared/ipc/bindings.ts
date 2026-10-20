@@ -56,6 +56,14 @@ export const commands = {
 	logsRecent: () => __TAURI_INVOKE<LogRecord[]>("logs_recent"),
 	/**  Lets the UI write to the application log (e.g. a crashed feature in an error boundary). */
 	logFrontend: (level: LogLevel, message: string) => __TAURI_INVOKE<void>("log_frontend", { level, message }),
+	/**  Checks for an update now (menu "Check for updates"). */
+	updateCheck: () => typedError<{
+	version: string,
+	current_version: string,
+	notes: string | null,
+} | null, IpcError>(__TAURI_INVOKE("update_check")),
+	/**  Saves the open campaign, installs the pending update and restarts the app. */
+	updateInstall: () => typedError<null, IpcError>(__TAURI_INVOKE("update_install")),
 };
 
 /** Events */
@@ -63,6 +71,7 @@ export const events = {
 	gameEventsEmitted: makeEvent<GameEventsEmitted>("game-events-emitted"),
 	logRecord: makeEvent<LogRecord>("log-record"),
 	saveStatusChanged: makeEvent<SaveStatusChanged>("save-status-changed"),
+	updateAvailable: makeEvent<UpdateAvailable>("update-available"),
 };
 
 /* Types */
@@ -278,6 +287,13 @@ export type TokenLayer =
 "tokens" | 
 /**  Visible to GM / Co-GM only. */
 "gm";
+
+/**  An update that can be installed. */
+export type UpdateAvailable = {
+	version: string,
+	current_version: string,
+	notes: string | null,
+};
 
 /**  A user known to the campaign (GM, players). */
 export type UserId = string;

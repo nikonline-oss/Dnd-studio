@@ -5,6 +5,7 @@ mod commands;
 mod error;
 mod local_server;
 pub mod logging;
+mod updater;
 
 pub use commands::{AppInfo, AppState, GameEventsEmitted, SaveStatusChanged};
 pub use error::{IpcError, IpcErrorKind};
@@ -40,11 +41,14 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::submit_intent::<tauri::Wry>,
             commands::logs_recent,
             commands::log_frontend,
+            updater::update_check::<tauri::Wry>,
+            updater::update_install::<tauri::Wry>,
         ])
         .events(collect_events![
             GameEventsEmitted,
             SaveStatusChanged,
-            logging::LogRecord
+            logging::LogRecord,
+            updater::UpdateAvailable
         ])
         .typ::<dnd_protocol::ServerMessage>()
 }
@@ -97,6 +101,13 @@ pub fn run() -> Result<(), tauri::Error> {
                 state.dirty.clone(),
             ));
             app.manage(state);
+
+            app.manage(updater::PendingUpdate::default());
+            if updater::is_configured(app.handle()) {
+                app.handle()
+                    .plugin(tauri_plugin_updater::Builder::new().build())?;
+            }
+            tauri::async_runtime::spawn(updater::run(app.handle().clone()));
             Ok(())
         })
         .build(tauri::generate_context!())?;
