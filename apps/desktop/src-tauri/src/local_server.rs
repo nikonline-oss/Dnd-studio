@@ -1,0 +1,211 @@
+//! The in-process "server" for local play (ADR-0001): the same intent pipeline as the session
+//! server, backed by the campaign's SQLite file. Independent of Tauri so it can be tested directly.
+
+use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+use dnd_db::{BatchRecord, CampaignDb, LocalUser};
+use dnd_game_core::{Actor, GameState, SplitMix64, apply, evolve_all};
+use dnd_protocol::{EventBatch, IntentEnvelope, RejectReason, Role, Seq, Snapshot, UserId};
+use serde::Serialize;
+
+use crate::error::IpcError;
+
+/// File name of the database inside a campaign folder.
+pub const CAMPAIGN_FILE: &str = "campaign.sqlite";
+/// Asset folder inside a campaign folder.
+pub const ASSETS_DIR: &str = "assets";
+
+/// What the UI needs to know about the open campaign.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, specta::Type)]
+pub struct CampaignInfo {
+    pub name: String,
+    /// The campaign folder.
+    pub path: String,
+    pub user_id: UserId,
+    pub role: Role,
+}
+
+/// Result of `submit_intent`. A rejection is an expected outcome, not an error.
+#[derive(Clone, Debug, PartialEq, Serialize, specta::Type)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum IntentOutcome {
+    Accepted {
+        /// Sequence number of the last event produced.
+        seq: Seq,
+    },
+    Rejected {
+        reason: RejectReason,
+    },
+}
+
+#[must_use]
+pub fn now_ms() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| i64::try_from(d.as_millis()).unwrap_or(i64::MAX))
+}
+
+fn seed() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| d.as_nanos() as u64)
+}
+
+/// An open campaign and its authoritative state.
+#[derive(Debug)]
+pub struct LocalServer {
+    db: CampaignDb,
+    folder: PathBuf,
+    state: GameState,
+    next_seq: Seq,
+    actor: Actor,
+    rng: SplitMix64,
+}
+
+/// Makes a folder name out of a campaign name: no path separators, reserved characters or
+/// trailing dots/spaces (Windows), at most 64 characters.
+#[must_use]
+pub fn folder_name(name: &str) -> String {
+    let cleaned: String = name
+        .chars()
+        .map(|c| {
+            if c.is_control() || matches!(c, '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*') {
+                '_'
+            } else {
+                c
+            }
+        })
+        .take(64)
+        .collect();
+    let trimmed = cleaned.trim().trim_end_matches(['.', ' ']).to_owned();
+    if trimmed.is_empty() || trimmed.chars().all(|c| c == '.') {
+        "campaign".to_owned()
+    } else {
+        trimmed
+    }
+}
+
+impl LocalServer {
+    /// Creates `<parent>/<folder_name(name)>/` with a new campaign file and an assets folder.
+    pub async fn create(parent: &Path, name: &str) -> Result<Self, IpcError> {
+        let name = name.trim();
+        if name.is_empty() {
+            return Err(IpcError::user("invalid_name", "campaign name is empty"));
+        }
+        let folder = parent.join(folder_name(name));
+        if folder.exists() {
+            return Err(IpcError::user(
+                "already_exists",
+                format!("{} already exists", folder.display()),
+            ));
+        }
+        std::fs::create_dir_all(folder.join(ASSETS_DIR))?;
+        let gm = LocalUser {
+            id: UserId::new_v7(),
+            name: "Game Master".to_owned(),
+            role: Role::Gm,
+        };
+        let db = CampaignDb::create(&folder.join(CAMPAIGN_FILE), name, &gm, now_ms()).await?;
+        tracing::info!(folder = %folder.display(), "campaign created");
+        Self::from_db(db, folder).await
+    }
+
+    /// Opens the campaign in `folder`.
+    pub async fn open(folder: &Path) -> Result<Self, IpcError> {
+        let file = folder.join(CAMPAIGN_FILE);
+        if !file.exists() {
+            return Err(IpcError::user(
+                "not_a_campaign",
+                format!("{} has no {CAMPAIGN_FILE}", folder.display()),
+            ));
+        }
+        let (db, report) = CampaignDb::open(&file, now_ms()).await?;
+        if let Some(backup) = report.pre_migration_backup {
+            tracing::info!(backup = %backup.display(), "campaign migrated");
+        }
+        tracing::info!(folder = %folder.display(), "campaign opened");
+        Self::from_db(db, folder.to_owned()).await
+    }
+
+    async fn from_db(db: CampaignDb, folder: PathBuf) -> Result<Self, IpcError> {
+        let user = db
+            .local_user()
+            .await?
+            .ok_or_else(|| IpcError::internal("no_local_user", "campaign has no local user"))?;
+        let (state, last_seq) = db.load_state().await?;
+        Ok(Self {
+            db,
+            folder,
+            state,
+            next_seq: last_seq.next(),
+            actor: Actor {
+                user_id: user.id,
+                role: user.role,
+            },
+            rng: SplitMix64::new(seed()),
+        })
+    }
+
+    #[must_use]
+    pub fn info(&self) -> CampaignInfo {
+        CampaignInfo {
+            name: self.state.campaign.name.clone(),
+            path: self.folder.display().to_string(),
+            user_id: self.actor.user_id,
+            role: self.actor.role,
+        }
+    }
+
+    #[must_use]
+    pub fn folder(&self) -> &Path {
+        &self.folder
+    }
+
+    #[must_use]
+    pub fn snapshot(&self) -> Snapshot {
+        self.state.to_snapshot(Seq(self.next_seq.0 - 1))
+    }
+
+    /// Runs the intent pipeline: `apply` → persist → `evolve`. State changes only after the
+    /// events are stored, so a storage failure leaves memory and disk consistent.
+    pub async fn submit(
+        &mut self,
+        envelope: IntentEnvelope,
+    ) -> Result<(IntentOutcome, Option<EventBatch>), IpcError> {
+        let events = match apply(&self.state, &envelope, &self.actor, &mut self.rng) {
+            Ok(events) => events,
+            Err(reason) => {
+                tracing::debug!(
+                    intent = envelope.intent.kind(),
+                    code = reason.code(),
+                    "intent rejected"
+                );
+                return Ok((IntentOutcome::Rejected { reason }, None));
+            }
+        };
+        let batch = EventBatch {
+            seq: self.next_seq,
+            caused_by: Some(envelope.intent_id),
+            events,
+        };
+        self.db
+            .project(&[BatchRecord {
+                batch: batch.clone(),
+                actor: Some(self.actor.user_id),
+                at_ms: now_ms(),
+            }])
+            .await?;
+        evolve_all(&mut self.state, &batch.events);
+        let last = batch.last_seq();
+        self.next_seq = last.next();
+        Ok((IntentOutcome::Accepted { seq: last }, Some(batch)))
+    }
+
+    /// Flushes and closes the database.
+    pub async fn close(self) -> Result<(), IpcError> {
+        self.db.close().await?;
+        tracing::info!(folder = %self.folder.display(), "campaign closed");
+        Ok(())
+    }
+}

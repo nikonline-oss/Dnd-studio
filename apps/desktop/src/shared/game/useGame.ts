@@ -1,0 +1,84 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect } from 'react';
+import { applyBatch } from './evolve';
+import {
+  events,
+  IntentRejected,
+  ipc,
+  commands,
+  unwrap,
+  type Intent,
+  type Snapshot,
+} from '@/shared/ipc/client';
+import { uuidv7 } from '@/shared/ipc/uuid';
+
+export const queryKeys = {
+  campaign: ['campaign'] as const,
+  snapshot: ['snapshot'] as const,
+};
+
+/** The open campaign, or `null`. */
+export function useCampaign() {
+  return useQuery({ queryKey: queryKeys.campaign, queryFn: ipc.campaignCurrent });
+}
+
+/** Game state of the open campaign. Kept current by {@link useGameEventsSync}. */
+export function useSnapshot(enabled = true) {
+  return useQuery({ queryKey: queryKeys.snapshot, queryFn: ipc.getSnapshot, enabled });
+}
+
+/** Subscribes once (in the app shell) to game events and patches the snapshot cache. */
+export function useGameEventsSync() {
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    const unlisten = events.gameEventsEmitted.listen(({ payload }) => {
+      const current = queryClient.getQueryData<Snapshot>(queryKeys.snapshot);
+      if (!current) return;
+      const next = applyBatch(current, payload);
+      if (next) {
+        queryClient.setQueryData(queryKeys.snapshot, next);
+      } else {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.snapshot });
+      }
+    });
+    return () => {
+      void unlisten.then((stop) => {
+        stop();
+      });
+    };
+  }, [queryClient]);
+}
+
+export interface IntentRequest {
+  intent: Intent;
+  /** The version the edit is based on (ADR-0003); omit for creations and moves. */
+  expectedVersion?: number;
+}
+
+/**
+ * Sends intents. A rejection becomes an {@link IntentRejected} error; on a stale version the
+ * snapshot is refetched so the user sees the current data.
+ */
+export function useSubmitIntent() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ intent, expectedVersion }: IntentRequest) => {
+      const outcome = await unwrap(
+        commands.submitIntent({
+          intent_id: uuidv7(),
+          expected_version: expectedVersion ?? null,
+          intent,
+        }),
+      );
+      if (outcome.status === 'rejected') {
+        throw new IntentRejected(outcome.reason);
+      }
+      return outcome.seq;
+    },
+    onError: (error) => {
+      if (error instanceof IntentRejected && error.reason.code === 'stale_version') {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.snapshot });
+      }
+    },
+  });
+}

@@ -10,6 +10,7 @@ members = [
     "crates/dnd-assets",
     "crates/dnd-net",
     "apps/session-server",
+    "apps/desktop/src-tauri",
     "tools/plugin-tool",
 ]
 
@@ -47,6 +48,15 @@ time = { version = "0.3.55", features = ["serde", "formatting", "parsing", "macr
 specta = { version = "=2.0.0-rc.25", features = ["derive"] }
 specta-typescript = "=0.0.12"
 specta-serde = "=0.0.12"
+tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }
+
+# desktop (Tauri 2)
+tauri = "2.12.4"
+tauri-build = "2.7.3"
+tauri-plugin-dialog = "2.8.3"
+tauri-plugin-window-state = "2.5.0"
+tauri-plugin-single-instance = "2.5.4"
+tauri-plugin-updater = "2.14.0"
 
 # runtime / storage
 tokio = { version = "1.54.0" }

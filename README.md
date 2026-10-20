@@ -11,7 +11,11 @@ Open-source экосистема для настольных ролевых иг
 
 ## Разработка
 
-Требования: Rust (версия из `rust-toolchain.toml`), Node ≥ 24, pnpm (через `corepack enable pnpm`).
+Требования: Rust (версия из `rust-toolchain.toml`), Node ≥ 24, pnpm (через `corepack enable pnpm`),
+системные зависимости Tauri 2 (https://v2.tauri.app/start/prerequisites/). На Windows нужен
+**WebView2 Runtime** — в редакциях LTSC/IoT он не предустановлен (установщик приложения ставит его сам).
+
+Запуск десктопа: `pnpm --filter @dndstudio/desktop tauri dev`.
 
 ```bash
 bash tools/ci/local-ci.sh

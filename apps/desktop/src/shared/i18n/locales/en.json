@@ -1,0 +1,50 @@
+{
+  "app": {
+    "title": "DndStudio"
+  },
+  "campaign": {
+    "welcome": "Open or create a campaign",
+    "nameLabel": "Campaign name",
+    "namePlaceholder": "Curse of the Lost Mine",
+    "create": "Create…",
+    "open": "Open…",
+    "close": "Close campaign",
+    "createHint": "You will be asked where to create the campaign folder."
+  },
+  "maps": {
+    "title": "Maps",
+    "empty": "No maps yet",
+    "newName": "New map",
+    "add": "Add map",
+    "rename": "Rename",
+    "delete": "Delete",
+    "visible": "Visible to players",
+    "hidden": "Hidden from players"
+  },
+  "tokens": {
+    "title": "Tokens",
+    "noMap": "Select a map",
+    "empty": "No tokens on this map",
+    "newName": "Token",
+    "add": "Add token",
+    "nudge": "Move right",
+    "delete": "Delete"
+  },
+  "errors": {
+    "unknown": "Something went wrong",
+    "no_campaign_open": "No campaign is open",
+    "campaign_corrupt": "The campaign file is damaged",
+    "campaign_too_new": "This campaign was saved by a newer version of DndStudio",
+    "already_exists": "A folder or entity with this name already exists",
+    "not_found": "Not found",
+    "not_a_campaign": "This folder is not a DndStudio campaign",
+    "invalid_name": "Enter a name",
+    "storage_error": "Could not save data",
+    "io_error": "File system error",
+    "stale_version": "Someone changed this before you; the latest version is shown",
+    "missing_expected_version": "Internal error: missing version",
+    "forbidden": "You are not allowed to do this",
+    "invalid": "Invalid value",
+    "protocol_mismatch": "Update the client or the server"
+  }
+}

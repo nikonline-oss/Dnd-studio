@@ -1,0 +1,44 @@
+[package]
+name = "dnd-desktop"
+description = "DndStudio desktop client (Tauri): local in-process server on dnd-game-core, typed IPC."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lib]
+name = "dnd_desktop_lib"
+
+[[bin]]
+name = "dndstudio"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { workspace = true, features = [] }
+
+[dependencies]
+dnd-protocol = { workspace = true, features = ["specta"] }
+dnd-game-core.workspace = true
+dnd-db.workspace = true
+tauri = { workspace = true, features = [] }
+tauri-plugin-dialog.workspace = true
+tauri-plugin-window-state.workspace = true
+tauri-plugin-single-instance.workspace = true
+tauri-specta.workspace = true
+specta.workspace = true
+specta-typescript.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["sync", "time", "macros"] }
+tracing.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+tokio = { workspace = true, features = ["sync", "time", "macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true
