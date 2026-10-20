@@ -1,3 +1,43 @@
-# protocol
+# Протокол
 
-Протокол WS/HTTP (CLAUDE.md §7). Заполняется на этапе 1 (конверт, Intent/Event) и этапе 4.
+Источник истины — крейт `crates/dnd-protocol`; форма JSON закреплена insta-снапшотами в
+`crates/dnd-protocol/tests/snapshots/`, TS-типы — там же (`snapshots__typescript_bindings.snap`).
+Решения о кодировании — [ADR-0007](adr/0007-protocol-encoding.md).
+
+## Конверт
+
+```json
+{ "v": 1, "id": "<uuid>", "ts": 1760000000000, "seq": null,
+  "session_id": "<uuid>|null", "sender": "<uuid>|null",
+  "type": "intent", "payload": { ... } }
+```
+
+`v` ≠ версии получателя → отказ `protocol_mismatch` («обновите клиент/сервер»).
+
+## Сообщения
+
+| Направление     | `type`     | `payload`                                     |
+| --------------- | ---------- | --------------------------------------------- |
+| клиент → сервер | `intent`   | `{ intent_id, expected_version, intent }`     |
+| клиент → сервер | `ping`     | —                                             |
+| клиент → сервер | `resync`   | `{ last_seq }`                                |
+| сервер → клиент | `events`   | `{ seq, caused_by, events[] }`                |
+| сервер → клиент | `snapshot` | `{ seq, campaign, maps, tokens, characters }` |
+| сервер → клиент | `rejected` | `{ intent_id, reason: { code, ... } }`        |
+| сервер → клиент | `pong`     | —                                             |
+
+## Intents (этап 1)
+
+| `kind`                 | Версия         | Кто может                                        |
+| ---------------------- | -------------- | ------------------------------------------------ |
+| `update_campaign_meta` | проверяется    | GM, Co-GM                                        |
+| `create_map`           | —              | GM, Co-GM                                        |
+| `update_map`           | проверяется    | GM, Co-GM                                        |
+| `delete_map`           | проверяется    | GM, Co-GM (каскадно удаляет токены)              |
+| `create_token`         | —              | GM, Co-GM                                        |
+| `update_token`         | проверяется    | GM, Co-GM                                        |
+| `move_token`           | LWW, не растёт | GM, Co-GM; Player — свои токены на видимой карте |
+| `delete_token`         | проверяется    | GM, Co-GM                                        |
+
+Spectator не может ничего. Коды отказов: `stale_version`, `missing_expected_version`, `forbidden`,
+`not_found`, `already_exists`, `invalid`, `protocol_mismatch`.

@@ -8,7 +8,29 @@ license.workspace = true
 repository.workspace = true
 publish.workspace = true
 
+[features]
+default = []
+# Derives `specta::Type` for TypeScript export. Kept optional so the protocol stays
+# usable without any TS tooling (e.g. the session server).
+specta = ["dep:specta", "dep:specta-typescript"]
+# Proptest strategies for protocol types, shared with dnd-game-core and dnd-db tests.
+arbitrary = ["dep:proptest"]
+
 [dependencies]
+serde.workspace = true
+uuid.workspace = true
+thiserror.workspace = true
+specta = { workspace = true, optional = true, features = ["derive", "uuid"] }
+proptest = { workspace = true, optional = true }
+specta-typescript = { workspace = true, optional = true }
+
+[dev-dependencies]
+# Enable test-only features for this crate's own integration tests.
+dnd-protocol = { path = ".", features = ["arbitrary", "specta"] }
+serde_json.workspace = true
+proptest.workspace = true
+insta.workspace = true
+specta-serde.workspace = true
 
 [lints]
 workspace = true

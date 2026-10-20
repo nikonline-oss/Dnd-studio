@@ -40,7 +40,8 @@ thiserror = "2.0.21"
 
 # serialization / types
 serde = { version = "1.0.229", features = ["derive"] }
-serde_json = "1.0.154"
+# float_roundtrip: positions/sizes must survive JSON exactly (found by proptest).
+serde_json = { version = "1.0.154", features = ["float_roundtrip"] }
 uuid = { version = "1.28.0", features = ["v7", "serde"] }
 time = { version = "0.3.55", features = ["serde", "formatting", "parsing", "macros"] }
 specta = { version = "=2.0.0-rc.25", features = ["derive"] }
