@@ -1,20 +1,15 @@
+import { v7, validate, version } from 'uuid';
+
 /**
- * UUID v7 (RFC 9562): 48-bit unix-ms timestamp + random bits. Entity and intent ids are
- * generated on the client (ADR-0007); time ordering keeps database indexes compact.
+ * The only place that generates ids (ESLint forbids `crypto.randomUUID` and `uuid` elsewhere).
+ * Entity and intent ids are client-generated UUIDv7 (ADR-0007, ADR-0015); the server checks only
+ * the version and format and never interprets the embedded timestamp.
  */
-export function uuidv7(
-  now: number = Date.now(),
-  random: Uint8Array = crypto.getRandomValues(new Uint8Array(10)),
-): string {
-  const bytes = new Uint8Array(16);
-  let ts = Math.max(0, Math.floor(now));
-  for (let i = 5; i >= 0; i--) {
-    bytes[i] = ts % 256;
-    ts = Math.floor(ts / 256);
-  }
-  bytes.set(random.subarray(0, 10), 6);
-  bytes[6] = 0x70 | ((bytes[6] ?? 0) & 0x0f);
-  bytes[8] = 0x80 | ((bytes[8] ?? 0) & 0x3f);
-  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+export function uuidv7(): string {
+  return v7();
+}
+
+/** Whether `id` is a well-formed UUID version 7. */
+export function isUuidV7(id: string): boolean {
+  return validate(id) && version(id) === 7;
 }

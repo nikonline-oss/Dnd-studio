@@ -138,3 +138,13 @@ proptest! {
         prop_assert_eq!(PayloadHash::from_hex(&hash.to_hex()), Some(hash));
     }
 }
+
+/// Only the version and format are checked; the embedded timestamp means nothing to the server
+/// (past, future and zero timestamps are equally valid).
+#[test]
+fn uuid_v7_timestamp_is_not_interpreted() {
+    for ms in [0u64, 1, 1_760_000_000_000, (1 << 48) - 1] {
+        let id = uuid::Builder::from_unix_timestamp_millis(ms, &[0xAB; 10]).into_uuid();
+        assert!(is_uuid_v7(&id), "{ms}");
+    }
+}
