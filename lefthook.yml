@@ -18,7 +18,7 @@ pre-commit:
     - name: eslint
       root: apps/desktop/
       glob: '*.{ts,tsx,js}'
-      run: pnpm exec eslint {staged_files}
+      run: pnpm exec eslint --no-warn-ignored {staged_files}
 
     - name: tsc
       root: apps/desktop/
