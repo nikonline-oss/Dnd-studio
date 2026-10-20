@@ -50,13 +50,13 @@ export function TokenList() {
         {tokens.map((token) => (
           <li key={token.id}>
             <span>
-              {token.name} ({token.x}, {token.y})
+              {token.name} ({token.x / 16}, {token.y / 16})
             </span>
             <button
               type="button"
               onClick={() => {
                 submit.mutate({
-                  intent: { kind: 'move_token', id: token.id, x: token.x + 70, y: token.y },
+                  intent: { kind: 'move_token', id: token.id, x: token.x + 70 * 16, y: token.y },
                 });
               }}
             >

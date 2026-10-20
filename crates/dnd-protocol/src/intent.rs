@@ -30,6 +30,11 @@ pub enum Intent {
         id: MapId,
         name: String,
         background_asset_id: Option<AssetId>,
+        /// Logical size (ADR-0016), `1..=MAX_MAP_SIZE`; fixed for the life of the map.
+        #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
+        width: i64,
+        #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
+        height: i64,
         grid: Grid,
         visible_to_players: bool,
     },
@@ -50,9 +55,9 @@ pub enum Intent {
         asset_id: Option<AssetId>,
         name: String,
         #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
-        x: f64,
+        x: i64,
         #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
-        y: f64,
+        y: i64,
         #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
         rotation: f64,
         #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
@@ -74,9 +79,9 @@ pub enum Intent {
     MoveToken {
         id: TokenId,
         #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
-        x: f64,
+        x: i64,
         #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
-        y: f64,
+        y: i64,
     },
     DeleteToken {
         id: TokenId,

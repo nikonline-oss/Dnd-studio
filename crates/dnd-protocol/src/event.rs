@@ -36,9 +36,9 @@ pub enum Event {
     TokenMoved {
         id: TokenId,
         #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
-        x: f64,
+        x: i64,
         #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
-        y: f64,
+        y: i64,
     },
     TokenDeleted {
         id: TokenId,

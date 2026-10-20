@@ -22,6 +22,8 @@ fn map(n: u128, name: &str, version: i64) -> MapDto {
         id: MapId(v7(0x100 + n)),
         name: name.into(),
         background_asset_id: None,
+        width: 1200,
+        height: 800,
         grid: Grid {
             kind: GridKind::HexFlat,
             cell_size: 50.0,
@@ -40,8 +42,8 @@ fn token(n: u128, map_n: u128, version: i64) -> TokenDto {
         character_id: None,
         asset_id: None,
         name: format!("T{n}"),
-        x: 10.25,
-        y: -3.5,
+        x: 164,
+        y: 56,
         rotation: 90.0,
         scale: 1.5,
         layer: TokenLayer::Gm,
@@ -137,14 +139,14 @@ async fn every_event_kind_is_projected() {
             vec![
                 Event::TokenMoved {
                     id: TokenId(v7(0x201)),
-                    x: 70.0,
-                    y: 140.0,
+                    x: 1120,
+                    y: 2240,
                 },
                 // A move of an unknown token is a no-op, not an error.
                 Event::TokenMoved {
                     id: TokenId(v7(0x2FF)),
-                    x: 1.0,
-                    y: 1.0,
+                    x: 16,
+                    y: 16,
                 },
             ],
         ),
@@ -175,8 +177,8 @@ async fn every_event_kind_is_projected() {
         [map(1, "Uno", 2)]
     );
     let mut moved = token(1, 1, 2);
-    moved.x = 70.0;
-    moved.y = 140.0;
+    moved.x = 1120;
+    moved.y = 2240;
     assert_eq!(state.tokens.values().cloned().collect::<Vec<_>>(), [moved]);
 
     let rows = sqlx::query(

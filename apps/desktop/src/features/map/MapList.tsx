@@ -25,6 +25,9 @@ export function MapList() {
           id,
           name: `${t('maps.newName')} ${maps.length + 1}`,
           background_asset_id: null,
+          // Logical size without a background image (ADR-0016); fixed after creation.
+          width: 4000,
+          height: 3000,
           grid: DEFAULT_GRID,
           visible_to_players: false,
         },

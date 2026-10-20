@@ -24,7 +24,7 @@ pub enum GridKind {
     HexPointy,
 }
 
-/// Grid settings of a map. All lengths are in map pixels.
+/// Grid settings of a map. Lengths are in logical map units (ADR-0016).
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct Grid {
@@ -55,6 +55,12 @@ pub struct MapDto {
     pub id: MapId,
     pub name: String,
     pub background_asset_id: Option<AssetId>,
+    /// Logical width (ADR-0016); fixed at creation. The background image is stretched onto it.
+    #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
+    pub width: i64,
+    /// Logical height (ADR-0016).
+    #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
+    pub height: i64,
     pub grid: Grid,
     pub visible_to_players: bool,
     pub version: Version,
@@ -83,9 +89,10 @@ pub struct TokenDto {
     pub asset_id: Option<AssetId>,
     pub name: String,
     #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
-    pub x: f64,
+    /// Position in 1/16 logical map units (ADR-0016), `0..=width*16`.
+    pub x: i64,
     #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
-    pub y: f64,
+    pub y: i64,
     /// Degrees, clockwise.
     #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
     pub rotation: f64,
@@ -105,3 +112,9 @@ pub struct CharacterRef {
     pub name: String,
     pub owner: Option<UserId>,
 }
+
+/// Positions are stored in 1/16 of a logical map unit (ADR-0016).
+pub const UNITS16_PER_UNIT: i64 = 16;
+
+/// Largest map width/height in logical units (ADR-0016).
+pub const MAX_MAP_SIZE: i64 = 65_536;

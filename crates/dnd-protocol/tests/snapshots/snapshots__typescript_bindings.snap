@@ -43,7 +43,7 @@ export type EventBatch = {
 	events: Event[],
 };
 
-/**  Grid settings of a map. All lengths are in map pixels. */
+/**  Grid settings of a map. Lengths are in logical map units (ADR-0016). */
 export type Grid = {
 	kind: GridKind,
 	cell_size: number,
@@ -55,7 +55,9 @@ export type Grid = {
 export type GridKind = "none" | "square" | "hex_flat" | "hex_pointy";
 
 /**  A request to change state. Update intents carry only the fields to change (`null` = keep). */
-export type Intent = { kind: "update_campaign_meta"; name: string | null; description: string | null } | { kind: "create_map"; id: MapId; name: string; background_asset_id: AssetId | null; grid: Grid; visible_to_players: boolean } | { kind: "update_map"; id: MapId; name: string | null; grid: Grid | null; visible_to_players: boolean | null } | { kind: "delete_map"; id: MapId } | { kind: "create_token"; id: TokenId; map_id: MapId; character_id: CharacterId | null; asset_id: AssetId | null; name: string; x: number; y: number; rotation: number; scale: number; layer: TokenLayer; visible: boolean } | { kind: "update_token"; id: TokenId; name: string | null; rotation: number | null; scale: number | null; layer: TokenLayer | null; visible: boolean | null } | 
+export type Intent = { kind: "update_campaign_meta"; name: string | null; description: string | null } | { kind: "create_map"; id: MapId; name: string; background_asset_id: AssetId | null; 
+/**  Logical size (ADR-0016), `1..=MAX_MAP_SIZE`; fixed for the life of the map. */
+width: number; height: number; grid: Grid; visible_to_players: boolean } | { kind: "update_map"; id: MapId; name: string | null; grid: Grid | null; visible_to_players: boolean | null } | { kind: "delete_map"; id: MapId } | { kind: "create_token"; id: TokenId; map_id: MapId; character_id: CharacterId | null; asset_id: AssetId | null; name: string; x: number; y: number; rotation: number; scale: number; layer: TokenLayer; visible: boolean } | { kind: "update_token"; id: TokenId; name: string | null; rotation: number | null; scale: number | null; layer: TokenLayer | null; visible: boolean | null } | 
 /**  Last-write-wins: no version check, does not bump the token version (ADR-0003). */
 { kind: "move_token"; id: TokenId; x: number; y: number } | { kind: "delete_token"; id: TokenId };
 
@@ -86,6 +88,10 @@ export type MapDto = {
 	id: MapId,
 	name: string,
 	background_asset_id: AssetId | null,
+	/**  Logical width (ADR-0016); fixed at creation. The background image is stretched onto it. */
+	width: number,
+	/**  Logical height (ADR-0016). */
+	height: number,
 	grid: Grid,
 	visible_to_players: boolean,
 	version: Version,
@@ -152,6 +158,7 @@ export type TokenDto = {
 	character_id: CharacterId | null,
 	asset_id: AssetId | null,
 	name: string,
+	/**  Position in 1/16 logical map units (ADR-0016), `0..=width*16`. */
 	x: number,
 	y: number,
 	/**  Degrees, clockwise. */

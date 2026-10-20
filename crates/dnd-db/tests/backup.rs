@@ -204,3 +204,59 @@ async fn author_names_are_backfilled_kept_and_immutable() {
             .unwrap();
     assert_eq!((sender, name.as_str()), (None, "Ann"));
 }
+
+/// Migration 0005 (ADR-0016): maps get 4000×3000, float positions become Units16, rounded and
+/// clamped onto the map.
+#[tokio::test]
+async fn float_positions_are_converted_to_units16() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("v4.sqlite");
+    {
+        let opts = sqlx::sqlite::SqliteConnectOptions::new()
+            .filename(&path)
+            .create_if_missing(true)
+            .foreign_keys(true);
+        let pool = sqlx::SqlitePool::connect_with(opts).await.unwrap();
+        CAMPAIGN_MIGRATOR.run_to(4, &pool).await.unwrap();
+        for sql in [
+            "INSERT INTO campaign_meta (key, value) VALUES ('campaign.name', 'Old')",
+            "INSERT INTO maps (id, name, grid_kind, grid_cell_size, visible_to_players) \
+             VALUES ('0190a000-0000-7000-8000-00000000000f', 'Map', 'square', 70.0, 1)",
+            "INSERT INTO tokens (id, map_id, x, y, layer, visible) VALUES ('0190a000-0000-7000-8000-00000000000a', '0190a000-0000-7000-8000-00000000000f', 70.4, 35.53, 'tokens', 1)",
+            "INSERT INTO tokens (id, map_id, x, y, layer, visible) VALUES ('0190a000-0000-7000-8000-00000000000b', '0190a000-0000-7000-8000-00000000000f', -3011.6, 99999.0, 'gm', 0)",
+        ] {
+            sqlx::query(sql).execute(&pool).await.unwrap();
+        }
+        pool.close().await;
+    }
+
+    let (db, report) = CampaignDb::open(&path, 7).await.unwrap();
+    assert!(report.pre_migration_backup.is_some());
+    let pool = db.pool();
+    let size: (i64, i64) = sqlx::query_as("SELECT width, height FROM maps")
+        .fetch_one(pool)
+        .await
+        .unwrap();
+    assert_eq!(size, (4000, 3000));
+    let positions: Vec<(String, i64, i64)> =
+        sqlx::query_as("SELECT id, x, y FROM tokens ORDER BY id")
+            .fetch_all(pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        positions,
+        [
+            ("0190a000-0000-7000-8000-00000000000a".into(), 1126, 568),
+            ("0190a000-0000-7000-8000-00000000000b".into(), 0, 3000 * 16)
+        ]
+    );
+    // The rebuilt table keeps its constraints and indexes.
+    assert!(
+        sqlx::query("UPDATE tokens SET x = -1")
+            .execute(pool)
+            .await
+            .is_err()
+    );
+    let (state, _) = db.load_state().await.unwrap();
+    assert_eq!(state.tokens.len(), 2);
+}

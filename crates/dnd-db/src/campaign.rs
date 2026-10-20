@@ -359,9 +359,9 @@ async fn get_meta(pool: &SqlitePool, key: &str) -> DbResult<Option<String>> {
 
 async fn upsert_map(conn: &mut SqliteConnection, map: &MapDto) -> DbResult<()> {
     sqlx::query(
-        "INSERT INTO maps (id, name, background_asset_id, grid_kind, grid_cell_size, \
-             grid_offset_x, grid_offset_y, visible_to_players, version) \
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) \
+        "INSERT INTO maps (id, name, background_asset_id, width, height, grid_kind, \
+             grid_cell_size, grid_offset_x, grid_offset_y, visible_to_players, version) \
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) \
          ON CONFLICT (id) DO UPDATE SET \
              name = excluded.name, background_asset_id = excluded.background_asset_id, \
              grid_kind = excluded.grid_kind, grid_cell_size = excluded.grid_cell_size, \
@@ -371,6 +371,8 @@ async fn upsert_map(conn: &mut SqliteConnection, map: &MapDto) -> DbResult<()> {
     .bind(map.id.to_string())
     .bind(&map.name)
     .bind(map.background_asset_id.map(|a| a.to_string()))
+    .bind(map.width)
+    .bind(map.height)
     .bind(enum_to_str(&map.grid.kind)?)
     .bind(map.grid.cell_size)
     .bind(map.grid.offset_x)
@@ -419,6 +421,8 @@ fn map_from_row(row: &SqliteRow) -> DbResult<MapDto> {
             row.try_get("background_asset_id")?,
         )?
         .map(dnd_protocol::AssetId),
+        width: row.try_get("width")?,
+        height: row.try_get("height")?,
         grid: Grid {
             kind: enum_from_str::<GridKind>(
                 "maps.grid_kind",

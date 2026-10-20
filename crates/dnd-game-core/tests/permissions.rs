@@ -24,6 +24,8 @@ fn intents() -> Vec<(&'static str, Intent)> {
                 id: pooled_map_id(2),
                 name: "New".into(),
                 background_asset_id: None,
+                width: 4000,
+                height: 3000,
                 grid: Grid::default(),
                 visible_to_players: true,
             },
@@ -51,8 +53,8 @@ fn intents() -> Vec<(&'static str, Intent)> {
                 character_id: None,
                 asset_id: None,
                 name: "Orc".into(),
-                x: 1.0,
-                y: 2.0,
+                x: 1,
+                y: 2,
                 rotation: 0.0,
                 scale: 1.0,
                 layer: TokenLayer::Tokens,
@@ -74,48 +76,48 @@ fn intents() -> Vec<(&'static str, Intent)> {
             "move_own_token",
             Intent::MoveToken {
                 id: pooled_token_id(0),
-                x: 10.0,
-                y: 10.0,
+                x: 10,
+                y: 10,
             },
         ),
         (
             "move_foreign_token",
             Intent::MoveToken {
                 id: pooled_token_id(1),
-                x: 10.0,
-                y: 10.0,
+                x: 10,
+                y: 10,
             },
         ),
         (
             "move_own_token_on_gm_layer",
             Intent::MoveToken {
                 id: pooled_token_id(2),
-                x: 10.0,
-                y: 10.0,
+                x: 10,
+                y: 10,
             },
         ),
         (
             "move_npc_token",
             Intent::MoveToken {
                 id: pooled_token_id(3),
-                x: 10.0,
-                y: 10.0,
+                x: 10,
+                y: 10,
             },
         ),
         (
             "move_own_token_on_hidden_map",
             Intent::MoveToken {
                 id: pooled_token_id(4),
-                x: 10.0,
-                y: 10.0,
+                x: 10,
+                y: 10,
             },
         ),
         (
             "move_missing_token",
             Intent::MoveToken {
                 id: pooled_token_id(5),
-                x: 10.0,
-                y: 10.0,
+                x: 10,
+                y: 10,
             },
         ),
         (
@@ -164,15 +166,15 @@ fn player_move_goes_through_full_pipeline() {
         Role::Player,
         Intent::MoveToken {
             id: pooled_token_id(0),
-            x: 35.0,
-            y: 70.0,
+            x: 35,
+            y: 70,
         },
         None,
     )
     .unwrap();
     assert_eq!(events.len(), 1);
     let token = &state.tokens[&pooled_token_id(0)];
-    assert_eq!((token.x, token.y), (35.0, 70.0));
+    assert_eq!((token.x, token.y), (35, 70));
 }
 
 #[test]
@@ -183,8 +185,8 @@ fn spectator_cannot_even_move() {
         Role::Spectator,
         Intent::MoveToken {
             id: pooled_token_id(0),
-            x: 1.0,
-            y: 1.0,
+            x: 1,
+            y: 1,
         },
         None,
     );

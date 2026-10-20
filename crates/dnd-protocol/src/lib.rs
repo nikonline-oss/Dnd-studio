@@ -25,6 +25,7 @@ pub use ids::{
 pub use intent::{Intent, IntentEnvelope, IntentOutcome, PayloadHash, VersionPolicy};
 pub use message::{ClientMessage, Envelope, Rejection, ServerMessage};
 pub use model::{CampaignMeta, CharacterRef, Grid, GridKind, MapDto, TokenDto, TokenLayer};
+pub use model::{MAX_MAP_SIZE, UNITS16_PER_UNIT};
 pub use snapshot::Snapshot;
 /// Re-exported so dependants use the exact same UUID type.
 pub use uuid::Uuid;
@@ -32,7 +33,7 @@ pub use validate::{MAX_SAFE_INTEGER, is_js_safe, is_uuid_v7};
 
 /// Protocol version. Peers with a different version are refused with
 /// [`RejectReason::ProtocolMismatch`].
-pub const PROTOCOL_VERSION: u32 = 1;
+pub const PROTOCOL_VERSION: u32 = 2;
 
 /// Registers every protocol type that is exported to TypeScript.
 #[cfg(feature = "specta")]

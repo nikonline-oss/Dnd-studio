@@ -67,6 +67,8 @@ fn created_entity_ids_must_be_v7() {
             id: MapId(id),
             name: "M".into(),
             background_asset_id: None,
+            width: 100,
+            height: 100,
             grid: Grid::default(),
             visible_to_players: false,
         },
@@ -112,8 +114,8 @@ fn payload_hash_is_stable_and_ignores_intent_id() {
         expected_version: Some(Version(3)),
         intent: Intent::MoveToken {
             id: TokenId(v7(2)),
-            x: 70.0,
-            y: 35.5,
+            x: 1120,
+            y: 568,
         },
     };
     insta::assert_snapshot!(env.payload_hash().to_hex());

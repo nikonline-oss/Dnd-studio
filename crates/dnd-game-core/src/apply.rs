@@ -69,6 +69,8 @@ pub fn apply(
             id,
             name,
             background_asset_id,
+            width,
+            height,
             grid,
             visible_to_players,
         } => {
@@ -76,6 +78,8 @@ pub fn apply(
                 id: *id,
                 name: valid_name(name, "name")?,
                 background_asset_id: *background_asset_id,
+                width: valid_map_size(*width, "width")?,
+                height: valid_map_size(*height, "height")?,
                 grid: valid_grid(*grid)?,
                 visible_to_players: *visible_to_players,
                 version: Version::INITIAL,
@@ -128,9 +132,8 @@ pub fn apply(
             layer,
             visible,
         } => {
-            if !state.maps.contains_key(map_id) {
-                return Err(RejectReason::NotFound);
-            }
+            let map = state.maps.get(map_id).ok_or(RejectReason::NotFound)?;
+            let (x, y) = on_map(map, *x, *y)?;
             if let Some(character_id) = character_id
                 && !state.characters.contains_key(character_id)
             {
@@ -142,8 +145,8 @@ pub fn apply(
                 character_id: *character_id,
                 asset_id: *asset_id,
                 name: valid_token_name(name)?,
-                x: finite(*x, "x")?,
-                y: finite(*y, "y")?,
+                x,
+                y,
                 rotation: valid_rotation(*rotation)?,
                 scale: valid_scale(*scale)?,
                 layer: *layer,
@@ -194,14 +197,13 @@ pub fn apply(
         }
 
         Intent::MoveToken { id, x, y } => {
-            if !state.tokens.contains_key(id) {
-                return Err(RejectReason::NotFound);
-            }
-            Ok(vec![Event::TokenMoved {
-                id: *id,
-                x: finite(*x, "x")?,
-                y: finite(*y, "y")?,
-            }])
+            let token = state.tokens.get(id).ok_or(RejectReason::NotFound)?;
+            let map = state
+                .maps
+                .get(&token.map_id)
+                .ok_or(RejectReason::NotFound)?;
+            let (x, y) = on_map(map, *x, *y)?;
+            Ok(vec![Event::TokenMoved { id: *id, x, y }])
         }
 
         Intent::DeleteToken { id } => Ok(vec![Event::TokenDeleted { id: *id }]),
@@ -289,4 +291,25 @@ fn bump(version: Version) -> Result<Version, RejectReason> {
     version
         .checked_next()
         .ok_or_else(|| RejectReason::invalid("version"))
+}
+
+/// Logical map size, `1..=MAX_MAP_SIZE` (ADR-0016).
+fn valid_map_size(size: i64, field: &str) -> Result<i64, RejectReason> {
+    if (1..=dnd_protocol::MAX_MAP_SIZE).contains(&size) {
+        Ok(size)
+    } else {
+        Err(RejectReason::invalid(field))
+    }
+}
+
+/// A position in Units16 must lie on the map: `0..=width*16`, `0..=height*16` (ADR-0016).
+fn on_map(map: &MapDto, x: i64, y: i64) -> Result<(i64, i64), RejectReason> {
+    let per = dnd_protocol::UNITS16_PER_UNIT;
+    if !(0..=map.width.saturating_mul(per)).contains(&x) {
+        return Err(RejectReason::invalid("x"));
+    }
+    if !(0..=map.height.saturating_mul(per)).contains(&y) {
+        return Err(RejectReason::invalid("y"));
+    }
+    Ok((x, y))
 }

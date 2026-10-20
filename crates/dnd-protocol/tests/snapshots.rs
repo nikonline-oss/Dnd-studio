@@ -20,8 +20,8 @@ fn sample_token() -> TokenDto {
         character_id: None,
         asset_id: None,
         name: "Goblin".into(),
-        x: 140.0,
-        y: 210.0,
+        x: 2240,
+        y: 3360,
         rotation: 0.0,
         scale: 1.0,
         layer: TokenLayer::Tokens,
@@ -48,8 +48,8 @@ fn client_messages_json() {
             expected_version: None,
             intent: Intent::MoveToken {
                 id: TokenId(Uuid::from_u128(20)),
-                x: 70.0,
-                y: 35.5,
+                x: 1120,
+                y: 568,
             },
         })),
         envelope(ClientMessage::Ping),
@@ -69,8 +69,8 @@ fn server_messages_json() {
             },
             Event::TokenMoved {
                 id: TokenId(Uuid::from_u128(20)),
-                x: 70.0,
-                y: 35.5,
+                x: 1120,
+                y: 568,
             },
         ],
     }));

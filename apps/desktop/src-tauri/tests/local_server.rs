@@ -20,6 +20,8 @@ fn create_map(id: MapId) -> IntentEnvelope {
             id,
             name: "Cave".into(),
             background_asset_id: None,
+            width: 4000,
+            height: 3000,
             grid: Grid::default(),
             visible_to_players: false,
         },
@@ -59,8 +61,8 @@ async fn intents_persist_across_reopen() {
                 character_id: None,
                 asset_id: None,
                 name: "Goblin".into(),
-                x: 0.0,
-                y: 0.0,
+                x: 0,
+                y: 0,
                 rotation: 0.0,
                 scale: 1.0,
                 layer: TokenLayer::Tokens,
@@ -74,8 +76,8 @@ async fn intents_persist_across_reopen() {
         .submit(&envelope(
             Intent::MoveToken {
                 id: token_id,
-                x: 70.0,
-                y: 140.0,
+                x: 1120,
+                y: 2240,
             },
             None,
         ))

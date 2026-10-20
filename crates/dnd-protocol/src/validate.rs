@@ -61,6 +61,24 @@ impl Seq {
 }
 
 impl Intent {
+    /// Every integer field of the intent, for the JS-safe range check (ADR-0015, ADR-0016).
+    #[must_use]
+    pub fn integers(&self) -> Vec<(&'static str, i64)> {
+        match self {
+            Self::CreateMap { width, height, .. } => vec![("width", *width), ("height", *height)],
+            Self::CreateToken { x, y, .. } | Self::MoveToken { x, y, .. } => {
+                vec![("x", *x), ("y", *y)]
+            }
+            Self::UpdateCampaignMeta { .. }
+            | Self::UpdateMap { .. }
+            | Self::DeleteMap { .. }
+            | Self::UpdateToken { .. }
+            | Self::DeleteToken { .. } => Vec::new(),
+        }
+    }
+}
+
+impl Intent {
     /// Ids of entities this intent creates. They must be client-generated UUIDv7 (ADR-0007).
     #[must_use]
     pub fn created_id(&self) -> Option<Uuid> {
@@ -83,6 +101,9 @@ impl IntentEnvelope {
         uuid_v7(&self.intent_id.0, "intent_id")?;
         if let Some(version) = self.expected_version {
             js_safe(version.0, "expected_version")?;
+        }
+        for (field, value) in self.intent.integers() {
+            js_safe(value, field)?;
         }
         if let Some(id) = self.intent.created_id() {
             uuid_v7(&id, "id")?;

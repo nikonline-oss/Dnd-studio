@@ -6,6 +6,8 @@ const map = (id: string, version = 1): MapDto => ({
   id,
   name: `Map ${id}`,
   background_asset_id: null,
+  width: 4000,
+  height: 3000,
   grid: { kind: 'square', cell_size: 70, offset_x: 0, offset_y: 0 },
   visible_to_players: false,
   version,

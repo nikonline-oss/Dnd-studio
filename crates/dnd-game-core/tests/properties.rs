@@ -129,7 +129,11 @@ fn simulate(
                 "dangling token {:?}",
                 token.id
             );
-            prop_assert!(token.x.is_finite() && token.y.is_finite());
+            // ADR-0016: positions stay on their map.
+            let map = &state.maps[&token.map_id];
+            prop_assert!(
+                (0..=map.width * 16).contains(&token.x) && (0..=map.height * 16).contains(&token.y)
+            );
             prop_assert!((0.0..360.0).contains(&token.rotation) && token.scale > 0.0);
         }
 

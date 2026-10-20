@@ -72,17 +72,17 @@ fn gm_has_no_implicit_priority_over_versions() {
 fn move_token_is_last_write_wins_and_keeps_version() {
     let mut state = table_state();
     let id = pooled_token_id(3);
-    for (x, expected) in [(10.0, None), (20.0, Some(Version(42)))] {
+    for (x, expected) in [(10, None), (20, Some(Version(42)))] {
         run(
             &mut state,
             Role::Gm,
-            Intent::MoveToken { id, x, y: 0.0 },
+            Intent::MoveToken { id, x, y: 0 },
             expected,
         )
         .unwrap();
     }
     let token = &state.tokens[&id];
-    assert_eq!(token.x, 20.0);
+    assert_eq!(token.x, 20);
     assert_eq!(token.version, Version::INITIAL);
 
     // A concurrent property edit based on the pre-move version still applies.
@@ -130,8 +130,8 @@ fn create_rejects_duplicates_and_dangling_references() {
         character_id: character.map(pooled_character_id),
         asset_id: None,
         name: "T".into(),
-        x: 0.0,
-        y: 0.0,
+        x: 0,
+        y: 0,
         rotation: 0.0,
         scale: 1.0,
         layer: TokenLayer::Tokens,
@@ -182,16 +182,16 @@ fn validation() {
         (
             Intent::MoveToken {
                 id: pooled_token_id(0),
-                x: f64::NAN,
-                y: 0.0,
+                x: -1,
+                y: 0,
             },
             "x",
         ),
         (
             Intent::MoveToken {
                 id: pooled_token_id(0),
-                x: 0.0,
-                y: f64::INFINITY,
+                x: 0,
+                y: 3000 * 16 + 1,
             },
             "y",
         ),
@@ -246,8 +246,8 @@ fn snapshot_roundtrip() {
 fn move_token(n: u128) -> Intent {
     Intent::MoveToken {
         id: pooled_token_id(n),
-        x: 140.0,
-        y: 140.0,
+        x: 140,
+        y: 140,
     }
 }
 
@@ -284,8 +284,8 @@ fn stale_move_after_delete_does_not_resurrect() {
             },
             Event::TokenMoved {
                 id: pooled_token_id(3),
-                x: 1.0,
-                y: 1.0,
+                x: 1,
+                y: 1,
             },
         ],
     );
@@ -377,6 +377,8 @@ fn created_ids_must_not_collide_with_any_entity_kind() {
         id: MapId(id),
         name: "M".into(),
         background_asset_id: None,
+        width: 4000,
+        height: 3000,
         grid: Grid::default(),
         visible_to_players: false,
     };
@@ -396,8 +398,8 @@ fn created_ids_must_not_collide_with_any_entity_kind() {
         character_id: None,
         asset_id: None,
         name: "T".into(),
-        x: 0.0,
-        y: 0.0,
+        x: 0,
+        y: 0,
         rotation: 0.0,
         scale: 1.0,
         layer: TokenLayer::Tokens,
@@ -453,4 +455,55 @@ fn version_overflow_is_rejected() {
         run(&mut state, Role::Gm, rename_map("X"), Some(max)),
         Err(RejectReason::invalid("version"))
     );
+}
+
+/// ADR-0016: positions are Units16 within `0..=width*16` × `0..=height*16`, edges inclusive.
+#[test]
+fn positions_must_lie_on_the_map() {
+    let mut state = table_state();
+    let id = pooled_token_id(3);
+    let (w, h) = (4000 * 16, 3000 * 16);
+    for (x, y) in [(0, 0), (w, h), (w, 0), (0, h)] {
+        assert!(
+            run(&mut state, Role::Gm, Intent::MoveToken { id, x, y }, None).is_ok(),
+            "({x}, {y})"
+        );
+    }
+    for (x, y, field) in [(-1, 0, "x"), (w + 1, 0, "x"), (0, -1, "y"), (0, h + 1, "y")] {
+        assert_eq!(
+            run(&mut state, Role::Gm, Intent::MoveToken { id, x, y }, None),
+            Err(RejectReason::invalid(field)),
+            "({x}, {y})"
+        );
+    }
+}
+
+/// ADR-0016: map size is `1..=MAX_MAP_SIZE` logical units.
+#[test]
+fn map_size_is_bounded() {
+    let create = |width: i64, height: i64| Intent::CreateMap {
+        id: pooled_map_id(2),
+        name: "M".into(),
+        background_asset_id: None,
+        width,
+        height,
+        grid: Grid::default(),
+        visible_to_players: false,
+    };
+    let max = dnd_protocol::MAX_MAP_SIZE;
+    for (w, h, field) in [
+        (0, 10, "width"),
+        (max + 1, 10, "width"),
+        (10, 0, "height"),
+        (10, -5, "height"),
+    ] {
+        let mut state = table_state();
+        assert_eq!(
+            run(&mut state, Role::Gm, create(w, h), None),
+            Err(RejectReason::invalid(field))
+        );
+    }
+    let mut state = table_state();
+    run(&mut state, Role::Gm, create(max, 1), None).unwrap();
+    assert_eq!(state.maps[&pooled_map_id(2)].width, max);
 }

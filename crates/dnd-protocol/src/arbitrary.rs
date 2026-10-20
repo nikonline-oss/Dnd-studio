@@ -66,9 +66,20 @@ pub fn version() -> impl Strategy<Value = Version> {
     (0i64..8).prop_map(Version)
 }
 
-/// Finite coordinates / sizes.
-pub fn coord() -> impl Strategy<Value = f64> {
+/// Finite grid offsets (logical units).
+pub fn offset() -> impl Strategy<Value = f64> {
     -10_000.0f64..10_000.0
+}
+
+/// Positions in Units16 (ADR-0016): mostly inside every generated map (maps are at least
+/// 1000 units wide, i.e. 16 000 Units16), sometimes negative to exercise rejections.
+pub fn position() -> impl Strategy<Value = i64> {
+    -100i64..=16_000
+}
+
+/// Logical map sizes.
+pub fn map_size() -> impl Strategy<Value = i64> {
+    1_000i64..=8_000
 }
 
 pub fn name() -> impl Strategy<Value = String> {
@@ -85,7 +96,7 @@ pub fn grid_kind() -> impl Strategy<Value = GridKind> {
 }
 
 pub fn grid() -> impl Strategy<Value = Grid> {
-    (grid_kind(), 1.0f64..500.0, coord(), coord()).prop_map(
+    (grid_kind(), 1.0f64..500.0, offset(), offset()).prop_map(
         |(kind, cell_size, offset_x, offset_y)| Grid {
             kind,
             cell_size,
@@ -107,15 +118,25 @@ pub fn intent() -> impl Strategy<Value = Intent> {
     prop_oneof![
         (proptest::option::of(name()), proptest::option::of(name()))
             .prop_map(|(name, description)| Intent::UpdateCampaignMeta { name, description }),
-        (map_id(), name(), grid(), any::<bool>()).prop_map(
-            |(id, name, grid, visible_to_players)| Intent::CreateMap {
-                id,
-                name,
-                background_asset_id: None,
-                grid,
-                visible_to_players,
-            }
-        ),
+        (
+            map_id(),
+            name(),
+            grid(),
+            any::<bool>(),
+            map_size(),
+            map_size()
+        )
+            .prop_map(|(id, name, grid, visible_to_players, width, height)| {
+                Intent::CreateMap {
+                    id,
+                    name,
+                    background_asset_id: None,
+                    width,
+                    height,
+                    grid,
+                    visible_to_players,
+                }
+            }),
         (
             map_id(),
             proptest::option::of(name()),
@@ -134,7 +155,7 @@ pub fn intent() -> impl Strategy<Value = Intent> {
             map_id(),
             proptest::option::of(character_id()),
             name(),
-            (coord(), coord(), 0.0f64..360.0, 0.1f64..10.0),
+            (position(), position(), 0.0f64..360.0, 0.1f64..10.0),
             layer(),
             any::<bool>()
         )
@@ -173,7 +194,7 @@ pub fn intent() -> impl Strategy<Value = Intent> {
                     visible,
                 }
             ),
-        (token_id(), coord(), coord()).prop_map(|(id, x, y)| Intent::MoveToken { id, x, y }),
+        (token_id(), position(), position()).prop_map(|(id, x, y)| Intent::MoveToken { id, x, y }),
         token_id().prop_map(|id| Intent::DeleteToken { id }),
     ]
 }
@@ -189,16 +210,27 @@ pub fn intent_envelope() -> impl Strategy<Value = IntentEnvelope> {
 }
 
 pub fn map_dto() -> impl Strategy<Value = MapDto> {
-    (map_id(), name(), grid(), any::<bool>(), version()).prop_map(
-        |(id, name, grid, visible_to_players, version)| MapDto {
-            id,
-            name,
-            background_asset_id: None,
-            grid,
-            visible_to_players,
-            version,
-        },
+    (
+        map_id(),
+        name(),
+        grid(),
+        any::<bool>(),
+        version(),
+        map_size(),
+        map_size(),
     )
+        .prop_map(
+            |(id, name, grid, visible_to_players, version, width, height)| MapDto {
+                id,
+                name,
+                background_asset_id: None,
+                width,
+                height,
+                grid,
+                visible_to_players,
+                version,
+            },
+        )
 }
 
 pub fn token_dto() -> impl Strategy<Value = TokenDto> {
@@ -207,7 +239,7 @@ pub fn token_dto() -> impl Strategy<Value = TokenDto> {
         map_id(),
         proptest::option::of(character_id()),
         name(),
-        (coord(), coord(), 0.0f64..360.0, 0.1f64..10.0),
+        (position(), position(), 0.0f64..360.0, 0.1f64..10.0),
         layer(),
         any::<bool>(),
         version(),
@@ -248,7 +280,7 @@ pub fn event() -> impl Strategy<Value = Event> {
         map_id().prop_map(|id| Event::MapDeleted { id }),
         token_dto().prop_map(|token| Event::TokenCreated { token }),
         token_dto().prop_map(|token| Event::TokenUpdated { token }),
-        (token_id(), coord(), coord()).prop_map(|(id, x, y)| Event::TokenMoved { id, x, y }),
+        (token_id(), position(), position()).prop_map(|(id, x, y)| Event::TokenMoved { id, x, y }),
         token_id().prop_map(|id| Event::TokenDeleted { id }),
     ]
 }
