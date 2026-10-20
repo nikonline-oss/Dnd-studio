@@ -1,0 +1,54 @@
+/*
+ * Design tokens. Theme plugins (P1) may override only these variables (CLAUDE.md §9).
+ * Light is the base; dark applies via prefers-color-scheme unless the user forced a theme.
+ */
+:root {
+  color-scheme: light;
+  --color-bg: #f6f6f8;
+  --color-surface: #ffffff;
+  --color-surface-alt: #eeeef2;
+  --color-border: #d6d6de;
+  --color-text: #1d1d24;
+  --color-text-muted: #5f5f6e;
+  --color-accent: #8a5a12;
+  --color-accent-contrast: #ffffff;
+  --color-danger: #b3261e;
+  --color-focus: #2f6fdb;
+  --font-ui: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-size-ui: 13px;
+  --radius: 4px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --bar-height: 28px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --color-bg: #17161c;
+    --color-surface: #1f1e26;
+    --color-surface-alt: #2a2932;
+    --color-border: #3a3944;
+    --color-text: #e8e6ef;
+    --color-text-muted: #a3a1ae;
+    --color-accent: #e8b04a;
+    --color-accent-contrast: #1d1d24;
+    --color-danger: #f2766b;
+    --color-focus: #7aa7ff;
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --color-bg: #17161c;
+  --color-surface: #1f1e26;
+  --color-surface-alt: #2a2932;
+  --color-border: #3a3944;
+  --color-text: #e8e6ef;
+  --color-text-muted: #a3a1ae;
+  --color-accent: #e8b04a;
+  --color-accent-contrast: #1d1d24;
+  --color-danger: #f2766b;
+  --color-focus: #7aa7ff;
+}

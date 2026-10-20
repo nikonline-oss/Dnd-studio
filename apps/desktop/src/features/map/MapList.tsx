@@ -3,10 +3,11 @@ import { useSnapshot, useSubmitIntent } from '@/shared/game/useGame';
 import { uuidv7 } from '@/shared/ipc/uuid';
 import { useSelection } from '@/shared/state/selection';
 import { ErrorText } from '@/shared/ui/ErrorText';
+import { InlineEdit } from '@/shared/ui/InlineEdit';
 
 const DEFAULT_GRID = { kind: 'square', cell_size: 70, offset_x: 0, offset_y: 0 } as const;
 
-/** Maps of the campaign. Every change is an intent; the list updates from events. */
+/** Navigator: maps of the campaign. Every change is an intent; the list updates from events. */
 export function MapList() {
   const { t } = useTranslation();
   const { data: snapshot } = useSnapshot();
@@ -38,7 +39,7 @@ export function MapList() {
 
   return (
     <section aria-labelledby="maps-title" className="list-panel">
-      <header>
+      <header className="panel-header">
         <h2 id="maps-title">{t('maps.title')}</h2>
         <button type="button" onClick={addMap} disabled={submit.isPending}>
           {t('maps.add')}
@@ -47,17 +48,30 @@ export function MapList() {
       {maps.length === 0 && <p className="muted">{t('maps.empty')}</p>}
       <ul>
         {maps.map((map) => (
-          <li key={map.id} aria-current={map.id === selectedId}>
-            <button
-              type="button"
-              className="link"
-              onClick={() => {
-                selectMap(map.id);
+          <li
+            key={map.id}
+            aria-current={map.id === selectedId}
+            onClick={() => {
+              selectMap(map.id);
+            }}
+          >
+            <InlineEdit
+              value={map.name}
+              label={t('maps.rename')}
+              onCommit={(name) => {
+                submit.mutate({
+                  intent: {
+                    kind: 'update_map',
+                    id: map.id,
+                    name,
+                    grid: null,
+                    visible_to_players: null,
+                  },
+                  expectedVersion: map.version,
+                });
               }}
-            >
-              {map.name}
-            </button>
-            <label className="inline">
+            />
+            <label className="inline" title={t('maps.visibleHint')}>
               <input
                 type="checkbox"
                 checked={map.visible_to_players}
@@ -78,26 +92,8 @@ export function MapList() {
             </label>
             <button
               type="button"
-              onClick={() => {
-                const name = window.prompt(t('maps.rename'), map.name);
-                if (name === null) return;
-                submit.mutate({
-                  intent: {
-                    kind: 'update_map',
-                    id: map.id,
-                    name,
-                    grid: null,
-                    visible_to_players: null,
-                  },
-                  expectedVersion: map.version,
-                });
-              }}
-            >
-              {t('maps.rename')}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation();
                 submit.mutate({
                   intent: { kind: 'delete_map', id: map.id },
                   expectedVersion: map.version,

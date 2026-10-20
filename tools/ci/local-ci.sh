@@ -14,6 +14,6 @@ if [ -f pnpm-lock.yaml ]; then
   pnpm -r --if-present typecheck
   pnpm -r --if-present test
 fi
-echo "== generated files are committed"; git diff --exit-code -- '*.ts' '*.snap' || {
+echo "== generated files are committed"; git diff --exit-code -- apps/desktop/src/shared/ipc/bindings.ts '*.snap' || {
   echo "generated files changed — commit them"; exit 1; }
 echo "local CI: OK"

@@ -19,7 +19,8 @@
     "rename": "Rename",
     "delete": "Delete",
     "visible": "Visible to players",
-    "hidden": "Hidden from players"
+    "hidden": "Hidden from players",
+    "visibleHint": "Players see only maps marked visible"
   },
   "tokens": {
     "title": "Tokens",
@@ -46,5 +47,59 @@
     "forbidden": "You are not allowed to do this",
     "invalid": "Invalid value",
     "protocol_mismatch": "Update the client or the server"
+  },
+  "menu": {
+    "label": "Main menu",
+    "file": "File",
+    "view": "View",
+    "breadcrumbs": "Breadcrumbs"
+  },
+  "layout": {
+    "gm": "Game master layout",
+    "player": "Player layout"
+  },
+  "theme": {
+    "system": "System theme",
+    "light": "Light theme",
+    "dark": "Dark theme"
+  },
+  "language": {
+    "system": "System language"
+  },
+  "status": {
+    "label": "Status bar",
+    "serverLocal": "Local game",
+    "plugins_one": "{{count}} plugin",
+    "plugins_other": "{{count}} plugins"
+  },
+  "roles": {
+    "gm": "Game master",
+    "co_gm": "Co-GM",
+    "player": "Player",
+    "spectator": "Spectator"
+  },
+  "panels": {
+    "map": "Map",
+    "chat": "Chat",
+    "chatSoon": "Chat arrives in stage 2."
+  },
+  "inspector": {
+    "title": "Inspector",
+    "empty": "Nothing selected",
+    "name": "Name",
+    "grid": "Grid",
+    "gridKind": {
+      "none": "No grid",
+      "square": "Square",
+      "hex_flat": "Hex (flat)",
+      "hex_pointy": "Hex (pointy)"
+    },
+    "visibility": "Visibility",
+    "tokens": "Tokens",
+    "version": "Version"
+  },
+  "errorBoundary": {
+    "message": "“{{name}}” crashed. The rest of the app keeps working.",
+    "retry": "Try again"
   }
 }

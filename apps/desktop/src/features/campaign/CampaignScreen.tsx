@@ -1,23 +1,13 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, type SyntheticEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { queryKeys } from '@/shared/game/useGame';
-import { ipc, type CampaignInfo } from '@/shared/ipc/client';
+import { useCampaignActions } from '@/shared/game/useCampaignActions';
 import { ErrorText } from '@/shared/ui/ErrorText';
 
 /** Start screen: create a new campaign or open an existing one. */
 export function CampaignScreen() {
   const { t } = useTranslation();
-  const queryClient = useQueryClient();
+  const { create, open } = useCampaignActions();
   const [name, setName] = useState('');
-
-  const onOpened = (info: CampaignInfo | null) => {
-    if (!info) return; // dialog cancelled
-    queryClient.setQueryData(queryKeys.campaign, info);
-    void queryClient.invalidateQueries({ queryKey: queryKeys.snapshot });
-  };
-  const create = useMutation({ mutationFn: ipc.campaignCreate, onSuccess: onOpened });
-  const open = useMutation({ mutationFn: ipc.campaignOpen, onSuccess: onOpened });
 
   const submit = (e: SyntheticEvent) => {
     e.preventDefault();
@@ -43,7 +33,7 @@ export function CampaignScreen() {
         <button type="submit" disabled={create.isPending || name.trim() === ''}>
           {t('campaign.create')}
         </button>
-        <small>{t('campaign.createHint')}</small>
+        <small className="muted">{t('campaign.createHint')}</small>
       </form>
       <button
         type="button"

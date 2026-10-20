@@ -4,6 +4,13 @@ import { cleanup } from '@testing-library/react';
 import { afterEach } from 'vitest';
 import i18n from '@/shared/i18n';
 
+// jsdom has no layout engine; react-resizable-panels only needs the observer to exist.
+globalThis.ResizeObserver = class {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+};
+
 // Tests assert on English strings regardless of the machine locale.
 void i18n.changeLanguage('en');
 
