@@ -345,3 +345,38 @@ async fn idempotency_survives_reopen() {
     assert_eq!(reopened.snapshot().maps.len(), 2);
     assert_eq!(stored_seq(&reopened).await, Seq(2));
 }
+
+/// Only the idempotency window is restored on open: with a window of 2 intents, the oldest
+/// accepted intent is forgotten and a repeat is evaluated afresh (here: the id already exists).
+#[tokio::test]
+async fn only_the_window_is_restored_on_open() {
+    use dnd_game_core::IntentWindow;
+    let dir = tempfile::tempdir().unwrap();
+    let mut server = LocalServer::create(dir.path(), "Window").await.unwrap();
+    let first = create_map(MapId::new_v7());
+    server.submit(&first).await.unwrap();
+    let second = create_map(MapId::new_v7());
+    server.submit(&second).await.unwrap();
+    let third = create_map(MapId::new_v7());
+    server.submit(&third).await.unwrap();
+    let folder = server.folder().to_owned();
+    server.close().await.unwrap();
+
+    let window = IntentWindow {
+        max_count: 2,
+        max_age_ms: IntentWindow::DEFAULT.max_age_ms,
+    };
+    let mut reopened = LocalServer::open_with(&folder, window).await.unwrap();
+    // Inside the window: original outcome.
+    let (outcome, _) = reopened.submit(&second).await.unwrap();
+    assert_eq!(outcome, IntentOutcome::Accepted { seq: Seq(2) });
+    // Outside the window: a new intent, rejected by the core because the map exists.
+    let (outcome, _) = reopened.submit(&first).await.unwrap();
+    assert_eq!(
+        outcome,
+        IntentOutcome::Rejected {
+            reason: RejectReason::AlreadyExists
+        }
+    );
+    assert_eq!(reopened.snapshot().maps.len(), 3);
+}

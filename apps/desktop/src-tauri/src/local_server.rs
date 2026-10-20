@@ -8,9 +8,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use dnd_db::{BatchRecord, CampaignDb, LocalUser, list_backups};
-use dnd_game_core::{
-    Actor, GameState, RECENT_INTENTS_CAPACITY, RecentIntents, SplitMix64, apply, evolve_all,
-};
+use dnd_game_core::{Actor, GameState, IntentWindow, RecentIntents, SplitMix64, apply, evolve_all};
 use dnd_protocol::{EventBatch, IntentEnvelope, IntentOutcome, Role, Seq, Snapshot, UserId};
 use serde::Serialize;
 
@@ -104,12 +102,17 @@ impl LocalServer {
         };
         let db = CampaignDb::create(&folder.join(CAMPAIGN_FILE), name, &gm, now_ms()).await?;
         tracing::info!(folder = %folder.display(), "campaign created");
-        Self::from_db(db, folder).await
+        Self::from_db(db, folder, IntentWindow::DEFAULT).await
     }
 
     /// Opens the campaign in `folder`: integrity check, migrations (with a backup before them),
     /// and a fresh backup when the newest one is older than [`BACKUP_MAX_AGE`].
     pub async fn open(folder: &Path) -> Result<Self, IpcError> {
+        Self::open_with(folder, IntentWindow::DEFAULT).await
+    }
+
+    /// [`open`](Self::open) with a custom idempotency window (ADR-0015).
+    pub async fn open_with(folder: &Path, window: IntentWindow) -> Result<Self, IpcError> {
         let file = folder.join(CAMPAIGN_FILE);
         if !file.exists() {
             return Err(IpcError::user(
@@ -124,20 +127,33 @@ impl LocalServer {
             db.backup("on-open", now_ms()).await?;
         }
         tracing::info!(folder = %folder.display(), "campaign opened");
-        Self::from_db(db, folder.to_owned()).await
+        Self::from_db(db, folder.to_owned(), window).await
     }
 
-    async fn from_db(db: CampaignDb, folder: PathBuf) -> Result<Self, IpcError> {
+    async fn from_db(
+        db: CampaignDb,
+        folder: PathBuf,
+        window: IntentWindow,
+    ) -> Result<Self, IpcError> {
         let user = db
             .local_user()
             .await?
             .ok_or_else(|| IpcError::internal("no_local_user", "campaign has no local user"))?;
         let (state, last_seq) = db.load_state().await?;
         // Accepted intents survive restarts through `event_log`; rejections are remembered per run.
-        let mut recent = RecentIntents::default();
-        for (intent_id, seq) in db.recent_intents(RECENT_INTENTS_CAPACITY).await? {
-            recent.insert(intent_id, IntentOutcome::Accepted { seq });
+        let mut recent = RecentIntents::new(window);
+        let now = now_ms();
+        for r in db
+            .recent_intents(window.max_count, window.since_ms(now))
+            .await?
+        {
+            recent.insert(
+                r.intent_id,
+                IntentOutcome::Accepted { seq: r.last_seq },
+                r.at_ms,
+            );
         }
+        recent.prune(now);
         Ok(Self {
             db,
             folder,
@@ -181,7 +197,7 @@ impl LocalServer {
         &mut self,
         envelope: &IntentEnvelope,
     ) -> Result<(IntentOutcome, Option<EventBatch>), IpcError> {
-        if let Some(outcome) = self.recent.get(&envelope.intent_id) {
+        if let Some(outcome) = self.recent.get(&envelope.intent_id, now_ms()) {
             tracing::debug!(intent_id = %envelope.intent_id, "duplicate intent");
             return Ok((outcome.clone(), None));
         }
@@ -194,7 +210,8 @@ impl LocalServer {
                     "intent rejected"
                 );
                 let outcome = IntentOutcome::Rejected { reason };
-                self.recent.insert(envelope.intent_id, outcome.clone());
+                self.recent
+                    .insert(envelope.intent_id, outcome.clone(), now_ms());
                 return Ok((outcome, None));
             }
         };
@@ -220,7 +237,8 @@ impl LocalServer {
         evolve_all(&mut self.state, &batch.events);
         self.next_seq = last.next();
         let outcome = IntentOutcome::Accepted { seq: last };
-        self.recent.insert(envelope.intent_id, outcome.clone());
+        self.recent
+            .insert(envelope.intent_id, outcome.clone(), now_ms());
         Ok((outcome, Some(batch)))
     }
 

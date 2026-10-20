@@ -36,6 +36,16 @@ pub struct BatchRecord {
     pub at_ms: i64,
 }
 
+/// An accepted intent as recorded in `event_log`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RecentIntent {
+    pub intent_id: IntentId,
+    /// Sequence number of the last event of its batch.
+    pub last_seq: Seq,
+    /// When it was recorded (unix ms).
+    pub at_ms: i64,
+}
+
 /// What happened while opening a campaign.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct OpenReport {
@@ -154,28 +164,30 @@ impl CampaignDb {
         Ok(Seq(seq))
     }
 
-    /// The `limit` most recent accepted intents with the sequence number of their last event,
-    /// oldest first — for idempotency after a restart (ADR-0015).
-    pub async fn recent_intents(&self, limit: usize) -> DbResult<Vec<(IntentId, Seq)>> {
+    /// Accepted intents for the idempotency window after a restart (ADR-0015): at most `limit`,
+    /// recorded at or after `since_ms`, most recent ones, returned oldest first.
+    pub async fn recent_intents(&self, limit: usize, since_ms: i64) -> DbResult<Vec<RecentIntent>> {
         let limit = i64::try_from(limit).unwrap_or(i64::MAX);
         let rows = sqlx::query(
-            "SELECT intent_id, MAX(seq) AS last_seq FROM event_log \
-             WHERE intent_id IS NOT NULL GROUP BY intent_id \
+            "SELECT intent_id, MAX(seq) AS last_seq, MAX(created_at) AS at_ms FROM event_log \
+             WHERE intent_id IS NOT NULL AND created_at >= ? GROUP BY intent_id \
              ORDER BY last_seq DESC LIMIT ?",
         )
+        .bind(since_ms)
         .bind(limit)
         .fetch_all(&self.pool)
         .await?;
         let mut intents = rows
             .iter()
             .map(|r| {
-                Ok((
-                    IntentId(uuid_from_str(
+                Ok(RecentIntent {
+                    intent_id: IntentId(uuid_from_str(
                         "event_log.intent_id",
                         &r.try_get::<String, _>("intent_id")?,
                     )?),
-                    Seq(r.try_get("last_seq")?),
-                ))
+                    last_seq: Seq(r.try_get("last_seq")?),
+                    at_ms: r.try_get("at_ms")?,
+                })
             })
             .collect::<DbResult<Vec<_>>>()?;
         intents.reverse();

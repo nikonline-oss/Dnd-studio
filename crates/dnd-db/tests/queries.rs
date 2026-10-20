@@ -4,7 +4,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)] // test code
 
-use dnd_db::{BatchRecord, CampaignDb, LocalUser, open_server_db};
+use dnd_db::{BatchRecord, CampaignDb, LocalUser, RecentIntent, open_server_db};
 use dnd_protocol::arbitrary::v7;
 use dnd_protocol::*;
 use sqlx::Row;
@@ -276,8 +276,11 @@ async fn recent_intents_are_ordered_limited_and_grouped() {
     .await
     .unwrap();
 
+    let ids = |v: Vec<RecentIntent>| -> Vec<(IntentId, Seq)> {
+        v.into_iter().map(|r| (r.intent_id, r.last_seq)).collect()
+    };
     assert_eq!(
-        db.recent_intents(10).await.unwrap(),
+        ids(db.recent_intents(10, 0).await.unwrap()),
         [
             (IntentId(v7(0xA)), Seq(1)),
             (IntentId(v7(0xB)), Seq(4)), // the batch's last event
@@ -286,10 +289,64 @@ async fn recent_intents_are_ordered_limited_and_grouped() {
     );
     // The limit keeps the most recent ones, still oldest first.
     assert_eq!(
-        db.recent_intents(2).await.unwrap(),
+        ids(db.recent_intents(2, 0).await.unwrap()),
         [(IntentId(v7(0xB)), Seq(4)), (IntentId(v7(0xC)), Seq(5))]
     );
-    assert!(db.recent_intents(0).await.unwrap().is_empty());
+    assert!(db.recent_intents(0, 0).await.unwrap().is_empty());
+    assert_eq!(db.recent_intents(10, 0).await.unwrap()[0].at_ms, 1234);
+}
+
+/// Only intents recorded at or after `since_ms` are restored (ADR-0015 window boundary).
+#[tokio::test]
+async fn recent_intents_respect_the_time_window() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = new_campaign(&dir).await;
+    let at = |mut r: BatchRecord, ms: i64| {
+        r.at_ms = ms;
+        r
+    };
+    db.project(&[
+        at(
+            record(
+                1,
+                Some(0xA),
+                vec![Event::MapCreated {
+                    map: map(1, "A", 1),
+                }],
+            ),
+            999,
+        ),
+        at(
+            record(
+                2,
+                Some(0xB),
+                vec![Event::MapCreated {
+                    map: map(2, "B", 1),
+                }],
+            ),
+            1000,
+        ),
+        at(
+            record(
+                3,
+                Some(0xC),
+                vec![Event::MapCreated {
+                    map: map(3, "C", 1),
+                }],
+            ),
+            1001,
+        ),
+    ])
+    .await
+    .unwrap();
+    let restored: Vec<IntentId> = db
+        .recent_intents(10, 1000)
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|r| r.intent_id)
+        .collect();
+    assert_eq!(restored, [IntentId(v7(0xB)), IntentId(v7(0xC))]);
 }
 
 #[tokio::test]
