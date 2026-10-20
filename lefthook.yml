@@ -1,0 +1,26 @@
+# Pre-commit hooks (CLAUDE.md §3): rustfmt, clippy, eslint, prettier, tsc.
+# Installed by `pnpm install` (root `prepare` script). Skip once with `LEFTHOOK=0 git commit ...`.
+pre-commit:
+  parallel: true
+  jobs:
+    - name: rustfmt
+      glob: '*.rs'
+      run: cargo fmt --all --check
+
+    - name: clippy
+      glob: '*.{rs,toml,sql}'
+      run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+    - name: prettier
+      glob: '*.{ts,tsx,js,json,css,md,yml,yaml,html}'
+      run: pnpm exec prettier --check {staged_files}
+
+    - name: eslint
+      root: apps/desktop/
+      glob: '*.{ts,tsx,js}'
+      run: pnpm exec eslint {staged_files}
+
+    - name: tsc
+      root: apps/desktop/
+      glob: '*.{ts,tsx}'
+      run: pnpm exec tsc --noEmit
