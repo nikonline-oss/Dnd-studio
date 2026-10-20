@@ -8,4 +8,4 @@ CREATE TABLE sessions ( id TEXT PRIMARY KEY NOT NULL, state TEXT NOT NULL CHECK 
 CREATE INDEX audit_log_session_id ON audit_log (session_id, created_at);
 CREATE INDEX participants_session_id ON participants (session_id);
 CREATE INDEX sessions_state_last_activity ON sessions (state, last_activity);
-CREATE TRIGGER audit_log_no_update BEFORE UPDATE ON audit_log BEGIN SELECT RAISE(ABORT, 'audit_log is append-only'); END;
+CREATE TRIGGER audit_log_no_update BEFORE UPDATE ON audit_log WHEN NOT ( OLD.session_id IS NOT NULL AND NEW.session_id IS NULL AND NEW.id IS OLD.id AND NEW.actor IS OLD.actor AND NEW.action IS OLD.action AND NEW.details IS OLD.details AND NEW.created_at IS OLD.created_at ) BEGIN SELECT RAISE(ABORT, 'audit_log is append-only'); END;

@@ -1,6 +1,6 @@
 # 0008. Соглашения `dnd-db`
 
-- Статус: Принято
+- Статус: Принято. Дополнено 2026-10-21 (покрытие запросов, append-only со ссылками).
 - Дата: 2026-10-21
 
 ## Контекст
@@ -37,3 +37,39 @@ ADR-0002 выбрал SQLite. Нужно зафиксировать, как им
 
 - `query!` с офлайн-кэшем: проверка на этапе компиляции, но лишний артефакт в репозитории и
   обязательная перегенерация при каждом изменении схемы.
+
+## Дополнение (2026-10-21): покрытие запросов и append-only со ссылками
+
+- **Каждый runtime-запрос покрыт тестом на реальной SQLite** (файл во временной папке или
+  `:memory:`). Тест `query_inventory_matches_adr_0008` (`crates/dnd-db/tests/queries.rs`) считает
+  вхождения `sqlx::query` в исходниках: добавили запрос без теста и без строки ниже — CI падает.
+- `build.rs` в `dnd-db` пересобирает крейт при изменении `migrations/`: `sqlx::migrate!` встраивает
+  миграции при компиляции, а cargo сам эту папку не отслеживает.
+- Append-only таблицы со ссылкой `ON DELETE SET NULL` (`chat_messages.sender_user_id`,
+  `dice_rolls.user_id`, `audit_log.session_id`): триггер запрета `UPDATE` пропускает ровно одно
+  изменение — обнуление этой ссылки при удалении родителя; любые другие правки запрещены
+  (миграции campaign 0002 и server 0002). До исправления удалить пользователя с историей чата
+  или сессию с аудитом было невозможно — нашёл тест `server_db_opens_migrates_and_enforces_constraints`.
+
+| Запрос                                    | Где                       | Тест                                                                           |
+| ----------------------------------------- | ------------------------- | ------------------------------------------------------------------------------ |
+| `PRAGMA quick_check`                      | `connect::quick_check`    | `backup.rs`: corrupted / non-database file                                     |
+| `sqlite_schema` EXISTS `_sqlx_migrations` | `has_pending_migrations`  | `schema.rs::campaign_schema`, `backup.rs::pending_migrations_trigger_a_backup` |
+| `SELECT version FROM _sqlx_migrations`    | `has_pending_migrations`  | `backup.rs::campaign_from_previous_schema_is_backed_up_and_upgraded`           |
+| `VACUUM INTO ?`                           | `backup::create_backup`   | `backup.rs::backups_are_rotated`, restore test                                 |
+| `INSERT INTO users`                       | `CampaignDb::create`      | `projection.rs::create_and_reopen_keeps_meta_and_local_user`                   |
+| `PRAGMA wal_checkpoint(TRUNCATE)`         | `CampaignDb::checkpoint`  | `queries.rs::checkpoint_empties_the_wal`                                       |
+| `SELECT … FROM users WHERE id`            | `local_user`              | `projection.rs::create_and_reopen_keeps_meta_and_local_user`                   |
+| `SELECT COALESCE(MAX(seq), 0)`            | `last_seq`                | `queries.rs::every_event_kind_is_projected`, projection proptest               |
+| `SELECT intent_id, MAX(seq) … GROUP BY`   | `recent_intents`          | `queries.rs::recent_intents_are_ordered_limited_and_grouped`                   |
+| `SELECT * FROM maps` / `tokens`           | `load_state`              | `queries.rs::every_event_kind_is_projected`, projection proptest               |
+| `SELECT … FROM characters`                | `load_state`              | `projection.rs::character_owners_are_loaded`                                   |
+| `INSERT INTO event_log`                   | `project`                 | `queries.rs::every_event_kind_is_projected`, `project_is_atomic`               |
+| `DELETE FROM maps` (+ FK cascade)         | `project_event`           | `queries.rs::every_event_kind_is_projected`                                    |
+| `UPDATE tokens SET x, y`                  | `project_event`           | `queries.rs::every_event_kind_is_projected` (включая неизвестный токен)        |
+| `DELETE FROM tokens`                      | `project_event`           | `queries.rs::every_event_kind_is_projected`                                    |
+| `INSERT … ON CONFLICT` `campaign_meta`    | `set_meta`                | `queries.rs::every_event_kind_is_projected`                                    |
+| `SELECT value FROM campaign_meta`         | `get_meta`                | `queries.rs::every_event_kind_is_projected`                                    |
+| `INSERT … ON CONFLICT` `maps`             | `upsert_map`              | `queries.rs::every_event_kind_is_projected` (insert и update)                  |
+| `INSERT … ON CONFLICT` `tokens`           | `upsert_token`            | `queries.rs::every_event_kind_is_projected` (insert и update)                  |
+| миграции `server` (`open_server_db`)      | `connect::open_server_db` | `queries.rs::server_db_opens_migrates_and_enforces_constraints`                |

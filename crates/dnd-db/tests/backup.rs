@@ -106,3 +106,32 @@ async fn pending_migrations_trigger_a_backup() {
             .unwrap()
     );
 }
+
+/// A campaign saved by the previous schema (0001) is backed up and upgraded on open.
+#[tokio::test]
+async fn campaign_from_previous_schema_is_backed_up_and_upgraded() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("v1.sqlite");
+    {
+        let opts = sqlx::sqlite::SqliteConnectOptions::new()
+            .filename(&path)
+            .create_if_missing(true)
+            .foreign_keys(true);
+        let pool = sqlx::SqlitePool::connect_with(opts).await.unwrap();
+        CAMPAIGN_MIGRATOR.run_to(1, &pool).await.unwrap();
+        sqlx::query("INSERT INTO campaign_meta (key, value) VALUES ('campaign.name', 'Old')")
+            .execute(&pool)
+            .await
+            .unwrap();
+        pool.close().await;
+    }
+    let (db, report) = CampaignDb::open(&path, 7).await.unwrap();
+    assert!(report.pre_migration_backup.is_some());
+    assert!(
+        !has_pending_migrations(db.pool(), &CAMPAIGN_MIGRATOR)
+            .await
+            .unwrap()
+    );
+    let (state, _) = db.load_state().await.unwrap();
+    assert_eq!(state.campaign.name, "Old");
+}
