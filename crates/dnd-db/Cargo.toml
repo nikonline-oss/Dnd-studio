@@ -9,6 +9,23 @@ repository.workspace = true
 publish.workspace = true
 
 [dependencies]
+dnd-protocol.workspace = true
+dnd-game-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+# Runtime queries only (no `query!` macros): no DATABASE_URL or offline cache needed in CI.
+# `macros` is still required for `sqlx::migrate!` (embeds migrations at compile time).
+sqlx = { workspace = true, features = ["sqlite", "runtime-tokio", "migrate", "macros"] }
+
+[dev-dependencies]
+dnd-protocol = { workspace = true, features = ["arbitrary"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+proptest.workspace = true
+insta.workspace = true
+tempfile.workspace = true
 
 [lints]
 workspace = true

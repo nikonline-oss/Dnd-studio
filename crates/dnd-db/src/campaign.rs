@@ -1,0 +1,403 @@
+//! A campaign file: open/create, load state, project events.
+
+use std::path::{Path, PathBuf};
+
+use dnd_game_core::GameState;
+use dnd_protocol::{
+    CampaignMeta, CharacterId, CharacterRef, Event, EventBatch, Grid, GridKind, MapDto, MapId,
+    Role, Seq, TokenDto, TokenId, TokenLayer, UserId, Version,
+};
+use sqlx::sqlite::SqliteRow;
+use sqlx::{Row, SqliteConnection, SqlitePool};
+
+use crate::backup::create_backup;
+use crate::codec::{enum_from_str, enum_to_str, opt_uuid_from_str, uuid_from_str};
+use crate::connect::{CAMPAIGN_MIGRATOR, has_pending_migrations, migrate, pool, quick_check};
+use crate::error::{DbError, DbResult};
+
+const META_NAME: &str = "campaign.name";
+const META_DESCRIPTION: &str = "campaign.description";
+const META_VERSION: &str = "campaign.version";
+const META_LOCAL_USER: &str = "local.user_id";
+
+/// The user that owns the campaign on this machine (the GM in local play).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LocalUser {
+    pub id: UserId,
+    pub name: String,
+    pub role: Role,
+}
+
+/// One accepted batch of events, as written to `event_log`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct BatchRecord {
+    pub batch: EventBatch,
+    pub actor: Option<UserId>,
+    pub at_ms: i64,
+}
+
+/// What happened while opening a campaign.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct OpenReport {
+    /// Backup taken because migrations were pending.
+    pub pre_migration_backup: Option<PathBuf>,
+}
+
+/// An open campaign file.
+#[derive(Debug, Clone)]
+pub struct CampaignDb {
+    pool: SqlitePool,
+    path: PathBuf,
+}
+
+impl CampaignDb {
+    /// Creates a new campaign file. Fails if `path` already exists.
+    pub async fn create(path: &Path, name: &str, gm: &LocalUser, now_ms: i64) -> DbResult<Self> {
+        if path.exists() {
+            return Err(DbError::AlreadyExists(path.to_owned()));
+        }
+        let pool = pool(path, true).await?;
+        migrate(&pool, &CAMPAIGN_MIGRATOR).await?;
+
+        let mut tx = pool.begin().await?;
+        let state = GameState::new(name);
+        write_campaign_meta(&mut tx, &state.campaign).await?;
+        set_meta(&mut tx, META_LOCAL_USER, &gm.id.to_string()).await?;
+        sqlx::query("INSERT INTO users (id, name, role, created_at) VALUES (?, ?, ?, ?)")
+            .bind(gm.id.to_string())
+            .bind(&gm.name)
+            .bind(enum_to_str(&gm.role)?)
+            .bind(now_ms)
+            .execute(&mut *tx)
+            .await?;
+        tx.commit().await?;
+
+        Ok(Self {
+            pool,
+            path: path.to_owned(),
+        })
+    }
+
+    /// Opens an existing campaign: integrity check, backup before pending migrations, migrate.
+    pub async fn open(path: &Path, now_ms: i64) -> DbResult<(Self, OpenReport)> {
+        quick_check(path).await?;
+        let pool = pool(path, false).await?;
+        let mut report = OpenReport::default();
+        if has_pending_migrations(&pool, &CAMPAIGN_MIGRATOR).await? {
+            report.pre_migration_backup =
+                Some(create_backup(&pool, path, "pre-migration", now_ms).await?);
+            migrate(&pool, &CAMPAIGN_MIGRATOR).await?;
+        }
+        Ok((
+            Self {
+                pool,
+                path: path.to_owned(),
+            },
+            report,
+        ))
+    }
+
+    #[must_use]
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    #[must_use]
+    pub fn pool(&self) -> &SqlitePool {
+        &self.pool
+    }
+
+    /// Takes a backup now.
+    pub async fn backup(&self, reason: &str, now_ms: i64) -> DbResult<PathBuf> {
+        create_backup(&self.pool, &self.path, reason, now_ms).await
+    }
+
+    /// Moves WAL contents into the main file (periodic flush / before closing).
+    pub async fn checkpoint(&self) -> DbResult<()> {
+        sqlx::query("PRAGMA wal_checkpoint(TRUNCATE)")
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    /// Checkpoints and closes all connections.
+    pub async fn close(self) -> DbResult<()> {
+        self.checkpoint().await?;
+        self.pool.close().await;
+        Ok(())
+    }
+
+    /// The campaign owner on this machine.
+    pub async fn local_user(&self) -> DbResult<Option<LocalUser>> {
+        let Some(id) = get_meta(&self.pool, META_LOCAL_USER).await? else {
+            return Ok(None);
+        };
+        let row = sqlx::query("SELECT id, name, role FROM users WHERE id = ?")
+            .bind(&id)
+            .fetch_optional(&self.pool)
+            .await?;
+        row.map(|r| {
+            Ok(LocalUser {
+                id: UserId(uuid_from_str("users.id", &r.try_get::<String, _>("id")?)?),
+                name: r.try_get("name")?,
+                role: enum_from_str("users.role", &r.try_get::<String, _>("role")?)?,
+            })
+        })
+        .transpose()
+    }
+
+    /// Sequence number of the last stored event (0 if none).
+    pub async fn last_seq(&self) -> DbResult<Seq> {
+        let seq: i64 = sqlx::query_scalar("SELECT COALESCE(MAX(seq), 0) FROM event_log")
+            .fetch_one(&self.pool)
+            .await?;
+        Ok(Seq(seq))
+    }
+
+    /// Loads the full game state and the last event sequence number.
+    pub async fn load_state(&self) -> DbResult<(GameState, Seq)> {
+        let mut state = GameState::new("");
+        state.campaign = CampaignMeta {
+            name: get_meta(&self.pool, META_NAME).await?.unwrap_or_default(),
+            description: get_meta(&self.pool, META_DESCRIPTION)
+                .await?
+                .unwrap_or_default(),
+            version: Version(
+                get_meta(&self.pool, META_VERSION)
+                    .await?
+                    .map(|v| {
+                        v.parse::<i64>().map_err(|e| DbError::InvalidData {
+                            column: "campaign_meta.value",
+                            details: e.to_string(),
+                        })
+                    })
+                    .transpose()?
+                    .unwrap_or(1),
+            ),
+        };
+
+        for row in sqlx::query("SELECT * FROM maps ORDER BY id")
+            .fetch_all(&self.pool)
+            .await?
+        {
+            let map = map_from_row(&row)?;
+            state.maps.insert(map.id, map);
+        }
+        for row in sqlx::query("SELECT * FROM tokens ORDER BY id")
+            .fetch_all(&self.pool)
+            .await?
+        {
+            let token = token_from_row(&row)?;
+            state.tokens.insert(token.id, token);
+        }
+        for row in sqlx::query("SELECT id, name, owner_user_id FROM characters ORDER BY id")
+            .fetch_all(&self.pool)
+            .await?
+        {
+            let character = CharacterRef {
+                id: CharacterId(uuid_from_str(
+                    "characters.id",
+                    &row.try_get::<String, _>("id")?,
+                )?),
+                name: row.try_get("name")?,
+                owner: opt_uuid_from_str(
+                    "characters.owner_user_id",
+                    row.try_get("owner_user_id")?,
+                )?
+                .map(UserId),
+            };
+            state.characters.insert(character.id, character);
+        }
+
+        Ok((state, self.last_seq().await?))
+    }
+
+    /// Appends batches to `event_log` and applies them to the tables, all in one transaction.
+    pub async fn project(&self, records: &[BatchRecord]) -> DbResult<()> {
+        if records.is_empty() {
+            return Ok(());
+        }
+        let mut tx = self.pool.begin().await?;
+        for record in records {
+            let mut seq = record.batch.seq;
+            for event in &record.batch.events {
+                sqlx::query(
+                    "INSERT INTO event_log (seq, intent_id, actor_user_id, event, created_at) \
+                     VALUES (?, ?, ?, ?, ?)",
+                )
+                .bind(seq.0)
+                .bind(record.batch.caused_by.map(|i| i.to_string()))
+                .bind(record.actor.map(|u| u.to_string()))
+                .bind(serde_json::to_string(event)?)
+                .bind(record.at_ms)
+                .execute(&mut *tx)
+                .await?;
+                project_event(&mut tx, event).await?;
+                seq = seq.next();
+            }
+        }
+        tx.commit().await?;
+        Ok(())
+    }
+}
+
+async fn project_event(conn: &mut SqliteConnection, event: &Event) -> DbResult<()> {
+    match event {
+        Event::CampaignMetaUpdated { campaign } => write_campaign_meta(conn, campaign).await,
+        Event::MapCreated { map } | Event::MapUpdated { map } => upsert_map(conn, map).await,
+        Event::MapDeleted { id } => {
+            sqlx::query("DELETE FROM maps WHERE id = ?")
+                .bind(id.to_string())
+                .execute(conn)
+                .await?;
+            Ok(())
+        }
+        Event::TokenCreated { token } | Event::TokenUpdated { token } => {
+            upsert_token(conn, token).await
+        }
+        Event::TokenMoved { id, x, y } => {
+            sqlx::query("UPDATE tokens SET x = ?, y = ? WHERE id = ?")
+                .bind(x)
+                .bind(y)
+                .bind(id.to_string())
+                .execute(conn)
+                .await?;
+            Ok(())
+        }
+        Event::TokenDeleted { id } => {
+            sqlx::query("DELETE FROM tokens WHERE id = ?")
+                .bind(id.to_string())
+                .execute(conn)
+                .await?;
+            Ok(())
+        }
+    }
+}
+
+async fn write_campaign_meta(conn: &mut SqliteConnection, campaign: &CampaignMeta) -> DbResult<()> {
+    set_meta(conn, META_NAME, &campaign.name).await?;
+    set_meta(conn, META_DESCRIPTION, &campaign.description).await?;
+    set_meta(conn, META_VERSION, &campaign.version.0.to_string()).await
+}
+
+async fn set_meta(conn: &mut SqliteConnection, key: &str, value: &str) -> DbResult<()> {
+    sqlx::query(
+        "INSERT INTO campaign_meta (key, value) VALUES (?, ?) \
+         ON CONFLICT (key) DO UPDATE SET value = excluded.value",
+    )
+    .bind(key)
+    .bind(value)
+    .execute(conn)
+    .await?;
+    Ok(())
+}
+
+async fn get_meta(pool: &SqlitePool, key: &str) -> DbResult<Option<String>> {
+    Ok(
+        sqlx::query_scalar("SELECT value FROM campaign_meta WHERE key = ?")
+            .bind(key)
+            .fetch_optional(pool)
+            .await?,
+    )
+}
+
+async fn upsert_map(conn: &mut SqliteConnection, map: &MapDto) -> DbResult<()> {
+    sqlx::query(
+        "INSERT INTO maps (id, name, background_asset_id, grid_kind, grid_cell_size, \
+             grid_offset_x, grid_offset_y, visible_to_players, version) \
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) \
+         ON CONFLICT (id) DO UPDATE SET \
+             name = excluded.name, background_asset_id = excluded.background_asset_id, \
+             grid_kind = excluded.grid_kind, grid_cell_size = excluded.grid_cell_size, \
+             grid_offset_x = excluded.grid_offset_x, grid_offset_y = excluded.grid_offset_y, \
+             visible_to_players = excluded.visible_to_players, version = excluded.version",
+    )
+    .bind(map.id.to_string())
+    .bind(&map.name)
+    .bind(map.background_asset_id.map(|a| a.to_string()))
+    .bind(enum_to_str(&map.grid.kind)?)
+    .bind(map.grid.cell_size)
+    .bind(map.grid.offset_x)
+    .bind(map.grid.offset_y)
+    .bind(map.visible_to_players)
+    .bind(map.version.0)
+    .execute(conn)
+    .await?;
+    Ok(())
+}
+
+async fn upsert_token(conn: &mut SqliteConnection, token: &TokenDto) -> DbResult<()> {
+    sqlx::query(
+        "INSERT INTO tokens (id, map_id, character_id, asset_id, name, x, y, rotation, scale, \
+             layer, visible, version) \
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) \
+         ON CONFLICT (id) DO UPDATE SET \
+             map_id = excluded.map_id, character_id = excluded.character_id, \
+             asset_id = excluded.asset_id, name = excluded.name, x = excluded.x, y = excluded.y, \
+             rotation = excluded.rotation, scale = excluded.scale, layer = excluded.layer, \
+             visible = excluded.visible, version = excluded.version",
+    )
+    .bind(token.id.to_string())
+    .bind(token.map_id.to_string())
+    .bind(token.character_id.map(|c| c.to_string()))
+    .bind(token.asset_id.map(|a| a.to_string()))
+    .bind(&token.name)
+    .bind(token.x)
+    .bind(token.y)
+    .bind(token.rotation)
+    .bind(token.scale)
+    .bind(enum_to_str(&token.layer)?)
+    .bind(token.visible)
+    .bind(token.version.0)
+    .execute(conn)
+    .await?;
+    Ok(())
+}
+
+fn map_from_row(row: &SqliteRow) -> DbResult<MapDto> {
+    Ok(MapDto {
+        id: MapId(uuid_from_str("maps.id", &row.try_get::<String, _>("id")?)?),
+        name: row.try_get("name")?,
+        background_asset_id: opt_uuid_from_str(
+            "maps.background_asset_id",
+            row.try_get("background_asset_id")?,
+        )?
+        .map(dnd_protocol::AssetId),
+        grid: Grid {
+            kind: enum_from_str::<GridKind>(
+                "maps.grid_kind",
+                &row.try_get::<String, _>("grid_kind")?,
+            )?,
+            cell_size: row.try_get("grid_cell_size")?,
+            offset_x: row.try_get("grid_offset_x")?,
+            offset_y: row.try_get("grid_offset_y")?,
+        },
+        visible_to_players: row.try_get("visible_to_players")?,
+        version: Version(row.try_get("version")?),
+    })
+}
+
+fn token_from_row(row: &SqliteRow) -> DbResult<TokenDto> {
+    Ok(TokenDto {
+        id: TokenId(uuid_from_str(
+            "tokens.id",
+            &row.try_get::<String, _>("id")?,
+        )?),
+        map_id: MapId(uuid_from_str(
+            "tokens.map_id",
+            &row.try_get::<String, _>("map_id")?,
+        )?),
+        character_id: opt_uuid_from_str("tokens.character_id", row.try_get("character_id")?)?
+            .map(CharacterId),
+        asset_id: opt_uuid_from_str("tokens.asset_id", row.try_get("asset_id")?)?
+            .map(dnd_protocol::AssetId),
+        name: row.try_get("name")?,
+        x: row.try_get("x")?,
+        y: row.try_get("y")?,
+        rotation: row.try_get("rotation")?,
+        scale: row.try_get("scale")?,
+        layer: enum_from_str::<TokenLayer>("tokens.layer", &row.try_get::<String, _>("layer")?)?,
+        visible: row.try_get("visible")?,
+        version: Version(row.try_get("version")?),
+    })
+}
