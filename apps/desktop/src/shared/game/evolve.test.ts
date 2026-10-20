@@ -54,6 +54,13 @@ describe('applyEvent', () => {
     expect(s.tokens.map((t) => t.id)).toEqual(['t2']);
   });
 
+  it('a stray move after delete does not resurrect the token', () => {
+    let s = applyEvent(empty, { kind: 'token_created', token: token('t1', 'm1') });
+    s = applyEvent(s, { kind: 'token_deleted', id: 't1' });
+    s = applyEvent(s, { kind: 'token_moved', id: 't1', x: 1, y: 1 });
+    expect(s.tokens).toEqual([]);
+  });
+
   it('moves tokens without touching their version', () => {
     let s = applyEvent(empty, { kind: 'token_created', token: token('t1', 'm1') });
     s = applyEvent(s, { kind: 'token_moved', id: 't1', x: 70, y: 35 });

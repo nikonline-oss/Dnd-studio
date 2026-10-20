@@ -242,3 +242,128 @@ fn snapshot_roundtrip() {
     let restored = dnd_game_core::GameState::from_snapshot(state.to_snapshot(Seq(7)));
     assert_eq!(restored, state);
 }
+
+fn move_token(n: u128) -> Intent {
+    Intent::MoveToken {
+        id: pooled_token_id(n),
+        x: 140.0,
+        y: 140.0,
+    }
+}
+
+/// A move that arrives after the token was deleted (e.g. a late 10–15 Hz drag update) must not
+/// resurrect it: the core rejects it, and even a stray `TokenMoved` event is a no-op.
+#[test]
+fn stale_move_after_delete_does_not_resurrect() {
+    for role in [Role::Gm, Role::CoGm] {
+        let mut state = table_state();
+        run(
+            &mut state,
+            Role::Gm,
+            Intent::DeleteToken {
+                id: pooled_token_id(3),
+            },
+            Some(Version(1)),
+        )
+        .unwrap();
+        let after_delete = state.clone();
+
+        assert_eq!(
+            run(&mut state, role, move_token(3), None),
+            Err(RejectReason::NotFound)
+        );
+        assert_eq!(state, after_delete);
+    }
+
+    let mut state = table_state();
+    dnd_game_core::evolve_all(
+        &mut state,
+        &[
+            Event::TokenDeleted {
+                id: pooled_token_id(3),
+            },
+            Event::TokenMoved {
+                id: pooled_token_id(3),
+                x: 1.0,
+                y: 1.0,
+            },
+        ],
+    );
+    assert!(!state.tokens.contains_key(&pooled_token_id(3)));
+}
+
+/// Same for a token removed together with its map.
+#[test]
+fn stale_move_after_map_delete_is_rejected() {
+    let mut state = table_state();
+    run(
+        &mut state,
+        Role::Gm,
+        Intent::DeleteMap {
+            id: pooled_map_id(0),
+        },
+        Some(Version(1)),
+    )
+    .unwrap();
+    assert_eq!(
+        run(&mut state, Role::Gm, move_token(0), None),
+        Err(RejectReason::NotFound)
+    );
+    // Players get Forbidden, not NotFound: they must not learn which ids exist.
+    assert_eq!(
+        run(&mut state, Role::Player, move_token(0), None),
+        Err(RejectReason::Forbidden)
+    );
+}
+
+/// Ownership is checked against the state at apply time. A player's move that arrives after the
+/// character changed owner (or the token was unlinked) is rejected.
+#[test]
+fn stale_player_move_after_owner_change_is_rejected() {
+    let mut state = table_state();
+    assert!(run(&mut state, Role::Player, move_token(0), None).is_ok());
+
+    // Character 0 is handed to another player (character intents arrive in stage 2a).
+    state
+        .characters
+        .get_mut(&pooled_character_id(0))
+        .unwrap()
+        .owner = Some(OTHER_PLAYER);
+    let before = state.clone();
+    assert_eq!(
+        run(&mut state, Role::Player, move_token(0), None),
+        Err(RejectReason::Forbidden)
+    );
+    assert_eq!(state, before);
+
+    // Token unlinked from the character by the GM.
+    let mut state = table_state();
+    state
+        .tokens
+        .get_mut(&pooled_token_id(0))
+        .unwrap()
+        .character_id = None;
+    assert_eq!(
+        run(&mut state, Role::Player, move_token(0), None),
+        Err(RejectReason::Forbidden)
+    );
+
+    // Map hidden from players after the drag started.
+    let mut state = table_state();
+    run(
+        &mut state,
+        Role::Gm,
+        Intent::UpdateMap {
+            id: pooled_map_id(0),
+            name: None,
+            grid: None,
+            visible_to_players: Some(false),
+        },
+        Some(Version(1)),
+    )
+    .unwrap();
+    assert_eq!(
+        run(&mut state, Role::Player, move_token(0), None),
+        Err(RejectReason::Forbidden)
+    );
+}
