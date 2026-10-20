@@ -149,6 +149,11 @@ version = "0.0.1"
 [[package]]
 name = "dnd-game-core"
 version = "0.0.1"
+dependencies = [
+ "dnd-protocol",
+ "proptest",
+ "uuid",
+]
 
 [[package]]
 name = "dnd-net"

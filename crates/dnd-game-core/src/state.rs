@@ -1,0 +1,63 @@
+//! In-memory game state.
+
+use std::collections::BTreeMap;
+
+use dnd_protocol::{
+    CampaignMeta, CharacterId, CharacterRef, MapDto, MapId, Seq, Snapshot, TokenDto, TokenId,
+    Version,
+};
+
+/// The authoritative state the core reasons about. Ordered maps keep iteration (and therefore
+/// produced events) deterministic.
+#[derive(Clone, Debug, PartialEq)]
+pub struct GameState {
+    pub campaign: CampaignMeta,
+    pub maps: BTreeMap<MapId, MapDto>,
+    pub tokens: BTreeMap<TokenId, TokenDto>,
+    pub characters: BTreeMap<CharacterId, CharacterRef>,
+}
+
+impl GameState {
+    /// An empty campaign with the given name.
+    #[must_use]
+    pub fn new(name: impl Into<String>) -> Self {
+        Self {
+            campaign: CampaignMeta {
+                name: name.into(),
+                description: String::new(),
+                version: Version::INITIAL,
+            },
+            maps: BTreeMap::new(),
+            tokens: BTreeMap::new(),
+            characters: BTreeMap::new(),
+        }
+    }
+
+    /// Rebuilds state from a snapshot.
+    #[must_use]
+    pub fn from_snapshot(snapshot: Snapshot) -> Self {
+        Self {
+            campaign: snapshot.campaign,
+            maps: snapshot.maps.into_iter().map(|m| (m.id, m)).collect(),
+            tokens: snapshot.tokens.into_iter().map(|t| (t.id, t)).collect(),
+            characters: snapshot.characters.into_iter().map(|c| (c.id, c)).collect(),
+        }
+    }
+
+    /// Full (unfiltered) snapshot as of `seq`.
+    #[must_use]
+    pub fn to_snapshot(&self, seq: Seq) -> Snapshot {
+        Snapshot {
+            seq,
+            campaign: self.campaign.clone(),
+            maps: self.maps.values().cloned().collect(),
+            tokens: self.tokens.values().cloned().collect(),
+            characters: self.characters.values().cloned().collect(),
+        }
+    }
+
+    /// Tokens placed on `map_id`, in id order.
+    pub fn tokens_on(&self, map_id: MapId) -> impl Iterator<Item = &TokenDto> {
+        self.tokens.values().filter(move |t| t.map_id == map_id)
+    }
+}
