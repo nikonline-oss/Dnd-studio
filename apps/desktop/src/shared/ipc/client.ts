@@ -49,7 +49,9 @@ export const ipc = {
   appInfo: () => commands.appInfo(),
   campaignCreate: (name: string) => unwrap(commands.campaignCreate(name)),
   campaignOpen: () => unwrap(commands.campaignOpen()),
+  campaignRestoreBackup: () => unwrap(commands.campaignRestoreBackup()),
   campaignClose: () => unwrap(commands.campaignClose()),
+  campaignSave: () => unwrap(commands.campaignSave()),
   campaignCurrent: () => unwrap(commands.campaignCurrent()),
   getSnapshot: () => unwrap(commands.getSnapshot()),
 };

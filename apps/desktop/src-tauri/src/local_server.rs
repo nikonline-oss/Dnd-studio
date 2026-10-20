@@ -1,10 +1,14 @@
 //! The in-process "server" for local play (ADR-0001): the same intent pipeline as the session
 //! server, backed by the campaign's SQLite file. Independent of Tauri so it can be tested directly.
+//!
+//! Autosave (CLAUDE.md §10, ADR-0011): accepted events update the in-memory state immediately and
+//! are queued; [`LocalServer::flush`] writes the queue in one transaction. The caller decides when
+//! (debounce, periodic flush, shutdown).
 
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use dnd_db::{BatchRecord, CampaignDb, LocalUser};
+use dnd_db::{BatchRecord, CampaignDb, LocalUser, list_backups};
 use dnd_game_core::{Actor, GameState, SplitMix64, apply, evolve_all};
 use dnd_protocol::{EventBatch, IntentEnvelope, RejectReason, Role, Seq, Snapshot, UserId};
 use serde::Serialize;
@@ -15,6 +19,8 @@ use crate::error::IpcError;
 pub const CAMPAIGN_FILE: &str = "campaign.sqlite";
 /// Asset folder inside a campaign folder.
 pub const ASSETS_DIR: &str = "assets";
+/// A backup is taken on open when the newest one is older than this.
+pub const BACKUP_MAX_AGE: Duration = Duration::from_secs(24 * 60 * 60);
 
 /// What the UI needs to know about the open campaign.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, specta::Type)]
@@ -52,17 +58,6 @@ fn seed() -> u64 {
         .map_or(0, |d| d.as_nanos() as u64)
 }
 
-/// An open campaign and its authoritative state.
-#[derive(Debug)]
-pub struct LocalServer {
-    db: CampaignDb,
-    folder: PathBuf,
-    state: GameState,
-    next_seq: Seq,
-    actor: Actor,
-    rng: SplitMix64,
-}
-
 /// Makes a folder name out of a campaign name: no path separators, reserved characters or
 /// trailing dots/spaces (Windows), at most 64 characters.
 #[must_use]
@@ -84,6 +79,19 @@ pub fn folder_name(name: &str) -> String {
     } else {
         trimmed
     }
+}
+
+/// An open campaign and its authoritative state.
+#[derive(Debug)]
+pub struct LocalServer {
+    db: CampaignDb,
+    folder: PathBuf,
+    state: GameState,
+    next_seq: Seq,
+    actor: Actor,
+    rng: SplitMix64,
+    /// Accepted batches not yet written to the database.
+    pending: Vec<BatchRecord>,
 }
 
 impl LocalServer {
@@ -111,7 +119,8 @@ impl LocalServer {
         Self::from_db(db, folder).await
     }
 
-    /// Opens the campaign in `folder`.
+    /// Opens the campaign in `folder`: integrity check, migrations (with a backup before them),
+    /// and a fresh backup when the newest one is older than [`BACKUP_MAX_AGE`].
     pub async fn open(folder: &Path) -> Result<Self, IpcError> {
         let file = folder.join(CAMPAIGN_FILE);
         if !file.exists() {
@@ -123,6 +132,8 @@ impl LocalServer {
         let (db, report) = CampaignDb::open(&file, now_ms()).await?;
         if let Some(backup) = report.pre_migration_backup {
             tracing::info!(backup = %backup.display(), "campaign migrated");
+        } else if backup_is_stale(&file) {
+            db.backup("on-open", now_ms()).await?;
         }
         tracing::info!(folder = %folder.display(), "campaign opened");
         Self::from_db(db, folder.to_owned()).await
@@ -144,6 +155,7 @@ impl LocalServer {
                 role: user.role,
             },
             rng: SplitMix64::new(seed()),
+            pending: Vec::new(),
         })
     }
 
@@ -167,13 +179,15 @@ impl LocalServer {
         self.state.to_snapshot(Seq(self.next_seq.0 - 1))
     }
 
-    /// Runs the intent pipeline: `apply` → persist → `evolve`. State changes only after the
-    /// events are stored, so a storage failure leaves memory and disk consistent.
-    pub async fn submit(
-        &mut self,
-        envelope: IntentEnvelope,
-    ) -> Result<(IntentOutcome, Option<EventBatch>), IpcError> {
-        let events = match apply(&self.state, &envelope, &self.actor, &mut self.rng) {
+    /// Whether accepted events are waiting to be written.
+    #[must_use]
+    pub fn is_dirty(&self) -> bool {
+        !self.pending.is_empty()
+    }
+
+    /// Runs the intent pipeline: `apply` → `evolve` → queue for [`flush`](Self::flush).
+    pub fn submit(&mut self, envelope: &IntentEnvelope) -> (IntentOutcome, Option<EventBatch>) {
+        let events = match apply(&self.state, envelope, &self.actor, &mut self.rng) {
             Ok(events) => events,
             Err(reason) => {
                 tracing::debug!(
@@ -181,7 +195,7 @@ impl LocalServer {
                     code = reason.code(),
                     "intent rejected"
                 );
-                return Ok((IntentOutcome::Rejected { reason }, None));
+                return (IntentOutcome::Rejected { reason }, None);
             }
         };
         let batch = EventBatch {
@@ -189,23 +203,55 @@ impl LocalServer {
             caused_by: Some(envelope.intent_id),
             events,
         };
-        self.db
-            .project(&[BatchRecord {
-                batch: batch.clone(),
-                actor: Some(self.actor.user_id),
-                at_ms: now_ms(),
-            }])
-            .await?;
         evolve_all(&mut self.state, &batch.events);
         let last = batch.last_seq();
         self.next_seq = last.next();
-        Ok((IntentOutcome::Accepted { seq: last }, Some(batch)))
+        self.pending.push(BatchRecord {
+            batch: batch.clone(),
+            actor: Some(self.actor.user_id),
+            at_ms: now_ms(),
+        });
+        (IntentOutcome::Accepted { seq: last }, Some(batch))
+    }
+
+    /// Writes queued batches in one transaction. On failure they stay queued for the next try.
+    pub async fn flush(&mut self) -> Result<(), IpcError> {
+        if self.pending.is_empty() {
+            return Ok(());
+        }
+        self.db.project(&self.pending).await?;
+        tracing::debug!(batches = self.pending.len(), "campaign saved");
+        self.pending.clear();
+        Ok(())
+    }
+
+    /// Flush plus WAL checkpoint (periodic save).
+    pub async fn flush_and_checkpoint(&mut self) -> Result<(), IpcError> {
+        self.flush().await?;
+        self.db.checkpoint().await?;
+        Ok(())
     }
 
     /// Flushes and closes the database.
-    pub async fn close(self) -> Result<(), IpcError> {
+    pub async fn close(mut self) -> Result<(), IpcError> {
+        self.flush().await?;
         self.db.close().await?;
         tracing::info!(folder = %self.folder.display(), "campaign closed");
         Ok(())
     }
+}
+
+/// True when there is no backup or the newest is older than [`BACKUP_MAX_AGE`].
+fn backup_is_stale(campaign_file: &Path) -> bool {
+    let newest = list_backups(campaign_file)
+        .ok()
+        .and_then(|b| b.last().cloned());
+    let Some(newest) = newest else {
+        return true;
+    };
+    std::fs::metadata(newest)
+        .and_then(|m| m.modified())
+        .ok()
+        .and_then(|t| t.elapsed().ok())
+        .is_none_or(|age| age > BACKUP_MAX_AGE)
 }

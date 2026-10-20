@@ -1,12 +1,15 @@
+import { useMutation } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Group, Panel, Separator, useDefaultLayout } from 'react-resizable-panels';
 import { MenuBar } from './MenuBar';
 import { StatusBar } from './StatusBar';
+import { LogPanel } from '@/features/logs/LogPanel';
 import { MapInspector } from '@/features/map/MapInspector';
 import { MapList } from '@/features/map/MapList';
 import { TokenList } from '@/features/tokens/TokenList';
 import { useSnapshot } from '@/shared/game/useGame';
-import type { CampaignInfo } from '@/shared/ipc/client';
+import { ipc, type CampaignInfo } from '@/shared/ipc/client';
 import { useSettings } from '@/shared/settings/settings';
 import { useSelection } from '@/shared/state/selection';
 import { ErrorBoundary } from '@/shared/ui/ErrorBoundary';
@@ -22,6 +25,23 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
   const mapId = useSelection((s) => s.mapId);
   const mapName = snapshot?.maps.find((m) => m.id === mapId)?.name;
   const isGm = preset === 'gm';
+  // Logs are a GM/maintenance tool; the player preset keeps only chat (§5).
+  const bottomTabs = isGm ? (['chat', 'logs'] as const) : (['chat'] as const);
+  const [bottomTab, setBottomTab] = useState<'chat' | 'logs'>('chat');
+  const { mutate: saveNow } = useMutation({ mutationFn: ipc.campaignSave });
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        saveNow();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [saveNow]);
 
   const horizontal = useDefaultLayout({
     id: `dndstudio.layout.${preset}.h`,
@@ -69,11 +89,27 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
             <Separator className="separator" />
             <Panel id="bottom" defaultSize="25" minSize="10" collapsible className="bottom-panel">
               <div role="tablist" className="tabs">
-                <button type="button" role="tab" aria-selected="true">
-                  {t('panels.chat')}
-                </button>
+                {bottomTabs.map((tab) => (
+                  <button
+                    key={tab}
+                    type="button"
+                    role="tab"
+                    aria-selected={bottomTab === tab}
+                    onClick={() => {
+                      setBottomTab(tab);
+                    }}
+                  >
+                    {t(`panels.${tab}`)}
+                  </button>
+                ))}
               </div>
-              <p className="muted">{t('panels.chatSoon')}</p>
+              {bottomTab === 'logs' ? (
+                <ErrorBoundary name={t('panels.logs')}>
+                  <LogPanel />
+                </ErrorBoundary>
+              ) : (
+                <p className="muted">{t('panels.chatSoon')}</p>
+              )}
             </Panel>
           </Group>
         </Panel>

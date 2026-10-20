@@ -2,6 +2,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)] // test code
 
+use dnd_db::{CampaignDb, list_backups};
 use dnd_desktop_lib::{IntentOutcome, LocalServer, folder_name};
 use dnd_protocol::*;
 
@@ -13,6 +14,29 @@ fn envelope(intent: Intent, expected_version: Option<Version>) -> IntentEnvelope
     }
 }
 
+fn create_map(id: MapId) -> IntentEnvelope {
+    envelope(
+        Intent::CreateMap {
+            id,
+            name: "Cave".into(),
+            background_asset_id: None,
+            grid: Grid::default(),
+            visible_to_players: false,
+        },
+        None,
+    )
+}
+
+/// Events stored in the campaign file, read through a second connection (WAL allows it).
+async fn stored_seq(server: &LocalServer) -> Seq {
+    let (db, _) = CampaignDb::open(&server.folder().join("campaign.sqlite"), 0)
+        .await
+        .unwrap();
+    let seq = db.last_seq().await.unwrap();
+    db.close().await.unwrap();
+    seq
+}
+
 #[tokio::test]
 async fn intents_persist_across_reopen() {
     let dir = tempfile::tempdir().unwrap();
@@ -22,67 +46,46 @@ async fn intents_persist_across_reopen() {
     assert_eq!(info.role, Role::Gm);
 
     let map_id = MapId::new_v7();
-    let (outcome, batch) = server
-        .submit(envelope(
-            Intent::CreateMap {
-                id: map_id,
-                name: "Cave".into(),
-                background_asset_id: None,
-                grid: Grid::default(),
-                visible_to_players: false,
-            },
-            None,
-        ))
-        .await
-        .unwrap();
+    let (outcome, batch) = server.submit(&create_map(map_id));
     assert_eq!(outcome, IntentOutcome::Accepted { seq: Seq(1) });
     assert_eq!(batch.unwrap().seq, Seq(1));
 
     let token_id = TokenId::new_v7();
-    server
-        .submit(envelope(
-            Intent::CreateToken {
-                id: token_id,
-                map_id,
-                character_id: None,
-                asset_id: None,
-                name: "Goblin".into(),
-                x: 0.0,
-                y: 0.0,
-                rotation: 0.0,
-                scale: 1.0,
-                layer: TokenLayer::Tokens,
-                visible: true,
-            },
-            None,
-        ))
-        .await
-        .unwrap();
-    server
-        .submit(envelope(
-            Intent::MoveToken {
-                id: token_id,
-                x: 70.0,
-                y: 140.0,
-            },
-            None,
-        ))
-        .await
-        .unwrap();
+    server.submit(&envelope(
+        Intent::CreateToken {
+            id: token_id,
+            map_id,
+            character_id: None,
+            asset_id: None,
+            name: "Goblin".into(),
+            x: 0.0,
+            y: 0.0,
+            rotation: 0.0,
+            scale: 1.0,
+            layer: TokenLayer::Tokens,
+            visible: true,
+        },
+        None,
+    ));
+    server.submit(&envelope(
+        Intent::MoveToken {
+            id: token_id,
+            x: 70.0,
+            y: 140.0,
+        },
+        None,
+    ));
 
-    // A stale edit is rejected without touching state or disk.
-    let (outcome, batch) = server
-        .submit(envelope(
-            Intent::UpdateMap {
-                id: map_id,
-                name: Some("Stale".into()),
-                grid: None,
-                visible_to_players: None,
-            },
-            Some(Version(7)),
-        ))
-        .await
-        .unwrap();
+    // A stale edit is rejected without touching state.
+    let (outcome, batch) = server.submit(&envelope(
+        Intent::UpdateMap {
+            id: map_id,
+            name: Some("Stale".into()),
+            grid: None,
+            visible_to_players: None,
+        },
+        Some(Version(7)),
+    ));
     assert_eq!(
         outcome,
         IntentOutcome::Rejected {
@@ -96,11 +99,59 @@ async fn intents_persist_across_reopen() {
     let before = server.snapshot();
     assert_eq!(before.seq, Seq(3));
     let folder = server.folder().to_owned();
+    // close() flushes the autosave queue.
     server.close().await.unwrap();
 
     let reopened = LocalServer::open(&folder).await.unwrap();
     assert_eq!(reopened.snapshot(), before);
     assert_eq!(reopened.info().user_id, info.user_id);
+}
+
+#[tokio::test]
+async fn changes_are_queued_until_flush() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut server = LocalServer::create(dir.path(), "Queue").await.unwrap();
+    assert!(!server.is_dirty());
+
+    server.submit(&create_map(MapId::new_v7()));
+    assert!(server.is_dirty());
+    assert_eq!(server.snapshot().maps.len(), 1, "state updates immediately");
+    assert_eq!(stored_seq(&server).await, Seq(0), "disk updates on flush");
+
+    server.flush().await.unwrap();
+    assert!(!server.is_dirty());
+    assert_eq!(stored_seq(&server).await, Seq(1));
+
+    server.submit(&create_map(MapId::new_v7()));
+    server.flush_and_checkpoint().await.unwrap();
+    assert_eq!(stored_seq(&server).await, Seq(2));
+}
+
+#[tokio::test]
+async fn opening_takes_a_backup_when_none_is_recent() {
+    let dir = tempfile::tempdir().unwrap();
+    let server = LocalServer::create(dir.path(), "Backed").await.unwrap();
+    let folder = server.folder().to_owned();
+    server.close().await.unwrap();
+    let file = folder.join("campaign.sqlite");
+    assert!(list_backups(&file).unwrap().is_empty());
+
+    LocalServer::open(&folder)
+        .await
+        .unwrap()
+        .close()
+        .await
+        .unwrap();
+    assert_eq!(list_backups(&file).unwrap().len(), 1);
+
+    // A fresh backup exists, so the next open does not take another one.
+    LocalServer::open(&folder)
+        .await
+        .unwrap()
+        .close()
+        .await
+        .unwrap();
+    assert_eq!(list_backups(&file).unwrap().len(), 1);
 }
 
 #[tokio::test]
@@ -117,6 +168,19 @@ async fn opening_a_non_campaign_folder_is_a_user_error() {
     let dir = tempfile::tempdir().unwrap();
     let err = LocalServer::open(dir.path()).await.unwrap_err();
     assert_eq!(err.code, "not_a_campaign");
+}
+
+#[tokio::test]
+async fn corrupted_campaign_is_a_recoverable_error() {
+    let dir = tempfile::tempdir().unwrap();
+    let server = LocalServer::create(dir.path(), "Broken").await.unwrap();
+    let folder = server.folder().to_owned();
+    server.close().await.unwrap();
+    std::fs::write(folder.join("campaign.sqlite"), b"definitely not sqlite").unwrap();
+
+    let err = LocalServer::open(&folder).await.unwrap_err();
+    assert_eq!(err.code, "campaign_corrupt");
+    assert_eq!(err.kind, dnd_desktop_lib::IpcErrorKind::Recoverable);
 }
 
 #[test]

@@ -1,0 +1,3 @@
+src/shared/ipc/bindings.ts
+src-tauri/
+dist/

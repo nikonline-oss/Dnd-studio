@@ -14,7 +14,9 @@ globalThis.ResizeObserver = class {
 // Tests assert on English strings regardless of the machine locale.
 void i18n.changeLanguage('en');
 
-afterEach(() => {
+afterEach(async () => {
   cleanup();
+  // Let unmount-time `unlisten` promises settle before the IPC mocks are removed.
+  await new Promise((resolve) => setTimeout(resolve, 0));
   clearMocks();
 });

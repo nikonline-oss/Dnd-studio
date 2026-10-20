@@ -19,7 +19,11 @@ export const commands = {
 	user_id: UserId,
 	role: Role,
 } | null, IpcError>(__TAURI_INVOKE("campaign_create", { name })),
-	/**  Asks the user for a campaign folder and opens it. `None` if the dialog was cancelled. */
+	/**
+	 *  Asks the user for a campaign folder and opens it. `None` if the dialog was cancelled.
+	 *  A corrupted file yields a `Recoverable` `campaign_corrupt` error; the UI then offers
+	 *  [`campaign_restore_backup`].
+	 */
 	campaignOpen: () => typedError<{
 	name: string,
 	/**  The campaign folder. */
@@ -27,7 +31,14 @@ export const commands = {
 	user_id: UserId,
 	role: Role,
 } | null, IpcError>(__TAURI_INVOKE("campaign_open")),
+	/**
+	 *  Replaces the corrupted campaign file (from the last failed open) with its newest backup and
+	 *  opens it. The damaged file is kept as `campaign.sqlite.corrupt`.
+	 */
+	campaignRestoreBackup: () => typedError<CampaignInfo, IpcError>(__TAURI_INVOKE("campaign_restore_backup")),
 	campaignClose: () => typedError<null, IpcError>(__TAURI_INVOKE("campaign_close")),
+	/**  Saves immediately (also happens automatically, see ADR-0011). */
+	campaignSave: () => typedError<null, IpcError>(__TAURI_INVOKE("campaign_save")),
 	campaignCurrent: () => typedError<{
 	name: string,
 	/**  The campaign folder. */
@@ -41,11 +52,17 @@ export const commands = {
 	 *  [`GameEventsEmitted`], so every view updates the same way for local and remote play.
 	 */
 	submitIntent: (envelope: IntentEnvelope) => typedError<IntentOutcome, IpcError>(__TAURI_INVOKE("submit_intent", { envelope })),
+	/**  Recent log records for the log panel (live ones arrive as [`LogRecord`] events). */
+	logsRecent: () => __TAURI_INVOKE<LogRecord[]>("logs_recent"),
+	/**  Lets the UI write to the application log (e.g. a crashed feature in an error boundary). */
+	logFrontend: (level: LogLevel, message: string) => __TAURI_INVOKE<void>("log_frontend", { level, message }),
 };
 
 /** Events */
 export const events = {
 	gameEventsEmitted: makeEvent<GameEventsEmitted>("game-events-emitted"),
+	logRecord: makeEvent<LogRecord>("log-record"),
+	saveStatusChanged: makeEvent<SaveStatusChanged>("save-status-changed"),
 };
 
 /* Types */
@@ -157,6 +174,17 @@ export type IpcErrorKind =
 /**  The application cannot continue. */
 "fatal";
 
+export type LogLevel = "trace" | "debug" | "info" | "warn" | "error";
+
+/**  One log line for the panel. */
+export type LogRecord = {
+	/**  Unix milliseconds. */
+	ts_ms: number,
+	level: LogLevel,
+	target: string,
+	message: string,
+};
+
 /**  A map. */
 export type MapDto = {
 	id: MapId,
@@ -195,6 +223,12 @@ export type Rejection = {
 
 /**  Role of a participant (CLAUDE.md §5). */
 export type Role = "gm" | "co_gm" | "player" | "spectator";
+
+/**  Whether the open campaign has unsaved changes, and the last save error if any. */
+export type SaveStatusChanged = {
+	dirty: boolean,
+	error: string | null,
+};
 
 /**
  *  Position of an event in the campaign/session event log.

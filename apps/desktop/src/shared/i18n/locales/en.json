@@ -9,7 +9,9 @@
     "create": "Create…",
     "open": "Open…",
     "close": "Close campaign",
-    "createHint": "You will be asked where to create the campaign folder."
+    "createHint": "You will be asked where to create the campaign folder.",
+    "restore": "Restore from latest backup",
+    "corruptHint": "The damaged file will be kept as campaign.sqlite.corrupt."
   },
   "maps": {
     "title": "Maps",
@@ -46,7 +48,10 @@
     "missing_expected_version": "Internal error: missing version",
     "forbidden": "You are not allowed to do this",
     "invalid": "Invalid value",
-    "protocol_mismatch": "Update the client or the server"
+    "protocol_mismatch": "Update the client or the server",
+    "nothing_to_restore": "There is nothing to restore",
+    "save_failed": "Could not save the campaign",
+    "no_backup": "No backups found for this campaign"
   },
   "menu": {
     "label": "Main menu",
@@ -70,7 +75,10 @@
     "label": "Status bar",
     "serverLocal": "Local game",
     "plugins_one": "{{count}} plugin",
-    "plugins_other": "{{count}} plugins"
+    "plugins_other": "{{count}} plugins",
+    "saved": "Saved",
+    "unsaved": "Unsaved changes",
+    "saveFailed": "Save failed"
   },
   "roles": {
     "gm": "Game master",
@@ -81,7 +89,8 @@
   "panels": {
     "map": "Map",
     "chat": "Chat",
-    "chatSoon": "Chat arrives in stage 2."
+    "chatSoon": "Chat arrives in stage 2.",
+    "logs": "Logs"
   },
   "inspector": {
     "title": "Inspector",
@@ -101,5 +110,19 @@
   "errorBoundary": {
     "message": "“{{name}}” crashed. The rest of the app keeps working.",
     "retry": "Try again"
+  },
+  "logs": {
+    "title": "Logs",
+    "level": "Level",
+    "search": "Search",
+    "copy": "Copy",
+    "empty": "No messages at this level",
+    "levels": {
+      "error": "Errors",
+      "warn": "Warnings and errors",
+      "info": "Info and above",
+      "debug": "Debug and above",
+      "trace": "Everything"
+    }
   }
 }

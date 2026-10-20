@@ -1,5 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import { commands } from '@/shared/ipc/client';
 
 interface Props {
   /** Shown in the fallback and the log, e.g. the feature name. */
@@ -24,6 +25,10 @@ export class ErrorBoundary extends Component<Props, State> {
 
   override componentDidCatch(error: Error, info: ErrorInfo) {
     console.error(`[${this.props.name}] crashed`, error, info.componentStack);
+    // Into the application log file too; failures here must not throw from the boundary.
+    commands
+      .logFrontend('error', `[${this.props.name}] ${error.stack ?? error.message}`)
+      .catch(() => undefined);
   }
 
   override render() {
