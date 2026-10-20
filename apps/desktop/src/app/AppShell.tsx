@@ -1,5 +1,4 @@
-import { useMutation } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Group, Panel, Separator, useDefaultLayout } from 'react-resizable-panels';
 import { MenuBar } from './MenuBar';
@@ -9,7 +8,7 @@ import { MapInspector } from '@/features/map/MapInspector';
 import { MapList } from '@/features/map/MapList';
 import { TokenList } from '@/features/tokens/TokenList';
 import { useSnapshot } from '@/shared/game/useGame';
-import { ipc, type CampaignInfo } from '@/shared/ipc/client';
+import type { CampaignInfo } from '@/shared/ipc/client';
 import { useSettings } from '@/shared/settings/settings';
 import { useSelection } from '@/shared/state/selection';
 import { ErrorBoundary } from '@/shared/ui/ErrorBoundary';
@@ -28,20 +27,6 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
   // Logs are a GM/maintenance tool; the player preset keeps only chat (§5).
   const bottomTabs = isGm ? (['chat', 'logs'] as const) : (['chat'] as const);
   const [bottomTab, setBottomTab] = useState<'chat' | 'logs'>('chat');
-  const { mutate: saveNow } = useMutation({ mutationFn: ipc.campaignSave });
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
-        e.preventDefault();
-        saveNow();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => {
-      window.removeEventListener('keydown', onKey);
-    };
-  }, [saveNow]);
 
   const horizontal = useDefaultLayout({
     id: `dndstudio.layout.${preset}.h`,

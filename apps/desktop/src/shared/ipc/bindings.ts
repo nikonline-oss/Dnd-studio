@@ -37,8 +37,6 @@ export const commands = {
 	 */
 	campaignRestoreBackup: () => typedError<CampaignInfo, IpcError>(__TAURI_INVOKE("campaign_restore_backup")),
 	campaignClose: () => typedError<null, IpcError>(__TAURI_INVOKE("campaign_close")),
-	/**  Saves immediately (also happens automatically, see ADR-0011). */
-	campaignSave: () => typedError<null, IpcError>(__TAURI_INVOKE("campaign_save")),
 	campaignCurrent: () => typedError<{
 	name: string,
 	/**  The campaign folder. */
@@ -48,8 +46,9 @@ export const commands = {
 } | null, IpcError>(__TAURI_INVOKE("campaign_current")),
 	getSnapshot: () => typedError<Snapshot, IpcError>(__TAURI_INVOKE("get_snapshot")),
 	/**
-	 *  Applies an intent through the game core. Accepted events are also broadcast as
-	 *  [`GameEventsEmitted`], so every view updates the same way for local and remote play.
+	 *  Applies an intent through the game core and commits the resulting events. Only then are they
+	 *  broadcast as [`GameEventsEmitted`], so every view updates the same way for local and remote
+	 *  play and never shows an event that is not on disk.
 	 */
 	submitIntent: (envelope: IntentEnvelope) => typedError<IntentOutcome, IpcError>(__TAURI_INVOKE("submit_intent", { envelope })),
 	/**  Recent log records for the log panel (live ones arrive as [`LogRecord`] events). */
@@ -70,7 +69,6 @@ export const commands = {
 export const events = {
 	gameEventsEmitted: makeEvent<GameEventsEmitted>("game-events-emitted"),
 	logRecord: makeEvent<LogRecord>("log-record"),
-	saveStatusChanged: makeEvent<SaveStatusChanged>("save-status-changed"),
 	updateAvailable: makeEvent<UpdateAvailable>("update-available"),
 };
 
@@ -124,7 +122,10 @@ export type EventBatch = {
 	events: Event[],
 };
 
-/**  Emitted after every accepted intent with the events it produced. */
+/**
+ *  Emitted after every accepted intent with the events it produced — only once they are
+ *  committed to the campaign file (ADR-0014).
+ */
 export type GameEventsEmitted = EventBatch;
 
 /**  Grid settings of a map. All lengths are in map pixels. */
@@ -232,12 +233,6 @@ export type Rejection = {
 
 /**  Role of a participant (CLAUDE.md §5). */
 export type Role = "gm" | "co_gm" | "player" | "spectator";
-
-/**  Whether the open campaign has unsaved changes, and the last save error if any. */
-export type SaveStatusChanged = {
-	dirty: boolean,
-	error: string | null,
-};
 
 /**
  *  Position of an event in the campaign/session event log.

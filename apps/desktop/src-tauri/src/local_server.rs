@@ -1,9 +1,8 @@
 //! The in-process "server" for local play (ADR-0001): the same intent pipeline as the session
 //! server, backed by the campaign's SQLite file. Independent of Tauri so it can be tested directly.
 //!
-//! Autosave (CLAUDE.md §10, ADR-0011): accepted events update the in-memory state immediately and
-//! are queued; [`LocalServer::flush`] writes the queue in one transaction. The caller decides when
-//! (debounce, periodic flush, shutdown).
+//! Persistence is write-through (CLAUDE.md §10, ADR-0014): every accepted batch is committed before
+//! the in-memory state changes and before anyone is told about it.
 
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -90,8 +89,6 @@ pub struct LocalServer {
     next_seq: Seq,
     actor: Actor,
     rng: SplitMix64,
-    /// Accepted batches not yet written to the database.
-    pending: Vec<BatchRecord>,
 }
 
 impl LocalServer {
@@ -155,7 +152,6 @@ impl LocalServer {
                 role: user.role,
             },
             rng: SplitMix64::new(seed()),
-            pending: Vec::new(),
         })
     }
 
@@ -179,14 +175,13 @@ impl LocalServer {
         self.state.to_snapshot(Seq(self.next_seq.0 - 1))
     }
 
-    /// Whether accepted events are waiting to be written.
-    #[must_use]
-    pub fn is_dirty(&self) -> bool {
-        !self.pending.is_empty()
-    }
-
-    /// Runs the intent pipeline: `apply` → `evolve` → queue for [`flush`](Self::flush).
-    pub fn submit(&mut self, envelope: &IntentEnvelope) -> (IntentOutcome, Option<EventBatch>) {
+    /// Runs the intent pipeline write-through (ADR-0014): `apply` → commit the batch (`event_log` +
+    /// projection, one transaction) → `evolve`. Memory changes only after the commit, so a storage
+    /// failure leaves memory, disk and `next_seq` untouched; the caller then broadcasts the batch.
+    pub async fn submit(
+        &mut self,
+        envelope: &IntentEnvelope,
+    ) -> Result<(IntentOutcome, Option<EventBatch>), IpcError> {
         let events = match apply(&self.state, envelope, &self.actor, &mut self.rng) {
             Ok(events) => events,
             Err(reason) => {
@@ -195,7 +190,7 @@ impl LocalServer {
                     code = reason.code(),
                     "intent rejected"
                 );
-                return (IntentOutcome::Rejected { reason }, None);
+                return Ok((IntentOutcome::Rejected { reason }, None));
             }
         };
         let batch = EventBatch {
@@ -203,38 +198,27 @@ impl LocalServer {
             caused_by: Some(envelope.intent_id),
             events,
         };
+        self.db
+            .project(&[BatchRecord {
+                batch: batch.clone(),
+                actor: Some(self.actor.user_id),
+                at_ms: now_ms(),
+            }])
+            .await?;
         evolve_all(&mut self.state, &batch.events);
         let last = batch.last_seq();
         self.next_seq = last.next();
-        self.pending.push(BatchRecord {
-            batch: batch.clone(),
-            actor: Some(self.actor.user_id),
-            at_ms: now_ms(),
-        });
-        (IntentOutcome::Accepted { seq: last }, Some(batch))
+        Ok((IntentOutcome::Accepted { seq: last }, Some(batch)))
     }
 
-    /// Writes queued batches in one transaction. On failure they stay queued for the next try.
-    pub async fn flush(&mut self) -> Result<(), IpcError> {
-        if self.pending.is_empty() {
-            return Ok(());
-        }
-        self.db.project(&self.pending).await?;
-        tracing::debug!(batches = self.pending.len(), "campaign saved");
-        self.pending.clear();
-        Ok(())
-    }
-
-    /// Flush plus WAL checkpoint (periodic save).
-    pub async fn flush_and_checkpoint(&mut self) -> Result<(), IpcError> {
-        self.flush().await?;
+    /// Moves the WAL into the main file (periodic housekeeping, not needed for durability).
+    pub async fn checkpoint(&self) -> Result<(), IpcError> {
         self.db.checkpoint().await?;
         Ok(())
     }
 
-    /// Flushes and closes the database.
-    pub async fn close(mut self) -> Result<(), IpcError> {
-        self.flush().await?;
+    /// Checkpoints and closes the database.
+    pub async fn close(self) -> Result<(), IpcError> {
         self.db.close().await?;
         tracing::info!(folder = %self.folder.display(), "campaign closed");
         Ok(())

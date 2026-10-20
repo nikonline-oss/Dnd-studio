@@ -41,6 +41,7 @@ uuid.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
+sqlx = { workspace = true, features = ["sqlite", "runtime-tokio"] }
 tokio = { workspace = true, features = ["sync", "time", "macros", "rt-multi-thread", "test-util"] }
 
 [lints]

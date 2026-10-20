@@ -46,46 +46,55 @@ async fn intents_persist_across_reopen() {
     assert_eq!(info.role, Role::Gm);
 
     let map_id = MapId::new_v7();
-    let (outcome, batch) = server.submit(&create_map(map_id));
+    let (outcome, batch) = server.submit(&create_map(map_id)).await.unwrap();
     assert_eq!(outcome, IntentOutcome::Accepted { seq: Seq(1) });
     assert_eq!(batch.unwrap().seq, Seq(1));
 
     let token_id = TokenId::new_v7();
-    server.submit(&envelope(
-        Intent::CreateToken {
-            id: token_id,
-            map_id,
-            character_id: None,
-            asset_id: None,
-            name: "Goblin".into(),
-            x: 0.0,
-            y: 0.0,
-            rotation: 0.0,
-            scale: 1.0,
-            layer: TokenLayer::Tokens,
-            visible: true,
-        },
-        None,
-    ));
-    server.submit(&envelope(
-        Intent::MoveToken {
-            id: token_id,
-            x: 70.0,
-            y: 140.0,
-        },
-        None,
-    ));
+    server
+        .submit(&envelope(
+            Intent::CreateToken {
+                id: token_id,
+                map_id,
+                character_id: None,
+                asset_id: None,
+                name: "Goblin".into(),
+                x: 0.0,
+                y: 0.0,
+                rotation: 0.0,
+                scale: 1.0,
+                layer: TokenLayer::Tokens,
+                visible: true,
+            },
+            None,
+        ))
+        .await
+        .unwrap();
+    server
+        .submit(&envelope(
+            Intent::MoveToken {
+                id: token_id,
+                x: 70.0,
+                y: 140.0,
+            },
+            None,
+        ))
+        .await
+        .unwrap();
 
     // A stale edit is rejected without touching state.
-    let (outcome, batch) = server.submit(&envelope(
-        Intent::UpdateMap {
-            id: map_id,
-            name: Some("Stale".into()),
-            grid: None,
-            visible_to_players: None,
-        },
-        Some(Version(7)),
-    ));
+    let (outcome, batch) = server
+        .submit(&envelope(
+            Intent::UpdateMap {
+                id: map_id,
+                name: Some("Stale".into()),
+                grid: None,
+                visible_to_players: None,
+            },
+            Some(Version(7)),
+        ))
+        .await
+        .unwrap();
     assert_eq!(
         outcome,
         IntentOutcome::Rejected {
@@ -107,23 +116,70 @@ async fn intents_persist_across_reopen() {
     assert_eq!(reopened.info().user_id, info.user_id);
 }
 
+/// ADR-0014: an accepted batch is on disk by the time `submit` returns (before any broadcast).
 #[tokio::test]
-async fn changes_are_queued_until_flush() {
+async fn accepted_batch_is_committed_before_submit_returns() {
     let dir = tempfile::tempdir().unwrap();
-    let mut server = LocalServer::create(dir.path(), "Queue").await.unwrap();
-    assert!(!server.is_dirty());
+    let mut server = LocalServer::create(dir.path(), "Write-through")
+        .await
+        .unwrap();
 
-    server.submit(&create_map(MapId::new_v7()));
-    assert!(server.is_dirty());
-    assert_eq!(server.snapshot().maps.len(), 1, "state updates immediately");
-    assert_eq!(stored_seq(&server).await, Seq(0), "disk updates on flush");
+    server.submit(&create_map(MapId::new_v7())).await.unwrap();
+    assert_eq!(stored_seq(&server).await, Seq(1));
+    server.submit(&create_map(MapId::new_v7())).await.unwrap();
+    assert_eq!(stored_seq(&server).await, Seq(2));
 
-    server.flush().await.unwrap();
-    assert!(!server.is_dirty());
+    // A rejected intent writes nothing.
+    server.submit(&create_map(MapId::new_v7())).await.unwrap();
+    let (outcome, _) = server
+        .submit(&envelope(
+            Intent::DeleteMap {
+                id: MapId::new_v7(),
+            },
+            Some(Version(1)),
+        ))
+        .await
+        .unwrap();
+    assert!(matches!(outcome, IntentOutcome::Rejected { .. }));
+    assert_eq!(stored_seq(&server).await, Seq(3));
+}
+
+/// A failing commit leaves memory, disk and the sequence counter untouched, and the next intent
+/// continues from the same `seq` once storage works again.
+#[tokio::test]
+async fn storage_failure_changes_nothing() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut server = LocalServer::create(dir.path(), "Faulty").await.unwrap();
+    server.submit(&create_map(MapId::new_v7())).await.unwrap();
+    let before = server.snapshot();
+
+    // Simulate a storage failure from a second connection.
+    let (db, _) = CampaignDb::open(&server.folder().join("campaign.sqlite"), 0)
+        .await
+        .unwrap();
+    sqlx::query(
+        "CREATE TRIGGER fail_writes BEFORE INSERT ON event_log \
+         BEGIN SELECT RAISE(ABORT, 'disk full'); END",
+    )
+    .execute(db.pool())
+    .await
+    .unwrap();
+
+    let err = server
+        .submit(&create_map(MapId::new_v7()))
+        .await
+        .unwrap_err();
+    assert_eq!(err.code, "storage_error");
+    assert_eq!(server.snapshot(), before);
     assert_eq!(stored_seq(&server).await, Seq(1));
 
-    server.submit(&create_map(MapId::new_v7()));
-    server.flush_and_checkpoint().await.unwrap();
+    sqlx::query("DROP TRIGGER fail_writes")
+        .execute(db.pool())
+        .await
+        .unwrap();
+    db.close().await.unwrap();
+    let (outcome, _) = server.submit(&create_map(MapId::new_v7())).await.unwrap();
+    assert_eq!(outcome, IntentOutcome::Accepted { seq: Seq(2) });
     assert_eq!(stored_seq(&server).await, Seq(2));
 }
 

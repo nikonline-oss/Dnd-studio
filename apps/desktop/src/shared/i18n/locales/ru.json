@@ -50,7 +50,6 @@
     "invalid": "Недопустимое значение",
     "protocol_mismatch": "Обновите клиент или сервер",
     "nothing_to_restore": "Нечего восстанавливать",
-    "save_failed": "Не удалось сохранить кампанию",
     "no_backup": "Для этой кампании нет бэкапов",
     "updater_disabled": "Обновления не настроены в этой сборке",
     "update_failed": "Не удалось проверить или установить обновление",
@@ -81,10 +80,7 @@
     "plugins_one": "{{count}} плагин",
     "plugins_few": "{{count}} плагина",
     "plugins_many": "{{count}} плагинов",
-    "plugins_other": "{{count}} плагина",
-    "saved": "Сохранено",
-    "unsaved": "Есть несохранённые изменения",
-    "saveFailed": "Ошибка сохранения"
+    "plugins_other": "{{count}} плагина"
   },
   "roles": {
     "gm": "Мастер",

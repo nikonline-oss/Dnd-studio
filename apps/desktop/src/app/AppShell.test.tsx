@@ -1,7 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { emit } from '@tauri-apps/api/event';
 import { mockIPC } from '@tauri-apps/api/mocks';
-import { act, render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AppShell } from './AppShell';
@@ -56,15 +55,6 @@ describe('AppShell', () => {
     const status = screen.getByRole('contentinfo', { name: 'Status bar' });
     expect(status).toHaveTextContent('Local game');
     expect(await screen.findByText('v0.0.1')).toBeInTheDocument();
-  });
-
-  it('status bar follows autosave events', async () => {
-    renderShell('gm');
-    expect(await screen.findByText('Saved')).toBeInTheDocument();
-    await act(() => emit('save-status-changed', { dirty: true, error: null }));
-    expect(await screen.findByText('Unsaved changes')).toBeInTheDocument();
-    await act(() => emit('save-status-changed', { dirty: true, error: 'disk full' }));
-    expect(await screen.findByText('Save failed')).toHaveAttribute('title', 'disk full');
   });
 
   it('GM can switch the bottom panel to logs', async () => {

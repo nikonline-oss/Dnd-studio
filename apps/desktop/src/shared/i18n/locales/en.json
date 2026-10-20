@@ -50,7 +50,6 @@
     "invalid": "Invalid value",
     "protocol_mismatch": "Update the client or the server",
     "nothing_to_restore": "There is nothing to restore",
-    "save_failed": "Could not save the campaign",
     "no_backup": "No backups found for this campaign",
     "updater_disabled": "Updates are not configured in this build",
     "update_failed": "Could not check or install the update",
@@ -79,10 +78,7 @@
     "label": "Status bar",
     "serverLocal": "Local game",
     "plugins_one": "{{count}} plugin",
-    "plugins_other": "{{count}} plugins",
-    "saved": "Saved",
-    "unsaved": "Unsaved changes",
-    "saveFailed": "Save failed"
+    "plugins_other": "{{count}} plugins"
   },
   "roles": {
     "gm": "Game master",

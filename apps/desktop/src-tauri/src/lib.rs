@@ -7,7 +7,7 @@ mod local_server;
 pub mod logging;
 mod updater;
 
-pub use commands::{AppInfo, AppState, GameEventsEmitted, SaveStatusChanged};
+pub use commands::{AppInfo, AppState, GameEventsEmitted};
 pub use error::{IpcError, IpcErrorKind};
 pub use local_server::{CampaignInfo, IntentOutcome, LocalServer, folder_name};
 
@@ -34,8 +34,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::campaign_create::<tauri::Wry>,
             commands::campaign_open::<tauri::Wry>,
             commands::campaign_restore_backup,
-            commands::campaign_close::<tauri::Wry>,
-            commands::campaign_save::<tauri::Wry>,
+            commands::campaign_close,
             commands::campaign_current,
             commands::get_snapshot,
             commands::submit_intent::<tauri::Wry>,
@@ -46,7 +45,6 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
         ])
         .events(collect_events![
             GameEventsEmitted,
-            SaveStatusChanged,
             logging::LogRecord,
             updater::UpdateAvailable
         ])
@@ -95,11 +93,7 @@ pub fn run() -> Result<(), tauri::Error> {
             tracing::info!(version = env!("CARGO_PKG_VERSION"), log_dir = %log_dir.display(), "DndStudio started");
 
             let state = AppState::new(logs);
-            tauri::async_runtime::spawn(autosave::run(
-                app.handle().clone(),
-                state.server.clone(),
-                state.dirty.clone(),
-            ));
+            tauri::async_runtime::spawn(autosave::run(state.server.clone()));
             app.manage(state);
 
             app.manage(updater::PendingUpdate::default());
@@ -129,7 +123,8 @@ pub fn run() -> Result<(), tauri::Error> {
     Ok(())
 }
 
-/// Graceful shutdown (CLAUDE.md §10): save and close the campaign, flush logs.
+/// Graceful shutdown (CLAUDE.md §10): checkpoint and close the campaign, flush logs.
+/// (Game data is already on disk: persistence is write-through, ADR-0014.)
 async fn shutdown(app: &tauri::AppHandle) {
     let state = app.state::<AppState>();
     let close = async {
