@@ -90,7 +90,7 @@ pub fn table_state() -> GameState {
 
 pub fn envelope(intent: Intent, expected_version: Option<Version>) -> IntentEnvelope {
     IntentEnvelope {
-        intent_id: IntentId(Uuid::from_u128(0xFFFF)),
+        intent_id: IntentId(dnd_protocol::arbitrary::v7(0xFFFF)),
         expected_version,
         intent,
     }

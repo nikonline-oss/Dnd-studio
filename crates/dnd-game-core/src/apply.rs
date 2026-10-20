@@ -27,7 +27,13 @@ pub fn apply(
     _rng: &mut dyn GameRng,
 ) -> Result<Vec<Event>, RuleError> {
     let intent = &envelope.intent;
+    envelope.validate()?;
     authorize(actor, intent, state)?;
+    if let Some(id) = intent.created_id()
+        && id_in_use(state, id)
+    {
+        return Err(RejectReason::AlreadyExists);
+    }
 
     if intent.version_policy() == VersionPolicy::Checked {
         let current = current_version(state, intent)?;
@@ -55,7 +61,7 @@ pub fn apply(
                 }
                 campaign.description.clone_from(description);
             }
-            campaign.version = campaign.version.next();
+            campaign.version = bump(campaign.version)?;
             Ok(vec![Event::CampaignMetaUpdated { campaign }])
         }
 
@@ -66,9 +72,6 @@ pub fn apply(
             grid,
             visible_to_players,
         } => {
-            if state.maps.contains_key(id) {
-                return Err(RejectReason::AlreadyExists);
-            }
             let map = MapDto {
                 id: *id,
                 name: valid_name(name, "name")?,
@@ -99,7 +102,7 @@ pub fn apply(
             if let Some(visible) = visible_to_players {
                 map.visible_to_players = *visible;
             }
-            map.version = map.version.next();
+            map.version = bump(map.version)?;
             Ok(vec![Event::MapUpdated { map }])
         }
 
@@ -125,9 +128,6 @@ pub fn apply(
             layer,
             visible,
         } => {
-            if state.tokens.contains_key(id) {
-                return Err(RejectReason::AlreadyExists);
-            }
             if !state.maps.contains_key(map_id) {
                 return Err(RejectReason::NotFound);
             }
@@ -189,7 +189,7 @@ pub fn apply(
             if let Some(visible) = visible {
                 token.visible = *visible;
             }
-            token.version = token.version.next();
+            token.version = bump(token.version)?;
             Ok(vec![Event::TokenUpdated { token }])
         }
 
@@ -272,4 +272,21 @@ fn valid_scale(scale: f64) -> Result<f64, RejectReason> {
         return Err(RejectReason::invalid("scale"));
     }
     Ok(scale)
+}
+
+/// Whether any entity — of any kind — already uses `id`. Ids are unique across kinds, so an id
+/// never means two things to clients or the database (ADR-0015).
+fn id_in_use(state: &GameState, id: dnd_protocol::Uuid) -> bool {
+    state.maps.contains_key(&dnd_protocol::MapId(id))
+        || state.tokens.contains_key(&dnd_protocol::TokenId(id))
+        || state
+            .characters
+            .contains_key(&dnd_protocol::CharacterId(id))
+}
+
+/// Next version, rejected once it would leave the JS-safe range (ADR-0015).
+fn bump(version: Version) -> Result<Version, RejectReason> {
+    version
+        .checked_next()
+        .ok_or_else(|| RejectReason::invalid("version"))
 }

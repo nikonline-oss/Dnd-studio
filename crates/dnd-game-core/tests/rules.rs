@@ -367,3 +367,90 @@ fn stale_player_move_after_owner_change_is_rejected() {
         Err(RejectReason::Forbidden)
     );
 }
+
+/// ADR-0015: ids are unique across entity kinds; a new map cannot take a token's or a
+/// character's id, and vice versa.
+#[test]
+fn created_ids_must_not_collide_with_any_entity_kind() {
+    let mut state = table_state();
+    let create_map = |id: dnd_protocol::Uuid| Intent::CreateMap {
+        id: MapId(id),
+        name: "M".into(),
+        background_asset_id: None,
+        grid: Grid::default(),
+        visible_to_players: false,
+    };
+    for taken in [
+        pooled_token_id(0).0,
+        pooled_character_id(0).0,
+        pooled_map_id(0).0,
+    ] {
+        assert_eq!(
+            run(&mut state, Role::Gm, create_map(taken), None),
+            Err(RejectReason::AlreadyExists)
+        );
+    }
+    let token_with_map_id = Intent::CreateToken {
+        id: TokenId(pooled_map_id(1).0),
+        map_id: pooled_map_id(0),
+        character_id: None,
+        asset_id: None,
+        name: "T".into(),
+        x: 0.0,
+        y: 0.0,
+        rotation: 0.0,
+        scale: 1.0,
+        layer: TokenLayer::Tokens,
+        visible: true,
+    };
+    assert_eq!(
+        run(&mut state, Role::Gm, token_with_map_id, None),
+        Err(RejectReason::AlreadyExists)
+    );
+    assert_eq!(state, table_state());
+}
+
+/// Malformed envelopes are rejected before permissions, for every role.
+#[test]
+fn malformed_envelopes_are_rejected_first() {
+    let state = table_state();
+    for role in Role::ALL {
+        let mut env = envelope(rename_map("X"), Some(Version(1)));
+        env.intent_id = IntentId(dnd_protocol::Uuid::nil());
+        let result = dnd_game_core::apply(
+            &state,
+            &env,
+            &actor(role),
+            &mut dnd_game_core::SplitMix64::new(0),
+        );
+        assert_eq!(result, Err(RejectReason::invalid("intent_id")), "{role:?}");
+
+        let env = envelope(
+            rename_map("X"),
+            Some(Version(dnd_protocol::MAX_SAFE_INTEGER + 1)),
+        );
+        let result = dnd_game_core::apply(
+            &state,
+            &env,
+            &actor(role),
+            &mut dnd_game_core::SplitMix64::new(0),
+        );
+        assert_eq!(
+            result,
+            Err(RejectReason::invalid("expected_version")),
+            "{role:?}"
+        );
+    }
+}
+
+/// A version at the JS-safe limit cannot be bumped further.
+#[test]
+fn version_overflow_is_rejected() {
+    let mut state = table_state();
+    let max = Version(dnd_protocol::MAX_SAFE_INTEGER);
+    state.maps.get_mut(&pooled_map_id(0)).unwrap().version = max;
+    assert_eq!(
+        run(&mut state, Role::Gm, rename_map("X"), Some(max)),
+        Err(RejectReason::invalid("version"))
+    );
+}

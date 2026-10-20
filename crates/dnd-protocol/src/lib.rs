@@ -11,6 +11,7 @@ pub mod intent;
 pub mod message;
 pub mod model;
 pub mod snapshot;
+pub mod validate;
 
 #[cfg(feature = "arbitrary")]
 pub mod arbitrary;
@@ -25,6 +26,9 @@ pub use intent::{Intent, IntentEnvelope, VersionPolicy};
 pub use message::{ClientMessage, Envelope, Rejection, ServerMessage};
 pub use model::{CampaignMeta, CharacterRef, Grid, GridKind, MapDto, TokenDto, TokenLayer};
 pub use snapshot::Snapshot;
+/// Re-exported so dependants use the exact same UUID type.
+pub use uuid::Uuid;
+pub use validate::{MAX_SAFE_INTEGER, is_js_safe, is_uuid_v7};
 
 /// Protocol version. Peers with a different version are refused with
 /// [`RejectReason::ProtocolMismatch`].

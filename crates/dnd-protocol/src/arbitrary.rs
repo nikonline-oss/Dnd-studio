@@ -5,7 +5,7 @@
 
 use proptest::prelude::*;
 use proptest::sample::select;
-use uuid::Uuid;
+use uuid::{Builder, Uuid};
 
 use crate::event::{Event, EventBatch};
 use crate::ids::{CharacterId, IntentId, MapId, Seq, TokenId, Version};
@@ -19,22 +19,29 @@ pub const TOKEN_POOL: u128 = 6;
 /// Number of distinct character ids produced by [`character_id`].
 pub const CHARACTER_POOL: u128 = 2;
 
+/// A deterministic, valid UUIDv7 for test fixtures (the timestamp field carries `n`).
+#[must_use]
+pub fn v7(n: u128) -> Uuid {
+    let ms = u64::try_from(n).unwrap_or(u64::MAX) & 0xFFFF_FFFF_FFFF;
+    Builder::from_unix_timestamp_millis(ms, &[0; 10]).into_uuid()
+}
+
 /// The `n`-th pooled map id.
 #[must_use]
 pub fn pooled_map_id(n: u128) -> MapId {
-    MapId(Uuid::from_u128(0x1000 + n))
+    MapId(v7(0x1000 + n))
 }
 
 /// The `n`-th pooled token id.
 #[must_use]
 pub fn pooled_token_id(n: u128) -> TokenId {
-    TokenId(Uuid::from_u128(0x2000 + n))
+    TokenId(v7(0x2000 + n))
 }
 
 /// The `n`-th pooled character id.
 #[must_use]
 pub fn pooled_character_id(n: u128) -> CharacterId {
-    CharacterId(Uuid::from_u128(0x3000 + n))
+    CharacterId(v7(0x3000 + n))
 }
 
 pub fn map_id() -> impl Strategy<Value = MapId> {
@@ -50,7 +57,9 @@ pub fn character_id() -> impl Strategy<Value = CharacterId> {
 }
 
 pub fn intent_id() -> impl Strategy<Value = IntentId> {
-    any::<u128>().prop_map(|n| IntentId(Uuid::from_u128(n)))
+    (any::<u64>(), any::<[u8; 10]>()).prop_map(|(ms, random)| {
+        IntentId(Builder::from_unix_timestamp_millis(ms >> 16, &random).into_uuid())
+    })
 }
 
 pub fn version() -> impl Strategy<Value = Version> {

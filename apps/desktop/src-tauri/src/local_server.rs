@@ -198,6 +198,13 @@ impl LocalServer {
             caused_by: Some(envelope.intent_id),
             events,
         };
+        let last = batch.last_seq();
+        if !dnd_protocol::is_js_safe(last.0) {
+            return Err(IpcError::internal(
+                "seq_exhausted",
+                "event sequence reached 2^53-1",
+            ));
+        }
         self.db
             .project(&[BatchRecord {
                 batch: batch.clone(),
@@ -206,7 +213,6 @@ impl LocalServer {
             }])
             .await?;
         evolve_all(&mut self.state, &batch.events);
-        let last = batch.last_seq();
         self.next_seq = last.next();
         Ok((IntentOutcome::Accepted { seq: last }, Some(batch)))
     }

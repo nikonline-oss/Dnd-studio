@@ -19,6 +19,7 @@
 | 0012 | [CI, релизы и pre-commit](0012-ci-and-hooks.md)                                  | Принято               |
 | 0013 | [Автообновление](0013-auto-update.md)                                            | Принято               |
 | 0014 | [Write-through: события пишутся до рассылки](0014-write-through-persistence.md)  | Принято               |
+| 0015 | [Валидация и идемпотентность intents](0015-intent-validation-and-idempotency.md) | Принято               |
 
 ## Шаблон
 
