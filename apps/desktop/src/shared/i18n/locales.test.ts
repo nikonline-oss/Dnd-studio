@@ -40,6 +40,7 @@ describe('locales', () => {
       'forbidden',
       'invalid',
       'protocol_mismatch',
+      'intent_id_reused',
     ];
     for (const code of codes) {
       expect(en.errors).toHaveProperty(code);

@@ -8,8 +8,12 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use dnd_db::{BatchRecord, CampaignDb, LocalUser, list_backups};
-use dnd_game_core::{Actor, GameState, IntentWindow, RecentIntents, SplitMix64, apply, evolve_all};
-use dnd_protocol::{EventBatch, IntentEnvelope, IntentOutcome, Role, Seq, Snapshot, UserId};
+use dnd_game_core::{
+    Actor, GameState, IntentWindow, Recall, RecentIntents, SplitMix64, apply, evolve_all,
+};
+use dnd_protocol::{
+    EventBatch, IntentEnvelope, IntentOutcome, RejectReason, Role, Seq, Snapshot, UserId,
+};
 use serde::Serialize;
 
 use crate::error::IpcError;
@@ -149,6 +153,7 @@ impl LocalServer {
         {
             recent.insert(
                 r.intent_id,
+                r.intent_hash,
                 IntentOutcome::Accepted { seq: r.last_seq },
                 r.at_ms,
             );
@@ -192,14 +197,24 @@ impl LocalServer {
     /// projection, one transaction) → `evolve`. Memory changes only after the commit, so a storage
     /// failure leaves memory, disk and `next_seq` untouched; the caller then broadcasts the batch.
     ///
-    /// Idempotent by `intent_id` (ADR-0015): a repeat returns the original outcome and no batch.
+    /// Idempotent by `intent_id` (ADR-0015): a repeat returns the original outcome and no batch;
+    /// the same id with a different payload is rejected with `IntentIdReused`.
     pub async fn submit(
         &mut self,
         envelope: &IntentEnvelope,
     ) -> Result<(IntentOutcome, Option<EventBatch>), IpcError> {
-        if let Some(outcome) = self.recent.get(&envelope.intent_id, now_ms()) {
-            tracing::debug!(intent_id = %envelope.intent_id, "duplicate intent");
-            return Ok((outcome.clone(), None));
+        let hash = envelope.payload_hash();
+        match self.recent.recall(&envelope.intent_id, &hash, now_ms()) {
+            Recall::New => {}
+            Recall::Repeat(outcome) => {
+                tracing::debug!(intent_id = %envelope.intent_id, "duplicate intent");
+                return Ok((outcome.clone(), None));
+            }
+            Recall::Reused => {
+                tracing::warn!(intent_id = %envelope.intent_id, "intent_id reused with other data");
+                let reason = RejectReason::IntentIdReused;
+                return Ok((IntentOutcome::Rejected { reason }, None));
+            }
         }
         let events = match apply(&self.state, envelope, &self.actor, &mut self.rng) {
             Ok(events) => events,
@@ -211,7 +226,7 @@ impl LocalServer {
                 );
                 let outcome = IntentOutcome::Rejected { reason };
                 self.recent
-                    .insert(envelope.intent_id, outcome.clone(), now_ms());
+                    .insert(envelope.intent_id, Some(hash), outcome.clone(), now_ms());
                 return Ok((outcome, None));
             }
         };
@@ -230,6 +245,7 @@ impl LocalServer {
         self.db
             .project(&[BatchRecord {
                 batch: batch.clone(),
+                intent_hash: Some(hash),
                 actor: Some(self.actor.user_id),
                 at_ms: now_ms(),
             }])
@@ -238,7 +254,7 @@ impl LocalServer {
         self.next_seq = last.next();
         let outcome = IntentOutcome::Accepted { seq: last };
         self.recent
-            .insert(envelope.intent_id, outcome.clone(), now_ms());
+            .insert(envelope.intent_id, Some(hash), outcome.clone(), now_ms());
         Ok((outcome, Some(batch)))
     }
 

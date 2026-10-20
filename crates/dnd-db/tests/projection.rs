@@ -58,6 +58,7 @@ fn run_intents(steps: &[(IntentEnvelope, bool)]) -> (Vec<BatchRecord>, GameState
             seq = batch.last_seq().next();
             records.push(BatchRecord {
                 batch,
+                intent_hash: Some(envelope.payload_hash()),
                 actor: Some(GM),
                 at_ms: 1,
             });

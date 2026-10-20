@@ -103,3 +103,38 @@ fn checked_next_stops_at_max_safe_integer() {
     assert_eq!(Version(MAX_SAFE_INTEGER).checked_next(), None);
     assert_eq!(Seq(MAX_SAFE_INTEGER).checked_next(), None);
 }
+
+/// The payload hash is persisted (event_log.intent_hash), so its canonical form must not change.
+#[test]
+fn payload_hash_is_stable_and_ignores_intent_id() {
+    let env = IntentEnvelope {
+        intent_id: IntentId(v7(1)),
+        expected_version: Some(Version(3)),
+        intent: Intent::MoveToken {
+            id: TokenId(v7(2)),
+            x: 70.0,
+            y: 35.5,
+        },
+    };
+    insta::assert_snapshot!(env.payload_hash().to_hex());
+
+    let mut other_id = env.clone();
+    other_id.intent_id = IntentId(v7(9));
+    assert_eq!(other_id.payload_hash(), env.payload_hash());
+
+    let mut other_version = env.clone();
+    other_version.expected_version = Some(Version(4));
+    assert_ne!(other_version.payload_hash(), env.payload_hash());
+
+    let hash = env.payload_hash();
+    assert_eq!(PayloadHash::from_hex(&hash.to_hex()), Some(hash));
+    assert_eq!(PayloadHash::from_hex("zz"), None);
+}
+
+proptest! {
+    #[test]
+    fn payload_hash_hex_roundtrip(bytes in any::<[u8; 32]>()) {
+        let hash = PayloadHash(bytes);
+        prop_assert_eq!(PayloadHash::from_hex(&hash.to_hex()), Some(hash));
+    }
+}

@@ -139,3 +139,49 @@ pub enum IntentOutcome {
         reason: crate::error::RejectReason,
     },
 }
+
+/// SHA-256 of an intent's payload (`expected_version` + `intent`), used to tell a genuine repeat
+/// of an `intent_id` from a reuse of the id with different data (ADR-0015).
+///
+/// Persisted in `event_log`, so the canonical form (compact JSON of the tuple) must never change;
+/// a snapshot test guards it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct PayloadHash(pub [u8; 32]);
+
+impl PayloadHash {
+    /// Lowercase hex, 64 characters.
+    #[must_use]
+    pub fn to_hex(&self) -> String {
+        use std::fmt::Write;
+        self.0.iter().fold(String::with_capacity(64), |mut s, b| {
+            let _ = write!(s, "{b:02x}");
+            s
+        })
+    }
+
+    /// Parses [`to_hex`](Self::to_hex) output.
+    #[must_use]
+    pub fn from_hex(hex: &str) -> Option<Self> {
+        if hex.len() != 64 || !hex.is_ascii() {
+            return None;
+        }
+        let mut bytes = [0u8; 32];
+        for (i, byte) in bytes.iter_mut().enumerate() {
+            *byte = u8::from_str_radix(hex.get(i * 2..i * 2 + 2)?, 16).ok()?;
+        }
+        Some(Self(bytes))
+    }
+}
+
+impl IntentEnvelope {
+    /// Hash of everything except `intent_id`.
+    #[must_use]
+    pub fn payload_hash(&self) -> PayloadHash {
+        use sha2::{Digest, Sha256};
+        // Serializing protocol types cannot fail (no maps with non-string keys, no custom
+        // serializers); an empty payload would still hash deterministically.
+        let canonical =
+            serde_json::to_vec(&(&self.expected_version, &self.intent)).unwrap_or_default();
+        PayloadHash(Sha256::digest(&canonical).into())
+    }
+}

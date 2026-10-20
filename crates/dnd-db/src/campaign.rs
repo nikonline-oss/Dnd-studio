@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use dnd_game_core::GameState;
 use dnd_protocol::{
     CampaignMeta, CharacterId, CharacterRef, Event, EventBatch, Grid, GridKind, IntentId, MapDto,
-    MapId, Role, Seq, TokenDto, TokenId, TokenLayer, UserId, Version,
+    MapId, PayloadHash, Role, Seq, TokenDto, TokenId, TokenLayer, UserId, Version,
 };
 use sqlx::sqlite::SqliteRow;
 use sqlx::{Row, SqliteConnection, SqlitePool};
@@ -32,6 +32,8 @@ pub struct LocalUser {
 #[derive(Clone, Debug, PartialEq)]
 pub struct BatchRecord {
     pub batch: EventBatch,
+    /// Hash of the intent payload (`IntentEnvelope::payload_hash`), if the batch has an intent.
+    pub intent_hash: Option<PayloadHash>,
     pub actor: Option<UserId>,
     pub at_ms: i64,
 }
@@ -40,6 +42,8 @@ pub struct BatchRecord {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RecentIntent {
     pub intent_id: IntentId,
+    /// `None` for rows written before payload hashes were stored (migration 0004).
+    pub intent_hash: Option<PayloadHash>,
     /// Sequence number of the last event of its batch.
     pub last_seq: Seq,
     /// When it was recorded (unix ms).
@@ -169,7 +173,8 @@ impl CampaignDb {
     pub async fn recent_intents(&self, limit: usize, since_ms: i64) -> DbResult<Vec<RecentIntent>> {
         let limit = i64::try_from(limit).unwrap_or(i64::MAX);
         let rows = sqlx::query(
-            "SELECT intent_id, MAX(seq) AS last_seq, MAX(created_at) AS at_ms FROM event_log \
+            "SELECT intent_id, MAX(seq) AS last_seq, MAX(created_at) AS at_ms, \
+             MAX(intent_hash) AS intent_hash FROM event_log \
              WHERE intent_id IS NOT NULL AND created_at >= ? GROUP BY intent_id \
              ORDER BY last_seq DESC LIMIT ?",
         )
@@ -185,6 +190,15 @@ impl CampaignDb {
                         "event_log.intent_id",
                         &r.try_get::<String, _>("intent_id")?,
                     )?),
+                    intent_hash: r
+                        .try_get::<Option<String>, _>("intent_hash")?
+                        .map(|h| {
+                            PayloadHash::from_hex(&h).ok_or(DbError::InvalidData {
+                                column: "event_log.intent_hash",
+                                details: h,
+                            })
+                        })
+                        .transpose()?,
                     last_seq: Seq(r.try_get("last_seq")?),
                     at_ms: r.try_get("at_ms")?,
                 })
@@ -262,11 +276,13 @@ impl CampaignDb {
             let mut seq = record.batch.seq;
             for event in &record.batch.events {
                 sqlx::query(
-                    "INSERT INTO event_log (seq, intent_id, actor_user_id, event, created_at) \
-                     VALUES (?, ?, ?, ?, ?)",
+                    "INSERT INTO event_log \
+                     (seq, intent_id, intent_hash, actor_user_id, event, created_at) \
+                     VALUES (?, ?, ?, ?, ?, ?)",
                 )
                 .bind(seq.0)
                 .bind(record.batch.caused_by.map(|i| i.to_string()))
+                .bind(record.intent_hash.map(|h| h.to_hex()))
                 .bind(record.actor.map(|u| u.to_string()))
                 .bind(serde_json::to_string(event)?)
                 .bind(record.at_ms)

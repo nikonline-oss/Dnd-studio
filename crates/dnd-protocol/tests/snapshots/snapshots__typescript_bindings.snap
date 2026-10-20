@@ -108,6 +108,11 @@ export type RejectReason =
 { code: "already_exists" } | 
 /**  The intent is malformed; `field` names the offending field. */
 { code: "invalid"; field: string } | 
+/**
+ *  The `intent_id` was already used for an intent with different data. Any retry with changed
+ *  data (e.g. a new `expected_version`) needs a new `intent_id` (ADR-0015).
+ */
+{ code: "intent_id_reused" } | 
 /**  Client and server speak different protocol versions. */
 { code: "protocol_mismatch"; server: number; client: number };
 

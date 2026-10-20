@@ -380,3 +380,50 @@ async fn only_the_window_is_restored_on_open() {
     );
     assert_eq!(reopened.snapshot().maps.len(), 3);
 }
+
+/// ADR-0015: the same intent_id with different data is rejected explicitly — in memory and after
+/// a restart (the payload hash is stored in event_log).
+#[tokio::test]
+async fn reused_intent_id_with_other_payload_is_rejected() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut server = LocalServer::create(dir.path(), "Reuse").await.unwrap();
+    let map_id = MapId::new_v7();
+    server.submit(&create_map(map_id)).await.unwrap();
+
+    let rename = envelope(
+        Intent::UpdateMap {
+            id: map_id,
+            name: Some("First".into()),
+            grid: None,
+            visible_to_players: None,
+        },
+        Some(Version(1)),
+    );
+    server.submit(&rename).await.unwrap();
+
+    // Same id, new expected_version: a different intent → explicit rejection, nothing applied.
+    let mut retried = rename.clone();
+    retried.expected_version = Some(Version(2));
+    let reused = IntentOutcome::Rejected {
+        reason: RejectReason::IntentIdReused,
+    };
+    assert_eq!(
+        server.submit(&retried).await.unwrap(),
+        (reused.clone(), None)
+    );
+    assert_eq!(server.snapshot().maps[0].version, Version(2));
+    // The genuine repeat still returns the original outcome.
+    assert_eq!(
+        server.submit(&rename).await.unwrap().0,
+        IntentOutcome::Accepted { seq: Seq(2) }
+    );
+
+    let folder = server.folder().to_owned();
+    server.close().await.unwrap();
+    let mut reopened = LocalServer::open(&folder).await.unwrap();
+    assert_eq!(reopened.submit(&retried).await.unwrap(), (reused, None));
+    assert_eq!(
+        reopened.submit(&rename).await.unwrap().0,
+        IntentOutcome::Accepted { seq: Seq(2) }
+    );
+}

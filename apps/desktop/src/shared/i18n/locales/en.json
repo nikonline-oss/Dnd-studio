@@ -53,7 +53,8 @@
     "no_backup": "No backups found for this campaign",
     "updater_disabled": "Updates are not configured in this build",
     "update_failed": "Could not check or install the update",
-    "no_update": "There is no update to install"
+    "no_update": "There is no update to install",
+    "intent_id_reused": "This request id was already used for different data; please retry"
   },
   "menu": {
     "label": "Main menu",

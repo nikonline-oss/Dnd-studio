@@ -6,7 +6,7 @@
 
 use std::collections::{HashMap, VecDeque};
 
-use dnd_protocol::IntentId;
+use dnd_protocol::{IntentId, PayloadHash};
 
 /// How much history is remembered: the last `max_count` intents that are also younger than
 /// `max_age_ms` — whichever is smaller.
@@ -43,7 +43,20 @@ impl Default for IntentWindow {
 #[derive(Clone, Debug)]
 struct Entry<T> {
     outcome: T,
+    /// `None` for intents restored from records written before hashes were stored.
+    hash: Option<PayloadHash>,
     at_ms: i64,
+}
+
+/// What a remembered `intent_id` means for a new submission.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Recall<'a, T> {
+    /// Not remembered (never seen, or outside the window): process it.
+    New,
+    /// The same intent again: answer with the original outcome.
+    Repeat(&'a T),
+    /// The id was used for different data: reject with `IntentIdReused`.
+    Reused,
 }
 
 /// Bounded memory of recent intent outcomes; the oldest entries are forgotten first.
@@ -79,6 +92,20 @@ impl<T> RecentIntents<T> {
         self.window
     }
 
+    /// Classifies a submission of `id` with payload `hash` at `now_ms`.
+    #[must_use]
+    pub fn recall(&self, id: &IntentId, hash: &PayloadHash, now_ms: i64) -> Recall<'_, T> {
+        match self
+            .entries
+            .get(id)
+            .filter(|e| self.window.contains(e.at_ms, now_ms))
+        {
+            None => Recall::New,
+            Some(e) if e.hash.is_some_and(|h| h != *hash) => Recall::Reused,
+            Some(e) => Recall::Repeat(&e.outcome),
+        }
+    }
+
     /// The outcome recorded for `id`, if it is still inside the window at `now_ms`.
     #[must_use]
     pub fn get(&self, id: &IntentId, now_ms: i64) -> Option<&T> {
@@ -90,7 +117,7 @@ impl<T> RecentIntents<T> {
 
     /// Records the outcome of `id` at `at_ms`. The first outcome wins: recording a remembered id
     /// again is a no-op. Expired and excess entries are dropped.
-    pub fn insert(&mut self, id: IntentId, outcome: T, at_ms: i64) {
+    pub fn insert(&mut self, id: IntentId, hash: Option<PayloadHash>, outcome: T, at_ms: i64) {
         self.prune(at_ms);
         if self.entries.contains_key(&id) {
             return;
@@ -99,7 +126,14 @@ impl<T> RecentIntents<T> {
             self.evict_oldest();
         }
         self.order.push_back(id);
-        self.entries.insert(id, Entry { outcome, at_ms });
+        self.entries.insert(
+            id,
+            Entry {
+                outcome,
+                hash,
+                at_ms,
+            },
+        );
     }
 
     /// Drops entries that fell out of the window at `now_ms`.
@@ -150,9 +184,9 @@ mod tests {
     #[test]
     fn count_limit_evicts_oldest() {
         let mut recent = RecentIntents::new(window(2, 1_000));
-        recent.insert(id(1), "a", 0);
-        recent.insert(id(2), "b", 0);
-        recent.insert(id(3), "c", 0);
+        recent.insert(id(1), None, "a", 0);
+        recent.insert(id(2), None, "b", 0);
+        recent.insert(id(3), None, "c", 0);
         assert_eq!(recent.get(&id(1), 0), None);
         assert_eq!(recent.get(&id(2), 0), Some(&"b"));
         assert_eq!(recent.get(&id(3), 0), Some(&"c"));
@@ -162,7 +196,7 @@ mod tests {
     #[test]
     fn age_limit_boundary_is_exact() {
         let mut recent = RecentIntents::new(window(10, 1_000));
-        recent.insert(id(1), "a", 5_000);
+        recent.insert(id(1), None, "a", 5_000);
         // Inside the window up to (and including) 999 ms later…
         assert_eq!(recent.get(&id(1), 5_999), Some(&"a"));
         // …and forgotten at exactly max_age.
@@ -174,25 +208,40 @@ mod tests {
     fn whichever_limit_is_smaller_wins() {
         // Count is the tighter limit.
         let mut recent = RecentIntents::new(window(1, 1_000_000));
-        recent.insert(id(1), "a", 0);
-        recent.insert(id(2), "b", 1);
+        recent.insert(id(1), None, "a", 0);
+        recent.insert(id(2), None, "b", 1);
         assert_eq!(recent.get(&id(1), 1), None);
         // Age is the tighter limit.
         let mut recent = RecentIntents::new(window(100, 10));
-        recent.insert(id(1), "a", 0);
-        recent.insert(id(2), "b", 20);
+        recent.insert(id(1), None, "a", 0);
+        recent.insert(id(2), None, "b", 20);
         assert_eq!(recent.len(), 1, "expired entry pruned on insert");
         assert_eq!(recent.get(&id(2), 20), Some(&"b"));
     }
 
     #[test]
+    fn same_id_with_other_payload_is_reused() {
+        let h = |b: u8| PayloadHash([b; 32]);
+        let mut recent = RecentIntents::new(window(4, 100));
+        recent.insert(id(1), Some(h(1)), "ok", 0);
+        assert_eq!(recent.recall(&id(1), &h(1), 10), Recall::Repeat(&"ok"));
+        assert_eq!(recent.recall(&id(1), &h(2), 10), Recall::Reused);
+        assert_eq!(recent.recall(&id(2), &h(1), 10), Recall::New);
+        // Outside the window the id is new again, whatever the payload.
+        assert_eq!(recent.recall(&id(1), &h(2), 100), Recall::New);
+        // Records without a stored hash (older event_log rows) are treated as repeats.
+        recent.insert(id(3), None, "legacy", 10);
+        assert_eq!(recent.recall(&id(3), &h(9), 10), Recall::Repeat(&"legacy"));
+    }
+
+    #[test]
     fn first_outcome_wins_and_expired_id_is_new_again() {
         let mut recent = RecentIntents::new(window(4, 100));
-        recent.insert(id(1), "accepted", 0);
-        recent.insert(id(1), "something else", 50);
+        recent.insert(id(1), None, "accepted", 0);
+        recent.insert(id(1), None, "something else", 50);
         assert_eq!(recent.get(&id(1), 50), Some(&"accepted"));
         assert_eq!(recent.len(), 1);
-        recent.insert(id(1), "later", 200);
+        recent.insert(id(1), None, "later", 200);
         assert_eq!(recent.get(&id(1), 200), Some(&"later"));
     }
 }

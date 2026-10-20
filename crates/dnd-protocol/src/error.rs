@@ -27,6 +27,10 @@ pub enum RejectReason {
     /// The intent is malformed; `field` names the offending field.
     #[error("invalid value in field `{field}`")]
     Invalid { field: String },
+    /// The `intent_id` was already used for an intent with different data. Any retry with changed
+    /// data (e.g. a new `expected_version`) needs a new `intent_id` (ADR-0015).
+    #[error("intent_id was already used for a different intent")]
+    IntentIdReused,
     /// Client and server speak different protocol versions.
     #[error(
         "protocol version mismatch (server {server}, client {client}); update the client or the server"
@@ -44,6 +48,7 @@ impl RejectReason {
             Self::Forbidden => "forbidden",
             Self::NotFound => "not_found",
             Self::AlreadyExists => "already_exists",
+            Self::IntentIdReused => "intent_id_reused",
             Self::Invalid { .. } => "invalid",
             Self::ProtocolMismatch { .. } => "protocol_mismatch",
         }

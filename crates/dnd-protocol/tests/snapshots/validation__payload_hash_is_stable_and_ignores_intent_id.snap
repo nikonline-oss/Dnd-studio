@@ -1,0 +1,5 @@
+---
+source: crates/dnd-protocol/tests/validation.rs
+expression: env.payload_hash().to_hex()
+---
+553a869fd3e82bf33ab2f626456e5e35bad81de64c8b60681a7e616dda4d5536

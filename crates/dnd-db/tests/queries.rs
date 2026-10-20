@@ -57,6 +57,7 @@ fn record(seq: i64, intent: Option<u128>, events: Vec<Event>) -> BatchRecord {
             caused_by: intent.map(|n| IntentId(v7(n))),
             events,
         },
+        intent_hash: intent.map(|n| PayloadHash([u8::try_from(n % 256).unwrap(); 32])),
         actor: Some(UserId(v7(1))),
         at_ms: 1234,
     }
