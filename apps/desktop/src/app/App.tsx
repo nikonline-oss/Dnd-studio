@@ -5,6 +5,7 @@ import { useLanguageSync } from '@/shared/i18n/useLanguageSync';
 import { useCampaign, useGameEventsSync } from '@/shared/game/useGame';
 import { useThemeSync } from '@/shared/theme/useThemeSync';
 import { ErrorBoundary } from '@/shared/ui/ErrorBoundary';
+import { Toaster } from '@/shared/ui/Toast';
 
 export function App() {
   useThemeSync();
@@ -18,6 +19,7 @@ export function App() {
       <div className="app-root">
         <UpdateBanner />
         {campaign ? <AppShell campaign={campaign} /> : <CampaignScreen />}
+        <Toaster />
       </div>
     </ErrorBoundary>
   );

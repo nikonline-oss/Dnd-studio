@@ -37,6 +37,11 @@ export const commands = {
 	 */
 	campaignRestoreBackup: () => typedError<CampaignInfo, IpcError>(__TAURI_INVOKE("campaign_restore_backup")),
 	campaignClose: () => typedError<null, IpcError>(__TAURI_INVOKE("campaign_close")),
+	/**
+	 *  Ctrl+S: forces a WAL checkpoint, so `campaign.sqlite` alone is fully up to date (e.g. before
+	 *  copying it). Game data is already durable without it (write-through, ADR-0014).
+	 */
+	campaignCheckpoint: () => typedError<null, IpcError>(__TAURI_INVOKE("campaign_checkpoint")),
 	campaignCurrent: () => typedError<{
 	name: string,
 	/**  The campaign folder. */

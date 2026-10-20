@@ -51,6 +51,7 @@ export const ipc = {
   campaignOpen: () => unwrap(commands.campaignOpen()),
   campaignRestoreBackup: () => unwrap(commands.campaignRestoreBackup()),
   campaignClose: () => unwrap(commands.campaignClose()),
+  campaignCheckpoint: () => unwrap(commands.campaignCheckpoint()),
   campaignCurrent: () => unwrap(commands.campaignCurrent()),
   getSnapshot: () => unwrap(commands.getSnapshot()),
 };

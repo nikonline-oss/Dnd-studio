@@ -133,5 +133,8 @@
     "install": "Install and restart",
     "installing": "Installing…",
     "later": "Later"
+  },
+  "toast": {
+    "saved": "Saved"
   }
 }

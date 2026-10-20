@@ -116,6 +116,19 @@ pub async fn campaign_close(state: State<'_, AppState>) -> Result<(), IpcError> 
     Ok(())
 }
 
+/// Ctrl+S: forces a WAL checkpoint, so `campaign.sqlite` alone is fully up to date (e.g. before
+/// copying it). Game data is already durable without it (write-through, ADR-0014).
+#[tauri::command]
+#[specta::specta]
+pub async fn campaign_checkpoint(state: State<'_, AppState>) -> Result<(), IpcError> {
+    let guard = state.server.lock().await;
+    guard
+        .as_ref()
+        .ok_or_else(IpcError::no_campaign)?
+        .checkpoint()
+        .await
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn campaign_current(

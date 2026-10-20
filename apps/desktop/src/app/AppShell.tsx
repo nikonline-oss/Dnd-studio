@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useMutation } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Group, Panel, Separator, useDefaultLayout } from 'react-resizable-panels';
 import { MenuBar } from './MenuBar';
@@ -8,10 +9,11 @@ import { MapInspector } from '@/features/map/MapInspector';
 import { MapList } from '@/features/map/MapList';
 import { TokenList } from '@/features/tokens/TokenList';
 import { useSnapshot } from '@/shared/game/useGame';
-import type { CampaignInfo } from '@/shared/ipc/client';
+import { errorCode, ipc, type CampaignInfo } from '@/shared/ipc/client';
 import { useSettings } from '@/shared/settings/settings';
 import { useSelection } from '@/shared/state/selection';
 import { ErrorBoundary } from '@/shared/ui/ErrorBoundary';
+import { useToast } from '@/shared/ui/Toast';
 
 /**
  * IDE layout (CLAUDE.md §11): menu + breadcrumbs, left navigator, center tabs, right inspector,
@@ -27,6 +29,30 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
   // Logs are a GM/maintenance tool; the player preset keeps only chat (§5).
   const bottomTabs = isGm ? (['chat', 'logs'] as const) : (['chat'] as const);
   const [bottomTab, setBottomTab] = useState<'chat' | 'logs'>('chat');
+  const showToast = useToast((s) => s.show);
+  // Ctrl+S: force a WAL checkpoint. Data is already saved on every action (ADR-0014); this only
+  // folds the WAL into campaign.sqlite and reassures the user.
+  const { mutate: checkpoint } = useMutation({
+    mutationFn: ipc.campaignCheckpoint,
+    onSuccess: () => {
+      showToast(t('toast.saved'));
+    },
+    onError: (error) => {
+      showToast(t(`errors.${errorCode(error)}`, { defaultValue: t('errors.unknown') }), 'error');
+    },
+  });
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        checkpoint();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [checkpoint]);
 
   const horizontal = useDefaultLayout({
     id: `dndstudio.layout.${preset}.h`,

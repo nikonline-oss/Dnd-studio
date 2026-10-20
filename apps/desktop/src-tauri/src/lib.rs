@@ -36,6 +36,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::campaign_open::<tauri::Wry>,
             commands::campaign_restore_backup,
             commands::campaign_close,
+            commands::campaign_checkpoint,
             commands::campaign_current,
             commands::get_snapshot,
             commands::submit_intent::<tauri::Wry>,
