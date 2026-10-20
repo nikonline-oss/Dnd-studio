@@ -4,8 +4,8 @@ use std::path::{Path, PathBuf};
 
 use dnd_game_core::GameState;
 use dnd_protocol::{
-    CampaignMeta, CharacterId, CharacterRef, Event, EventBatch, Grid, GridKind, MapDto, MapId,
-    Role, Seq, TokenDto, TokenId, TokenLayer, UserId, Version,
+    CampaignMeta, CharacterId, CharacterRef, Event, EventBatch, Grid, GridKind, IntentId, MapDto,
+    MapId, Role, Seq, TokenDto, TokenId, TokenLayer, UserId, Version,
 };
 use sqlx::sqlite::SqliteRow;
 use sqlx::{Row, SqliteConnection, SqlitePool};
@@ -152,6 +152,34 @@ impl CampaignDb {
             .fetch_one(&self.pool)
             .await?;
         Ok(Seq(seq))
+    }
+
+    /// The `limit` most recent accepted intents with the sequence number of their last event,
+    /// oldest first — for idempotency after a restart (ADR-0015).
+    pub async fn recent_intents(&self, limit: usize) -> DbResult<Vec<(IntentId, Seq)>> {
+        let limit = i64::try_from(limit).unwrap_or(i64::MAX);
+        let rows = sqlx::query(
+            "SELECT intent_id, MAX(seq) AS last_seq FROM event_log \
+             WHERE intent_id IS NOT NULL GROUP BY intent_id \
+             ORDER BY last_seq DESC LIMIT ?",
+        )
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await?;
+        let mut intents = rows
+            .iter()
+            .map(|r| {
+                Ok((
+                    IntentId(uuid_from_str(
+                        "event_log.intent_id",
+                        &r.try_get::<String, _>("intent_id")?,
+                    )?),
+                    Seq(r.try_get("last_seq")?),
+                ))
+            })
+            .collect::<DbResult<Vec<_>>>()?;
+        intents.reverse();
+        Ok(intents)
     }
 
     /// Loads the full game state and the last event sequence number.

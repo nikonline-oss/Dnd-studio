@@ -124,3 +124,18 @@ impl Intent {
         }
     }
 }
+
+/// Result of submitting an intent. A rejection is an expected outcome, not an error.
+/// A repeated `intent_id` yields the original outcome again (ADR-0015).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub enum IntentOutcome {
+    Accepted {
+        /// Sequence number of the last event produced.
+        seq: crate::ids::Seq,
+    },
+    Rejected {
+        reason: crate::error::RejectReason,
+    },
+}

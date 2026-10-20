@@ -22,7 +22,7 @@ pub use ids::{
     AssetId, CharacterId, IntentId, MapId, MessageId, Role, Seq, SessionId, TokenId, UserId,
     Version,
 };
-pub use intent::{Intent, IntentEnvelope, VersionPolicy};
+pub use intent::{Intent, IntentEnvelope, IntentOutcome, VersionPolicy};
 pub use message::{ClientMessage, Envelope, Rejection, ServerMessage};
 pub use model::{CampaignMeta, CharacterRef, Grid, GridKind, MapDto, TokenDto, TokenLayer};
 pub use snapshot::Snapshot;
@@ -41,5 +41,6 @@ pub fn register_types(types: specta::Types) -> specta::Types {
     types
         .register::<ClientMessage>()
         .register::<ServerMessage>()
+        .register::<IntentOutcome>()
         .register::<Role>()
 }

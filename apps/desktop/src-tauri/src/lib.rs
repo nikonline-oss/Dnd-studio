@@ -8,8 +8,9 @@ pub mod logging;
 mod updater;
 
 pub use commands::{AppInfo, AppState, GameEventsEmitted};
+pub use dnd_protocol::IntentOutcome;
 pub use error::{IpcError, IpcErrorKind};
-pub use local_server::{CampaignInfo, IntentOutcome, LocalServer, folder_name};
+pub use local_server::{CampaignInfo, LocalServer, folder_name};
 
 use std::sync::Mutex as StdMutex;
 use std::sync::atomic::{AtomicBool, Ordering};

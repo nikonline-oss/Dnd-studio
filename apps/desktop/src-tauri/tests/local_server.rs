@@ -284,3 +284,64 @@ fn dev_config_has_no_updater() {
         serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
     assert!(config["plugins"]["updater"].is_null());
 }
+
+/// ADR-0015: a repeated intent (reconnect, `pending_ops` replay) returns the original outcome
+/// and is not applied or written twice.
+#[tokio::test]
+async fn repeated_intent_returns_original_outcome() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut server = LocalServer::create(dir.path(), "Idempotent").await.unwrap();
+
+    let create = create_map(MapId::new_v7());
+    let (first, batch) = server.submit(&create).await.unwrap();
+    assert_eq!(first, IntentOutcome::Accepted { seq: Seq(1) });
+    assert!(batch.is_some());
+
+    let (again, batch) = server.submit(&create).await.unwrap();
+    assert_eq!(again, first);
+    assert!(batch.is_none(), "nothing is re-broadcast");
+    assert_eq!(server.snapshot().maps.len(), 1);
+    assert_eq!(stored_seq(&server).await, Seq(1));
+
+    // A rejection is remembered too, even if a retry would now succeed.
+    let map_id = MapId::new_v7();
+    let early = envelope(
+        Intent::UpdateMap {
+            id: map_id,
+            name: Some("Too early".into()),
+            grid: None,
+            visible_to_players: None,
+        },
+        Some(Version(1)),
+    );
+    let (rejected, _) = server.submit(&early).await.unwrap();
+    assert_eq!(
+        rejected,
+        IntentOutcome::Rejected {
+            reason: RejectReason::NotFound
+        }
+    );
+    server.submit(&create_map(map_id)).await.unwrap();
+    let (again, batch) = server.submit(&early).await.unwrap();
+    assert_eq!(again, rejected);
+    assert!(batch.is_none());
+}
+
+/// Accepted intents are recognised after a restart, from `event_log`.
+#[tokio::test]
+async fn idempotency_survives_reopen() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut server = LocalServer::create(dir.path(), "Restart").await.unwrap();
+    let create = create_map(MapId::new_v7());
+    server.submit(&create).await.unwrap();
+    server.submit(&create_map(MapId::new_v7())).await.unwrap();
+    let folder = server.folder().to_owned();
+    server.close().await.unwrap();
+
+    let mut reopened = LocalServer::open(&folder).await.unwrap();
+    let (outcome, batch) = reopened.submit(&create).await.unwrap();
+    assert_eq!(outcome, IntentOutcome::Accepted { seq: Seq(1) });
+    assert!(batch.is_none());
+    assert_eq!(reopened.snapshot().maps.len(), 2);
+    assert_eq!(stored_seq(&reopened).await, Seq(2));
+}

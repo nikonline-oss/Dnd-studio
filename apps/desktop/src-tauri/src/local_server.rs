@@ -8,8 +8,10 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use dnd_db::{BatchRecord, CampaignDb, LocalUser, list_backups};
-use dnd_game_core::{Actor, GameState, SplitMix64, apply, evolve_all};
-use dnd_protocol::{EventBatch, IntentEnvelope, RejectReason, Role, Seq, Snapshot, UserId};
+use dnd_game_core::{
+    Actor, GameState, RECENT_INTENTS_CAPACITY, RecentIntents, SplitMix64, apply, evolve_all,
+};
+use dnd_protocol::{EventBatch, IntentEnvelope, IntentOutcome, Role, Seq, Snapshot, UserId};
 use serde::Serialize;
 
 use crate::error::IpcError;
@@ -29,19 +31,6 @@ pub struct CampaignInfo {
     pub path: String,
     pub user_id: UserId,
     pub role: Role,
-}
-
-/// Result of `submit_intent`. A rejection is an expected outcome, not an error.
-#[derive(Clone, Debug, PartialEq, Serialize, specta::Type)]
-#[serde(tag = "status", rename_all = "snake_case")]
-pub enum IntentOutcome {
-    Accepted {
-        /// Sequence number of the last event produced.
-        seq: Seq,
-    },
-    Rejected {
-        reason: RejectReason,
-    },
 }
 
 #[must_use]
@@ -89,6 +78,8 @@ pub struct LocalServer {
     next_seq: Seq,
     actor: Actor,
     rng: SplitMix64,
+    /// Outcomes of recent intents by `intent_id` (ADR-0015).
+    recent: RecentIntents<IntentOutcome>,
 }
 
 impl LocalServer {
@@ -142,6 +133,11 @@ impl LocalServer {
             .await?
             .ok_or_else(|| IpcError::internal("no_local_user", "campaign has no local user"))?;
         let (state, last_seq) = db.load_state().await?;
+        // Accepted intents survive restarts through `event_log`; rejections are remembered per run.
+        let mut recent = RecentIntents::default();
+        for (intent_id, seq) in db.recent_intents(RECENT_INTENTS_CAPACITY).await? {
+            recent.insert(intent_id, IntentOutcome::Accepted { seq });
+        }
         Ok(Self {
             db,
             folder,
@@ -152,6 +148,7 @@ impl LocalServer {
                 role: user.role,
             },
             rng: SplitMix64::new(seed()),
+            recent,
         })
     }
 
@@ -178,10 +175,16 @@ impl LocalServer {
     /// Runs the intent pipeline write-through (ADR-0014): `apply` → commit the batch (`event_log` +
     /// projection, one transaction) → `evolve`. Memory changes only after the commit, so a storage
     /// failure leaves memory, disk and `next_seq` untouched; the caller then broadcasts the batch.
+    ///
+    /// Idempotent by `intent_id` (ADR-0015): a repeat returns the original outcome and no batch.
     pub async fn submit(
         &mut self,
         envelope: &IntentEnvelope,
     ) -> Result<(IntentOutcome, Option<EventBatch>), IpcError> {
+        if let Some(outcome) = self.recent.get(&envelope.intent_id) {
+            tracing::debug!(intent_id = %envelope.intent_id, "duplicate intent");
+            return Ok((outcome.clone(), None));
+        }
         let events = match apply(&self.state, envelope, &self.actor, &mut self.rng) {
             Ok(events) => events,
             Err(reason) => {
@@ -190,7 +193,9 @@ impl LocalServer {
                     code = reason.code(),
                     "intent rejected"
                 );
-                return Ok((IntentOutcome::Rejected { reason }, None));
+                let outcome = IntentOutcome::Rejected { reason };
+                self.recent.insert(envelope.intent_id, outcome.clone());
+                return Ok((outcome, None));
             }
         };
         let batch = EventBatch {
@@ -214,7 +219,9 @@ impl LocalServer {
             .await?;
         evolve_all(&mut self.state, &batch.events);
         self.next_seq = last.next();
-        Ok((IntentOutcome::Accepted { seq: last }, Some(batch)))
+        let outcome = IntentOutcome::Accepted { seq: last };
+        self.recent.insert(envelope.intent_id, outcome.clone());
+        Ok((outcome, Some(batch)))
     }
 
     /// Moves the WAL into the main file (periodic housekeeping, not needed for durability).

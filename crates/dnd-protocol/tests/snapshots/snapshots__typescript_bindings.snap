@@ -73,6 +73,14 @@ export type IntentEnvelope = {
 /**  Client-chosen identifier of an intent, used to correlate `Rejected`/`Events`. */
 export type IntentId = string;
 
+/**
+ *  Result of submitting an intent. A rejection is an expected outcome, not an error.
+ *  A repeated `intent_id` yields the original outcome again (ADR-0015).
+ */
+export type IntentOutcome = { status: "accepted"; 
+/**  Sequence number of the last event produced. */
+seq: Seq } | { status: "rejected"; reason: RejectReason };
+
 /**  A map. */
 export type MapDto = {
 	id: MapId,

@@ -3,7 +3,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use dnd_protocol::{EventBatch, IntentEnvelope, Snapshot};
+use dnd_protocol::{EventBatch, IntentEnvelope, IntentOutcome, Snapshot};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Runtime, State};
 use tauri_plugin_dialog::DialogExt;
@@ -11,7 +11,7 @@ use tauri_specta::Event;
 use tokio::sync::Mutex;
 
 use crate::error::IpcError;
-use crate::local_server::{CAMPAIGN_FILE, CampaignInfo, IntentOutcome, LocalServer};
+use crate::local_server::{CAMPAIGN_FILE, CampaignInfo, LocalServer};
 use crate::logging::{LogBuffer, LogLevel, LogRecord};
 
 /// Shared application state.
