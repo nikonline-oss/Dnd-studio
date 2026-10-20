@@ -1,0 +1,79 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/dnd-protocol",
+    "crates/dnd-game-core",
+    "crates/dnd-dice",
+    "crates/dnd-expr",
+    "crates/dnd-db",
+    "crates/dnd-plugin",
+    "crates/dnd-assets",
+    "crates/dnd-net",
+    "apps/session-server",
+    "tools/plugin-tool",
+]
+
+[workspace.package]
+version = "0.0.1"
+edition = "2024"
+rust-version = "1.99"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/OWNER/dndstudio"
+publish = false
+
+# Versions checked against crates.io on 2026-10-20 (CLAUDE.md §3).
+# Pre-release crates are pinned exactly.
+[workspace.dependencies]
+# internal
+dnd-protocol = { path = "crates/dnd-protocol" }
+dnd-game-core = { path = "crates/dnd-game-core" }
+dnd-dice = { path = "crates/dnd-dice" }
+dnd-expr = { path = "crates/dnd-expr" }
+dnd-db = { path = "crates/dnd-db" }
+dnd-plugin = { path = "crates/dnd-plugin" }
+dnd-assets = { path = "crates/dnd-assets" }
+dnd-net = { path = "crates/dnd-net" }
+
+# errors
+anyhow = "1.0.104"
+thiserror = "2.0.21"
+
+# serialization / types
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+uuid = { version = "1.28.0", features = ["v7", "serde"] }
+time = { version = "0.3.55", features = ["serde", "formatting", "parsing", "macros"] }
+specta = { version = "=2.0.0-rc.25", features = ["derive"] }
+specta-typescript = "=0.0.12"
+specta-serde = "=0.0.12"
+
+# runtime / storage
+tokio = { version = "1.54.0" }
+sqlx = { version = "0.9.0", default-features = false }
+
+# observability
+tracing = "0.1.44"
+tracing-subscriber = "0.3.23"
+tracing-appender = "0.2.5"
+
+# tests
+proptest = "1.12.0"
+insta = { version = "1.49.0", features = ["json", "yaml"] }
+tempfile = "3.27.0"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_debug_implementations = "warn"
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+dbg_macro = "deny"
+todo = "deny"
+
+[profile.dev.package.insta]
+opt-level = 3
+
+[profile.dev.package.similar]
+opt-level = 3

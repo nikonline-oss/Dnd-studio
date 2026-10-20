@@ -1,0 +1,14 @@
+[package]
+name = "dnd-expr"
+description = "Safe minimal expression language for rule-system plugins."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true

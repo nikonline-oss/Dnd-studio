@@ -1,0 +1,9 @@
+target/
+node_modules/
+dist/
+pnpm-lock.yaml
+CLAUDE.md
+LICENSE-*
+**/*.snap
+**/bindings.ts
+apps/desktop/src-tauri/gen/
