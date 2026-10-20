@@ -135,3 +135,72 @@ async fn campaign_from_previous_schema_is_backed_up_and_upgraded() {
     let (state, _) = db.load_state().await.unwrap();
     assert_eq!(state.campaign.name, "Old");
 }
+
+/// Migration 0003 backfills author names of existing chat messages and dice rolls, the names
+/// survive deleting the user and cannot be edited.
+#[tokio::test]
+async fn author_names_are_backfilled_kept_and_immutable() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("v2.sqlite");
+    {
+        let opts = sqlx::sqlite::SqliteConnectOptions::new()
+            .filename(&path)
+            .create_if_missing(true)
+            .foreign_keys(true);
+        let pool = sqlx::SqlitePool::connect_with(opts).await.unwrap();
+        CAMPAIGN_MIGRATOR.run_to(2, &pool).await.unwrap();
+        for sql in [
+            "INSERT INTO campaign_meta (key, value) VALUES ('campaign.name', 'Old')",
+            "INSERT INTO users (id, name, role, created_at) VALUES ('u1', 'Ann', 'player', 0)",
+            "INSERT INTO chat_messages (id, sender_user_id, kind, body, created_at) VALUES ('m1', 'u1', 'text', 'hi', 0)",
+            "INSERT INTO chat_messages (id, sender_user_id, kind, body, created_at) VALUES ('m2', NULL, 'system', 'start', 0)",
+            "INSERT INTO dice_rolls (id, user_id, expression, result, total, created_at) VALUES ('r1', 'u1', '1d20', '[7]', 7, 0)",
+        ] {
+            sqlx::query(sql).execute(&pool).await.unwrap();
+        }
+        pool.close().await;
+    }
+
+    let (db, report) = CampaignDb::open(&path, 7).await.unwrap();
+    assert!(report.pre_migration_backup.is_some());
+    let pool = db.pool();
+    let names: Vec<(String, String)> =
+        sqlx::query_as("SELECT id, sender_name FROM chat_messages ORDER BY id")
+            .fetch_all(pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        names,
+        [("m1".into(), "Ann".into()), ("m2".into(), String::new())]
+    );
+
+    assert!(
+        sqlx::query("UPDATE chat_messages SET sender_name = 'Bob'")
+            .execute(pool)
+            .await
+            .is_err()
+    );
+    assert!(
+        sqlx::query("UPDATE dice_rolls SET user_name = 'Bob'")
+            .execute(pool)
+            .await
+            .is_err()
+    );
+
+    sqlx::query("DELETE FROM users WHERE id = 'u1'")
+        .execute(pool)
+        .await
+        .unwrap();
+    let (user, name): (Option<String>, String) =
+        sqlx::query_as("SELECT user_id, user_name FROM dice_rolls")
+            .fetch_one(pool)
+            .await
+            .unwrap();
+    assert_eq!((user, name.as_str()), (None, "Ann"));
+    let (sender, name): (Option<String>, String) =
+        sqlx::query_as("SELECT sender_user_id, sender_name FROM chat_messages WHERE id = 'm1'")
+            .fetch_one(pool)
+            .await
+            .unwrap();
+    assert_eq!((sender, name.as_str()), (None, "Ann"));
+}

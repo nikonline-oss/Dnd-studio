@@ -73,3 +73,12 @@ ADR-0002 выбрал SQLite. Нужно зафиксировать, как им
 | `INSERT … ON CONFLICT` `maps`             | `upsert_map`              | `queries.rs::every_event_kind_is_projected` (insert и update)                  |
 | `INSERT … ON CONFLICT` `tokens`           | `upsert_token`            | `queries.rs::every_event_kind_is_projected` (insert и update)                  |
 | миграции `server` (`open_server_db`)      | `connect::open_server_db` | `queries.rs::server_db_opens_migrates_and_enforces_constraints`                |
+
+## Дополнение (2026-10-21): имена авторов в истории
+
+- `chat_messages.sender_name` и `dice_rolls.user_name` хранят имя автора **на момент записи**
+  (миграция campaign 0003, существующие строки заполнены из `users`). Поля неизменяемы, как и вся
+  строка. После удаления пользователя ссылка становится `NULL`, а имя остаётся.
+- UI чата и бросков (этап 2a) показывает это имя, когда `sender_user_id`/`user_id` равен `NULL`;
+  DTO сообщений и бросков в протоколе обязаны его нести.
+- Имена колонок повторяют пары ссылок: `sender_user_id` → `sender_name`, `user_id` → `user_name`.

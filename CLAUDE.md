@@ -163,7 +163,8 @@ visible_to_players), characters (kind, sheet_template, sheet_data JSON, owner, s
 asset?, x, y, rotation, scale, layer, visible), journal_entries (markdown, folder, order, visibility,
 players_can_edit), journal_links (source, target_type, target_id, link_type, directed, weight, label, meta,
 visible_to_players), compendia + compendium_entries, installed_plugins (id, version, active, config,
-installed_at, compat_warning), chat_messages (append-only), dice_rolls, event_log (seq, event JSON),
+installed_at, compat_warning), chat_messages (append-only, `sender_name` на момент записи), dice_rolls
+(`user_name` на момент записи), event_log (seq, event JSON),
 pending_ops (только клиент, ADR-004).
 У всех изменяемых сущностей — `version`. Архив кампании: ZIP = `campaign.sqlite` + `assets/` + `manifest.json`.
 
