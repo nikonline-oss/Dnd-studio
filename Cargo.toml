@@ -19,7 +19,7 @@ version = "0.0.1"
 edition = "2024"
 rust-version = "1.99"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/OWNER/dndstudio"
+repository = "https://github.com/nikonline-oss/Dnd-studio"
 publish = false
 
 # Versions checked against crates.io on 2026-10-20 (CLAUDE.md §3).

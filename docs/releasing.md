@@ -21,9 +21,9 @@
 
 3. В `apps/desktop/src-tauri/tauri.release.conf.json`:
    - `plugins.updater.pubkey` — содержимое `~/.tauri/dndstudio.key.pub`;
-   - в `endpoints` замените `OWNER/REPO` на путь репозитория.
+   - `endpoints` уже указывает на `nikonline-oss/Dnd-studio`; поменяйте при переносе репозитория.
 
-4. В корневом `Cargo.toml` поправьте `repository`.
+4. `repository` в корневом `Cargo.toml` уже указывает на этот репозиторий.
 
 ## Выпуск версии
 

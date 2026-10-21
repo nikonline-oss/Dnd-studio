@@ -6,7 +6,9 @@
   "plugins": {
     "updater": {
       "pubkey": "REPLACE_WITH_MINISIGN_PUBLIC_KEY",
-      "endpoints": ["https://github.com/OWNER/REPO/releases/latest/download/latest.json"],
+      "endpoints": [
+        "https://github.com/nikonline-oss/Dnd-studio/releases/latest/download/latest.json"
+      ],
       "windows": {
         "installMode": "passive"
       }
