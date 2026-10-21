@@ -22,7 +22,9 @@
     "delete": "Delete",
     "visible": "Visible to players",
     "hidden": "Hidden from players",
-    "visibleHint": "Players see only maps marked visible"
+    "visibleHint": "Players see only maps marked visible",
+    "import": "Import image…",
+    "downscaled": "The image ({{width}}×{{height}}) was scaled down to fit 16384 px"
   },
   "tokens": {
     "title": "Tokens",
@@ -54,7 +56,14 @@
     "updater_disabled": "Updates are not configured in this build",
     "update_failed": "Could not check or install the update",
     "no_update": "There is no update to install",
-    "intent_id_reused": "This request id was already used for different data; please retry"
+    "intent_id_reused": "This request id was already used for different data; please retry",
+    "asset_empty": "The file is empty",
+    "asset_too_large": "The file is larger than 100 MB",
+    "asset_svg": "SVG images are not supported yet",
+    "asset_unsupported": "Unsupported image format (use PNG, JPEG or WebP)",
+    "asset_dimensions": "The image is too large to open",
+    "asset_decode": "The image file is damaged",
+    "import_failed": "Could not import the image"
   },
   "menu": {
     "label": "Main menu",
@@ -105,7 +114,9 @@
     },
     "visibility": "Visibility",
     "tokens": "Tokens",
-    "version": "Version"
+    "version": "Version",
+    "background": "Background",
+    "size": "Size"
   },
   "errorBoundary": {
     "message": "“{{name}}” crashed. The rest of the app keeps working.",

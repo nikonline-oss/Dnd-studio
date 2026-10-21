@@ -1,3 +1,4 @@
+import { convertFileSrc } from '@tauri-apps/api/core';
 import { commands, type IntentOutcome, type IpcError } from './bindings';
 
 export { commands, events } from './bindings';
@@ -54,4 +55,10 @@ export const ipc = {
   campaignCheckpoint: () => unwrap(commands.campaignCheckpoint()),
   campaignCurrent: () => unwrap(commands.campaignCurrent()),
   getSnapshot: () => unwrap(commands.getSnapshot()),
+  assetImportMap: () => unwrap(commands.assetImportMap()),
 };
+
+/** URL of a derived asset file (WebP) of the open campaign, served by the `dnd-asset` scheme. */
+export function assetUrl(sha256: string): string {
+  return convertFileSrc(sha256, 'dnd-asset');
+}

@@ -41,6 +41,13 @@ describe('locales', () => {
       'invalid',
       'protocol_mismatch',
       'intent_id_reused',
+      'asset_empty',
+      'asset_too_large',
+      'asset_svg',
+      'asset_unsupported',
+      'asset_dimensions',
+      'asset_decode',
+      'import_failed',
     ];
     for (const code of codes) {
       expect(en.errors).toHaveProperty(code);

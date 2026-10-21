@@ -1,9 +1,12 @@
+import { useMutation } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { useSnapshot, useSubmitIntent } from '@/shared/game/useGame';
+import { useCampaign, useSnapshot, useSubmitIntent } from '@/shared/game/useGame';
+import { ipc } from '@/shared/ipc/client';
 import { uuidv7 } from '@/shared/ipc/uuid';
 import { useSelection } from '@/shared/state/selection';
 import { ErrorText } from '@/shared/ui/ErrorText';
 import { InlineEdit } from '@/shared/ui/InlineEdit';
+import { useToast } from '@/shared/ui/Toast';
 
 const DEFAULT_GRID = { kind: 'square', cell_size: 70, offset_x: 0, offset_y: 0 } as const;
 
@@ -15,6 +18,26 @@ export function MapList() {
   const selectedId = useSelection((s) => s.mapId);
   const selectMap = useSelection((s) => s.selectMap);
   const maps = snapshot?.maps ?? [];
+  const { data: campaign } = useCampaign();
+  const isGm = campaign?.role === 'gm' || campaign?.role === 'co_gm';
+  const showToast = useToast((s) => s.show);
+
+  // The file is picked in a native dialog on the Rust side; the map arrives as game events.
+  const importMap = useMutation({
+    mutationFn: ipc.assetImportMap,
+    onSuccess: (imported) => {
+      if (!imported) return;
+      selectMap(imported.map_id);
+      if (imported.downscaled) {
+        showToast(
+          t('maps.downscaled', {
+            width: imported.source_width,
+            height: imported.source_height,
+          }),
+        );
+      }
+    },
+  });
 
   const addMap = () => {
     const id = uuidv7();
@@ -47,6 +70,17 @@ export function MapList() {
         <button type="button" onClick={addMap} disabled={submit.isPending}>
           {t('maps.add')}
         </button>
+        {isGm && (
+          <button
+            type="button"
+            onClick={() => {
+              importMap.mutate();
+            }}
+            disabled={importMap.isPending}
+          >
+            {t('maps.import')}
+          </button>
+        )}
       </header>
       {maps.length === 0 && <p className="muted">{t('maps.empty')}</p>}
       <ul>
@@ -109,7 +143,7 @@ export function MapList() {
           </li>
         ))}
       </ul>
-      <ErrorText error={submit.error} />
+      <ErrorText error={importMap.error ?? submit.error} />
     </section>
   );
 }

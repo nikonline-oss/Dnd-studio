@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { useSnapshot } from '@/shared/game/useGame';
+import { assetUrl } from '@/shared/ipc/client';
 import { useSelection } from '@/shared/state/selection';
 
 /** Inspector panel: properties of the selected map (read-only until the map view lands). */
@@ -11,11 +12,28 @@ export function MapInspector() {
 
   if (!map) return <p className="muted">{t('inspector.empty')}</p>;
   const tokenCount = snapshot?.tokens.filter((tok) => tok.map_id === map.id).length ?? 0;
+  const background = snapshot?.assets.find((a) => a.id === map.background_asset_id);
 
   return (
     <dl className="properties">
       <dt>{t('inspector.name')}</dt>
       <dd>{map.name}</dd>
+      {background && (
+        <>
+          <dt>{t('inspector.background')}</dt>
+          <dd>
+            <img
+              className="thumbnail"
+              src={assetUrl(background.thumbnail_sha256)}
+              alt={background.original_name ?? map.name}
+            />
+          </dd>
+        </>
+      )}
+      <dt>{t('inspector.size')}</dt>
+      <dd>
+        {map.width} × {map.height}
+      </dd>
       <dt>{t('inspector.grid')}</dt>
       <dd>
         {t(`inspector.gridKind.${map.grid.kind}`)}, {map.grid.cell_size}px
