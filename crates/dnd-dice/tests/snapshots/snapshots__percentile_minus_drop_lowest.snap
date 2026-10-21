@@ -1,0 +1,37 @@
+---
+source: crates/dnd-dice/tests/snapshots.rs
+expression: "rolled(\"d% - 3d4dl1\", 2026)"
+---
+expression: d%-3d4dl1
+terms:
+  - sign: plus
+    subtotal: 52
+    term:
+      kind: dice
+      notation: d%
+      count: 1
+      sides: 100
+      percentile: true
+      modifier: ~
+      dice:
+        - value: 52
+          kept: true
+  - sign: minus
+    subtotal: 6
+    term:
+      kind: dice
+      notation: 3d4dl1
+      count: 3
+      sides: 4
+      percentile: false
+      modifier:
+        kind: drop_lowest
+        n: 1
+      dice:
+        - value: 2
+          kept: false
+        - value: 3
+          kept: true
+        - value: 3
+          kept: true
+total: 46

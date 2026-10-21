@@ -1,0 +1,27 @@
+---
+source: crates/dnd-dice/tests/snapshots.rs
+expression: "rolled(\"4d6kh3\", 42)"
+---
+expression: 4d6kh3
+terms:
+  - sign: plus
+    subtotal: 5
+    term:
+      kind: dice
+      notation: 4d6kh3
+      count: 4
+      sides: 6
+      percentile: false
+      modifier:
+        kind: keep_highest
+        n: 3
+      dice:
+        - value: 2
+          kept: true
+        - value: 2
+          kept: true
+        - value: 1
+          kept: true
+        - value: 1
+          kept: false
+total: 5
