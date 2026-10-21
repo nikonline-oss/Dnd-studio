@@ -6,6 +6,8 @@ import { MenuBar } from './MenuBar';
 import { StatusBar } from './StatusBar';
 import { CharacterEditor } from '@/features/characters/CharacterEditor';
 import { CharacterList } from '@/features/characters/CharacterList';
+import { JournalEditor } from '@/features/journal/JournalEditor';
+import { JournalTree } from '@/features/journal/JournalTree';
 import { LogPanel } from '@/features/logs/LogPanel';
 import { MapInspector } from '@/features/map/MapInspector';
 import { MapList } from '@/features/map/MapList';
@@ -27,6 +29,10 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
   const { data: snapshot } = useSnapshot();
   const mapId = useSelection((s) => s.mapId);
   const inspect = useSelection((s) => s.inspect);
+  const center = useSelection((s) => s.center);
+  const journalId = useSelection((s) => s.journalId);
+  const selectJournal = useSelection((s) => s.selectJournal);
+  const journalTitle = snapshot?.journal.find((e) => e.id === journalId)?.title;
   const mapName = snapshot?.maps.find((m) => m.id === mapId)?.name;
   const isGm = preset === 'gm';
   // Logs are a GM/maintenance tool; the player preset keeps only chat (§5).
@@ -81,6 +87,9 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
               <ErrorBoundary name={t('characters.title')}>
                 <CharacterList />
               </ErrorBoundary>
+              <ErrorBoundary name={t('journal.title')}>
+                <JournalTree />
+              </ErrorBoundary>
             </Panel>
             <Separator className="separator" />
           </>
@@ -93,14 +102,32 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
           >
             <Panel id="main" minSize="20" className="center-panel">
               <div role="tablist" className="tabs">
-                <button type="button" role="tab" aria-selected="true">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={center === 'map'}
+                  onClick={() => {
+                    selectJournal(null);
+                  }}
+                >
                   {mapName ?? t('panels.map')}
                 </button>
+                {journalTitle !== undefined && (
+                  <button type="button" role="tab" aria-selected={center === 'journal'}>
+                    {journalTitle}
+                  </button>
+                )}
               </div>
               <div role="tabpanel" className="tab-body">
-                <ErrorBoundary name={t('tokens.title')}>
-                  <TokenList />
-                </ErrorBoundary>
+                {center === 'journal' ? (
+                  <ErrorBoundary name={t('journal.title')}>
+                    <JournalEditor />
+                  </ErrorBoundary>
+                ) : (
+                  <ErrorBoundary name={t('tokens.title')}>
+                    <TokenList />
+                  </ErrorBoundary>
+                )}
               </div>
             </Panel>
             <Separator className="separator" />

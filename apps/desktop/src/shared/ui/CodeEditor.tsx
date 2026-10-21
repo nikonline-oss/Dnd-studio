@@ -1,4 +1,5 @@
 import { json } from '@codemirror/lang-json';
+import { markdown } from '@codemirror/lang-markdown';
 import { EditorView, basicSetup } from 'codemirror';
 import { useEffect, useRef } from 'react';
 
@@ -6,15 +7,14 @@ interface Props {
   value: string;
   onChange: (value: string) => void;
   label: string;
-  /** Only JSON for now; Markdown arrives with the journal. */
-  language: 'json';
+  language: 'json' | 'markdown';
 }
 
 /**
  * CodeMirror 6 wrapped as a controlled component. The editor is created once; external value
  * changes (e.g. a new version from the server) replace the document only when it differs.
  */
-export function CodeEditor({ value, onChange, label }: Props) {
+export function CodeEditor({ value, onChange, label, language }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
   const onChangeRef = useRef(onChange);
@@ -30,7 +30,8 @@ export function CodeEditor({ value, onChange, label }: Props) {
       doc: value,
       extensions: [
         basicSetup,
-        json(),
+        language === 'json' ? json() : markdown(),
+        EditorView.lineWrapping,
         EditorView.contentAttributes.of({ 'aria-label': label }),
         EditorView.updateListener.of((update) => {
           if (update.docChanged) onChangeRef.current(update.state.doc.toString());
@@ -44,7 +45,7 @@ export function CodeEditor({ value, onChange, label }: Props) {
     };
     // Created once; `value` updates are applied by the effect below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [label]);
+  }, [label, language]);
 
   useEffect(() => {
     const editor = view.current;

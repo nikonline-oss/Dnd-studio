@@ -170,5 +170,29 @@
       "not_object": "The sheet must be a JSON object",
       "fraction": "Numbers must be whole and within ±2^53−1"
     }
+  },
+  "journal": {
+    "title": "Journal",
+    "empty": "No entries yet",
+    "add": "New entry",
+    "newTitle": "New entry",
+    "root": "Journal root",
+    "missing": "This entry no longer exists",
+    "rename": "Rename",
+    "preview": "Preview",
+    "edit": "Edit",
+    "folder": "Folder",
+    "visibilityLabel": "Visibility",
+    "visibility": {
+      "gm": "GM only",
+      "players": "Players"
+    },
+    "playersCanEdit": "Players can edit",
+    "delete": "Delete",
+    "text": "Entry text (Markdown)",
+    "unsaved": "Saving…",
+    "conflict": "Someone changed this entry while you were typing. Your text is kept.",
+    "applyMine": "Save mine over theirs",
+    "discardMine": "Discard mine"
   }
 }

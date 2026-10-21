@@ -15,6 +15,7 @@ import { uuidv7 } from '@/shared/ipc/uuid';
 export const queryKeys = {
   campaign: ['campaign'] as const,
   snapshot: ['snapshot'] as const,
+  journalEntry: (id: string) => ['journal', id] as const,
 };
 
 /** The open campaign, or `null`. */
@@ -32,6 +33,14 @@ export function useGameEventsSync() {
   const queryClient = useQueryClient();
   useEffect(() => {
     const unlisten = events.gameEventsEmitted.listen(({ payload }) => {
+      // Journal texts live in their own cache entries (the snapshot has only the index).
+      for (const event of payload.events) {
+        if (event.kind === 'journal_entry_created' || event.kind === 'journal_entry_updated') {
+          queryClient.setQueryData(queryKeys.journalEntry(event.entry.id), event.entry);
+        } else if (event.kind === 'journal_entry_deleted') {
+          queryClient.removeQueries({ queryKey: queryKeys.journalEntry(event.id) });
+        }
+      }
       const current = queryClient.getQueryData<Snapshot>(queryKeys.snapshot);
       if (!current) return;
       const next = applyBatch(current, payload);
@@ -78,7 +87,17 @@ export function useSubmitIntent() {
     onError: (error) => {
       if (error instanceof IntentRejected && error.reason.code === 'stale_version') {
         void queryClient.invalidateQueries({ queryKey: queryKeys.snapshot });
+        void queryClient.invalidateQueries({ queryKey: ['journal'] });
       }
     },
+  });
+}
+
+/** Full text of a journal entry; kept current by {@link useGameEventsSync}. */
+export function useJournalEntry(id: string | null) {
+  return useQuery({
+    queryKey: queryKeys.journalEntry(id ?? ''),
+    queryFn: () => unwrap(commands.journalEntry(id ?? '')),
+    enabled: id !== null,
   });
 }

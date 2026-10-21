@@ -21,6 +21,7 @@
 | 0014 | [Write-through: события пишутся до рассылки](0014-write-through-persistence.md)  | Принято               |
 | 0015 | [Валидация и идемпотентность intents](0015-intent-validation-and-idempotency.md) | Принято               |
 | 0016 | [Числа и координаты](0016-numbers-and-coordinates.md)                            | Принято               |
+| 0018 | [Журнал](0018-journal.md)                                                        | Принято               |
 
 ## Шаблон
 
