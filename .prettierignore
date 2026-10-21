@@ -7,3 +7,5 @@ LICENSE-*
 **/*.snap
 apps/desktop/src/shared/ipc/bindings.ts
 apps/desktop/src-tauri/gen/
+# Worktrees of parallel Claude Code sessions live here; never format them from this checkout.
+.claude/
