@@ -46,6 +46,8 @@ export function applyEvent(snapshot: Snapshot, event: Event): Snapshot {
       return { ...snapshot, journal: upsert(snapshot.journal, toMeta(event.entry)) };
     case 'journal_entry_deleted':
       return { ...snapshot, journal: snapshot.journal.filter((e) => e.id !== event.id) };
+    case 'asset_registered':
+      return { ...snapshot, assets: upsert(snapshot.assets, event.asset) };
     case 'chat_message_posted':
       // Live messages have no stored time; show when they arrived.
       return {

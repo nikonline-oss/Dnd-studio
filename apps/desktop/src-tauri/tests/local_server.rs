@@ -483,3 +483,85 @@ async fn chat_and_rolls_persist_and_page() {
         [first]
     );
 }
+
+fn png(width: u32, height: u32) -> Vec<u8> {
+    let img = image::RgbaImage::from_fn(width, height, |x, y| {
+        image::Rgba([(x % 256) as u8, (y % 256) as u8, 90, 255])
+    });
+    let mut out = std::io::Cursor::new(Vec::new());
+    img.write_to(&mut out, image::ImageFormat::Png).unwrap();
+    out.into_inner()
+}
+
+/// Map import end to end (without the dialog): files are stored by hash, the asset and a map of
+/// the image's size are created, re-importing reuses the asset, and the files are served only
+/// by a valid hash of the open campaign.
+#[tokio::test]
+async fn importing_a_map_image_creates_asset_and_map() {
+    use dnd_desktop_lib::assets_api::{read_and_import, register_map, response_for};
+
+    let dir = tempfile::tempdir().unwrap();
+    let mut server = LocalServer::create(dir.path(), "Maps").await.unwrap();
+    let source = dir.path().join("crypt.png");
+    std::fs::write(&source, png(2500, 1000)).unwrap();
+    let assets_dir = server.folder().join("assets");
+
+    let imported = read_and_import(
+        source.clone(),
+        assets_dir.clone(),
+        dnd_assets::AssetUsage::Map,
+    )
+    .await
+    .unwrap();
+    let mut batches = 0;
+    let first = register_map(
+        &mut server,
+        &imported,
+        "Crypt".into(),
+        Some("crypt.png".into()),
+        |_| {
+            batches += 1;
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(batches, 2, "asset + map");
+
+    let snapshot = server.snapshot();
+    let asset = &snapshot.assets[0];
+    assert_eq!(
+        (asset.width, asset.height, asset.tiles.len()),
+        (2500, 1000, 2)
+    );
+    let map = snapshot.maps.iter().find(|m| m.id == first.map_id).unwrap();
+    assert_eq!((map.width, map.height), (2500, 1000));
+    assert_eq!(map.background_asset_id, Some(asset.id));
+
+    // Same image again: no new asset, a second map on the same background.
+    let mut batches = 0;
+    let again = read_and_import(source, assets_dir, dnd_assets::AssetUsage::Map)
+        .await
+        .unwrap();
+    register_map(&mut server, &again, "Crypt 2".into(), None, |_| {
+        batches += 1
+    })
+    .await
+    .unwrap();
+    assert_eq!(batches, 1, "map only");
+    assert_eq!(server.snapshot().assets.len(), 1);
+
+    // Serving: tiles and thumbnail by hash; nothing else.
+    let folder = server.folder().to_owned();
+    let ok = response_for(Some(&folder), &asset.tiles[0].sha256);
+    assert_eq!(ok.status(), 200);
+    assert_eq!(ok.headers()["content-type"], "image/webp");
+    assert!(!ok.body().is_empty());
+    assert_eq!(
+        response_for(Some(&folder), &asset.thumbnail_sha256).status(),
+        200
+    );
+    for bad in ["../campaign.sqlite", "originals", &asset.sha256, ""] {
+        assert_eq!(response_for(Some(&folder), bad).status(), 404, "{bad}");
+    }
+    assert_eq!(response_for(None, &asset.tiles[0].sha256).status(), 404);
+}

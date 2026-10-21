@@ -444,7 +444,7 @@ fn query_inventory_matches_adr_0008() {
         .map(|s| s.matches("sqlx::query").count())
         .sum();
     assert_eq!(
-        count, 28,
+        count, 30,
         "runtime queries changed: add a real-SQLite test and update the table in docs/adr/0008-db-conventions.md"
     );
 }
@@ -741,5 +741,63 @@ async fn chat_messages_and_rolls_are_stored_and_paged() {
             .execute(db.pool())
             .await
             .is_err()
+    );
+}
+
+/// Assets round-trip with their tiles; the original hash is unique (UNIQUE(type, sha256)).
+#[tokio::test]
+async fn assets_are_registered_and_loaded() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = new_campaign(&dir).await;
+    let hex = |n: u8| format!("{n:02x}").repeat(32);
+    let asset = AssetDto {
+        id: AssetId(v7(0x700)),
+        usage: AssetUsage::Map,
+        sha256: hex(1),
+        mime: "image/png".into(),
+        size_bytes: 4321,
+        original_name: Some("crypt.png".into()),
+        width: 3000,
+        height: 2048,
+        display_sha256: None,
+        thumbnail_sha256: hex(2),
+        tiles: vec![AssetTileDto {
+            x: 0,
+            y: 0,
+            width: 2048,
+            height: 2048,
+            sha256: hex(3),
+        }],
+        version: Version(1),
+    };
+    db.project(&[record(
+        1,
+        Some(0x81),
+        vec![Event::AssetRegistered {
+            asset: Box::new(asset.clone()),
+        }],
+    )])
+    .await
+    .unwrap();
+    let (state, _) = db.load_state().await.unwrap();
+    assert_eq!(
+        state.assets.values().cloned().collect::<Vec<_>>(),
+        std::slice::from_ref(&asset)
+    );
+
+    let duplicate = AssetDto {
+        id: AssetId(v7(0x701)),
+        ..asset
+    };
+    assert!(
+        db.project(&[record(
+            2,
+            Some(0x82),
+            vec![Event::AssetRegistered {
+                asset: Box::new(duplicate),
+            }]
+        )])
+        .await
+        .is_err()
     );
 }

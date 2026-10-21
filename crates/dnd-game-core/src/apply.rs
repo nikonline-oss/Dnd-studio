@@ -74,6 +74,12 @@ pub fn apply(
             grid,
             visible_to_players,
         } => {
+            if let Some(asset_id) = background_asset_id {
+                let asset = state.assets.get(asset_id).ok_or(RejectReason::NotFound)?;
+                if asset.usage != dnd_protocol::AssetUsage::Map {
+                    return Err(RejectReason::invalid("background_asset_id"));
+                }
+            }
             let map = MapDto {
                 id: *id,
                 name: valid_name(name, "name")?,
@@ -134,6 +140,11 @@ pub fn apply(
         } => {
             let map = state.maps.get(map_id).ok_or(RejectReason::NotFound)?;
             let (x, y) = on_map(map, *x, *y)?;
+            if let Some(asset_id) = asset_id
+                && !state.assets.contains_key(asset_id)
+            {
+                return Err(RejectReason::NotFound);
+            }
             if let Some(character_id) = character_id
                 && !state.characters.contains_key(character_id)
             {
@@ -219,6 +230,10 @@ pub fn apply(
                 .unwrap_or(Err(RejectReason::invalid("intent")))
         }
 
+        Intent::RegisterAsset { .. } => {
+            crate::assets::apply(state, intent).unwrap_or(Err(RejectReason::invalid("intent")))
+        }
+
         Intent::SendMessage { .. } | Intent::RollDice { .. } => {
             crate::chat::apply(state, intent, actor, rng)
                 .unwrap_or(Err(RejectReason::invalid("intent")))
@@ -256,7 +271,8 @@ fn current_version(state: &GameState, intent: &Intent) -> Result<Version, Reject
         | Intent::CreateCharacter { .. }
         | Intent::CreateJournalEntry { .. }
         | Intent::SendMessage { .. }
-        | Intent::RollDice { .. } => None,
+        | Intent::RollDice { .. }
+        | Intent::RegisterAsset { .. } => None,
     };
     version.ok_or(RejectReason::NotFound)
 }
@@ -323,6 +339,7 @@ fn id_in_use(state: &GameState, id: dnd_protocol::Uuid) -> bool {
         || state
             .journal
             .contains_key(&dnd_protocol::JournalEntryId(id))
+        || state.assets.contains_key(&dnd_protocol::AssetId(id))
 }
 
 /// Next version, rejected once it would leave the JS-safe range (ADR-0015).

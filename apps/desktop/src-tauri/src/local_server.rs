@@ -240,6 +240,16 @@ impl LocalServer {
             .await?)
     }
 
+    /// The asset registered for an original upload with this SHA-256, if any (dedup on import).
+    #[must_use]
+    pub fn asset_by_sha(&self, sha256: &str) -> Option<dnd_protocol::AssetId> {
+        self.state
+            .assets
+            .values()
+            .find(|a| a.sha256 == sha256)
+            .map(|a| a.id)
+    }
+
     /// Full text of a journal entry (the snapshot carries only the index).
     #[must_use]
     pub fn journal_entry(&self, id: &JournalEntryId) -> Option<JournalEntryDto> {

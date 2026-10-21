@@ -37,6 +37,9 @@ pub fn evolve(state: &mut GameState, event: &Event) {
         Event::JournalEntryDeleted { id } => {
             state.journal.remove(id);
         }
+        Event::AssetRegistered { asset } => {
+            state.assets.insert(asset.id, asset.as_ref().clone());
+        }
         // Chat history is not part of the game state (see `chat`).
         Event::ChatMessagePosted { .. } => {}
     }

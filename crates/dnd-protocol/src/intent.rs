@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::ids::{
     AssetId, CharacterId, ChatMessageId, IntentId, JournalEntryId, MapId, TokenId, UserId, Version,
 };
-use crate::model::{CharacterKind, Grid, JournalVisibility, TokenLayer};
+use crate::model::{AssetDto, CharacterKind, Grid, JournalVisibility, TokenLayer};
 
 /// An intent together with its correlation id and the version it was based on (ADR-0003).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -155,6 +155,13 @@ pub enum Intent {
         id: JournalEntryId,
     },
 
+    /// GM / Co-GM. Records an image the server-side import already validated, converted and
+    /// stored; the same original (`sha256`) cannot be registered twice.
+    RegisterAsset {
+        /// Boxed: by far the largest intent payload (keeps `Intent` small).
+        asset: Box<AssetDto>,
+    },
+
     /// Everyone except spectators.
     SendMessage {
         id: ChatMessageId,
@@ -205,6 +212,7 @@ impl Intent {
             Self::UpdateJournalEntry { .. } => "update_journal_entry",
             Self::MoveJournalEntry { .. } => "move_journal_entry",
             Self::DeleteJournalEntry { .. } => "delete_journal_entry",
+            Self::RegisterAsset { .. } => "register_asset",
             Self::SendMessage { .. } => "send_message",
             Self::RollDice { .. } => "roll_dice",
         }
@@ -219,7 +227,8 @@ impl Intent {
             | Self::CreateCharacter { .. }
             | Self::CreateJournalEntry { .. }
             | Self::SendMessage { .. }
-            | Self::RollDice { .. } => VersionPolicy::Create,
+            | Self::RollDice { .. }
+            | Self::RegisterAsset { .. } => VersionPolicy::Create,
             Self::MoveToken { .. } => VersionPolicy::LastWriteWins,
             Self::UpdateCampaignMeta { .. }
             | Self::UpdateMap { .. }

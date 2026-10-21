@@ -25,10 +25,11 @@ pub use ids::{
 pub use intent::{Intent, IntentEnvelope, IntentOutcome, PayloadHash, VersionPolicy};
 pub use message::{ClientMessage, Envelope, Rejection, ServerMessage};
 pub use model::{
-    CHAT_SNAPSHOT_LEN, CampaignMeta, CharacterDto, CharacterKind, CharacterStatus, ChatKind,
-    ChatMessageDto, ChatVisibility, DiceRollDto, DiceTermDto, DieDto, Grid, GridKind,
-    JournalEntryDto, JournalEntryMeta, JournalVisibility, MAX_CHAT_LEN, MAX_FOLDER_LEN,
-    MAX_JOURNAL_BYTES, MAX_SHEET_BYTES, MapDto, SystemMessage, TokenDto, TokenLayer, UserDto,
+    AssetDto, AssetTileDto, AssetUsage, CHAT_SNAPSHOT_LEN, CampaignMeta, CharacterDto,
+    CharacterKind, CharacterStatus, ChatKind, ChatMessageDto, ChatVisibility, DiceRollDto,
+    DiceTermDto, DieDto, Grid, GridKind, JournalEntryDto, JournalEntryMeta, JournalVisibility,
+    MAX_CHAT_LEN, MAX_FOLDER_LEN, MAX_JOURNAL_BYTES, MAX_SHEET_BYTES, MapDto, SystemMessage,
+    TokenDto, TokenLayer, UserDto,
 };
 pub use model::{MAX_MAP_SIZE, UNITS16_PER_UNIT};
 pub use snapshot::Snapshot;

@@ -16,6 +16,7 @@ const snapshot: Snapshot = {
   characters: [],
   users: [],
   journal: [],
+  assets: [],
   chat: [],
 };
 

@@ -3,8 +3,8 @@
 use std::collections::BTreeMap;
 
 use dnd_protocol::{
-    CampaignMeta, CharacterDto, CharacterId, JournalEntryDto, JournalEntryId, JournalEntryMeta,
-    MapDto, MapId, Seq, Snapshot, TokenDto, TokenId, UserDto, UserId, Version,
+    AssetDto, AssetId, CampaignMeta, CharacterDto, CharacterId, JournalEntryDto, JournalEntryId,
+    JournalEntryMeta, MapDto, MapId, Seq, Snapshot, TokenDto, TokenId, UserDto, UserId, Version,
 };
 
 /// The authoritative state the core reasons about. Ordered maps keep iteration (and therefore
@@ -18,6 +18,7 @@ pub struct GameState {
     /// Known users. Read-only for the core in stage 2a (they join through the server in 2b).
     pub users: BTreeMap<UserId, UserDto>,
     pub journal: BTreeMap<JournalEntryId, JournalEntryDto>,
+    pub assets: BTreeMap<AssetId, AssetDto>,
 }
 
 impl GameState {
@@ -35,6 +36,7 @@ impl GameState {
             characters: BTreeMap::new(),
             users: BTreeMap::new(),
             journal: BTreeMap::new(),
+            assets: BTreeMap::new(),
         }
     }
 
@@ -66,6 +68,7 @@ impl GameState {
                     (entry.id, entry)
                 })
                 .collect(),
+            assets: snapshot.assets.into_iter().map(|a| (a.id, a)).collect(),
         }
     }
 
@@ -80,6 +83,7 @@ impl GameState {
             characters: self.characters.values().cloned().collect(),
             users: self.users.values().cloned().collect(),
             journal: self.journal.values().map(JournalEntryMeta::from).collect(),
+            assets: self.assets.values().cloned().collect(),
             // Chat history is kept by the server layer, not by the core.
             chat: Vec::new(),
         }

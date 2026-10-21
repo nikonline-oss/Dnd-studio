@@ -4,9 +4,10 @@ use std::path::{Path, PathBuf};
 
 use dnd_game_core::GameState;
 use dnd_protocol::{
-    CampaignMeta, CharacterDto, CharacterId, ChatKind, ChatMessageDto, ChatMessageId, DiceRollDto,
-    Event, EventBatch, Grid, GridKind, IntentId, JournalEntryDto, JournalEntryId, MapDto, MapId,
-    PayloadHash, Role, Seq, SystemMessage, TokenDto, TokenId, TokenLayer, UserDto, UserId, Version,
+    AssetDto, AssetId, AssetTileDto, CampaignMeta, CharacterDto, CharacterId, ChatKind,
+    ChatMessageDto, ChatMessageId, DiceRollDto, Event, EventBatch, Grid, GridKind, IntentId,
+    JournalEntryDto, JournalEntryId, MapDto, MapId, PayloadHash, Role, Seq, SystemMessage,
+    TokenDto, TokenId, TokenLayer, UserDto, UserId, Version,
 };
 use sqlx::sqlite::SqliteRow;
 use sqlx::{Row, SqliteConnection, SqlitePool};
@@ -371,6 +372,35 @@ impl CampaignDb {
             };
             state.journal.insert(entry.id, entry);
         }
+        for row in sqlx::query(
+            "SELECT id, usage, sha256, mime, size_bytes, original_name, width, height, \n             display_sha256, thumbnail_sha256, tiles, version FROM assets ORDER BY id",
+        )
+        .fetch_all(&self.pool)
+        .await?
+        {
+            let size = |column: &'static str| -> DbResult<u32> {
+                let v: i64 = row.try_get(column)?;
+                u32::try_from(v).map_err(|e| DbError::InvalidData {
+                    column,
+                    details: e.to_string(),
+                })
+            };
+            let asset = AssetDto {
+                id: AssetId(uuid_from_str("assets.id", &row.try_get::<String, _>("id")?)?),
+                usage: enum_from_str("assets.usage", &row.try_get::<String, _>("usage")?)?,
+                sha256: row.try_get("sha256")?,
+                mime: row.try_get("mime")?,
+                size_bytes: row.try_get("size_bytes")?,
+                original_name: row.try_get("original_name")?,
+                width: size("width")?,
+                height: size("height")?,
+                display_sha256: row.try_get("display_sha256")?,
+                thumbnail_sha256: row.try_get::<Option<String>, _>("thumbnail_sha256")?.unwrap_or_default(),
+                tiles: serde_json::from_str::<Vec<AssetTileDto>>(&row.try_get::<String, _>("tiles")?)?,
+                version: Version(row.try_get("version")?),
+            };
+            state.assets.insert(asset.id, asset);
+        }
         for row in sqlx::query("SELECT id, name, role FROM users ORDER BY id")
             .fetch_all(&self.pool)
             .await?
@@ -461,6 +491,7 @@ async fn project_event(conn: &mut SqliteConnection, event: &Event, at_ms: i64) -
             Ok(())
         }
         Event::ChatMessagePosted { message } => insert_chat_message(conn, message, at_ms).await,
+        Event::AssetRegistered { asset } => insert_asset(conn, asset, at_ms).await,
     }
 }
 
@@ -687,6 +718,31 @@ async fn upsert_journal_entry(
     .bind(at_ms)
     .bind(at_ms)
     .bind(e.version.0)
+    .execute(conn)
+    .await?;
+    Ok(())
+}
+
+/// Assets are immutable records (files are content-addressed); registration inserts once.
+async fn insert_asset(conn: &mut SqliteConnection, a: &AssetDto, at_ms: i64) -> DbResult<()> {
+    sqlx::query(
+        "INSERT INTO assets (id, type, usage, sha256, mime, size_bytes, original_name, width, \
+             height, display_sha256, thumbnail_sha256, tiles, created_at, version) \
+         VALUES (?, 'image', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    )
+    .bind(a.id.to_string())
+    .bind(enum_to_str(&a.usage)?)
+    .bind(&a.sha256)
+    .bind(&a.mime)
+    .bind(a.size_bytes)
+    .bind(&a.original_name)
+    .bind(i64::from(a.width))
+    .bind(i64::from(a.height))
+    .bind(&a.display_sha256)
+    .bind(&a.thumbnail_sha256)
+    .bind(serde_json::to_string(&a.tiles)?)
+    .bind(at_ms)
+    .bind(a.version.0)
     .execute(conn)
     .await?;
     Ok(())

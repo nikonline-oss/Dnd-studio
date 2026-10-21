@@ -68,6 +68,8 @@ sha2 = "0.11.1"
 
 # image encoding (CLAUDE.md §3); default features pull in `image`, not needed yet
 webp = { version = "0.3.1", default-features = false }
+# Decoding imported images; only the formats we accept (CLAUDE.md §3).
+image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "webp"] }
 
 tokio = { version = "1.54.0" }
 sqlx = { version = "0.9.0", default-features = false }
@@ -97,4 +99,20 @@ todo = "deny"
 opt-level = 3
 
 [profile.dev.package.similar]
+opt-level = 3
+
+# Image decoding/encoding is unusably slow unoptimized (map import in `tauri dev`, asset tests).
+[profile.dev.package.image]
+opt-level = 3
+[profile.dev.package.png]
+opt-level = 3
+[profile.dev.package.zune-jpeg]
+opt-level = 3
+[profile.dev.package.image-webp]
+opt-level = 3
+[profile.dev.package.libwebp-sys]
+opt-level = 3
+[profile.dev.package.fdeflate]
+opt-level = 3
+[profile.dev.package.miniz_oxide]
 opt-level = 3

@@ -58,6 +58,17 @@ export const commands = {
 	/**  Older chat messages (oldest first) before `before`, at most `limit` (capped at 200). */
 	chatHistory: (before: string | null, limit: number) => typedError<ChatMessageDto[], IpcError>(__TAURI_INVOKE("chat_history", { before, limit })),
 	/**
+	 *  Asks for an image, imports it as a map background and creates a map of the same logical size
+	 *  (ADR-0016). `None` if the dialog was cancelled.
+	 */
+	assetImportMap: () => typedError<{
+	map_id: MapId,
+	/**  The image was larger than allowed and was scaled down (ADR-0017). */
+	downscaled: boolean,
+	source_width: number,
+	source_height: number,
+} | null, IpcError>(__TAURI_INVOKE("asset_import_map")),
+	/**
 	 *  Applies an intent through the game core and commits the resulting events. Only then are they
 	 *  broadcast as [`GameEventsEmitted`], so every view updates the same way for local and remote
 	 *  play and never shows an event that is not on disk.
@@ -90,8 +101,47 @@ export type AppInfo = {
 	version: string,
 };
 
+/**
+ *  An imported image. Files are content-addressed by SHA-256 (ADR-0004): `sha256` is the original
+ *  upload (dedup key), the others are derived WebP files served to the webview.
+ */
+export type AssetDto = {
+	id: AssetId,
+	usage: AssetUsage,
+	sha256: string,
+	mime: string,
+	size_bytes: number,
+	original_name: string | null,
+	/**  Pixel size after any downscaling on import. */
+	width: number,
+	height: number,
+	/**  Whole image as WebP (`None` for maps, which are drawn from tiles). */
+	display_sha256: string | null,
+	thumbnail_sha256: string,
+	/**  Map tiles, row by row; empty for tokens. */
+	tiles: AssetTileDto[],
+	version: Version,
+};
+
 /**  An imported asset (image, audio, ...). */
 export type AssetId = string;
+
+/**  One 2048² (or smaller, at the edges) tile of a map image, in image pixels. */
+export type AssetTileDto = {
+	x: number,
+	y: number,
+	width: number,
+	height: number,
+	/**  SHA-256 (hex) of the tile's WebP file. */
+	sha256: string,
+};
+
+/**  What an imported image is for (decides size limits and tiling, ADR-0017). */
+export type AssetUsage = 
+/**  Map background: cut into 2048² WebP tiles, at most 16 384 px per side. */
+"map" | 
+/**  Token or portrait: one WebP, at most 2048 px per side. */
+"token";
 
 /**  What the UI needs to know about the open campaign. */
 export type CampaignInfo = {
@@ -192,7 +242,7 @@ export type Event = { kind: "campaign_meta_updated"; campaign: CampaignMeta } | 
 /**  Any change: name, sheet, status, owner. */
 { kind: "character_updated"; character: CharacterDto } | { kind: "journal_entry_created"; entry: JournalEntryDto } | 
 /**  Any change: text, title, folder, order, visibility. */
-{ kind: "journal_entry_updated"; entry: JournalEntryDto } | { kind: "journal_entry_deleted"; id: JournalEntryId } | 
+{ kind: "journal_entry_updated"; entry: JournalEntryDto } | { kind: "journal_entry_deleted"; id: JournalEntryId } | { kind: "asset_registered"; asset: AssetDto } | 
 /**  A text, roll or system message. */
 { kind: "chat_message_posted"; message: ChatMessageDto };
 
@@ -254,6 +304,13 @@ width: number; height: number; grid: Grid; visible_to_players: boolean } | { kin
 { kind: "move_journal_entry"; id: JournalEntryId; folder: string; sort_order: number } | 
 /**  GM / Co-GM. */
 { kind: "delete_journal_entry"; id: JournalEntryId } | 
+/**
+ *  GM / Co-GM. Records an image the server-side import already validated, converted and
+ *  stored; the same original (`sha256`) cannot be registered twice.
+ */
+{ kind: "register_asset"; 
+/**  Boxed: by far the largest intent payload (keeps `Intent` small). */
+asset: AssetDto } | 
 /**  Everyone except spectators. */
 { kind: "send_message"; id: ChatMessageId; body: string } | 
 /**
@@ -371,6 +428,15 @@ export type MapDto = {
 /**  A map inside the campaign. */
 export type MapId = string;
 
+/**  Result of importing a map image. */
+export type MapImported = {
+	map_id: MapId,
+	/**  The image was larger than allowed and was scaled down (ADR-0017). */
+	downscaled: boolean,
+	source_width: number,
+	source_height: number,
+};
+
 /**  Why an intent or message was rejected. The `code` tag is stable and safe to match on in clients. */
 export type RejectReason = 
 /**  `expected_version` did not match; `current` is the entity's version now (ADR-0003). */
@@ -423,6 +489,7 @@ export type Snapshot = {
 	users: UserDto[],
 	/**  Journal index; texts are fetched per entry. */
 	journal: JournalEntryMeta[],
+	assets: AssetDto[],
 	/**  The last `CHAT_SNAPSHOT_LEN` chat messages, oldest first. */
 	chat: ChatMessageDto[],
 };

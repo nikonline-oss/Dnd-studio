@@ -8,6 +8,7 @@
 //! The session server and the desktop app's local "server" run exactly this pipeline (ADR-0001).
 
 mod apply;
+mod assets;
 mod characters;
 mod chat;
 mod evolve;

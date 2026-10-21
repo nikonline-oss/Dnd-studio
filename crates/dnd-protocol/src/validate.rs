@@ -87,6 +87,7 @@ impl Intent {
             | Self::DeleteJournalEntry { .. }
             | Self::SendMessage { .. }
             | Self::RollDice { .. } => Vec::new(),
+            Self::RegisterAsset { asset } => vec![("size_bytes", asset.size_bytes)],
         }
     }
 }
@@ -101,6 +102,7 @@ impl Intent {
             Self::CreateCharacter { id, .. } => Some(id.0),
             Self::CreateJournalEntry { id, .. } => Some(id.0),
             Self::SendMessage { id, .. } | Self::RollDice { id, .. } => Some(id.0),
+            Self::RegisterAsset { asset } => Some(asset.id.0),
             Self::UpdateCampaignMeta { .. }
             | Self::UpdateMap { .. }
             | Self::DeleteMap { .. }

@@ -86,6 +86,7 @@ function renderChat(role: Role, chat: ChatMessageDto[] = []) {
     characters: [],
     users: [],
     journal: [],
+    assets: [],
     chat,
   };
   const info: CampaignInfo = { name: 'C', path: '/c', user_id: ME, role };

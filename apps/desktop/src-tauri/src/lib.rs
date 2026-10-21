@@ -1,5 +1,6 @@
 //! DndStudio desktop client: Tauri shell, local in-process server and typed IPC.
 
+mod assets;
 mod autosave;
 mod commands;
 mod error;
@@ -11,6 +12,10 @@ pub use commands::{AppInfo, AppState, GameEventsEmitted};
 pub use dnd_protocol::IntentOutcome;
 pub use error::{IpcError, IpcErrorKind};
 pub use local_server::{CampaignInfo, LocalServer, folder_name};
+pub mod assets_api {
+    //! Re-exports for integration tests.
+    pub use crate::assets::{MapImported, read_and_import, register_map, response_for};
+}
 
 use std::sync::Mutex as StdMutex;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -41,6 +46,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::get_snapshot,
             commands::journal_entry,
             commands::chat_history,
+            assets::asset_import_map::<tauri::Wry>,
             commands::submit_intent::<tauri::Wry>,
             commands::logs_recent,
             commands::log_frontend,
@@ -83,6 +89,7 @@ pub fn run() -> Result<(), tauri::Error> {
         }))
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_dialog::init())
+        .register_asynchronous_uri_scheme_protocol(assets::SCHEME, assets::serve)
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             builder.mount_events(app);

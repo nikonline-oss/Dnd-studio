@@ -36,6 +36,7 @@ const empty: Snapshot = {
   characters: [],
   users: [],
   journal: [],
+  assets: [],
   chat: [],
 };
 

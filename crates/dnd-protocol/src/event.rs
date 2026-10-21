@@ -6,7 +6,9 @@
 use serde::{Deserialize, Serialize};
 
 use crate::ids::{IntentId, JournalEntryId, MapId, Seq, TokenId};
-use crate::model::{CampaignMeta, CharacterDto, ChatMessageDto, JournalEntryDto, MapDto, TokenDto};
+use crate::model::{
+    AssetDto, CampaignMeta, CharacterDto, ChatMessageDto, JournalEntryDto, MapDto, TokenDto,
+};
 
 /// A fact about a state change.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -61,6 +63,10 @@ pub enum Event {
     },
     JournalEntryDeleted {
         id: JournalEntryId,
+    },
+
+    AssetRegistered {
+        asset: Box<AssetDto>,
     },
 
     /// A text, roll or system message.

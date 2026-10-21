@@ -310,3 +310,49 @@ pub struct ChatMessageDto {
 pub const MAX_CHAT_LEN: usize = 4000;
 /// Chat messages carried by a snapshot; older ones are paged with `chat_history`.
 pub const CHAT_SNAPSHOT_LEN: usize = 200;
+
+/// What an imported image is for (decides size limits and tiling, ADR-0017).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub enum AssetUsage {
+    /// Map background: cut into 2048² WebP tiles, at most 16 384 px per side.
+    Map,
+    /// Token or portrait: one WebP, at most 2048 px per side.
+    Token,
+}
+
+/// One 2048² (or smaller, at the edges) tile of a map image, in image pixels.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct AssetTileDto {
+    pub x: u32,
+    pub y: u32,
+    pub width: u32,
+    pub height: u32,
+    /// SHA-256 (hex) of the tile's WebP file.
+    pub sha256: String,
+}
+
+/// An imported image. Files are content-addressed by SHA-256 (ADR-0004): `sha256` is the original
+/// upload (dedup key), the others are derived WebP files served to the webview.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct AssetDto {
+    pub id: AssetId,
+    pub usage: AssetUsage,
+    pub sha256: String,
+    pub mime: String,
+    #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
+    pub size_bytes: i64,
+    pub original_name: Option<String>,
+    /// Pixel size after any downscaling on import.
+    pub width: u32,
+    pub height: u32,
+    /// Whole image as WebP (`None` for maps, which are drawn from tiles).
+    pub display_sha256: Option<String>,
+    pub thumbnail_sha256: String,
+    /// Map tiles, row by row; empty for tokens.
+    pub tiles: Vec<AssetTileDto>,
+    pub version: Version,
+}
