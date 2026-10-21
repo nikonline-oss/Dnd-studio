@@ -12,6 +12,7 @@ members = [
     "apps/session-server",
     "apps/desktop/src-tauri",
     "tools/plugin-tool",
+    "tools/spike-map-gen",
 ]
 
 [workspace.package]
@@ -64,6 +65,9 @@ winnow = "1.0.4"
 # runtime / storage
 # hashing (CLAUDE.md §3)
 sha2 = "0.11.1"
+
+# image encoding (CLAUDE.md §3); default features pull in `image`, not needed yet
+webp = { version = "0.3.1", default-features = false }
 
 tokio = { version = "1.54.0" }
 sqlx = { version = "0.9.0", default-features = false }

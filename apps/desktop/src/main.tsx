@@ -14,7 +14,12 @@ const queryClient = new QueryClient({
 });
 
 const root = document.getElementById('root');
-if (root) {
+// Dev-only render spike (ADR-0017); `import.meta.env.DEV` is false in builds, so it is dropped.
+if (root && import.meta.env.DEV && new URLSearchParams(location.search).get('spike') === 'pixi') {
+  void import('./dev/pixi-spike/mount').then(({ mountPixiSpike }) => {
+    mountPixiSpike(root);
+  });
+} else if (root) {
   createRoot(root).render(
     <StrictMode>
       <QueryClientProvider client={queryClient}>
