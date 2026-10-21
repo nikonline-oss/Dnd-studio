@@ -13,6 +13,7 @@ const snapshot: Snapshot = {
   maps: [],
   tokens: [],
   characters: [],
+  users: [],
 };
 
 const campaign: CampaignInfo = {

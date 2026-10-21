@@ -10,7 +10,7 @@ use uuid::{Builder, Uuid};
 use crate::event::{Event, EventBatch};
 use crate::ids::{CharacterId, IntentId, MapId, Seq, TokenId, Version};
 use crate::intent::{Intent, IntentEnvelope};
-use crate::model::{CampaignMeta, Grid, GridKind, MapDto, TokenDto, TokenLayer};
+use crate::model::{CampaignMeta, CharacterKind, Grid, GridKind, MapDto, TokenDto, TokenLayer};
 
 /// Number of distinct map ids produced by [`map_id`].
 pub const MAP_POOL: u128 = 3;
@@ -196,6 +196,33 @@ pub fn intent() -> impl Strategy<Value = Intent> {
             ),
         (token_id(), position(), position()).prop_map(|(id, x, y)| Intent::MoveToken { id, x, y }),
         token_id().prop_map(|id| Intent::DeleteToken { id }),
+        (
+            character_id(),
+            select(vec![CharacterKind::Pc, CharacterKind::Npc]),
+            name(),
+            select(vec!["{}", r#"{"hp": 10}"#, r#"{"hp": 1.5}"#, "[]"])
+        )
+            .prop_map(
+                |(id, character_kind, name, sheet)| Intent::CreateCharacter {
+                    id,
+                    character_kind,
+                    name,
+                    owner: None,
+                    sheet_json: sheet.to_owned(),
+                }
+            ),
+        (character_id(), proptest::option::of(name())).prop_map(|(id, name)| {
+            Intent::UpdateCharacter {
+                id,
+                name,
+                sheet_json: None,
+            }
+        }),
+        character_id().prop_map(|id| Intent::SubmitCharacter { id }),
+        character_id().prop_map(|id| Intent::ApproveCharacter { id }),
+        character_id().prop_map(|id| Intent::ReturnCharacter { id }),
+        character_id().prop_map(|id| Intent::ArchiveCharacter { id }),
+        character_id().prop_map(|id| Intent::AssignCharacterOwner { id, owner: None }),
     ]
 }
 

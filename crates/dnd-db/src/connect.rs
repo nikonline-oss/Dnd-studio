@@ -48,11 +48,11 @@ pub async fn quick_check(path: &Path) -> DbResult<()> {
     let mut conn = SqliteConnection::connect_with(&options)
         .await
         .map_err(corrupt_or)?;
-    let rows = sqlx::query("PRAGMA quick_check")
-        .fetch_all(&mut conn)
-        .await
-        .map_err(corrupt_or)?;
+    let rows = sqlx::query("PRAGMA quick_check").fetch_all(&mut conn).await;
+    // Close explicitly on every path: a dropped connection closes the file in the background,
+    // and on Windows an immediate restore (rename of this file) would then fail with "in use".
     conn.close().await.ok();
+    let rows = rows.map_err(corrupt_or)?;
     let messages: Vec<String> = rows
         .iter()
         .filter_map(|r| r.try_get::<String, _>(0).ok())

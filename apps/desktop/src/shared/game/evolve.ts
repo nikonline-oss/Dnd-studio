@@ -29,6 +29,9 @@ export function applyEvent(snapshot: Snapshot, event: Event): Snapshot {
       };
     case 'token_deleted':
       return { ...snapshot, tokens: snapshot.tokens.filter((t) => t.id !== event.id) };
+    case 'character_created':
+    case 'character_updated':
+      return { ...snapshot, characters: upsert(snapshot.characters, event.character) };
   }
 }
 

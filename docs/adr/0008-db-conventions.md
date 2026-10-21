@@ -64,6 +64,8 @@ ADR-0002 выбрал SQLite. Нужно зафиксировать, как им
 | `SELECT intent_id, MAX(seq) … GROUP BY`   | `recent_intents`          | `queries.rs::recent_intents_are_ordered_limited_and_grouped`                   |
 | `SELECT * FROM maps` / `tokens`           | `load_state`              | `queries.rs::every_event_kind_is_projected`, projection proptest               |
 | `SELECT … FROM characters`                | `load_state`              | `projection.rs::character_owners_are_loaded`                                   |
+| `SELECT … FROM users`                     | `load_state`              | `queries.rs::characters_and_users_are_projected_and_loaded`                    |
+| `INSERT … ON CONFLICT` `characters`       | `upsert_character`        | `queries.rs::characters_and_users_are_projected_and_loaded` (insert и update)  |
 | `INSERT INTO event_log`                   | `project`                 | `queries.rs::every_event_kind_is_projected`, `project_is_atomic`               |
 | `DELETE FROM maps` (+ FK cascade)         | `project_event`           | `queries.rs::every_event_kind_is_projected`                                    |
 | `UPDATE tokens SET x, y`                  | `project_event`           | `queries.rs::every_event_kind_is_projected` (включая неизвестный токен)        |

@@ -3,8 +3,8 @@
 use std::collections::BTreeMap;
 
 use dnd_protocol::{
-    CampaignMeta, CharacterId, CharacterRef, MapDto, MapId, Seq, Snapshot, TokenDto, TokenId,
-    Version,
+    CampaignMeta, CharacterDto, CharacterId, MapDto, MapId, Seq, Snapshot, TokenDto, TokenId,
+    UserDto, UserId, Version,
 };
 
 /// The authoritative state the core reasons about. Ordered maps keep iteration (and therefore
@@ -14,7 +14,9 @@ pub struct GameState {
     pub campaign: CampaignMeta,
     pub maps: BTreeMap<MapId, MapDto>,
     pub tokens: BTreeMap<TokenId, TokenDto>,
-    pub characters: BTreeMap<CharacterId, CharacterRef>,
+    pub characters: BTreeMap<CharacterId, CharacterDto>,
+    /// Known users. Read-only for the core in stage 2a (they join through the server in 2b).
+    pub users: BTreeMap<UserId, UserDto>,
 }
 
 impl GameState {
@@ -30,6 +32,7 @@ impl GameState {
             maps: BTreeMap::new(),
             tokens: BTreeMap::new(),
             characters: BTreeMap::new(),
+            users: BTreeMap::new(),
         }
     }
 
@@ -41,6 +44,7 @@ impl GameState {
             maps: snapshot.maps.into_iter().map(|m| (m.id, m)).collect(),
             tokens: snapshot.tokens.into_iter().map(|t| (t.id, t)).collect(),
             characters: snapshot.characters.into_iter().map(|c| (c.id, c)).collect(),
+            users: snapshot.users.into_iter().map(|u| (u.id, u)).collect(),
         }
     }
 
@@ -53,6 +57,7 @@ impl GameState {
             maps: self.maps.values().cloned().collect(),
             tokens: self.tokens.values().cloned().collect(),
             characters: self.characters.values().cloned().collect(),
+            users: self.users.values().cloned().collect(),
         }
     }
 

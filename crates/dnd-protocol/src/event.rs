@@ -6,7 +6,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::ids::{IntentId, MapId, Seq, TokenId};
-use crate::model::{CampaignMeta, MapDto, TokenDto};
+use crate::model::{CampaignMeta, CharacterDto, MapDto, TokenDto};
 
 /// A fact about a state change.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -42,6 +42,14 @@ pub enum Event {
     },
     TokenDeleted {
         id: TokenId,
+    },
+
+    CharacterCreated {
+        character: CharacterDto,
+    },
+    /// Any change: name, sheet, status, owner.
+    CharacterUpdated {
+        character: CharacterDto,
     },
 }
 

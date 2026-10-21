@@ -2,8 +2,8 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::ids::{AssetId, CharacterId, IntentId, MapId, TokenId, Version};
-use crate::model::{Grid, TokenLayer};
+use crate::ids::{AssetId, CharacterId, IntentId, MapId, TokenId, UserId, Version};
+use crate::model::{CharacterKind, Grid, TokenLayer};
 
 /// An intent together with its correlation id and the version it was based on (ADR-0003).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -86,6 +86,42 @@ pub enum Intent {
     DeleteToken {
         id: TokenId,
     },
+
+    /// Players create their own `pc` in `draft` (owner = themselves); GM / Co-GM create any
+    /// character directly as `active`.
+    CreateCharacter {
+        id: CharacterId,
+        character_kind: CharacterKind,
+        name: String,
+        owner: Option<UserId>,
+        sheet_json: String,
+    },
+    UpdateCharacter {
+        id: CharacterId,
+        name: Option<String>,
+        sheet_json: Option<String>,
+    },
+    /// draft → pending_approval (owner or GM).
+    SubmitCharacter {
+        id: CharacterId,
+    },
+    /// pending_approval → active (GM / Co-GM).
+    ApproveCharacter {
+        id: CharacterId,
+    },
+    /// pending_approval → draft, back to the player for changes (GM / Co-GM).
+    ReturnCharacter {
+        id: CharacterId,
+    },
+    /// any → archived (GM / Co-GM).
+    ArchiveCharacter {
+        id: CharacterId,
+    },
+    /// GM / Co-GM; `owner` must be a known user.
+    AssignCharacterOwner {
+        id: CharacterId,
+        owner: Option<UserId>,
+    },
 }
 
 /// What kind of version handling an intent needs.
@@ -112,6 +148,13 @@ impl Intent {
             Self::UpdateToken { .. } => "update_token",
             Self::MoveToken { .. } => "move_token",
             Self::DeleteToken { .. } => "delete_token",
+            Self::CreateCharacter { .. } => "create_character",
+            Self::UpdateCharacter { .. } => "update_character",
+            Self::SubmitCharacter { .. } => "submit_character",
+            Self::ApproveCharacter { .. } => "approve_character",
+            Self::ReturnCharacter { .. } => "return_character",
+            Self::ArchiveCharacter { .. } => "archive_character",
+            Self::AssignCharacterOwner { .. } => "assign_character_owner",
         }
     }
 
@@ -119,13 +162,36 @@ impl Intent {
     #[must_use]
     pub fn version_policy(&self) -> VersionPolicy {
         match self {
-            Self::CreateMap { .. } | Self::CreateToken { .. } => VersionPolicy::Create,
+            Self::CreateMap { .. } | Self::CreateToken { .. } | Self::CreateCharacter { .. } => {
+                VersionPolicy::Create
+            }
             Self::MoveToken { .. } => VersionPolicy::LastWriteWins,
             Self::UpdateCampaignMeta { .. }
             | Self::UpdateMap { .. }
             | Self::DeleteMap { .. }
             | Self::UpdateToken { .. }
-            | Self::DeleteToken { .. } => VersionPolicy::Checked,
+            | Self::DeleteToken { .. }
+            | Self::UpdateCharacter { .. }
+            | Self::SubmitCharacter { .. }
+            | Self::ApproveCharacter { .. }
+            | Self::ReturnCharacter { .. }
+            | Self::ArchiveCharacter { .. }
+            | Self::AssignCharacterOwner { .. } => VersionPolicy::Checked,
+        }
+    }
+
+    /// The character a character intent targets.
+    #[must_use]
+    pub fn character_id(&self) -> Option<CharacterId> {
+        match self {
+            Self::CreateCharacter { id, .. }
+            | Self::UpdateCharacter { id, .. }
+            | Self::SubmitCharacter { id }
+            | Self::ApproveCharacter { id }
+            | Self::ReturnCharacter { id }
+            | Self::ArchiveCharacter { id }
+            | Self::AssignCharacterOwner { id, .. } => Some(*id),
+            _ => None,
         }
     }
 }

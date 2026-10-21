@@ -34,6 +34,7 @@ const empty: Snapshot = {
   maps: [],
   tokens: [],
   characters: [],
+  users: [],
 };
 
 describe('applyEvent', () => {

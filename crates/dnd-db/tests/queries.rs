@@ -444,7 +444,7 @@ fn query_inventory_matches_adr_0008() {
         .map(|s| s.matches("sqlx::query").count())
         .sum();
     assert_eq!(
-        count, 20,
+        count, 22,
         "runtime queries changed: add a real-SQLite test and update the table in docs/adr/0008-db-conventions.md"
     );
 }
@@ -503,4 +503,56 @@ async fn deleting_a_user_detaches_append_only_history() {
         .await
         .unwrap();
     assert_eq!(body, "hi");
+}
+
+/// Character projection (insert and update paths) and loading users and full characters.
+#[tokio::test]
+async fn characters_and_users_are_projected_and_loaded() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = new_campaign(&dir).await;
+    let mut character = CharacterDto {
+        id: CharacterId(v7(0x300)),
+        kind: CharacterKind::Pc,
+        name: "Aria".into(),
+        owner: Some(UserId(v7(1))),
+        status: CharacterStatus::Draft,
+        sheet_json: r#"{"hp": 12}"#.into(),
+        version: Version(1),
+    };
+    db.project(&[record(
+        1,
+        Some(0x31),
+        vec![Event::CharacterCreated {
+            character: character.clone(),
+        }],
+    )])
+    .await
+    .unwrap();
+    character.status = CharacterStatus::PendingApproval;
+    character.owner = None;
+    character.sheet_json = r#"{"hp": 9}"#.into();
+    character.version = Version(2);
+    db.project(&[record(
+        2,
+        Some(0x32),
+        vec![Event::CharacterUpdated {
+            character: character.clone(),
+        }],
+    )])
+    .await
+    .unwrap();
+
+    let (state, _) = db.load_state().await.unwrap();
+    assert_eq!(
+        state.characters.values().cloned().collect::<Vec<_>>(),
+        [character]
+    );
+    assert_eq!(
+        state.users.values().cloned().collect::<Vec<_>>(),
+        [UserDto {
+            id: UserId(v7(1)),
+            name: "GM".into(),
+            role: Role::Gm
+        }]
+    );
 }

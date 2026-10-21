@@ -44,7 +44,12 @@ fn target_version(state: &GameState, intent: &Intent) -> Option<Version> {
         Intent::UpdateToken { id, .. }
         | Intent::DeleteToken { id }
         | Intent::MoveToken { id, .. } => state.tokens.get(id).map(|t| t.version),
-        Intent::CreateMap { .. } | Intent::CreateToken { .. } => None,
+        Intent::CreateMap { .. } | Intent::CreateToken { .. } | Intent::CreateCharacter { .. } => {
+            None
+        }
+        other => other
+            .character_id()
+            .and_then(|id| state.characters.get(&id).map(|c| c.version)),
     }
 }
 
@@ -167,7 +172,7 @@ proptest! {
         prop_assert_eq!(result, Err(RejectReason::Forbidden));
     }
 
-    /// Players can only ever produce `TokenMoved` events for tokens they control.
+    /// Players only move tokens they control and change characters they own.
     #[test]
     fn players_only_move_their_tokens(envelope in arbitrary::intent_envelope()) {
         let state = table_state();
@@ -178,6 +183,9 @@ proptest! {
                         let token = &state.tokens[&id];
                         let owner = token.character_id.and_then(|c| state.characters[&c].owner);
                         prop_assert_eq!(owner, Some(PLAYER));
+                    }
+                    Event::CharacterCreated { character } | Event::CharacterUpdated { character } => {
+                        prop_assert_eq!(character.owner, Some(PLAYER));
                     }
                     other => prop_assert!(false, "player produced {:?}", other),
                 }

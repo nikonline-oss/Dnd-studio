@@ -30,10 +30,30 @@ pub fn base_state() -> GameState {
         let id = pooled_character_id(n);
         state.characters.insert(
             id,
-            CharacterRef {
+            CharacterDto {
                 id,
+                kind: CharacterKind::Pc,
                 name: format!("Hero {n}"),
                 owner: Some(owner),
+                status: CharacterStatus::Active,
+                sheet_json: "{}".into(),
+                version: Version::INITIAL,
+            },
+        );
+    }
+    for (id, role) in [
+        (GM, Role::Gm),
+        (CO_GM, Role::CoGm),
+        (PLAYER, Role::Player),
+        (OTHER_PLAYER, Role::Player),
+        (SPECTATOR, Role::Spectator),
+    ] {
+        state.users.insert(
+            id,
+            UserDto {
+                id,
+                name: format!("{role:?}"),
+                role,
             },
         );
     }

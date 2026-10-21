@@ -1,6 +1,8 @@
 //! Who may do what (CLAUDE.md §5). Clients only hide UI; this is the actual check.
 
-use dnd_protocol::{Intent, RejectReason, Role, TokenLayer, UserId};
+use dnd_protocol::{
+    CharacterId, CharacterKind, CharacterStatus, Intent, RejectReason, Role, TokenLayer, UserId,
+};
 
 use crate::state::GameState;
 
@@ -25,9 +27,41 @@ pub fn authorize(actor: &Actor, intent: &Intent, state: &GameState) -> Result<()
             Intent::MoveToken { id, .. } if player_controls_token(actor.user_id, *id, state) => {
                 Ok(())
             }
+            // Players create only their own player characters (they start as drafts).
+            Intent::CreateCharacter {
+                character_kind: CharacterKind::Pc,
+                owner: Some(owner),
+                ..
+            } if *owner == actor.user_id => Ok(()),
+            // Their own characters, except while the GM reviews them or after archiving.
+            Intent::UpdateCharacter { id, .. }
+                if owns_character(actor.user_id, *id, state, |s| {
+                    matches!(s, CharacterStatus::Draft | CharacterStatus::Active)
+                }) =>
+            {
+                Ok(())
+            }
+            Intent::SubmitCharacter { id }
+                if owns_character(actor.user_id, *id, state, |_| true) =>
+            {
+                Ok(())
+            }
             _ => Err(RejectReason::Forbidden),
         },
     }
+}
+
+/// `user` owns character `id` and its status passes `status_ok`.
+fn owns_character(
+    user: UserId,
+    id: CharacterId,
+    state: &GameState,
+    status_ok: impl Fn(CharacterStatus) -> bool,
+) -> bool {
+    state
+        .characters
+        .get(&id)
+        .is_some_and(|c| c.owner == Some(user) && status_ok(c.status))
 }
 
 /// A player controls a token when it represents a character they own, sits on a map visible to

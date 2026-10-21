@@ -23,6 +23,7 @@ const snapshot: Snapshot = {
   ],
   tokens: [],
   characters: [],
+  users: [],
 };
 
 function renderWithIpc(outcome: IntentOutcome) {

@@ -23,6 +23,14 @@ fn gm() -> LocalUser {
 /// accepted batches and the resulting in-memory state.
 fn run_intents(steps: &[(IntentEnvelope, bool)]) -> (Vec<BatchRecord>, GameState) {
     let mut state = GameState::new("Projected");
+    state.users.insert(
+        GM,
+        UserDto {
+            id: GM,
+            name: "Master".into(),
+            role: Role::Gm,
+        },
+    );
     let mut rng = SplitMix64::new(7);
     let mut seq = Seq(1);
     let mut records = Vec::new();
@@ -119,7 +127,16 @@ async fn create_and_reopen_keeps_meta_and_local_user() {
     assert_eq!(report.pre_migration_backup, None);
     assert_eq!(db.local_user().await.unwrap(), Some(gm()));
     let (state, seq) = db.load_state().await.unwrap();
-    assert_eq!(state, GameState::new("Curse of Tests"));
+    let mut expected = GameState::new("Curse of Tests");
+    expected.users.insert(
+        GM,
+        UserDto {
+            id: GM,
+            name: "Master".into(),
+            role: Role::Gm,
+        },
+    );
+    assert_eq!(state, expected);
     assert_eq!(seq, Seq(0));
 }
 
@@ -140,10 +157,14 @@ async fn character_owners_are_loaded() {
     let (state, _) = db.load_state().await.unwrap();
     assert_eq!(
         state.characters[&id],
-        CharacterRef {
+        CharacterDto {
             id,
+            kind: CharacterKind::Pc,
             name: "Aria".into(),
-            owner: Some(GM)
+            owner: Some(GM),
+            status: CharacterStatus::Draft,
+            sheet_json: "{}".into(),
+            version: Version::INITIAL,
         }
     );
 }

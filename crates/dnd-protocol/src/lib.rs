@@ -24,12 +24,15 @@ pub use ids::{
 };
 pub use intent::{Intent, IntentEnvelope, IntentOutcome, PayloadHash, VersionPolicy};
 pub use message::{ClientMessage, Envelope, Rejection, ServerMessage};
-pub use model::{CampaignMeta, CharacterRef, Grid, GridKind, MapDto, TokenDto, TokenLayer};
+pub use model::{
+    CampaignMeta, CharacterDto, CharacterKind, CharacterStatus, Grid, GridKind, MAX_SHEET_BYTES,
+    MapDto, TokenDto, TokenLayer, UserDto,
+};
 pub use model::{MAX_MAP_SIZE, UNITS16_PER_UNIT};
 pub use snapshot::Snapshot;
 /// Re-exported so dependants use the exact same UUID type.
 pub use uuid::Uuid;
-pub use validate::{MAX_SAFE_INTEGER, is_js_safe, is_uuid_v7};
+pub use validate::{MAX_SAFE_INTEGER, is_js_safe, is_uuid_v7, validate_sheet_json};
 
 /// Protocol version. Peers with a different version are refused with
 /// [`RejectReason::ProtocolMismatch`].

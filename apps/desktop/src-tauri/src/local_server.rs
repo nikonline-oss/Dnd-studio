@@ -127,18 +127,47 @@ impl LocalServer {
         let (db, report) = CampaignDb::open(&file, now_ms()).await?;
         if let Some(backup) = report.pre_migration_backup {
             tracing::info!(backup = %backup.display(), "campaign migrated");
-        } else if backup_is_stale(&file) {
-            db.backup("on-open", now_ms()).await?;
+        } else if backup_is_stale(&file)
+            && let Err(e) = db.backup("on-open", now_ms()).await
+        {
+            db.close().await.ok();
+            return Err(e.into());
         }
         tracing::info!(folder = %folder.display(), "campaign opened");
         Self::from_db(db, folder.to_owned(), window).await
     }
 
+    /// Loads the campaign; on failure the database is closed before returning, so the file is
+    /// released at once (Windows keeps it locked otherwise).
     async fn from_db(
         db: CampaignDb,
         folder: PathBuf,
         window: IntentWindow,
     ) -> Result<Self, IpcError> {
+        match Self::load(&db, window).await {
+            Ok((user, state, last_seq, recent)) => Ok(Self {
+                db,
+                folder,
+                state,
+                next_seq: last_seq.next(),
+                actor: Actor {
+                    user_id: user.id,
+                    role: user.role,
+                },
+                rng: SplitMix64::new(seed()),
+                recent,
+            }),
+            Err(e) => {
+                db.close().await.ok();
+                Err(e)
+            }
+        }
+    }
+
+    async fn load(
+        db: &CampaignDb,
+        window: IntentWindow,
+    ) -> Result<(LocalUser, GameState, Seq, RecentIntents<IntentOutcome>), IpcError> {
         let user = db
             .local_user()
             .await?
@@ -159,18 +188,7 @@ impl LocalServer {
             );
         }
         recent.prune(now);
-        Ok(Self {
-            db,
-            folder,
-            state,
-            next_seq: last_seq.next(),
-            actor: Actor {
-                user_id: user.id,
-                role: user.role,
-            },
-            rng: SplitMix64::new(seed()),
-            recent,
-        })
+        Ok((user, state, last_seq, recent))
     }
 
     #[must_use]

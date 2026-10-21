@@ -4,8 +4,8 @@ use std::path::{Path, PathBuf};
 
 use dnd_game_core::GameState;
 use dnd_protocol::{
-    CampaignMeta, CharacterId, CharacterRef, Event, EventBatch, Grid, GridKind, IntentId, MapDto,
-    MapId, PayloadHash, Role, Seq, TokenDto, TokenId, TokenLayer, UserId, Version,
+    CampaignMeta, CharacterDto, CharacterId, Event, EventBatch, Grid, GridKind, IntentId, MapDto,
+    MapId, PayloadHash, Role, Seq, TokenDto, TokenId, TokenLayer, UserDto, UserId, Version,
 };
 use sqlx::sqlite::SqliteRow;
 use sqlx::{Row, SqliteConnection, SqlitePool};
@@ -97,10 +97,19 @@ impl CampaignDb {
         quick_check(path).await?;
         let pool = pool(path, false).await?;
         let mut report = OpenReport::default();
-        if has_pending_migrations(&pool, &CAMPAIGN_MIGRATOR).await? {
-            report.pre_migration_backup =
-                Some(create_backup(&pool, path, "pre-migration", now_ms).await?);
-            migrate(&pool, &CAMPAIGN_MIGRATOR).await?;
+        let prepared = async {
+            if has_pending_migrations(&pool, &CAMPAIGN_MIGRATOR).await? {
+                report.pre_migration_backup =
+                    Some(create_backup(&pool, path, "pre-migration", now_ms).await?);
+                migrate(&pool, &CAMPAIGN_MIGRATOR).await?;
+            }
+            Ok::<(), DbError>(())
+        }
+        .await;
+        if let Err(e) = prepared {
+            // Release the file before returning (Windows keeps it locked otherwise).
+            pool.close().await;
+            return Err(e);
         }
         Ok((
             Self {
@@ -244,23 +253,41 @@ impl CampaignDb {
             let token = token_from_row(&row)?;
             state.tokens.insert(token.id, token);
         }
-        for row in sqlx::query("SELECT id, name, owner_user_id FROM characters ORDER BY id")
-            .fetch_all(&self.pool)
-            .await?
+        for row in sqlx::query(
+            "SELECT id, kind, name, owner_user_id, status, sheet_data, version \
+             FROM characters ORDER BY id",
+        )
+        .fetch_all(&self.pool)
+        .await?
         {
-            let character = CharacterRef {
+            let character = CharacterDto {
                 id: CharacterId(uuid_from_str(
                     "characters.id",
                     &row.try_get::<String, _>("id")?,
                 )?),
+                kind: enum_from_str("characters.kind", &row.try_get::<String, _>("kind")?)?,
                 name: row.try_get("name")?,
                 owner: opt_uuid_from_str(
                     "characters.owner_user_id",
                     row.try_get("owner_user_id")?,
                 )?
                 .map(UserId),
+                status: enum_from_str("characters.status", &row.try_get::<String, _>("status")?)?,
+                sheet_json: row.try_get("sheet_data")?,
+                version: Version(row.try_get("version")?),
             };
             state.characters.insert(character.id, character);
+        }
+        for row in sqlx::query("SELECT id, name, role FROM users ORDER BY id")
+            .fetch_all(&self.pool)
+            .await?
+        {
+            let user = UserDto {
+                id: UserId(uuid_from_str("users.id", &row.try_get::<String, _>("id")?)?),
+                name: row.try_get("name")?,
+                role: enum_from_str("users.role", &row.try_get::<String, _>("role")?)?,
+            };
+            state.users.insert(user.id, user);
         }
 
         Ok((state, self.last_seq().await?))
@@ -327,7 +354,30 @@ async fn project_event(conn: &mut SqliteConnection, event: &Event) -> DbResult<(
                 .await?;
             Ok(())
         }
+        Event::CharacterCreated { character } | Event::CharacterUpdated { character } => {
+            upsert_character(conn, character).await
+        }
     }
+}
+
+async fn upsert_character(conn: &mut SqliteConnection, c: &CharacterDto) -> DbResult<()> {
+    sqlx::query(
+        "INSERT INTO characters (id, kind, name, owner_user_id, status, sheet_data, version) \
+         VALUES (?, ?, ?, ?, ?, ?, ?) \
+         ON CONFLICT (id) DO UPDATE SET \
+             kind = excluded.kind, name = excluded.name, owner_user_id = excluded.owner_user_id, \
+             status = excluded.status, sheet_data = excluded.sheet_data, version = excluded.version",
+    )
+    .bind(c.id.to_string())
+    .bind(enum_to_str(&c.kind)?)
+    .bind(&c.name)
+    .bind(c.owner.map(|u| u.to_string()))
+    .bind(enum_to_str(&c.status)?)
+    .bind(&c.sheet_json)
+    .bind(c.version.0)
+    .execute(conn)
+    .await?;
+    Ok(())
 }
 
 async fn write_campaign_meta(conn: &mut SqliteConnection, campaign: &CampaignMeta) -> DbResult<()> {

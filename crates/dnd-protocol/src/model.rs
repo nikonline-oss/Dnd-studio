@@ -103,15 +103,51 @@ pub struct TokenDto {
     pub version: Version,
 }
 
-/// The part of a character the game core needs before character intents exist (stage 2):
-/// who owns it, to decide who may move its tokens.
+/// Player character or non-player character.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub enum CharacterKind {
+    Pc,
+    Npc,
+}
+
+/// Lifecycle of a character (CLAUDE.md §5): draft → pending_approval → active → archived.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub enum CharacterStatus {
+    Draft,
+    PendingApproval,
+    Active,
+    Archived,
+}
+
+/// A character. `sheet_json` is the raw sheet (a JSON object, integers only — ADR-0016) until
+/// declarative sheets arrive with system plugins in stage 3.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
-pub struct CharacterRef {
+pub struct CharacterDto {
     pub id: CharacterId,
+    pub kind: CharacterKind,
     pub name: String,
     pub owner: Option<UserId>,
+    pub status: CharacterStatus,
+    pub sheet_json: String,
+    pub version: Version,
 }
+
+/// A user of the campaign. Read-only in stage 2a (users join through the session server, 2b).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct UserDto {
+    pub id: UserId,
+    pub name: String,
+    pub role: crate::ids::Role,
+}
+
+/// Largest `sheet_json`, in bytes.
+pub const MAX_SHEET_BYTES: usize = 256 * 1024;
 
 /// Positions are stored in 1/16 of a logical map unit (ADR-0016).
 pub const UNITS16_PER_UNIT: i64 = 16;

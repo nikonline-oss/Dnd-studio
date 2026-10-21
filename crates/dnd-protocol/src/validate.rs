@@ -73,7 +73,14 @@ impl Intent {
             | Self::UpdateMap { .. }
             | Self::DeleteMap { .. }
             | Self::UpdateToken { .. }
-            | Self::DeleteToken { .. } => Vec::new(),
+            | Self::DeleteToken { .. }
+            | Self::CreateCharacter { .. }
+            | Self::UpdateCharacter { .. }
+            | Self::SubmitCharacter { .. }
+            | Self::ApproveCharacter { .. }
+            | Self::ReturnCharacter { .. }
+            | Self::ArchiveCharacter { .. }
+            | Self::AssignCharacterOwner { .. } => Vec::new(),
         }
     }
 }
@@ -85,12 +92,19 @@ impl Intent {
         match self {
             Self::CreateMap { id, .. } => Some(id.0),
             Self::CreateToken { id, .. } => Some(id.0),
+            Self::CreateCharacter { id, .. } => Some(id.0),
             Self::UpdateCampaignMeta { .. }
             | Self::UpdateMap { .. }
             | Self::DeleteMap { .. }
             | Self::UpdateToken { .. }
             | Self::MoveToken { .. }
-            | Self::DeleteToken { .. } => None,
+            | Self::DeleteToken { .. }
+            | Self::UpdateCharacter { .. }
+            | Self::SubmitCharacter { .. }
+            | Self::ApproveCharacter { .. }
+            | Self::ReturnCharacter { .. }
+            | Self::ArchiveCharacter { .. }
+            | Self::AssignCharacterOwner { .. } => None,
         }
     }
 }
@@ -132,5 +146,33 @@ impl Envelope<ClientMessage> {
             js_safe(seq.0, "seq")?;
         }
         self.body.validate()
+    }
+}
+
+/// A character sheet must be a JSON object of at most [`MAX_SHEET_BYTES`] whose numbers are all
+/// JS-safe integers (ADR-0016): no fractions, no exponents beyond the safe range.
+pub fn validate_sheet_json(sheet: &str) -> Result<(), RejectReason> {
+    let invalid = || RejectReason::invalid("sheet_json");
+    if sheet.len() > crate::model::MAX_SHEET_BYTES {
+        return Err(invalid());
+    }
+    let value: serde_json::Value = serde_json::from_str(sheet).map_err(|_| invalid())?;
+    if !value.is_object() {
+        return Err(invalid());
+    }
+    fn integers_only(value: &serde_json::Value) -> bool {
+        match value {
+            serde_json::Value::Number(n) => n.as_i64().is_some_and(is_js_safe),
+            serde_json::Value::Array(items) => items.iter().all(integers_only),
+            serde_json::Value::Object(map) => map.values().all(integers_only),
+            serde_json::Value::Null | serde_json::Value::Bool(_) | serde_json::Value::String(_) => {
+                true
+            }
+        }
+    }
+    if integers_only(&value) {
+        Ok(())
+    } else {
+        Err(invalid())
     }
 }

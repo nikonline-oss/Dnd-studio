@@ -13,18 +13,28 @@ export type CampaignMeta = {
 	version: Version,
 };
 
+/**
+ *  A character. `sheet_json` is the raw sheet (a JSON object, integers only — ADR-0016) until
+ *  declarative sheets arrive with system plugins in stage 3.
+ */
+export type CharacterDto = {
+	id: CharacterId,
+	kind: CharacterKind,
+	name: string,
+	owner: UserId | null,
+	status: CharacterStatus,
+	sheet_json: string,
+	version: Version,
+};
+
 /**  A character sheet. */
 export type CharacterId = string;
 
-/**
- *  The part of a character the game core needs before character intents exist (stage 2):
- *  who owns it, to decide who may move its tokens.
- */
-export type CharacterRef = {
-	id: CharacterId,
-	name: string,
-	owner: UserId | null,
-};
+/**  Player character or non-player character. */
+export type CharacterKind = "pc" | "npc";
+
+/**  Lifecycle of a character (CLAUDE.md §5): draft → pending_approval → active → archived. */
+export type CharacterStatus = "draft" | "pending_approval" | "active" | "archived";
 
 /**  Client → server. */
 export type ClientMessage = { type: "intent"; payload: IntentEnvelope } | { type: "ping" } | { type: "resync"; payload: {
@@ -32,7 +42,9 @@ export type ClientMessage = { type: "intent"; payload: IntentEnvelope } | { type
 } };
 
 /**  A fact about a state change. */
-export type Event = { kind: "campaign_meta_updated"; campaign: CampaignMeta } | { kind: "map_created"; map: MapDto } | { kind: "map_updated"; map: MapDto } | { kind: "map_deleted"; id: MapId } | { kind: "token_created"; token: TokenDto } | { kind: "token_updated"; token: TokenDto } | { kind: "token_moved"; id: TokenId; x: number; y: number } | { kind: "token_deleted"; id: TokenId };
+export type Event = { kind: "campaign_meta_updated"; campaign: CampaignMeta } | { kind: "map_created"; map: MapDto } | { kind: "map_updated"; map: MapDto } | { kind: "map_deleted"; id: MapId } | { kind: "token_created"; token: TokenDto } | { kind: "token_updated"; token: TokenDto } | { kind: "token_moved"; id: TokenId; x: number; y: number } | { kind: "token_deleted"; id: TokenId } | { kind: "character_created"; character: CharacterDto } | 
+/**  Any change: name, sheet, status, owner. */
+{ kind: "character_updated"; character: CharacterDto };
 
 /**  Events produced by one accepted intent. Event `i` of the batch has sequence number `seq + i`. */
 export type EventBatch = {
@@ -59,7 +71,22 @@ export type Intent = { kind: "update_campaign_meta"; name: string | null; descri
 /**  Logical size (ADR-0016), `1..=MAX_MAP_SIZE`; fixed for the life of the map. */
 width: number; height: number; grid: Grid; visible_to_players: boolean } | { kind: "update_map"; id: MapId; name: string | null; grid: Grid | null; visible_to_players: boolean | null } | { kind: "delete_map"; id: MapId } | { kind: "create_token"; id: TokenId; map_id: MapId; character_id: CharacterId | null; asset_id: AssetId | null; name: string; x: number; y: number; rotation: number; scale: number; layer: TokenLayer; visible: boolean } | { kind: "update_token"; id: TokenId; name: string | null; rotation: number | null; scale: number | null; layer: TokenLayer | null; visible: boolean | null } | 
 /**  Last-write-wins: no version check, does not bump the token version (ADR-0003). */
-{ kind: "move_token"; id: TokenId; x: number; y: number } | { kind: "delete_token"; id: TokenId };
+{ kind: "move_token"; id: TokenId; x: number; y: number } | { kind: "delete_token"; id: TokenId } | 
+/**
+ *  Players create their own `pc` in `draft` (owner = themselves); GM / Co-GM create any
+ *  character directly as `active`.
+ */
+{ kind: "create_character"; id: CharacterId; character_kind: CharacterKind; name: string; owner: UserId | null; sheet_json: string } | { kind: "update_character"; id: CharacterId; name: string | null; sheet_json: string | null } | 
+/**  draft → pending_approval (owner or GM). */
+{ kind: "submit_character"; id: CharacterId } | 
+/**  pending_approval → active (GM / Co-GM). */
+{ kind: "approve_character"; id: CharacterId } | 
+/**  pending_approval → draft, back to the player for changes (GM / Co-GM). */
+{ kind: "return_character"; id: CharacterId } | 
+/**  any → archived (GM / Co-GM). */
+{ kind: "archive_character"; id: CharacterId } | 
+/**  GM / Co-GM; `owner` must be a known user. */
+{ kind: "assign_character_owner"; id: CharacterId; owner: UserId | null };
 
 /**  An intent together with its correlation id and the version it was based on (ADR-0003). */
 export type IntentEnvelope = {
@@ -148,7 +175,8 @@ export type Snapshot = {
 	campaign: CampaignMeta,
 	maps: MapDto[],
 	tokens: TokenDto[],
-	characters: CharacterRef[],
+	characters: CharacterDto[],
+	users: UserDto[],
 };
 
 /**  A token on a map. */
@@ -180,6 +208,13 @@ export type TokenLayer =
 "tokens" | 
 /**  Visible to GM / Co-GM only. */
 "gm";
+
+/**  A user of the campaign. Read-only in stage 2a (users join through the session server, 2b). */
+export type UserDto = {
+	id: UserId,
+	name: string,
+	role: Role,
+};
 
 /**  A user known to the campaign (GM, players). */
 export type UserId = string;

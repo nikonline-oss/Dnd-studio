@@ -207,6 +207,15 @@ pub fn apply(
         }
 
         Intent::DeleteToken { id } => Ok(vec![Event::TokenDeleted { id: *id }]),
+
+        Intent::CreateCharacter { .. }
+        | Intent::UpdateCharacter { .. }
+        | Intent::SubmitCharacter { .. }
+        | Intent::ApproveCharacter { .. }
+        | Intent::ReturnCharacter { .. }
+        | Intent::ArchiveCharacter { .. }
+        | Intent::AssignCharacterOwner { .. } => crate::characters::apply(state, intent, actor)
+            .unwrap_or(Err(RejectReason::invalid("intent"))),
     }
 }
 
@@ -220,12 +229,20 @@ fn current_version(state: &GameState, intent: &Intent) -> Result<Version, Reject
         Intent::UpdateToken { id, .. }
         | Intent::DeleteToken { id }
         | Intent::MoveToken { id, .. } => state.tokens.get(id).map(|t| t.version),
-        Intent::CreateMap { .. } | Intent::CreateToken { .. } => None,
+        Intent::UpdateCharacter { id, .. }
+        | Intent::SubmitCharacter { id }
+        | Intent::ApproveCharacter { id }
+        | Intent::ReturnCharacter { id }
+        | Intent::ArchiveCharacter { id }
+        | Intent::AssignCharacterOwner { id, .. } => state.characters.get(id).map(|c| c.version),
+        Intent::CreateMap { .. } | Intent::CreateToken { .. } | Intent::CreateCharacter { .. } => {
+            None
+        }
     };
     version.ok_or(RejectReason::NotFound)
 }
 
-fn valid_name(name: &str, field: &str) -> Result<String, RejectReason> {
+pub(crate) fn valid_name(name: &str, field: &str) -> Result<String, RejectReason> {
     let trimmed = name.trim();
     if trimmed.is_empty() || trimmed.chars().count() > MAX_NAME_LEN {
         return Err(RejectReason::invalid(field));
@@ -287,7 +304,7 @@ fn id_in_use(state: &GameState, id: dnd_protocol::Uuid) -> bool {
 }
 
 /// Next version, rejected once it would leave the JS-safe range (ADR-0015).
-fn bump(version: Version) -> Result<Version, RejectReason> {
+pub(crate) fn bump(version: Version) -> Result<Version, RejectReason> {
     version
         .checked_next()
         .ok_or_else(|| RejectReason::invalid("version"))

@@ -28,6 +28,9 @@ pub fn evolve(state: &mut GameState, event: &Event) {
         Event::TokenDeleted { id } => {
             state.tokens.remove(id);
         }
+        Event::CharacterCreated { character } | Event::CharacterUpdated { character } => {
+            state.characters.insert(character.id, character.clone());
+        }
     }
 }
 

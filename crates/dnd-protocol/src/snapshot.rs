@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::ids::Seq;
-use crate::model::{CampaignMeta, CharacterRef, MapDto, TokenDto};
+use crate::model::{CampaignMeta, CharacterDto, MapDto, TokenDto, UserDto};
 
 /// The visible state as of event `seq`.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -14,5 +14,6 @@ pub struct Snapshot {
     pub campaign: CampaignMeta,
     pub maps: Vec<MapDto>,
     pub tokens: Vec<TokenDto>,
-    pub characters: Vec<CharacterRef>,
+    pub characters: Vec<CharacterDto>,
+    pub users: Vec<UserDto>,
 }
