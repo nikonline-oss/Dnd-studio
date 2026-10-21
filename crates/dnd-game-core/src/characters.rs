@@ -2,11 +2,13 @@
 //! the GM. Permissions are checked in `permissions::authorize` before this runs.
 
 use dnd_protocol::{
-    CharacterDto, CharacterStatus, Event, Intent, RejectReason, Version, validate_sheet_json,
+    CharacterDto, CharacterStatus, Event, Intent, RejectReason, SystemMessage, Version,
+    validate_sheet_json,
 };
 
 use crate::apply::{bump, valid_name};
 use crate::permissions::Actor;
+use crate::rng::GameRng;
 use crate::state::GameState;
 
 /// Events for a character intent; `None` if `intent` is not about characters.
@@ -14,6 +16,7 @@ pub(crate) fn apply(
     state: &GameState,
     intent: &Intent,
     actor: &Actor,
+    rng: &mut dyn GameRng,
 ) -> Option<Result<Vec<Event>, RejectReason>> {
     let result = match intent {
         Intent::CreateCharacter {
@@ -64,23 +67,35 @@ pub(crate) fn apply(
             }
             Ok(())
         }),
-        Intent::SubmitCharacter { id } => transition(
-            state,
-            *id,
-            &[CharacterStatus::Draft],
-            CharacterStatus::PendingApproval,
+        Intent::SubmitCharacter { id } => announce(
+            transition(
+                state,
+                *id,
+                &[CharacterStatus::Draft],
+                CharacterStatus::PendingApproval,
+            ),
+            |name| SystemMessage::CharacterSubmitted { name },
+            rng,
         ),
-        Intent::ApproveCharacter { id } => transition(
-            state,
-            *id,
-            &[CharacterStatus::PendingApproval],
-            CharacterStatus::Active,
+        Intent::ApproveCharacter { id } => announce(
+            transition(
+                state,
+                *id,
+                &[CharacterStatus::PendingApproval],
+                CharacterStatus::Active,
+            ),
+            |name| SystemMessage::CharacterApproved { name },
+            rng,
         ),
-        Intent::ReturnCharacter { id } => transition(
-            state,
-            *id,
-            &[CharacterStatus::PendingApproval],
-            CharacterStatus::Draft,
+        Intent::ReturnCharacter { id } => announce(
+            transition(
+                state,
+                *id,
+                &[CharacterStatus::PendingApproval],
+                CharacterStatus::Draft,
+            ),
+            |name| SystemMessage::CharacterReturned { name },
+            rng,
         ),
         Intent::ArchiveCharacter { id } => transition(
             state,
@@ -136,4 +151,21 @@ fn transition(
         c.status = to;
         Ok(())
     })
+}
+
+/// Adds a system chat message about a review step to a successful transition.
+fn announce(
+    result: Result<Vec<Event>, RejectReason>,
+    message: impl FnOnce(String) -> SystemMessage,
+    rng: &mut dyn GameRng,
+) -> Result<Vec<Event>, RejectReason> {
+    let mut events = result?;
+    let name = events.iter().find_map(|e| match e {
+        Event::CharacterUpdated { character } => Some(character.name.clone()),
+        _ => None,
+    });
+    if let Some(name) = name {
+        events.push(crate::chat::system(message(name), rng));
+    }
+    Ok(events)
 }

@@ -55,6 +55,8 @@ export const commands = {
 	 *  locally the GM sees everything.
 	 */
 	journalEntry: (id: JournalEntryId) => typedError<JournalEntryDto, IpcError>(__TAURI_INVOKE("journal_entry", { id })),
+	/**  Older chat messages (oldest first) before `before`, at most `limit` (capped at 200). */
+	chatHistory: (before: string | null, limit: number) => typedError<ChatMessageDto[], IpcError>(__TAURI_INVOKE("chat_history", { before, limit })),
 	/**
 	 *  Applies an intent through the game core and commits the resulting events. Only then are they
 	 *  broadcast as [`GameEventsEmitted`], so every view updates the same way for local and remote
@@ -130,12 +132,69 @@ export type CharacterKind = "pc" | "npc";
 /**  Lifecycle of a character (CLAUDE.md §5): draft → pending_approval → active → archived. */
 export type CharacterStatus = "draft" | "pending_approval" | "active" | "archived";
 
+/**  What a chat message is. */
+export type ChatKind = "text" | 
+/**  Produced by the core; see [`SystemMessage`]. */
+"system" | "roll";
+
+/**  A chat message. */
+export type ChatMessageDto = {
+	id: ChatMessageId,
+	kind: ChatKind,
+	/**  `None` for system messages and after the sender was deleted. */
+	sender: UserId | null,
+	/**  The sender's name when the message was written (ADR-0008). */
+	sender_name: string,
+	/**  Text for `text`; the expression as typed for `roll`; empty for `system`. */
+	body: string,
+	roll: DiceRollDto | null,
+	system: SystemMessage | null,
+	visibility: ChatVisibility,
+	/**  When it was stored (unix ms); `None` in live events (the core has no clock). */
+	at_ms: number | null,
+};
+
+/**  A chat message (a dice roll is a chat message too). */
+export type ChatMessageId = string;
+
+/**  Who may see a chat message. */
+export type ChatVisibility = "all" | 
+/**  Hidden GM rolls: GM and Co-GM only (filtering per recipient — stage 4). */
+"gm";
+
+/**  Result of a dice roll (ADR-0005, ADR-0016: all numbers are integers). */
+export type DiceRollDto = {
+	/**  Canonical form of the expression. */
+	expression: string,
+	terms: DiceTermDto[],
+	total: number,
+};
+
+/**  One term of a roll: dice (with each die), a constant or a sheet field. */
+export type DiceTermDto = {
+	negative: boolean,
+	/**  Canonical notation: `4d6kh3`, `5`, `@str_mod`. */
+	notation: string,
+	/**  Value before the sign is applied. */
+	subtotal: number,
+	dice: DieDto[],
+};
+
+/**  One physical die of a roll. */
+export type DieDto = {
+	value: number,
+	/**  `false` if dropped by keep/drop or advantage/disadvantage. */
+	kept: boolean,
+};
+
 /**  A fact about a state change. */
 export type Event = { kind: "campaign_meta_updated"; campaign: CampaignMeta } | { kind: "map_created"; map: MapDto } | { kind: "map_updated"; map: MapDto } | { kind: "map_deleted"; id: MapId } | { kind: "token_created"; token: TokenDto } | { kind: "token_updated"; token: TokenDto } | { kind: "token_moved"; id: TokenId; x: number; y: number } | { kind: "token_deleted"; id: TokenId } | { kind: "character_created"; character: CharacterDto } | 
 /**  Any change: name, sheet, status, owner. */
 { kind: "character_updated"; character: CharacterDto } | { kind: "journal_entry_created"; entry: JournalEntryDto } | 
 /**  Any change: text, title, folder, order, visibility. */
-{ kind: "journal_entry_updated"; entry: JournalEntryDto } | { kind: "journal_entry_deleted"; id: JournalEntryId };
+{ kind: "journal_entry_updated"; entry: JournalEntryDto } | { kind: "journal_entry_deleted"; id: JournalEntryId } | 
+/**  A text, roll or system message. */
+{ kind: "chat_message_posted"; message: ChatMessageDto };
 
 /**  Events produced by one accepted intent. Event `i` of the batch has sequence number `seq + i`. */
 export type EventBatch = {
@@ -194,7 +253,14 @@ width: number; height: number; grid: Grid; visible_to_players: boolean } | { kin
 /**  GM / Co-GM: move to `folder` at position `sort_order`. */
 { kind: "move_journal_entry"; id: JournalEntryId; folder: string; sort_order: number } | 
 /**  GM / Co-GM. */
-{ kind: "delete_journal_entry"; id: JournalEntryId };
+{ kind: "delete_journal_entry"; id: JournalEntryId } | 
+/**  Everyone except spectators. */
+{ kind: "send_message"; id: ChatMessageId; body: string } | 
+/**
+ *  Everyone except spectators. `hidden` (seen by GM roles only) is for GM and Co-GM. Field
+ *  references (`@str_mod`) read the sheet of `character_id`, which a player must own.
+ */
+{ kind: "roll_dice"; id: ChatMessageId; expression: string; hidden: boolean; character_id: CharacterId | null };
 
 /**  An intent together with its correlation id and the version it was based on (ADR-0003). */
 export type IntentEnvelope = {
@@ -357,7 +423,12 @@ export type Snapshot = {
 	users: UserDto[],
 	/**  Journal index; texts are fetched per entry. */
 	journal: JournalEntryMeta[],
+	/**  The last `CHAT_SNAPSHOT_LEN` chat messages, oldest first. */
+	chat: ChatMessageDto[],
 };
+
+/**  Messages the core posts; the UI localizes them by `code`. */
+export type SystemMessage = { code: "character_submitted"; name: string } | { code: "character_approved"; name: string } | { code: "character_returned"; name: string };
 
 /**  A token on a map. */
 export type TokenDto = {

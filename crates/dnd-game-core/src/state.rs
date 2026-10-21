@@ -80,6 +80,8 @@ impl GameState {
             characters: self.characters.values().cloned().collect(),
             users: self.users.values().cloned().collect(),
             journal: self.journal.values().map(JournalEntryMeta::from).collect(),
+            // Chat history is kept by the server layer, not by the core.
+            chat: Vec::new(),
         }
     }
 

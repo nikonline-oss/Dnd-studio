@@ -4,7 +4,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use dnd_protocol::{
-    EventBatch, IntentEnvelope, IntentOutcome, JournalEntryDto, JournalEntryId, Snapshot,
+    ChatMessageDto, ChatMessageId, EventBatch, IntentEnvelope, IntentOutcome, JournalEntryDto,
+    JournalEntryId, Snapshot,
 };
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Runtime, State};
@@ -137,6 +138,21 @@ pub async fn campaign_current(
     state: State<'_, AppState>,
 ) -> Result<Option<CampaignInfo>, IpcError> {
     Ok(state.server.lock().await.as_ref().map(LocalServer::info))
+}
+
+/// Older chat messages (oldest first) before `before`, at most `limit` (capped at 200).
+#[tauri::command]
+#[specta::specta]
+pub async fn chat_history(
+    state: State<'_, AppState>,
+    before: Option<ChatMessageId>,
+    limit: u32,
+) -> Result<Vec<ChatMessageDto>, IpcError> {
+    let guard = state.server.lock().await;
+    let server = guard.as_ref().ok_or_else(IpcError::no_campaign)?;
+    server
+        .chat_history(before, usize::try_from(limit).unwrap_or(usize::MAX))
+        .await
 }
 
 /// Text of one journal entry. Visibility filtering per recipient arrives with the server (stage 4);

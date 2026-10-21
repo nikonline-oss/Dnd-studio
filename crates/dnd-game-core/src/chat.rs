@@ -1,0 +1,167 @@
+//! Chat and dice rolls (CLAUDE.md §12): public messages, rolls with full dice detail, hidden GM
+//! rolls and system messages posted by the core. Chat history is not part of `GameState`: no rule
+//! depends on it, and it grows without bound.
+
+use dnd_dice::{DiceRng, Expr, FieldLookup, LookupError, Sign, TermDetail};
+use dnd_protocol::{
+    ChatKind, ChatMessageDto, ChatMessageId, ChatVisibility, DiceRollDto, DiceTermDto, DieDto,
+    Event, Intent, MAX_CHAT_LEN, RejectReason, SheetFieldError, SystemMessage, sheet_field,
+    uuid_v7_from_random,
+};
+
+use crate::permissions::Actor;
+use crate::rng::GameRng;
+use crate::state::GameState;
+
+/// Lets `dnd-dice` draw from the core's injected RNG (ADR-0001).
+struct DiceRngAdapter<'a>(&'a mut dyn GameRng);
+
+impl DiceRng for DiceRngAdapter<'_> {
+    fn next_u64(&mut self) -> u64 {
+        self.0.next_u64()
+    }
+}
+
+/// `@path` references resolve against a character sheet (integers only, ADR-0016).
+struct SheetFields<'a>(Option<&'a str>);
+
+impl FieldLookup for SheetFields<'_> {
+    fn lookup(&self, path: &str) -> Result<i64, LookupError> {
+        let sheet = self.0.ok_or(LookupError::Unknown)?;
+        sheet_field(sheet, path).map_err(|e| match e {
+            SheetFieldError::Unknown => LookupError::Unknown,
+            SheetFieldError::NotAnInteger => LookupError::NotAnInteger,
+        })
+    }
+}
+
+/// Events for a chat intent; `None` if `intent` is not about chat.
+pub(crate) fn apply(
+    state: &GameState,
+    intent: &Intent,
+    actor: &Actor,
+    rng: &mut dyn GameRng,
+) -> Option<Result<Vec<Event>, RejectReason>> {
+    let result = match intent {
+        Intent::SendMessage { id, body } => (|| {
+            let body = body.trim();
+            if body.is_empty() || body.chars().count() > MAX_CHAT_LEN {
+                return Err(RejectReason::invalid("body"));
+            }
+            Ok(vec![posted(ChatMessageDto {
+                id: *id,
+                kind: ChatKind::Text,
+                sender: Some(actor.user_id),
+                sender_name: sender_name(state, actor),
+                body: body.to_owned(),
+                roll: None,
+                system: None,
+                visibility: ChatVisibility::All,
+                at_ms: None,
+            })])
+        })(),
+        Intent::RollDice {
+            id,
+            expression,
+            hidden,
+            character_id,
+        } => (|| {
+            if *hidden && !actor.role.is_game_master() {
+                return Err(RejectReason::Forbidden);
+            }
+            let sheet = match character_id {
+                None => None,
+                Some(cid) => {
+                    let character = state.characters.get(cid);
+                    let allowed = actor.role.is_game_master()
+                        || character.is_some_and(|c| c.owner == Some(actor.user_id));
+                    if !allowed {
+                        return Err(RejectReason::Forbidden);
+                    }
+                    Some(character.ok_or(RejectReason::NotFound)?.sheet_json.as_str())
+                }
+            };
+            let expr = Expr::parse(expression).map_err(|_| RejectReason::invalid("expression"))?;
+            let roll = expr
+                .roll(&SheetFields(sheet), &mut DiceRngAdapter(rng))
+                .map_err(|_| RejectReason::invalid("expression"))?;
+            Ok(vec![posted(ChatMessageDto {
+                id: *id,
+                kind: ChatKind::Roll,
+                sender: Some(actor.user_id),
+                sender_name: sender_name(state, actor),
+                body: expression.trim().to_owned(),
+                roll: Some(roll_dto(&roll)),
+                system: None,
+                visibility: if *hidden {
+                    ChatVisibility::Gm
+                } else {
+                    ChatVisibility::All
+                },
+                at_ms: None,
+            })])
+        })(),
+        _ => return None,
+    };
+    Some(result)
+}
+
+/// A system message with an id drawn from the core's RNG (deterministic for a seed).
+pub(crate) fn system(system: SystemMessage, rng: &mut dyn GameRng) -> Event {
+    let bits = (u128::from(rng.next_u64()) << 64) | u128::from(rng.next_u64());
+    posted(ChatMessageDto {
+        id: ChatMessageId(uuid_v7_from_random(bits)),
+        kind: ChatKind::System,
+        sender: None,
+        sender_name: String::new(),
+        body: String::new(),
+        roll: None,
+        system: Some(system),
+        visibility: ChatVisibility::All,
+        at_ms: None,
+    })
+}
+
+fn posted(message: ChatMessageDto) -> Event {
+    Event::ChatMessagePosted { message }
+}
+
+fn sender_name(state: &GameState, actor: &Actor) -> String {
+    state
+        .users
+        .get(&actor.user_id)
+        .map(|u| u.name.clone())
+        .unwrap_or_default()
+}
+
+fn roll_dto(roll: &dnd_dice::Roll) -> DiceRollDto {
+    DiceRollDto {
+        expression: roll.expression.to_string(),
+        terms: roll
+            .terms
+            .iter()
+            .map(|t| {
+                let (notation, dice) = match &t.term {
+                    TermDetail::Dice { notation, dice, .. } => (
+                        notation.clone(),
+                        dice.iter()
+                            .map(|d| DieDto {
+                                value: d.value,
+                                kept: d.kept,
+                            })
+                            .collect(),
+                    ),
+                    TermDetail::Constant { value } => (value.to_string(), Vec::new()),
+                    TermDetail::Field { path, .. } => (format!("@{path}"), Vec::new()),
+                };
+                DiceTermDto {
+                    negative: t.sign == Sign::Minus,
+                    notation,
+                    subtotal: t.subtotal,
+                    dice,
+                }
+            })
+            .collect(),
+        total: roll.total,
+    }
+}

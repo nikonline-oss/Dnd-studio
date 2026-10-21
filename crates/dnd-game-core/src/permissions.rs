@@ -28,6 +28,8 @@ pub fn authorize(actor: &Actor, intent: &Intent, state: &GameState) -> Result<()
             Intent::MoveToken { id, .. } if player_controls_token(actor.user_id, *id, state) => {
                 Ok(())
             }
+            // Hidden rolls and sheets of other characters are checked in `chat`.
+            Intent::SendMessage { .. } | Intent::RollDice { .. } => Ok(()),
             // Players create only their own player characters (they start as drafts).
             Intent::CreateCharacter {
                 character_kind: CharacterKind::Pc,

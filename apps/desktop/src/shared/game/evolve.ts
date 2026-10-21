@@ -6,6 +6,9 @@ import type {
   Snapshot,
 } from '@/shared/ipc/client';
 
+/** Chat messages kept in the snapshot (mirrors `CHAT_SNAPSHOT_LEN` in the protocol). */
+export const CHAT_SNAPSHOT_LEN = 200;
+
 /**
  * Applies one event to a snapshot. Mirrors `dnd_game_core::evolve`: the client only applies
  * facts decided by the core, it never decides anything itself (ADR-0001).
@@ -43,6 +46,15 @@ export function applyEvent(snapshot: Snapshot, event: Event): Snapshot {
       return { ...snapshot, journal: upsert(snapshot.journal, toMeta(event.entry)) };
     case 'journal_entry_deleted':
       return { ...snapshot, journal: snapshot.journal.filter((e) => e.id !== event.id) };
+    case 'chat_message_posted':
+      // Live messages have no stored time; show when they arrived.
+      return {
+        ...snapshot,
+        chat: [
+          ...snapshot.chat,
+          { ...event.message, at_ms: event.message.at_ms ?? Date.now() },
+        ].slice(-CHAT_SNAPSHOT_LEN),
+      };
   }
 }
 

@@ -429,3 +429,57 @@ async fn reused_intent_id_with_other_payload_is_rejected() {
         IntentOutcome::Accepted { seq: Seq(2) }
     );
 }
+
+/// Chat and rolls are stored, appear in the snapshot with their stored time after a reopen, and
+/// older messages are paged with `chat_history`.
+#[tokio::test]
+async fn chat_and_rolls_persist_and_page() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut server = LocalServer::create(dir.path(), "Chatty").await.unwrap();
+    let first = ChatMessageId::new_v7();
+    server
+        .submit(&envelope(
+            Intent::SendMessage {
+                id: first,
+                body: "Hello".into(),
+            },
+            None,
+        ))
+        .await
+        .unwrap();
+    let (outcome, batch) = server
+        .submit(&envelope(
+            Intent::RollDice {
+                id: ChatMessageId::new_v7(),
+                expression: "1d20 adv".into(),
+                hidden: true,
+                character_id: None,
+            },
+            None,
+        ))
+        .await
+        .unwrap();
+    assert!(matches!(outcome, IntentOutcome::Accepted { .. }));
+    let Some(Event::ChatMessagePosted { message }) = batch.unwrap().events.first().cloned() else {
+        panic!("roll message expected");
+    };
+    assert_eq!(message.visibility, ChatVisibility::Gm);
+    assert_eq!(message.roll.as_ref().unwrap().terms[0].dice.len(), 2);
+
+    let snapshot = server.snapshot();
+    assert_eq!(snapshot.chat.len(), 2);
+    assert!(snapshot.chat.iter().all(|m| m.at_ms.is_some()));
+    let folder = server.folder().to_owned();
+    server.close().await.unwrap();
+
+    let reopened = LocalServer::open(&folder).await.unwrap();
+    assert_eq!(reopened.snapshot().chat, snapshot.chat);
+    let before_roll = reopened
+        .chat_history(Some(snapshot.chat[1].id), 10)
+        .await
+        .unwrap();
+    assert_eq!(
+        before_roll.iter().map(|m| m.id).collect::<Vec<_>>(),
+        [first]
+    );
+}

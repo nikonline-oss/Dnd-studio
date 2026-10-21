@@ -2,7 +2,9 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::ids::{AssetId, CharacterId, IntentId, JournalEntryId, MapId, TokenId, UserId, Version};
+use crate::ids::{
+    AssetId, CharacterId, ChatMessageId, IntentId, JournalEntryId, MapId, TokenId, UserId, Version,
+};
 use crate::model::{CharacterKind, Grid, JournalVisibility, TokenLayer};
 
 /// An intent together with its correlation id and the version it was based on (ADR-0003).
@@ -152,6 +154,20 @@ pub enum Intent {
     DeleteJournalEntry {
         id: JournalEntryId,
     },
+
+    /// Everyone except spectators.
+    SendMessage {
+        id: ChatMessageId,
+        body: String,
+    },
+    /// Everyone except spectators. `hidden` (seen by GM roles only) is for GM and Co-GM. Field
+    /// references (`@str_mod`) read the sheet of `character_id`, which a player must own.
+    RollDice {
+        id: ChatMessageId,
+        expression: String,
+        hidden: bool,
+        character_id: Option<CharacterId>,
+    },
 }
 
 /// What kind of version handling an intent needs.
@@ -189,6 +205,8 @@ impl Intent {
             Self::UpdateJournalEntry { .. } => "update_journal_entry",
             Self::MoveJournalEntry { .. } => "move_journal_entry",
             Self::DeleteJournalEntry { .. } => "delete_journal_entry",
+            Self::SendMessage { .. } => "send_message",
+            Self::RollDice { .. } => "roll_dice",
         }
     }
 
@@ -199,7 +217,9 @@ impl Intent {
             Self::CreateMap { .. }
             | Self::CreateToken { .. }
             | Self::CreateCharacter { .. }
-            | Self::CreateJournalEntry { .. } => VersionPolicy::Create,
+            | Self::CreateJournalEntry { .. }
+            | Self::SendMessage { .. }
+            | Self::RollDice { .. } => VersionPolicy::Create,
             Self::MoveToken { .. } => VersionPolicy::LastWriteWins,
             Self::UpdateCampaignMeta { .. }
             | Self::UpdateMap { .. }

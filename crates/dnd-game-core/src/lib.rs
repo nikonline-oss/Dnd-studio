@@ -9,6 +9,7 @@
 
 mod apply;
 mod characters;
+mod chat;
 mod evolve;
 mod journal;
 mod permissions;

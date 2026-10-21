@@ -84,7 +84,9 @@ impl Intent {
             | Self::AssignCharacterOwner { .. }
             | Self::CreateJournalEntry { .. }
             | Self::UpdateJournalEntry { .. }
-            | Self::DeleteJournalEntry { .. } => Vec::new(),
+            | Self::DeleteJournalEntry { .. }
+            | Self::SendMessage { .. }
+            | Self::RollDice { .. } => Vec::new(),
         }
     }
 }
@@ -98,6 +100,7 @@ impl Intent {
             Self::CreateToken { id, .. } => Some(id.0),
             Self::CreateCharacter { id, .. } => Some(id.0),
             Self::CreateJournalEntry { id, .. } => Some(id.0),
+            Self::SendMessage { id, .. } | Self::RollDice { id, .. } => Some(id.0),
             Self::UpdateCampaignMeta { .. }
             | Self::UpdateMap { .. }
             | Self::DeleteMap { .. }
@@ -183,4 +186,24 @@ pub fn validate_sheet_json(sheet: &str) -> Result<(), RejectReason> {
     } else {
         Err(invalid())
     }
+}
+
+/// Why a sheet field could not be read as a dice/formula value.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SheetFieldError {
+    /// No such path in the sheet.
+    Unknown,
+    /// The value is not an integer (ADR-0016).
+    NotAnInteger,
+}
+
+/// Reads the integer at a dotted `path` (`hp.max`) of a character sheet.
+pub fn sheet_field(sheet: &str, path: &str) -> Result<i64, SheetFieldError> {
+    let value: serde_json::Value =
+        serde_json::from_str(sheet).map_err(|_| SheetFieldError::Unknown)?;
+    let mut node = &value;
+    for segment in path.split('.') {
+        node = node.get(segment).ok_or(SheetFieldError::Unknown)?;
+    }
+    node.as_i64().ok_or(SheetFieldError::NotAnInteger)
 }

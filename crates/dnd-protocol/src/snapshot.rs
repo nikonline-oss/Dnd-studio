@@ -3,7 +3,9 @@
 use serde::{Deserialize, Serialize};
 
 use crate::ids::Seq;
-use crate::model::{CampaignMeta, CharacterDto, JournalEntryMeta, MapDto, TokenDto, UserDto};
+use crate::model::{
+    CampaignMeta, CharacterDto, ChatMessageDto, JournalEntryMeta, MapDto, TokenDto, UserDto,
+};
 
 /// The visible state as of event `seq`.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -18,4 +20,6 @@ pub struct Snapshot {
     pub users: Vec<UserDto>,
     /// Journal index; texts are fetched per entry.
     pub journal: Vec<JournalEntryMeta>,
+    /// The last `CHAT_SNAPSHOT_LEN` chat messages, oldest first.
+    pub chat: Vec<ChatMessageDto>,
 }

@@ -25,6 +25,7 @@ const snapshot: Snapshot = {
   characters: [],
   users: [],
   journal: [],
+  chat: [],
 };
 
 function renderWithIpc(outcome: IntentOutcome) {

@@ -24,7 +24,7 @@ pub fn apply(
     state: &GameState,
     envelope: &IntentEnvelope,
     actor: &Actor,
-    _rng: &mut dyn GameRng,
+    rng: &mut dyn GameRng,
 ) -> Result<Vec<Event>, RuleError> {
     let intent = &envelope.intent;
     envelope.validate()?;
@@ -214,8 +214,15 @@ pub fn apply(
         | Intent::ApproveCharacter { .. }
         | Intent::ReturnCharacter { .. }
         | Intent::ArchiveCharacter { .. }
-        | Intent::AssignCharacterOwner { .. } => crate::characters::apply(state, intent, actor)
-            .unwrap_or(Err(RejectReason::invalid("intent"))),
+        | Intent::AssignCharacterOwner { .. } => {
+            crate::characters::apply(state, intent, actor, rng)
+                .unwrap_or(Err(RejectReason::invalid("intent")))
+        }
+
+        Intent::SendMessage { .. } | Intent::RollDice { .. } => {
+            crate::chat::apply(state, intent, actor, rng)
+                .unwrap_or(Err(RejectReason::invalid("intent")))
+        }
 
         Intent::CreateJournalEntry { .. }
         | Intent::UpdateJournalEntry { .. }
@@ -247,7 +254,9 @@ fn current_version(state: &GameState, intent: &Intent) -> Result<Version, Reject
         Intent::CreateMap { .. }
         | Intent::CreateToken { .. }
         | Intent::CreateCharacter { .. }
-        | Intent::CreateJournalEntry { .. } => None,
+        | Intent::CreateJournalEntry { .. }
+        | Intent::SendMessage { .. }
+        | Intent::RollDice { .. } => None,
     };
     version.ok_or(RejectReason::NotFound)
 }

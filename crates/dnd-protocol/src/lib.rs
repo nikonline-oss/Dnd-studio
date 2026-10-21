@@ -19,21 +19,24 @@ pub mod arbitrary;
 pub use error::RejectReason;
 pub use event::{Event, EventBatch};
 pub use ids::{
-    AssetId, CharacterId, IntentId, JournalEntryId, MapId, MessageId, Role, Seq, SessionId,
-    TokenId, UserId, Version,
+    AssetId, CharacterId, ChatMessageId, IntentId, JournalEntryId, MapId, MessageId, Role, Seq,
+    SessionId, TokenId, UserId, Version, uuid_v7_from_random,
 };
 pub use intent::{Intent, IntentEnvelope, IntentOutcome, PayloadHash, VersionPolicy};
 pub use message::{ClientMessage, Envelope, Rejection, ServerMessage};
 pub use model::{
-    CampaignMeta, CharacterDto, CharacterKind, CharacterStatus, Grid, GridKind, JournalEntryDto,
-    JournalEntryMeta, JournalVisibility, MAX_FOLDER_LEN, MAX_JOURNAL_BYTES, MAX_SHEET_BYTES,
-    MapDto, TokenDto, TokenLayer, UserDto,
+    CHAT_SNAPSHOT_LEN, CampaignMeta, CharacterDto, CharacterKind, CharacterStatus, ChatKind,
+    ChatMessageDto, ChatVisibility, DiceRollDto, DiceTermDto, DieDto, Grid, GridKind,
+    JournalEntryDto, JournalEntryMeta, JournalVisibility, MAX_CHAT_LEN, MAX_FOLDER_LEN,
+    MAX_JOURNAL_BYTES, MAX_SHEET_BYTES, MapDto, SystemMessage, TokenDto, TokenLayer, UserDto,
 };
 pub use model::{MAX_MAP_SIZE, UNITS16_PER_UNIT};
 pub use snapshot::Snapshot;
 /// Re-exported so dependants use the exact same UUID type.
 pub use uuid::Uuid;
-pub use validate::{MAX_SAFE_INTEGER, is_js_safe, is_uuid_v7, validate_sheet_json};
+pub use validate::{
+    MAX_SAFE_INTEGER, SheetFieldError, is_js_safe, is_uuid_v7, sheet_field, validate_sheet_json,
+};
 
 /// Protocol version. Peers with a different version are refused with
 /// [`RejectReason::ProtocolMismatch`].

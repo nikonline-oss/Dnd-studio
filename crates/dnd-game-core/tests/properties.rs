@@ -187,6 +187,7 @@ proptest! {
                     Event::CharacterCreated { character } | Event::CharacterUpdated { character } => {
                         prop_assert_eq!(character.owner, Some(PLAYER));
                     }
+                    Event::ChatMessagePosted { .. } => {}
                     other => prop_assert!(false, "player produced {:?}", other),
                 }
             }

@@ -16,6 +16,7 @@ const snapshot: Snapshot = {
   characters: [],
   users: [],
   journal: [],
+  chat: [],
 };
 
 const campaign = (role: CampaignInfo['role']): CampaignInfo => ({

@@ -444,7 +444,7 @@ fn query_inventory_matches_adr_0008() {
         .map(|s| s.matches("sqlx::query").count())
         .sum();
     assert_eq!(
-        count, 25,
+        count, 28,
         "runtime queries changed: add a real-SQLite test and update the table in docs/adr/0008-db-conventions.md"
     );
 }
@@ -626,4 +626,120 @@ async fn journal_entries_are_projected_and_loaded() {
     .unwrap();
     let (state, _) = db.load_state().await.unwrap();
     assert!(state.journal.is_empty());
+}
+
+fn chat(n: u128, kind: ChatKind) -> ChatMessageDto {
+    ChatMessageDto {
+        id: ChatMessageId(v7(0x600 + n)),
+        kind,
+        sender: (kind != ChatKind::System).then(|| UserId(v7(1))),
+        sender_name: if kind == ChatKind::System {
+            String::new()
+        } else {
+            "GM".into()
+        },
+        body: match kind {
+            ChatKind::Text => format!("message {n}"),
+            ChatKind::Roll => "2d6 + 1".into(),
+            ChatKind::System => String::new(),
+        },
+        roll: (kind == ChatKind::Roll).then(|| DiceRollDto {
+            expression: "2d6+1".into(),
+            terms: vec![
+                DiceTermDto {
+                    negative: false,
+                    notation: "2d6".into(),
+                    subtotal: 7,
+                    dice: vec![
+                        DieDto {
+                            value: 3,
+                            kept: true,
+                        },
+                        DieDto {
+                            value: 4,
+                            kept: true,
+                        },
+                    ],
+                },
+                DiceTermDto {
+                    negative: false,
+                    notation: "1".into(),
+                    subtotal: 1,
+                    dice: vec![],
+                },
+            ],
+            total: 8,
+        }),
+        system: (kind == ChatKind::System).then(|| SystemMessage::CharacterApproved {
+            name: "Aria".into(),
+        }),
+        visibility: if n == 2 {
+            ChatVisibility::Gm
+        } else {
+            ChatVisibility::All
+        },
+        at_ms: None,
+    }
+}
+
+/// Chat messages, rolls (with `dice_rolls` rows) and system messages round-trip through the
+/// database; history pages backwards from a message.
+#[tokio::test]
+async fn chat_messages_and_rolls_are_stored_and_paged() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = new_campaign(&dir).await;
+    let messages = [
+        chat(1, ChatKind::Text),
+        chat(2, ChatKind::Roll),
+        chat(3, ChatKind::System),
+        chat(4, ChatKind::Text),
+    ];
+    for (i, m) in messages.iter().enumerate() {
+        let mut r = record(
+            i64::try_from(i).unwrap() + 1,
+            Some(0x70 + u128::try_from(i).unwrap()),
+            vec![Event::ChatMessagePosted { message: m.clone() }],
+        );
+        r.at_ms = 1000 + i64::try_from(i).unwrap();
+        db.project(&[r]).await.unwrap();
+    }
+
+    let with_time = |m: &ChatMessageDto, at: i64| ChatMessageDto {
+        at_ms: Some(at),
+        ..m.clone()
+    };
+    let all = db.chat_history(None, 10).await.unwrap();
+    assert_eq!(
+        all,
+        messages
+            .iter()
+            .zip(1000..)
+            .map(|(m, at)| with_time(m, at))
+            .collect::<Vec<_>>()
+    );
+    // The newest page, then the one before it.
+    let newest = db.chat_history(None, 2).await.unwrap();
+    assert_eq!(
+        newest.iter().map(|m| m.id).collect::<Vec<_>>(),
+        [messages[2].id, messages[3].id]
+    );
+    let older = db.chat_history(Some(messages[2].id), 10).await.unwrap();
+    assert_eq!(
+        older.iter().map(|m| m.id).collect::<Vec<_>>(),
+        [messages[0].id, messages[1].id]
+    );
+
+    let (total, chat_id): (i64, String) =
+        sqlx::query_as("SELECT total, chat_message_id FROM dice_rolls")
+            .fetch_one(db.pool())
+            .await
+            .unwrap();
+    assert_eq!((total, chat_id), (8, messages[1].id.to_string()));
+    // Visibility is immutable like the rest of the row (migration 0006).
+    assert!(
+        sqlx::query("UPDATE chat_messages SET visibility = 'all'")
+            .execute(db.pool())
+            .await
+            .is_err()
+    );
 }

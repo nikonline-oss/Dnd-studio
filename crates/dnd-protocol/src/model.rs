@@ -2,7 +2,9 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::ids::{AssetId, CharacterId, JournalEntryId, MapId, TokenId, UserId, Version};
+use crate::ids::{
+    AssetId, CharacterId, ChatMessageId, JournalEntryId, MapId, TokenId, UserId, Version,
+};
 
 /// Campaign-wide metadata (singleton entity).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -219,3 +221,92 @@ impl From<&JournalEntryDto> for JournalEntryMeta {
 pub const MAX_JOURNAL_BYTES: usize = 1024 * 1024;
 /// Largest folder path, in characters.
 pub const MAX_FOLDER_LEN: usize = 200;
+
+/// What a chat message is.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub enum ChatKind {
+    Text,
+    /// Produced by the core; see [`SystemMessage`].
+    System,
+    Roll,
+}
+
+/// Who may see a chat message.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub enum ChatVisibility {
+    All,
+    /// Hidden GM rolls: GM and Co-GM only (filtering per recipient — stage 4).
+    Gm,
+}
+
+/// One physical die of a roll.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct DieDto {
+    pub value: u32,
+    /// `false` if dropped by keep/drop or advantage/disadvantage.
+    pub kept: bool,
+}
+
+/// One term of a roll: dice (with each die), a constant or a sheet field.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct DiceTermDto {
+    pub negative: bool,
+    /// Canonical notation: `4d6kh3`, `5`, `@str_mod`.
+    pub notation: String,
+    /// Value before the sign is applied.
+    #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
+    pub subtotal: i64,
+    pub dice: Vec<DieDto>,
+}
+
+/// Result of a dice roll (ADR-0005, ADR-0016: all numbers are integers).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct DiceRollDto {
+    /// Canonical form of the expression.
+    pub expression: String,
+    pub terms: Vec<DiceTermDto>,
+    #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
+    pub total: i64,
+}
+
+/// Messages the core posts; the UI localizes them by `code`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "code", rename_all = "snake_case")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub enum SystemMessage {
+    CharacterSubmitted { name: String },
+    CharacterApproved { name: String },
+    CharacterReturned { name: String },
+}
+
+/// A chat message.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct ChatMessageDto {
+    pub id: ChatMessageId,
+    pub kind: ChatKind,
+    /// `None` for system messages and after the sender was deleted.
+    pub sender: Option<UserId>,
+    /// The sender's name when the message was written (ADR-0008).
+    pub sender_name: String,
+    /// Text for `text`; the expression as typed for `roll`; empty for `system`.
+    pub body: String,
+    pub roll: Option<DiceRollDto>,
+    pub system: Option<SystemMessage>,
+    pub visibility: ChatVisibility,
+    /// When it was stored (unix ms); `None` in live events (the core has no clock).
+    #[cfg_attr(feature = "specta", specta(type = Option<specta_typescript::Number>))]
+    pub at_ms: Option<i64>,
+}
+
+/// Longest chat message, in characters.
+pub const MAX_CHAT_LEN: usize = 4000;
+/// Chat messages carried by a snapshot; older ones are paged with `chat_history`.
+pub const CHAT_SNAPSHOT_LEN: usize = 200;

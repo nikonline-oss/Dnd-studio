@@ -4,6 +4,7 @@
 //! Persistence is write-through (CLAUDE.md §10, ADR-0014): every accepted batch is committed before
 //! the in-memory state changes and before anyone is told about it.
 
+use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -12,8 +13,8 @@ use dnd_game_core::{
     Actor, GameState, IntentWindow, Recall, RecentIntents, SplitMix64, apply, evolve_all,
 };
 use dnd_protocol::{
-    EventBatch, IntentEnvelope, IntentOutcome, JournalEntryDto, JournalEntryId, RejectReason, Role,
-    Seq, Snapshot, UserId,
+    CHAT_SNAPSHOT_LEN, ChatMessageDto, ChatMessageId, Event, EventBatch, IntentEnvelope,
+    IntentOutcome, JournalEntryDto, JournalEntryId, RejectReason, Role, Seq, Snapshot, UserId,
 };
 use serde::Serialize;
 
@@ -83,6 +84,8 @@ pub struct LocalServer {
     rng: SplitMix64,
     /// Outcomes of recent intents by `intent_id` (ADR-0015).
     recent: RecentIntents<IntentOutcome>,
+    /// The last `CHAT_SNAPSHOT_LEN` chat messages for snapshots (older ones are paged from the DB).
+    chat: VecDeque<ChatMessageDto>,
 }
 
 impl LocalServer {
@@ -146,7 +149,7 @@ impl LocalServer {
         window: IntentWindow,
     ) -> Result<Self, IpcError> {
         match Self::load(&db, window).await {
-            Ok((user, state, last_seq, recent)) => Ok(Self {
+            Ok((user, state, last_seq, recent, chat)) => Ok(Self {
                 db,
                 folder,
                 state,
@@ -157,6 +160,7 @@ impl LocalServer {
                 },
                 rng: SplitMix64::new(seed()),
                 recent,
+                chat: chat.into(),
             }),
             Err(e) => {
                 db.close().await.ok();
@@ -168,7 +172,16 @@ impl LocalServer {
     async fn load(
         db: &CampaignDb,
         window: IntentWindow,
-    ) -> Result<(LocalUser, GameState, Seq, RecentIntents<IntentOutcome>), IpcError> {
+    ) -> Result<
+        (
+            LocalUser,
+            GameState,
+            Seq,
+            RecentIntents<IntentOutcome>,
+            Vec<ChatMessageDto>,
+        ),
+        IpcError,
+    > {
         let user = db
             .local_user()
             .await?
@@ -189,7 +202,8 @@ impl LocalServer {
             );
         }
         recent.prune(now);
-        Ok((user, state, last_seq, recent))
+        let chat = db.chat_history(None, CHAT_SNAPSHOT_LEN).await?;
+        Ok((user, state, last_seq, recent, chat))
     }
 
     #[must_use]
@@ -209,7 +223,21 @@ impl LocalServer {
 
     #[must_use]
     pub fn snapshot(&self) -> Snapshot {
-        self.state.to_snapshot(Seq(self.next_seq.0 - 1))
+        let mut snapshot = self.state.to_snapshot(Seq(self.next_seq.0 - 1));
+        snapshot.chat = self.chat.iter().cloned().collect();
+        snapshot
+    }
+
+    /// Older chat messages, oldest first, before message `before` (or the newest).
+    pub async fn chat_history(
+        &self,
+        before: Option<ChatMessageId>,
+        limit: usize,
+    ) -> Result<Vec<ChatMessageDto>, IpcError> {
+        Ok(self
+            .db
+            .chat_history(before, limit.min(CHAT_SNAPSHOT_LEN))
+            .await?)
     }
 
     /// Full text of a journal entry (the snapshot carries only the index).
@@ -267,15 +295,27 @@ impl LocalServer {
                 "event sequence reached 2^53-1",
             ));
         }
+        let at_ms = now_ms();
         self.db
             .project(&[BatchRecord {
                 batch: batch.clone(),
                 intent_hash: Some(hash),
                 actor: Some(self.actor.user_id),
-                at_ms: now_ms(),
+                at_ms,
             }])
             .await?;
         evolve_all(&mut self.state, &batch.events);
+        for event in &batch.events {
+            if let Event::ChatMessagePosted { message } = event {
+                self.chat.push_back(ChatMessageDto {
+                    at_ms: Some(at_ms),
+                    ..message.clone()
+                });
+                while self.chat.len() > CHAT_SNAPSHOT_LEN {
+                    self.chat.pop_front();
+                }
+            }
+        }
         self.next_seq = last.next();
         let outcome = IntentOutcome::Accepted { seq: last };
         self.recent

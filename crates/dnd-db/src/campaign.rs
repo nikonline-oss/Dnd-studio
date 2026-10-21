@@ -4,9 +4,9 @@ use std::path::{Path, PathBuf};
 
 use dnd_game_core::GameState;
 use dnd_protocol::{
-    CampaignMeta, CharacterDto, CharacterId, Event, EventBatch, Grid, GridKind, IntentId,
-    JournalEntryDto, JournalEntryId, MapDto, MapId, PayloadHash, Role, Seq, TokenDto, TokenId,
-    TokenLayer, UserDto, UserId, Version,
+    CampaignMeta, CharacterDto, CharacterId, ChatKind, ChatMessageDto, ChatMessageId, DiceRollDto,
+    Event, EventBatch, Grid, GridKind, IntentId, JournalEntryDto, JournalEntryId, MapDto, MapId,
+    PayloadHash, Role, Seq, SystemMessage, TokenDto, TokenId, TokenLayer, UserDto, UserId, Version,
 };
 use sqlx::sqlite::SqliteRow;
 use sqlx::{Row, SqliteConnection, SqlitePool};
@@ -218,6 +218,69 @@ impl CampaignDb {
         Ok(intents)
     }
 
+    /// Up to `limit` chat messages written before message `before` (or the newest ones), oldest
+    /// first, with their rolls and stored times.
+    pub async fn chat_history(
+        &self,
+        before: Option<ChatMessageId>,
+        limit: usize,
+    ) -> DbResult<Vec<ChatMessageDto>> {
+        let limit = i64::try_from(limit).unwrap_or(i64::MAX);
+        let rows = sqlx::query(
+            "SELECT c.id, c.sender_user_id, c.kind, c.body, c.created_at, c.sender_name, \
+                 c.visibility, d.result \
+             FROM chat_messages AS c LEFT JOIN dice_rolls AS d ON d.chat_message_id = c.id \
+             WHERE ?1 IS NULL OR c.rowid < (SELECT rowid FROM chat_messages WHERE id = ?1) \
+             ORDER BY c.rowid DESC LIMIT ?2",
+        )
+        .bind(before.map(|b| b.to_string()))
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await?;
+        let mut messages = rows
+            .iter()
+            .map(|r| {
+                let kind: ChatKind =
+                    enum_from_str("chat_messages.kind", &r.try_get::<String, _>("kind")?)?;
+                let body: String = r.try_get("body")?;
+                let (body, system) = if kind == ChatKind::System {
+                    (
+                        String::new(),
+                        Some(serde_json::from_str::<SystemMessage>(&body)?),
+                    )
+                } else {
+                    (body, None)
+                };
+                Ok(ChatMessageDto {
+                    id: ChatMessageId(uuid_from_str(
+                        "chat_messages.id",
+                        &r.try_get::<String, _>("id")?,
+                    )?),
+                    kind,
+                    sender: opt_uuid_from_str(
+                        "chat_messages.sender_user_id",
+                        r.try_get("sender_user_id")?,
+                    )?
+                    .map(UserId),
+                    sender_name: r.try_get("sender_name")?,
+                    body,
+                    roll: r
+                        .try_get::<Option<String>, _>("result")?
+                        .map(|json| serde_json::from_str::<DiceRollDto>(&json))
+                        .transpose()?,
+                    system,
+                    visibility: enum_from_str(
+                        "chat_messages.visibility",
+                        &r.try_get::<String, _>("visibility")?,
+                    )?,
+                    at_ms: Some(r.try_get("created_at")?),
+                })
+            })
+            .collect::<DbResult<Vec<_>>>()?;
+        messages.reverse();
+        Ok(messages)
+    }
+
     /// Loads the full game state and the last event sequence number.
     pub async fn load_state(&self) -> DbResult<(GameState, Seq)> {
         let mut state = GameState::new("");
@@ -397,7 +460,51 @@ async fn project_event(conn: &mut SqliteConnection, event: &Event, at_ms: i64) -
                 .await?;
             Ok(())
         }
+        Event::ChatMessagePosted { message } => insert_chat_message(conn, message, at_ms).await,
     }
+}
+
+/// Chat messages are append-only. A system message stores its [`SystemMessage`] as JSON in
+/// `body`; a roll also gets a `dice_rolls` row with the full result.
+async fn insert_chat_message(
+    conn: &mut SqliteConnection,
+    m: &ChatMessageDto,
+    at_ms: i64,
+) -> DbResult<()> {
+    let body = match &m.system {
+        Some(system) => serde_json::to_string(system)?,
+        None => m.body.clone(),
+    };
+    sqlx::query(
+        "INSERT INTO chat_messages (id, sender_user_id, kind, body, created_at, sender_name, \
+             visibility) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    )
+    .bind(m.id.to_string())
+    .bind(m.sender.map(|u| u.to_string()))
+    .bind(enum_to_str(&m.kind)?)
+    .bind(body)
+    .bind(at_ms)
+    .bind(&m.sender_name)
+    .bind(enum_to_str(&m.visibility)?)
+    .execute(&mut *conn)
+    .await?;
+    if let Some(roll) = &m.roll {
+        sqlx::query(
+            "INSERT INTO dice_rolls (id, user_id, expression, result, total, chat_message_id, \
+                 created_at, user_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(m.id.to_string())
+        .bind(m.sender.map(|u| u.to_string()))
+        .bind(&roll.expression)
+        .bind(serde_json::to_string(roll)?)
+        .bind(roll.total)
+        .bind(m.id.to_string())
+        .bind(at_ms)
+        .bind(&m.sender_name)
+        .execute(conn)
+        .await?;
+    }
+    Ok(())
 }
 
 async fn upsert_character(conn: &mut SqliteConnection, c: &CharacterDto) -> DbResult<()> {

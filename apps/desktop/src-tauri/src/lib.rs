@@ -40,6 +40,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::campaign_current,
             commands::get_snapshot,
             commands::journal_entry,
+            commands::chat_history,
             commands::submit_intent::<tauri::Wry>,
             commands::logs_recent,
             commands::log_frontend,

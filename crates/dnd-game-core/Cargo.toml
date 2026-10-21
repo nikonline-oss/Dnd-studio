@@ -11,6 +11,7 @@ publish.workspace = true
 # Boundary (ADR-0001): only dnd-protocol, dnd-dice, dnd-expr. No I/O, async, Tauri or sqlx.
 [dependencies]
 dnd-protocol.workspace = true
+dnd-dice.workspace = true
 
 [dev-dependencies]
 dnd-protocol = { workspace = true, features = ["arbitrary"] }

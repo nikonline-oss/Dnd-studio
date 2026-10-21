@@ -55,6 +55,10 @@ define_id!(
     JournalEntryId
 );
 define_id!(
+    /// A chat message (a dice roll is a chat message too).
+    ChatMessageId
+);
+define_id!(
     /// Client-chosen identifier of an intent, used to correlate `Rejected`/`Events`.
     IntentId
 );
@@ -140,4 +144,14 @@ impl std::fmt::Display for Seq {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.0.fmt(f)
     }
+}
+
+/// A UUIDv7-formatted id from 128 random bits, for ids the core itself creates (system chat
+/// messages): deterministic for a seeded RNG, valid for ADR-0015 format checks.
+#[must_use]
+pub fn uuid_v7_from_random(bits: u128) -> Uuid {
+    uuid::Builder::from_u128(bits)
+        .with_version(uuid::Version::SortRand)
+        .with_variant(uuid::Variant::RFC4122)
+        .into_uuid()
 }

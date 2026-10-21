@@ -69,6 +69,9 @@ ADR-0002 выбрал SQLite. Нужно зафиксировать, как им
 | `SELECT … FROM journal_entries`           | `load_state`              | `queries.rs::journal_entries_are_projected_and_loaded`                            |
 | `INSERT … ON CONFLICT` `journal_entries`  | `upsert_journal_entry`    | `queries.rs::journal_entries_are_projected_and_loaded` (`created_at` не меняется) |
 | `DELETE FROM journal_entries`             | `project_event`           | `queries.rs::journal_entries_are_projected_and_loaded`                            |
+| `INSERT INTO chat_messages`               | `insert_chat_message`     | `queries.rs::chat_messages_and_rolls_are_stored_and_paged`                        |
+| `INSERT INTO dice_rolls`                  | `insert_chat_message`     | `queries.rs::chat_messages_and_rolls_are_stored_and_paged`                        |
+| `SELECT … chat_messages JOIN dice_rolls`  | `chat_history`            | `queries.rs::chat_messages_and_rolls_are_stored_and_paged` (страницы)             |
 | `INSERT INTO event_log`                   | `project`                 | `queries.rs::every_event_kind_is_projected`, `project_is_atomic`                  |
 | `DELETE FROM maps` (+ FK cascade)         | `project_event`           | `queries.rs::every_event_kind_is_projected`                                       |
 | `UPDATE tokens SET x, y`                  | `project_event`           | `queries.rs::every_event_kind_is_projected` (включая неизвестный токен)           |
