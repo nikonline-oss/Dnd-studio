@@ -1,0 +1,33 @@
+---
+source: crates/dnd-dice/tests/snapshots.rs
+expression: "rolled(\"1d20 adv + @str_mod + 2\", 7)"
+---
+expression: d20 adv+@str_mod+2
+terms:
+  - sign: plus
+    subtotal: 8
+    term:
+      kind: dice
+      notation: d20 adv
+      count: 1
+      sides: 20
+      percentile: false
+      modifier:
+        kind: advantage
+      dice:
+        - value: 8
+          kept: true
+        - value: 5
+          kept: false
+  - sign: plus
+    subtotal: 3
+    term:
+      kind: field
+      path: str_mod
+      value: 3
+  - sign: plus
+    subtotal: 2
+    term:
+      kind: constant
+      value: 2
+total: 13
