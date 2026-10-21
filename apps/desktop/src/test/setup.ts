@@ -11,6 +11,9 @@ globalThis.ResizeObserver = class {
   disconnect() {}
 };
 
+// jsdom does not implement scrolling.
+Element.prototype.scrollIntoView = function scrollIntoView() {};
+
 // Tests assert on English strings regardless of the machine locale.
 void i18n.changeLanguage('en');
 

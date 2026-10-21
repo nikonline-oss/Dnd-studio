@@ -6,6 +6,7 @@ import { MenuBar } from './MenuBar';
 import { StatusBar } from './StatusBar';
 import { CharacterEditor } from '@/features/characters/CharacterEditor';
 import { CharacterList } from '@/features/characters/CharacterList';
+import { ChatPanel } from '@/features/chat/ChatPanel';
 import { JournalEditor } from '@/features/journal/JournalEditor';
 import { JournalTree } from '@/features/journal/JournalTree';
 import { LogPanel } from '@/features/logs/LogPanel';
@@ -152,7 +153,9 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
                   <LogPanel />
                 </ErrorBoundary>
               ) : (
-                <p className="muted">{t('panels.chatSoon')}</p>
+                <ErrorBoundary name={t('panels.chat')}>
+                  <ChatPanel />
+                </ErrorBoundary>
               )}
             </Panel>
           </Group>

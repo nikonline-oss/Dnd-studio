@@ -90,7 +90,6 @@
   "panels": {
     "map": "Map",
     "chat": "Chat",
-    "chatSoon": "Chat arrives in stage 2.",
     "logs": "Logs"
   },
   "inspector": {
@@ -194,5 +193,21 @@
     "conflict": "Someone changed this entry while you were typing. Your text is kept.",
     "applyMine": "Save mine over theirs",
     "discardMine": "Discard mine"
+  },
+  "chat": {
+    "input": "Message",
+    "placeholder": "Message, /r 1d20+@str_mod or /gr for a hidden GM roll",
+    "send": "Send",
+    "loadOlder": "Load earlier messages",
+    "hidden": "hidden",
+    "unknownSender": "Unknown",
+    "total": "Total",
+    "rollingAs": "Rolling as {{name}}",
+    "hiddenGmOnly": "Only the GM can roll hidden",
+    "system": {
+      "character_submitted": "{{name}} was submitted for approval",
+      "character_approved": "{{name}} was approved",
+      "character_returned": "{{name}} was returned for changes"
+    }
   }
 }

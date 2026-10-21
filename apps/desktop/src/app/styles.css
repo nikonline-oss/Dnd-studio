@@ -441,3 +441,64 @@ h2 {
   color: var(--color-focus);
   text-decoration: underline dotted;
 }
+
+.chat-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-height: 0;
+  flex: 1;
+}
+
+.chat-list {
+  flex: 1;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow: auto;
+}
+
+.chat-line {
+  padding: 2px 0;
+  overflow-wrap: anywhere;
+}
+
+.chat-line time {
+  color: var(--color-text-muted);
+  font-size: 11px;
+}
+
+.chat-line[data-kind='system'] {
+  color: var(--color-text-muted);
+}
+
+.chat-input {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.chat-input input {
+  flex: 1;
+}
+
+.die {
+  display: inline-block;
+  min-width: 1.4em;
+  margin: 0 1px;
+  text-align: center;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.die[data-kept='false'] {
+  opacity: 0.45;
+  text-decoration: line-through;
+}
+
+.roll-expr {
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+}
+
+.roll-total {
+  color: var(--color-accent);
+}
