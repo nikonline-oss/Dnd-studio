@@ -5,8 +5,8 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::ids::{IntentId, MapId, Seq, TokenId};
-use crate::model::{CampaignMeta, CharacterDto, MapDto, TokenDto};
+use crate::ids::{IntentId, JournalEntryId, MapId, Seq, TokenId};
+use crate::model::{CampaignMeta, CharacterDto, JournalEntryDto, MapDto, TokenDto};
 
 /// A fact about a state change.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -50,6 +50,17 @@ pub enum Event {
     /// Any change: name, sheet, status, owner.
     CharacterUpdated {
         character: CharacterDto,
+    },
+
+    JournalEntryCreated {
+        entry: JournalEntryDto,
+    },
+    /// Any change: text, title, folder, order, visibility.
+    JournalEntryUpdated {
+        entry: JournalEntryDto,
+    },
+    JournalEntryDeleted {
+        id: JournalEntryId,
     },
 }
 

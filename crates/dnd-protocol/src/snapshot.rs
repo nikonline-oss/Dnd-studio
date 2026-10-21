@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::ids::Seq;
-use crate::model::{CampaignMeta, CharacterDto, MapDto, TokenDto, UserDto};
+use crate::model::{CampaignMeta, CharacterDto, JournalEntryMeta, MapDto, TokenDto, UserDto};
 
 /// The visible state as of event `seq`.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -16,4 +16,6 @@ pub struct Snapshot {
     pub tokens: Vec<TokenDto>,
     pub characters: Vec<CharacterDto>,
     pub users: Vec<UserDto>,
+    /// Journal index; texts are fetched per entry.
+    pub journal: Vec<JournalEntryMeta>,
 }

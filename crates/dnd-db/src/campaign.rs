@@ -4,8 +4,9 @@ use std::path::{Path, PathBuf};
 
 use dnd_game_core::GameState;
 use dnd_protocol::{
-    CampaignMeta, CharacterDto, CharacterId, Event, EventBatch, Grid, GridKind, IntentId, MapDto,
-    MapId, PayloadHash, Role, Seq, TokenDto, TokenId, TokenLayer, UserDto, UserId, Version,
+    CampaignMeta, CharacterDto, CharacterId, Event, EventBatch, Grid, GridKind, IntentId,
+    JournalEntryDto, JournalEntryId, MapDto, MapId, PayloadHash, Role, Seq, TokenDto, TokenId,
+    TokenLayer, UserDto, UserId, Version,
 };
 use sqlx::sqlite::SqliteRow;
 use sqlx::{Row, SqliteConnection, SqlitePool};
@@ -278,6 +279,35 @@ impl CampaignDb {
             };
             state.characters.insert(character.id, character);
         }
+        for row in sqlx::query(
+            "SELECT id, folder, title, markdown, sort_order, visibility, players_can_edit, \n             author_user_id, version FROM journal_entries ORDER BY id",
+        )
+        .fetch_all(&self.pool)
+        .await?
+        {
+            let entry = JournalEntryDto {
+                id: JournalEntryId(uuid_from_str(
+                    "journal_entries.id",
+                    &row.try_get::<String, _>("id")?,
+                )?),
+                folder: row.try_get("folder")?,
+                title: row.try_get("title")?,
+                markdown: row.try_get("markdown")?,
+                sort_order: row.try_get("sort_order")?,
+                visibility: enum_from_str(
+                    "journal_entries.visibility",
+                    &row.try_get::<String, _>("visibility")?,
+                )?,
+                players_can_edit: row.try_get("players_can_edit")?,
+                author: opt_uuid_from_str(
+                    "journal_entries.author_user_id",
+                    row.try_get("author_user_id")?,
+                )?
+                .map(UserId),
+                version: Version(row.try_get("version")?),
+            };
+            state.journal.insert(entry.id, entry);
+        }
         for row in sqlx::query("SELECT id, name, role FROM users ORDER BY id")
             .fetch_all(&self.pool)
             .await?
@@ -315,7 +345,7 @@ impl CampaignDb {
                 .bind(record.at_ms)
                 .execute(&mut *tx)
                 .await?;
-                project_event(&mut tx, event).await?;
+                project_event(&mut tx, event, record.at_ms).await?;
                 seq = seq.next();
             }
         }
@@ -324,7 +354,7 @@ impl CampaignDb {
     }
 }
 
-async fn project_event(conn: &mut SqliteConnection, event: &Event) -> DbResult<()> {
+async fn project_event(conn: &mut SqliteConnection, event: &Event, at_ms: i64) -> DbResult<()> {
     match event {
         Event::CampaignMetaUpdated { campaign } => write_campaign_meta(conn, campaign).await,
         Event::MapCreated { map } | Event::MapUpdated { map } => upsert_map(conn, map).await,
@@ -356,6 +386,16 @@ async fn project_event(conn: &mut SqliteConnection, event: &Event) -> DbResult<(
         }
         Event::CharacterCreated { character } | Event::CharacterUpdated { character } => {
             upsert_character(conn, character).await
+        }
+        Event::JournalEntryCreated { entry } | Event::JournalEntryUpdated { entry } => {
+            upsert_journal_entry(conn, entry, at_ms).await
+        }
+        Event::JournalEntryDeleted { id } => {
+            sqlx::query("DELETE FROM journal_entries WHERE id = ?")
+                .bind(id.to_string())
+                .execute(conn)
+                .await?;
+            Ok(())
         }
     }
 }
@@ -510,4 +550,37 @@ fn token_from_row(row: &SqliteRow) -> DbResult<TokenDto> {
         visible: row.try_get("visible")?,
         version: Version(row.try_get("version")?),
     })
+}
+
+/// `created_at` is set on insert only; `updated_at` follows every change.
+async fn upsert_journal_entry(
+    conn: &mut SqliteConnection,
+    e: &JournalEntryDto,
+    at_ms: i64,
+) -> DbResult<()> {
+    sqlx::query(
+        "INSERT INTO journal_entries (id, folder, title, markdown, sort_order, visibility, \
+             players_can_edit, author_user_id, created_at, updated_at, version) \
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) \
+         ON CONFLICT (id) DO UPDATE SET \
+             folder = excluded.folder, title = excluded.title, markdown = excluded.markdown, \
+             sort_order = excluded.sort_order, visibility = excluded.visibility, \
+             players_can_edit = excluded.players_can_edit, \
+             author_user_id = excluded.author_user_id, updated_at = excluded.updated_at, \
+             version = excluded.version",
+    )
+    .bind(e.id.to_string())
+    .bind(&e.folder)
+    .bind(&e.title)
+    .bind(&e.markdown)
+    .bind(e.sort_order)
+    .bind(enum_to_str(&e.visibility)?)
+    .bind(e.players_can_edit)
+    .bind(e.author.map(|u| u.to_string()))
+    .bind(at_ms)
+    .bind(at_ms)
+    .bind(e.version.0)
+    .execute(conn)
+    .await?;
+    Ok(())
 }

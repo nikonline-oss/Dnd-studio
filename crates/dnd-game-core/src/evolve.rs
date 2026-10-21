@@ -31,6 +31,12 @@ pub fn evolve(state: &mut GameState, event: &Event) {
         Event::CharacterCreated { character } | Event::CharacterUpdated { character } => {
             state.characters.insert(character.id, character.clone());
         }
+        Event::JournalEntryCreated { entry } | Event::JournalEntryUpdated { entry } => {
+            state.journal.insert(entry.id, entry.clone());
+        }
+        Event::JournalEntryDeleted { id } => {
+            state.journal.remove(id);
+        }
     }
 }
 

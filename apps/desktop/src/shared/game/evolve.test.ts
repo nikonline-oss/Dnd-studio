@@ -35,6 +35,7 @@ const empty: Snapshot = {
   tokens: [],
   characters: [],
   users: [],
+  journal: [],
 };
 
 describe('applyEvent', () => {

@@ -3,7 +3,9 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use dnd_protocol::{EventBatch, IntentEnvelope, IntentOutcome, Snapshot};
+use dnd_protocol::{
+    EventBatch, IntentEnvelope, IntentOutcome, JournalEntryDto, JournalEntryId, Snapshot,
+};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Runtime, State};
 use tauri_plugin_dialog::DialogExt;
@@ -135,6 +137,21 @@ pub async fn campaign_current(
     state: State<'_, AppState>,
 ) -> Result<Option<CampaignInfo>, IpcError> {
     Ok(state.server.lock().await.as_ref().map(LocalServer::info))
+}
+
+/// Text of one journal entry. Visibility filtering per recipient arrives with the server (stage 4);
+/// locally the GM sees everything.
+#[tauri::command]
+#[specta::specta]
+pub async fn journal_entry(
+    state: State<'_, AppState>,
+    id: JournalEntryId,
+) -> Result<JournalEntryDto, IpcError> {
+    let guard = state.server.lock().await;
+    let server = guard.as_ref().ok_or_else(IpcError::no_campaign)?;
+    server
+        .journal_entry(&id)
+        .ok_or_else(|| IpcError::user("not_found", "journal entry not found"))
 }
 
 #[tauri::command]

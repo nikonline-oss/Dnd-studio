@@ -19,13 +19,14 @@ pub mod arbitrary;
 pub use error::RejectReason;
 pub use event::{Event, EventBatch};
 pub use ids::{
-    AssetId, CharacterId, IntentId, MapId, MessageId, Role, Seq, SessionId, TokenId, UserId,
-    Version,
+    AssetId, CharacterId, IntentId, JournalEntryId, MapId, MessageId, Role, Seq, SessionId,
+    TokenId, UserId, Version,
 };
 pub use intent::{Intent, IntentEnvelope, IntentOutcome, PayloadHash, VersionPolicy};
 pub use message::{ClientMessage, Envelope, Rejection, ServerMessage};
 pub use model::{
-    CampaignMeta, CharacterDto, CharacterKind, CharacterStatus, Grid, GridKind, MAX_SHEET_BYTES,
+    CampaignMeta, CharacterDto, CharacterKind, CharacterStatus, Grid, GridKind, JournalEntryDto,
+    JournalEntryMeta, JournalVisibility, MAX_FOLDER_LEN, MAX_JOURNAL_BYTES, MAX_SHEET_BYTES,
     MapDto, TokenDto, TokenLayer, UserDto,
 };
 pub use model::{MAX_MAP_SIZE, UNITS16_PER_UNIT};

@@ -2,8 +2,8 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::ids::{AssetId, CharacterId, IntentId, MapId, TokenId, UserId, Version};
-use crate::model::{CharacterKind, Grid, TokenLayer};
+use crate::ids::{AssetId, CharacterId, IntentId, JournalEntryId, MapId, TokenId, UserId, Version};
+use crate::model::{CharacterKind, Grid, JournalVisibility, TokenLayer};
 
 /// An intent together with its correlation id and the version it was based on (ADR-0003).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -122,6 +122,36 @@ pub enum Intent {
         id: CharacterId,
         owner: Option<UserId>,
     },
+
+    /// GM / Co-GM. Placed last in its folder.
+    CreateJournalEntry {
+        id: JournalEntryId,
+        folder: String,
+        title: String,
+        markdown: String,
+        visibility: JournalVisibility,
+        players_can_edit: bool,
+    },
+    /// GM / Co-GM change anything; players only `title`/`markdown` of entries that are visible to
+    /// them and marked `players_can_edit`.
+    UpdateJournalEntry {
+        id: JournalEntryId,
+        title: Option<String>,
+        markdown: Option<String>,
+        visibility: Option<JournalVisibility>,
+        players_can_edit: Option<bool>,
+    },
+    /// GM / Co-GM: move to `folder` at position `sort_order`.
+    MoveJournalEntry {
+        id: JournalEntryId,
+        folder: String,
+        #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
+        sort_order: i64,
+    },
+    /// GM / Co-GM.
+    DeleteJournalEntry {
+        id: JournalEntryId,
+    },
 }
 
 /// What kind of version handling an intent needs.
@@ -155,6 +185,10 @@ impl Intent {
             Self::ReturnCharacter { .. } => "return_character",
             Self::ArchiveCharacter { .. } => "archive_character",
             Self::AssignCharacterOwner { .. } => "assign_character_owner",
+            Self::CreateJournalEntry { .. } => "create_journal_entry",
+            Self::UpdateJournalEntry { .. } => "update_journal_entry",
+            Self::MoveJournalEntry { .. } => "move_journal_entry",
+            Self::DeleteJournalEntry { .. } => "delete_journal_entry",
         }
     }
 
@@ -162,9 +196,10 @@ impl Intent {
     #[must_use]
     pub fn version_policy(&self) -> VersionPolicy {
         match self {
-            Self::CreateMap { .. } | Self::CreateToken { .. } | Self::CreateCharacter { .. } => {
-                VersionPolicy::Create
-            }
+            Self::CreateMap { .. }
+            | Self::CreateToken { .. }
+            | Self::CreateCharacter { .. }
+            | Self::CreateJournalEntry { .. } => VersionPolicy::Create,
             Self::MoveToken { .. } => VersionPolicy::LastWriteWins,
             Self::UpdateCampaignMeta { .. }
             | Self::UpdateMap { .. }
@@ -176,7 +211,10 @@ impl Intent {
             | Self::ApproveCharacter { .. }
             | Self::ReturnCharacter { .. }
             | Self::ArchiveCharacter { .. }
-            | Self::AssignCharacterOwner { .. } => VersionPolicy::Checked,
+            | Self::AssignCharacterOwner { .. }
+            | Self::UpdateJournalEntry { .. }
+            | Self::MoveJournalEntry { .. }
+            | Self::DeleteJournalEntry { .. } => VersionPolicy::Checked,
         }
     }
 

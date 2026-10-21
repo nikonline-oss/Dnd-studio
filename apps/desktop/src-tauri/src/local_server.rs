@@ -12,7 +12,8 @@ use dnd_game_core::{
     Actor, GameState, IntentWindow, Recall, RecentIntents, SplitMix64, apply, evolve_all,
 };
 use dnd_protocol::{
-    EventBatch, IntentEnvelope, IntentOutcome, RejectReason, Role, Seq, Snapshot, UserId,
+    EventBatch, IntentEnvelope, IntentOutcome, JournalEntryDto, JournalEntryId, RejectReason, Role,
+    Seq, Snapshot, UserId,
 };
 use serde::Serialize;
 
@@ -209,6 +210,12 @@ impl LocalServer {
     #[must_use]
     pub fn snapshot(&self) -> Snapshot {
         self.state.to_snapshot(Seq(self.next_seq.0 - 1))
+    }
+
+    /// Full text of a journal entry (the snapshot carries only the index).
+    #[must_use]
+    pub fn journal_entry(&self, id: &JournalEntryId) -> Option<JournalEntryDto> {
+        self.state.journal.get(id).cloned()
     }
 
     /// Runs the intent pipeline write-through (ADR-0014): `apply` → commit the batch (`event_log` +

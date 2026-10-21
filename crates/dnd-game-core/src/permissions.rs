@@ -1,7 +1,8 @@
 //! Who may do what (CLAUDE.md §5). Clients only hide UI; this is the actual check.
 
 use dnd_protocol::{
-    CharacterId, CharacterKind, CharacterStatus, Intent, RejectReason, Role, TokenLayer, UserId,
+    CharacterId, CharacterKind, CharacterStatus, Intent, JournalVisibility, RejectReason, Role,
+    TokenLayer, UserId,
 };
 
 use crate::state::GameState;
@@ -43,6 +44,18 @@ pub fn authorize(actor: &Actor, intent: &Intent, state: &GameState) -> Result<()
             }
             Intent::SubmitCharacter { id }
                 if owns_character(actor.user_id, *id, state, |_| true) =>
+            {
+                Ok(())
+            }
+            // Shared entries marked editable: text and title only.
+            Intent::UpdateJournalEntry {
+                id,
+                visibility: None,
+                players_can_edit: None,
+                ..
+            } if state.journal.get(id).is_some_and(|e| {
+                e.visibility == JournalVisibility::Players && e.players_can_edit
+            }) =>
             {
                 Ok(())
             }

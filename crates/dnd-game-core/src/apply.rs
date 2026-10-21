@@ -216,6 +216,12 @@ pub fn apply(
         | Intent::ArchiveCharacter { .. }
         | Intent::AssignCharacterOwner { .. } => crate::characters::apply(state, intent, actor)
             .unwrap_or(Err(RejectReason::invalid("intent"))),
+
+        Intent::CreateJournalEntry { .. }
+        | Intent::UpdateJournalEntry { .. }
+        | Intent::MoveJournalEntry { .. }
+        | Intent::DeleteJournalEntry { .. } => crate::journal::apply(state, intent, actor)
+            .unwrap_or(Err(RejectReason::invalid("intent"))),
     }
 }
 
@@ -235,9 +241,13 @@ fn current_version(state: &GameState, intent: &Intent) -> Result<Version, Reject
         | Intent::ReturnCharacter { id }
         | Intent::ArchiveCharacter { id }
         | Intent::AssignCharacterOwner { id, .. } => state.characters.get(id).map(|c| c.version),
-        Intent::CreateMap { .. } | Intent::CreateToken { .. } | Intent::CreateCharacter { .. } => {
-            None
-        }
+        Intent::UpdateJournalEntry { id, .. }
+        | Intent::MoveJournalEntry { id, .. }
+        | Intent::DeleteJournalEntry { id } => state.journal.get(id).map(|e| e.version),
+        Intent::CreateMap { .. }
+        | Intent::CreateToken { .. }
+        | Intent::CreateCharacter { .. }
+        | Intent::CreateJournalEntry { .. } => None,
     };
     version.ok_or(RejectReason::NotFound)
 }
@@ -301,6 +311,9 @@ fn id_in_use(state: &GameState, id: dnd_protocol::Uuid) -> bool {
         || state
             .characters
             .contains_key(&dnd_protocol::CharacterId(id))
+        || state
+            .journal
+            .contains_key(&dnd_protocol::JournalEntryId(id))
 }
 
 /// Next version, rejected once it would leave the JS-safe range (ADR-0015).

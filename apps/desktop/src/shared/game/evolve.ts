@@ -1,4 +1,10 @@
-import type { Event, EventBatch, Snapshot } from '@/shared/ipc/client';
+import type {
+  Event,
+  EventBatch,
+  JournalEntryDto,
+  JournalEntryMeta,
+  Snapshot,
+} from '@/shared/ipc/client';
 
 /**
  * Applies one event to a snapshot. Mirrors `dnd_game_core::evolve`: the client only applies
@@ -32,6 +38,11 @@ export function applyEvent(snapshot: Snapshot, event: Event): Snapshot {
     case 'character_created':
     case 'character_updated':
       return { ...snapshot, characters: upsert(snapshot.characters, event.character) };
+    case 'journal_entry_created':
+    case 'journal_entry_updated':
+      return { ...snapshot, journal: upsert(snapshot.journal, toMeta(event.entry)) };
+    case 'journal_entry_deleted':
+      return { ...snapshot, journal: snapshot.journal.filter((e) => e.id !== event.id) };
   }
 }
 
@@ -51,4 +62,18 @@ function upsert<T extends { id: string }>(items: T[], item: T): T[] {
   const index = items.findIndex((i) => i.id === item.id);
   if (index === -1) return [...items, item].sort((a, b) => a.id.localeCompare(b.id));
   return items.map((i, n) => (n === index ? item : i));
+}
+
+/** The snapshot keeps only the journal index; texts are fetched per entry. */
+function toMeta(entry: JournalEntryDto): JournalEntryMeta {
+  return {
+    id: entry.id,
+    folder: entry.folder,
+    title: entry.title,
+    sort_order: entry.sort_order,
+    visibility: entry.visibility,
+    players_can_edit: entry.players_can_edit,
+    author: entry.author,
+    version: entry.version,
+  };
 }

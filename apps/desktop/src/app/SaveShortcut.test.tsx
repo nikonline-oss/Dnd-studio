@@ -14,6 +14,7 @@ const snapshot: Snapshot = {
   tokens: [],
   characters: [],
   users: [],
+  journal: [],
 };
 
 const campaign: CampaignInfo = {

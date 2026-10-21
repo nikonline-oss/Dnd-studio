@@ -24,6 +24,7 @@ const snapshot: Snapshot = {
   tokens: [],
   characters: [],
   users: [],
+  journal: [],
 };
 
 function renderWithIpc(outcome: IntentOutcome) {

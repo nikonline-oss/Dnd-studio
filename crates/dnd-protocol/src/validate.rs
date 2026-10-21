@@ -69,6 +69,7 @@ impl Intent {
             Self::CreateToken { x, y, .. } | Self::MoveToken { x, y, .. } => {
                 vec![("x", *x), ("y", *y)]
             }
+            Self::MoveJournalEntry { sort_order, .. } => vec![("sort_order", *sort_order)],
             Self::UpdateCampaignMeta { .. }
             | Self::UpdateMap { .. }
             | Self::DeleteMap { .. }
@@ -80,7 +81,10 @@ impl Intent {
             | Self::ApproveCharacter { .. }
             | Self::ReturnCharacter { .. }
             | Self::ArchiveCharacter { .. }
-            | Self::AssignCharacterOwner { .. } => Vec::new(),
+            | Self::AssignCharacterOwner { .. }
+            | Self::CreateJournalEntry { .. }
+            | Self::UpdateJournalEntry { .. }
+            | Self::DeleteJournalEntry { .. } => Vec::new(),
         }
     }
 }
@@ -93,6 +97,7 @@ impl Intent {
             Self::CreateMap { id, .. } => Some(id.0),
             Self::CreateToken { id, .. } => Some(id.0),
             Self::CreateCharacter { id, .. } => Some(id.0),
+            Self::CreateJournalEntry { id, .. } => Some(id.0),
             Self::UpdateCampaignMeta { .. }
             | Self::UpdateMap { .. }
             | Self::DeleteMap { .. }
@@ -104,7 +109,10 @@ impl Intent {
             | Self::ApproveCharacter { .. }
             | Self::ReturnCharacter { .. }
             | Self::ArchiveCharacter { .. }
-            | Self::AssignCharacterOwner { .. } => None,
+            | Self::AssignCharacterOwner { .. }
+            | Self::UpdateJournalEntry { .. }
+            | Self::MoveJournalEntry { .. }
+            | Self::DeleteJournalEntry { .. } => None,
         }
     }
 }

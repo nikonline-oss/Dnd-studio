@@ -60,6 +60,7 @@ function renderWith(role: Role, characters: CharacterDto[], node: React.ReactNod
       { id: ME, name: 'Me', role },
       { id: OTHER, name: 'Bob', role: 'player' },
     ],
+    journal: [],
   };
   const info: CampaignInfo = { name: 'C', path: '/c', user_id: ME, role };
   const sent: IntentEnvelope[] = [];

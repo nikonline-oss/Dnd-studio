@@ -444,7 +444,7 @@ fn query_inventory_matches_adr_0008() {
         .map(|s| s.matches("sqlx::query").count())
         .sum();
     assert_eq!(
-        count, 22,
+        count, 25,
         "runtime queries changed: add a real-SQLite test and update the table in docs/adr/0008-db-conventions.md"
     );
 }
@@ -555,4 +555,75 @@ async fn characters_and_users_are_projected_and_loaded() {
             role: Role::Gm
         }]
     );
+}
+
+/// Journal projection: insert keeps `created_at`, updates move `updated_at`, delete removes.
+#[tokio::test]
+async fn journal_entries_are_projected_and_loaded() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = new_campaign(&dir).await;
+    let mut entry = JournalEntryDto {
+        id: JournalEntryId(v7(0x500)),
+        folder: "Lore".into(),
+        title: "Gods".into(),
+        markdown: "# Pantheon".into(),
+        sort_order: 0,
+        visibility: JournalVisibility::Players,
+        players_can_edit: true,
+        author: Some(UserId(v7(1))),
+        version: Version(1),
+    };
+    let at = |mut r: BatchRecord, ms: i64| {
+        r.at_ms = ms;
+        r
+    };
+    db.project(&[at(
+        record(
+            1,
+            Some(0x51),
+            vec![Event::JournalEntryCreated {
+                entry: entry.clone(),
+            }],
+        ),
+        100,
+    )])
+    .await
+    .unwrap();
+    entry.markdown = "# Pantheon\n\nUpdated".into();
+    entry.folder = "Lore/Old".into();
+    entry.sort_order = 3;
+    entry.version = Version(2);
+    db.project(&[at(
+        record(
+            2,
+            Some(0x52),
+            vec![Event::JournalEntryUpdated {
+                entry: entry.clone(),
+            }],
+        ),
+        200,
+    )])
+    .await
+    .unwrap();
+
+    let (state, _) = db.load_state().await.unwrap();
+    assert_eq!(
+        state.journal.values().cloned().collect::<Vec<_>>(),
+        [entry.clone()]
+    );
+    let times: (i64, i64) = sqlx::query_as("SELECT created_at, updated_at FROM journal_entries")
+        .fetch_one(db.pool())
+        .await
+        .unwrap();
+    assert_eq!(times, (100, 200));
+
+    db.project(&[record(
+        3,
+        Some(0x53),
+        vec![Event::JournalEntryDeleted { id: entry.id }],
+    )])
+    .await
+    .unwrap();
+    let (state, _) = db.load_state().await.unwrap();
+    assert!(state.journal.is_empty());
 }

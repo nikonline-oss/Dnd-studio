@@ -3,8 +3,8 @@
 use std::collections::BTreeMap;
 
 use dnd_protocol::{
-    CampaignMeta, CharacterDto, CharacterId, MapDto, MapId, Seq, Snapshot, TokenDto, TokenId,
-    UserDto, UserId, Version,
+    CampaignMeta, CharacterDto, CharacterId, JournalEntryDto, JournalEntryId, JournalEntryMeta,
+    MapDto, MapId, Seq, Snapshot, TokenDto, TokenId, UserDto, UserId, Version,
 };
 
 /// The authoritative state the core reasons about. Ordered maps keep iteration (and therefore
@@ -17,6 +17,7 @@ pub struct GameState {
     pub characters: BTreeMap<CharacterId, CharacterDto>,
     /// Known users. Read-only for the core in stage 2a (they join through the server in 2b).
     pub users: BTreeMap<UserId, UserDto>,
+    pub journal: BTreeMap<JournalEntryId, JournalEntryDto>,
 }
 
 impl GameState {
@@ -33,10 +34,12 @@ impl GameState {
             tokens: BTreeMap::new(),
             characters: BTreeMap::new(),
             users: BTreeMap::new(),
+            journal: BTreeMap::new(),
         }
     }
 
-    /// Rebuilds state from a snapshot.
+    /// Rebuilds state from a snapshot. Journal texts are not part of a snapshot (fetched per
+    /// entry), so rebuilt entries have an empty `markdown`.
     #[must_use]
     pub fn from_snapshot(snapshot: Snapshot) -> Self {
         Self {
@@ -45,6 +48,24 @@ impl GameState {
             tokens: snapshot.tokens.into_iter().map(|t| (t.id, t)).collect(),
             characters: snapshot.characters.into_iter().map(|c| (c.id, c)).collect(),
             users: snapshot.users.into_iter().map(|u| (u.id, u)).collect(),
+            journal: snapshot
+                .journal
+                .into_iter()
+                .map(|m| {
+                    let entry = JournalEntryDto {
+                        id: m.id,
+                        folder: m.folder,
+                        title: m.title,
+                        markdown: String::new(),
+                        sort_order: m.sort_order,
+                        visibility: m.visibility,
+                        players_can_edit: m.players_can_edit,
+                        author: m.author,
+                        version: m.version,
+                    };
+                    (entry.id, entry)
+                })
+                .collect(),
         }
     }
 
@@ -58,6 +79,7 @@ impl GameState {
             tokens: self.tokens.values().cloned().collect(),
             characters: self.characters.values().cloned().collect(),
             users: self.users.values().cloned().collect(),
+            journal: self.journal.values().map(JournalEntryMeta::from).collect(),
         }
     }
 

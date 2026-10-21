@@ -10,6 +10,7 @@
 mod apply;
 mod characters;
 mod evolve;
+mod journal;
 mod permissions;
 mod recent;
 mod rng;

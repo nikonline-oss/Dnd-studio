@@ -51,30 +51,33 @@ ADR-0002 выбрал SQLite. Нужно зафиксировать, как им
   (миграции campaign 0002 и server 0002). До исправления удалить пользователя с историей чата
   или сессию с аудитом было невозможно — нашёл тест `server_db_opens_migrates_and_enforces_constraints`.
 
-| Запрос                                    | Где                       | Тест                                                                           |
-| ----------------------------------------- | ------------------------- | ------------------------------------------------------------------------------ |
-| `PRAGMA quick_check`                      | `connect::quick_check`    | `backup.rs`: corrupted / non-database file                                     |
-| `sqlite_schema` EXISTS `_sqlx_migrations` | `has_pending_migrations`  | `schema.rs::campaign_schema`, `backup.rs::pending_migrations_trigger_a_backup` |
-| `SELECT version FROM _sqlx_migrations`    | `has_pending_migrations`  | `backup.rs::campaign_from_previous_schema_is_backed_up_and_upgraded`           |
-| `VACUUM INTO ?`                           | `backup::create_backup`   | `backup.rs::backups_are_rotated`, restore test                                 |
-| `INSERT INTO users`                       | `CampaignDb::create`      | `projection.rs::create_and_reopen_keeps_meta_and_local_user`                   |
-| `PRAGMA wal_checkpoint(TRUNCATE)`         | `CampaignDb::checkpoint`  | `queries.rs::checkpoint_empties_the_wal`                                       |
-| `SELECT … FROM users WHERE id`            | `local_user`              | `projection.rs::create_and_reopen_keeps_meta_and_local_user`                   |
-| `SELECT COALESCE(MAX(seq), 0)`            | `last_seq`                | `queries.rs::every_event_kind_is_projected`, projection proptest               |
-| `SELECT intent_id, MAX(seq) … GROUP BY`   | `recent_intents`          | `queries.rs::recent_intents_are_ordered_limited_and_grouped`                   |
-| `SELECT * FROM maps` / `tokens`           | `load_state`              | `queries.rs::every_event_kind_is_projected`, projection proptest               |
-| `SELECT … FROM characters`                | `load_state`              | `projection.rs::character_owners_are_loaded`                                   |
-| `SELECT … FROM users`                     | `load_state`              | `queries.rs::characters_and_users_are_projected_and_loaded`                    |
-| `INSERT … ON CONFLICT` `characters`       | `upsert_character`        | `queries.rs::characters_and_users_are_projected_and_loaded` (insert и update)  |
-| `INSERT INTO event_log`                   | `project`                 | `queries.rs::every_event_kind_is_projected`, `project_is_atomic`               |
-| `DELETE FROM maps` (+ FK cascade)         | `project_event`           | `queries.rs::every_event_kind_is_projected`                                    |
-| `UPDATE tokens SET x, y`                  | `project_event`           | `queries.rs::every_event_kind_is_projected` (включая неизвестный токен)        |
-| `DELETE FROM tokens`                      | `project_event`           | `queries.rs::every_event_kind_is_projected`                                    |
-| `INSERT … ON CONFLICT` `campaign_meta`    | `set_meta`                | `queries.rs::every_event_kind_is_projected`                                    |
-| `SELECT value FROM campaign_meta`         | `get_meta`                | `queries.rs::every_event_kind_is_projected`                                    |
-| `INSERT … ON CONFLICT` `maps`             | `upsert_map`              | `queries.rs::every_event_kind_is_projected` (insert и update)                  |
-| `INSERT … ON CONFLICT` `tokens`           | `upsert_token`            | `queries.rs::every_event_kind_is_projected` (insert и update)                  |
-| миграции `server` (`open_server_db`)      | `connect::open_server_db` | `queries.rs::server_db_opens_migrates_and_enforces_constraints`                |
+| Запрос                                    | Где                       | Тест                                                                              |
+| ----------------------------------------- | ------------------------- | --------------------------------------------------------------------------------- |
+| `PRAGMA quick_check`                      | `connect::quick_check`    | `backup.rs`: corrupted / non-database file                                        |
+| `sqlite_schema` EXISTS `_sqlx_migrations` | `has_pending_migrations`  | `schema.rs::campaign_schema`, `backup.rs::pending_migrations_trigger_a_backup`    |
+| `SELECT version FROM _sqlx_migrations`    | `has_pending_migrations`  | `backup.rs::campaign_from_previous_schema_is_backed_up_and_upgraded`              |
+| `VACUUM INTO ?`                           | `backup::create_backup`   | `backup.rs::backups_are_rotated`, restore test                                    |
+| `INSERT INTO users`                       | `CampaignDb::create`      | `projection.rs::create_and_reopen_keeps_meta_and_local_user`                      |
+| `PRAGMA wal_checkpoint(TRUNCATE)`         | `CampaignDb::checkpoint`  | `queries.rs::checkpoint_empties_the_wal`                                          |
+| `SELECT … FROM users WHERE id`            | `local_user`              | `projection.rs::create_and_reopen_keeps_meta_and_local_user`                      |
+| `SELECT COALESCE(MAX(seq), 0)`            | `last_seq`                | `queries.rs::every_event_kind_is_projected`, projection proptest                  |
+| `SELECT intent_id, MAX(seq) … GROUP BY`   | `recent_intents`          | `queries.rs::recent_intents_are_ordered_limited_and_grouped`                      |
+| `SELECT * FROM maps` / `tokens`           | `load_state`              | `queries.rs::every_event_kind_is_projected`, projection proptest                  |
+| `SELECT … FROM characters`                | `load_state`              | `projection.rs::character_owners_are_loaded`                                      |
+| `SELECT … FROM users`                     | `load_state`              | `queries.rs::characters_and_users_are_projected_and_loaded`                       |
+| `INSERT … ON CONFLICT` `characters`       | `upsert_character`        | `queries.rs::characters_and_users_are_projected_and_loaded` (insert и update)     |
+| `SELECT … FROM journal_entries`           | `load_state`              | `queries.rs::journal_entries_are_projected_and_loaded`                            |
+| `INSERT … ON CONFLICT` `journal_entries`  | `upsert_journal_entry`    | `queries.rs::journal_entries_are_projected_and_loaded` (`created_at` не меняется) |
+| `DELETE FROM journal_entries`             | `project_event`           | `queries.rs::journal_entries_are_projected_and_loaded`                            |
+| `INSERT INTO event_log`                   | `project`                 | `queries.rs::every_event_kind_is_projected`, `project_is_atomic`                  |
+| `DELETE FROM maps` (+ FK cascade)         | `project_event`           | `queries.rs::every_event_kind_is_projected`                                       |
+| `UPDATE tokens SET x, y`                  | `project_event`           | `queries.rs::every_event_kind_is_projected` (включая неизвестный токен)           |
+| `DELETE FROM tokens`                      | `project_event`           | `queries.rs::every_event_kind_is_projected`                                       |
+| `INSERT … ON CONFLICT` `campaign_meta`    | `set_meta`                | `queries.rs::every_event_kind_is_projected`                                       |
+| `SELECT value FROM campaign_meta`         | `get_meta`                | `queries.rs::every_event_kind_is_projected`                                       |
+| `INSERT … ON CONFLICT` `maps`             | `upsert_map`              | `queries.rs::every_event_kind_is_projected` (insert и update)                     |
+| `INSERT … ON CONFLICT` `tokens`           | `upsert_token`            | `queries.rs::every_event_kind_is_projected` (insert и update)                     |
+| миграции `server` (`open_server_db`)      | `connect::open_server_db` | `queries.rs::server_db_opens_migrates_and_enforces_constraints`                   |
 
 ## Дополнение (2026-10-21): имена авторов в истории
 

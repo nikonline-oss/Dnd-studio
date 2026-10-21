@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::ids::{AssetId, CharacterId, MapId, TokenId, UserId, Version};
+use crate::ids::{AssetId, CharacterId, JournalEntryId, MapId, TokenId, UserId, Version};
 
 /// Campaign-wide metadata (singleton entity).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -154,3 +154,68 @@ pub const UNITS16_PER_UNIT: i64 = 16;
 
 /// Largest map width/height in logical units (ADR-0016).
 pub const MAX_MAP_SIZE: i64 = 65_536;
+
+/// Who may read a journal entry.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub enum JournalVisibility {
+    /// GM and Co-GM only.
+    Gm,
+    /// Everyone in the campaign.
+    Players,
+}
+
+/// A journal entry with its Markdown text.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct JournalEntryDto {
+    pub id: JournalEntryId,
+    /// `/`-separated folder path, `""` for the root.
+    pub folder: String,
+    pub title: String,
+    pub markdown: String,
+    /// Order inside the folder (ascending).
+    #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
+    pub sort_order: i64,
+    pub visibility: JournalVisibility,
+    /// Players may edit it (only when visible to players).
+    pub players_can_edit: bool,
+    pub author: Option<UserId>,
+    pub version: Version,
+}
+
+/// A journal entry without its text, as listed in the snapshot (texts are fetched on demand).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct JournalEntryMeta {
+    pub id: JournalEntryId,
+    pub folder: String,
+    pub title: String,
+    #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
+    pub sort_order: i64,
+    pub visibility: JournalVisibility,
+    pub players_can_edit: bool,
+    pub author: Option<UserId>,
+    pub version: Version,
+}
+
+impl From<&JournalEntryDto> for JournalEntryMeta {
+    fn from(e: &JournalEntryDto) -> Self {
+        Self {
+            id: e.id,
+            folder: e.folder.clone(),
+            title: e.title.clone(),
+            sort_order: e.sort_order,
+            visibility: e.visibility,
+            players_can_edit: e.players_can_edit,
+            author: e.author,
+            version: e.version,
+        }
+    }
+}
+
+/// Largest Markdown text of a journal entry, in bytes.
+pub const MAX_JOURNAL_BYTES: usize = 1024 * 1024;
+/// Largest folder path, in characters.
+pub const MAX_FOLDER_LEN: usize = 200;

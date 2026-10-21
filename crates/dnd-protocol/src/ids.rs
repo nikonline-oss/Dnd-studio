@@ -51,6 +51,10 @@ define_id!(
     AssetId
 );
 define_id!(
+    /// A journal entry.
+    JournalEntryId
+);
+define_id!(
     /// Client-chosen identifier of an intent, used to correlate `Rejected`/`Events`.
     IntentId
 );

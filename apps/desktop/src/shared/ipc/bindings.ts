@@ -51,6 +51,11 @@ export const commands = {
 } | null, IpcError>(__TAURI_INVOKE("campaign_current")),
 	getSnapshot: () => typedError<Snapshot, IpcError>(__TAURI_INVOKE("get_snapshot")),
 	/**
+	 *  Text of one journal entry. Visibility filtering per recipient arrives with the server (stage 4);
+	 *  locally the GM sees everything.
+	 */
+	journalEntry: (id: JournalEntryId) => typedError<JournalEntryDto, IpcError>(__TAURI_INVOKE("journal_entry", { id })),
+	/**
 	 *  Applies an intent through the game core and commits the resulting events. Only then are they
 	 *  broadcast as [`GameEventsEmitted`], so every view updates the same way for local and remote
 	 *  play and never shows an event that is not on disk.
@@ -128,7 +133,9 @@ export type CharacterStatus = "draft" | "pending_approval" | "active" | "archive
 /**  A fact about a state change. */
 export type Event = { kind: "campaign_meta_updated"; campaign: CampaignMeta } | { kind: "map_created"; map: MapDto } | { kind: "map_updated"; map: MapDto } | { kind: "map_deleted"; id: MapId } | { kind: "token_created"; token: TokenDto } | { kind: "token_updated"; token: TokenDto } | { kind: "token_moved"; id: TokenId; x: number; y: number } | { kind: "token_deleted"; id: TokenId } | { kind: "character_created"; character: CharacterDto } | 
 /**  Any change: name, sheet, status, owner. */
-{ kind: "character_updated"; character: CharacterDto };
+{ kind: "character_updated"; character: CharacterDto } | { kind: "journal_entry_created"; entry: JournalEntryDto } | 
+/**  Any change: text, title, folder, order, visibility. */
+{ kind: "journal_entry_updated"; entry: JournalEntryDto } | { kind: "journal_entry_deleted"; id: JournalEntryId };
 
 /**  Events produced by one accepted intent. Event `i` of the batch has sequence number `seq + i`. */
 export type EventBatch = {
@@ -176,7 +183,18 @@ width: number; height: number; grid: Grid; visible_to_players: boolean } | { kin
 /**  any → archived (GM / Co-GM). */
 { kind: "archive_character"; id: CharacterId } | 
 /**  GM / Co-GM; `owner` must be a known user. */
-{ kind: "assign_character_owner"; id: CharacterId; owner: UserId | null };
+{ kind: "assign_character_owner"; id: CharacterId; owner: UserId | null } | 
+/**  GM / Co-GM. Placed last in its folder. */
+{ kind: "create_journal_entry"; id: JournalEntryId; folder: string; title: string; markdown: string; visibility: JournalVisibility; players_can_edit: boolean } | 
+/**
+ *  GM / Co-GM change anything; players only `title`/`markdown` of entries that are visible to
+ *  them and marked `players_can_edit`.
+ */
+{ kind: "update_journal_entry"; id: JournalEntryId; title: string | null; markdown: string | null; visibility: JournalVisibility | null; players_can_edit: boolean | null } | 
+/**  GM / Co-GM: move to `folder` at position `sort_order`. */
+{ kind: "move_journal_entry"; id: JournalEntryId; folder: string; sort_order: number } | 
+/**  GM / Co-GM. */
+{ kind: "delete_journal_entry"; id: JournalEntryId };
 
 /**  An intent together with its correlation id and the version it was based on (ADR-0003). */
 export type IntentEnvelope = {
@@ -220,6 +238,44 @@ export type IpcErrorKind =
 "internal" | 
 /**  The application cannot continue. */
 "fatal";
+
+/**  A journal entry with its Markdown text. */
+export type JournalEntryDto = {
+	id: JournalEntryId,
+	/**  `/`-separated folder path, `""` for the root. */
+	folder: string,
+	title: string,
+	markdown: string,
+	/**  Order inside the folder (ascending). */
+	sort_order: number,
+	visibility: JournalVisibility,
+	/**  Players may edit it (only when visible to players). */
+	players_can_edit: boolean,
+	author: UserId | null,
+	version: Version,
+};
+
+/**  A journal entry. */
+export type JournalEntryId = string;
+
+/**  A journal entry without its text, as listed in the snapshot (texts are fetched on demand). */
+export type JournalEntryMeta = {
+	id: JournalEntryId,
+	folder: string,
+	title: string,
+	sort_order: number,
+	visibility: JournalVisibility,
+	players_can_edit: boolean,
+	author: UserId | null,
+	version: Version,
+};
+
+/**  Who may read a journal entry. */
+export type JournalVisibility = 
+/**  GM and Co-GM only. */
+"gm" | 
+/**  Everyone in the campaign. */
+"players";
 
 export type LogLevel = "trace" | "debug" | "info" | "warn" | "error";
 
@@ -299,6 +355,8 @@ export type Snapshot = {
 	tokens: TokenDto[],
 	characters: CharacterDto[],
 	users: UserDto[],
+	/**  Journal index; texts are fetched per entry. */
+	journal: JournalEntryMeta[],
 };
 
 /**  A token on a map. */
