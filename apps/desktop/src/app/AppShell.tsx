@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next';
 import { Group, Panel, Separator, useDefaultLayout } from 'react-resizable-panels';
 import { MenuBar } from './MenuBar';
 import { StatusBar } from './StatusBar';
+import { CharacterEditor } from '@/features/characters/CharacterEditor';
+import { CharacterList } from '@/features/characters/CharacterList';
 import { LogPanel } from '@/features/logs/LogPanel';
 import { MapInspector } from '@/features/map/MapInspector';
 import { MapList } from '@/features/map/MapList';
@@ -24,6 +26,7 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
   const preset = useSettings((s) => (campaign.role === 'player' ? 'player' : s.layoutPreset));
   const { data: snapshot } = useSnapshot();
   const mapId = useSelection((s) => s.mapId);
+  const inspect = useSelection((s) => s.inspect);
   const mapName = snapshot?.maps.find((m) => m.id === mapId)?.name;
   const isGm = preset === 'gm';
   // Logs are a GM/maintenance tool; the player preset keeps only chat (§5).
@@ -75,6 +78,9 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
               <ErrorBoundary name={t('maps.title')}>
                 <MapList />
               </ErrorBoundary>
+              <ErrorBoundary name={t('characters.title')}>
+                <CharacterList />
+              </ErrorBoundary>
             </Panel>
             <Separator className="separator" />
           </>
@@ -124,17 +130,23 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
             </Panel>
           </Group>
         </Panel>
-        {isGm && (
-          <>
-            <Separator className="separator" />
-            <Panel id="right" defaultSize="22" minSize="12" collapsible className="side-panel">
+        <Separator className="separator" />
+        <Panel id="right" defaultSize="22" minSize="12" collapsible className="side-panel">
+          {isGm ? (
+            <>
               <h2>{t('inspector.title')}</h2>
               <ErrorBoundary name={t('inspector.title')}>
-                <MapInspector />
+                {inspect === 'character' ? <CharacterEditor /> : <MapInspector />}
               </ErrorBoundary>
-            </Panel>
-          </>
-        )}
+            </>
+          ) : (
+            // Player preset (§5): the character sheet next to the map and chat.
+            <ErrorBoundary name={t('characters.title')}>
+              <CharacterList />
+              <CharacterEditor />
+            </ErrorBoundary>
+          )}
+        </Panel>
       </Group>
       <StatusBar campaign={campaign} />
     </div>

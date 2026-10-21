@@ -136,5 +136,39 @@
   },
   "toast": {
     "saved": "Saved"
+  },
+  "characters": {
+    "title": "Characters",
+    "empty": "No characters yet",
+    "addPc": "Add PC",
+    "addNpc": "Add NPC",
+    "newPc": "New hero",
+    "newNpc": "New NPC",
+    "editor": "Character",
+    "kind": "Kind",
+    "kinds": {
+      "pc": "Player character",
+      "npc": "Non-player character"
+    },
+    "statusLabel": "Status",
+    "status": {
+      "draft": "Draft",
+      "pending_approval": "Awaiting approval",
+      "active": "Active",
+      "archived": "Archived"
+    },
+    "owner": "Owner",
+    "noOwner": "Nobody",
+    "sheet": "Sheet (JSON)",
+    "saveSheet": "Save sheet",
+    "submit": "Submit for approval",
+    "approve": "Approve",
+    "return": "Return for changes",
+    "archive": "Archive",
+    "sheetProblem": {
+      "syntax": "Not valid JSON",
+      "not_object": "The sheet must be a JSON object",
+      "fraction": "Numbers must be whole and within ±2^53−1"
+    }
   }
 }
