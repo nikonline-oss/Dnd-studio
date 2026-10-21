@@ -7,7 +7,11 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   plugins: [react(), babel({ presets: [reactCompilerPreset()] })],
   resolve: {
-    alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+      // Breaks under Tauri `freezePrototype`; see the shim (ADR-0017).
+      '@xmldom/xmldom': fileURLToPath(new URL('./src/shims/xmldom.ts', import.meta.url)),
+    },
   },
   clearScreen: false,
   server: {

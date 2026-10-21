@@ -28,3 +28,6 @@ Thumbs.db
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# Dev-only spike output (tools/spike-map-gen), never committed
+apps/desktop/src/dev/pixi-spike/generated/
