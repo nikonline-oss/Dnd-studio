@@ -14,6 +14,8 @@ import {
 import { drawShape, FogLayer } from './FogLayer';
 import { BrushStroke, brushRadius16, rectFromDrag } from './fogShapes';
 import { gridPattern } from './gridPattern';
+import { TokenLayer, type TokenView } from './TokenLayer';
+import { snapToGrid, Throttle, tokenPosition } from './tokenMath';
 import {
   clampCamera,
   fitCamera,
@@ -24,7 +26,7 @@ import {
   type Point,
   type Size,
 } from './viewport';
-import type { AssetDto, FogDto, FogOpKind, FogShape, MapDto } from '@/shared/ipc/client';
+import type { AssetDto, FogDto, FogOpKind, FogShape, Grid, MapDto } from '@/shared/ipc/client';
 import { assetUrl } from '@/shared/ipc/client';
 
 /** Shown under a map without a background image, so its bounds stay visible. */
@@ -36,6 +38,16 @@ const GRID_TEXTURE_PX = 256;
 const REVEAL_PREVIEW = 0xe3aa45;
 const HIDE_PREVIEW = 0x0b0a10;
 const PREVIEW_ALPHA = 0.45;
+/** Token moves while dragging: ~12 Hz (ADR-0003 asks for 10–15 Hz). */
+const MOVE_INTERVAL_MS = 80;
+
+/** A token position to send; `final` on drop (snapped to the grid). */
+export interface TokenMove {
+  id: string;
+  x: number;
+  y: number;
+  final: boolean;
+}
 
 /** The GM's active fog tool; `null` = the left button pans. */
 export interface FogTool {
@@ -77,17 +89,36 @@ export class MapScene {
   private dragFrom: { x: number; y: number } | null = null;
   private tool: FogTool | null = null;
   private drawing: Drawing | null = null;
+  private readonly tokens: TokenLayer;
+  private tokenViews: TokenView[] = [];
+  private grid: Grid | null = null;
+  /** The token being dragged and where on it it was grabbed (map units). */
+  private tokenDrag: { id: string; dx: number; dy: number } | null = null;
+  private readonly moves: Throttle<TokenMove>;
 
   constructor(
     private readonly app: Application,
     private readonly onLoadError: (error: unknown) => void,
     /** A finished fog drawing: one shape per operation to send, in order. */
     private readonly onFog: (kind: FogOpKind, shapes: FogShape[]) => void = () => undefined,
+    /** A token was dragged: throttled positions while moving, then the final one. */
+    private readonly onMoveToken: (move: TokenMove) => void = () => undefined,
   ) {
     this.fog = new FogLayer(app);
+    this.tokens = new TokenLayer(this.onGrabToken);
+    this.moves = new Throttle(MOVE_INTERVAL_MS, (move) => {
+      this.onMoveToken(move);
+    });
     this.preview.scale.set(1 / 16);
     this.preview.eventMode = 'none';
-    this.world.addChild(this.background, this.gridLayer, this.fog.view, this.preview);
+    // Tokens sit under the fog: players do not see what is hidden.
+    this.world.addChild(
+      this.background,
+      this.gridLayer,
+      this.tokens.view,
+      this.fog.view,
+      this.preview,
+    );
     app.stage.addChild(this.world);
     const stage = app.stage;
     stage.eventMode = 'static';
@@ -130,15 +161,32 @@ export class MapScene {
     if (map.id !== this.mapId || sizeChanged) {
       this.mapId = map.id;
       this.cancelDrawing();
+      this.endTokenDrag();
       this.fit();
     }
+    this.grid = map.grid;
+    this.tokens.show(this.tokenViews, map.grid, this.tool === null);
+  }
+
+  /** The tokens of the shown map, bottom first. A dragged token keeps its local position. */
+  setTokens(views: TokenView[]): void {
+    this.tokenViews = views;
+    if (this.grid) this.tokens.show(views, this.grid, this.tool === null);
+  }
+
+  /** Converts a point of the canvas (CSS pixels) to map units. */
+  canvasToMap(x: number, y: number): Point {
+    return this.world.toLocal({ x, y });
   }
 
   /** Selects a fog tool (`null`: the left button pans again). */
   setTool(tool: FogTool | null): void {
     this.tool = tool;
     this.cancelDrawing();
+    this.endTokenDrag();
     this.app.canvas.style.cursor = tool ? 'crosshair' : 'grab';
+    // Tokens can be grabbed only without a fog tool.
+    if (this.grid) this.tokens.show(this.tokenViews, this.grid, tool === null);
   }
 
   /** The whole map in the window. */
@@ -161,6 +209,8 @@ export class MapScene {
     this.app.canvas.removeEventListener('wheel', this.onWheel);
     this.app.renderer.off('resize', this.onResize);
     this.app.stage.removeChild(this.world);
+    this.moves.cancel();
+    this.tokens.destroy();
     this.fog.destroy();
     this.world.destroy({ children: true });
     this.releaseBackground();
@@ -265,6 +315,27 @@ export class MapScene {
     this.preview.clear();
   }
 
+  /** Stops a token drag without sending anything more. */
+  private endTokenDrag(): void {
+    this.moves.cancel();
+    this.tokenDrag = null;
+    this.tokens.release();
+  }
+
+  /** Where the dragged token is now, in map units. */
+  private tokenDragPoint(event: FederatedPointerEvent): Point {
+    const at = this.world.toLocal(event.global);
+    const drag = this.tokenDrag;
+    return drag ? { x: at.x - drag.dx, y: at.y - drag.dy } : at;
+  }
+
+  private readonly onGrabToken = (id: string, event: FederatedPointerEvent): void => {
+    const view = this.tokenViews.find((v) => v.token.id === id);
+    if (!view || this.tool) return;
+    const at = this.world.toLocal(event.global);
+    this.tokenDrag = { id, dx: at.x - view.token.x / 16, dy: at.y - view.token.y / 16 };
+  };
+
   /** The shapes the current drawing would send. */
   private drawingShapes(drawing: Drawing, map: Size): FogShape[] {
     if (drawing.tool === 'brush') return drawing.stroke.shapes();
@@ -335,6 +406,14 @@ export class MapScene {
 
   private readonly onMove = (event: FederatedPointerEvent): void => {
     if (!this.mapSize) return;
+    const drag = this.tokenDrag;
+    if (drag) {
+      const p = this.tokenDragPoint(event);
+      const clamped = tokenPosition(p, this.mapSize);
+      this.tokens.dragTo(drag.id, clamped.x / 16, clamped.y / 16);
+      this.moves.push({ id: drag.id, ...clamped, final: false });
+      return;
+    }
     const drawing = this.drawing;
     if (drawing) {
       const at = this.world.toLocal(event.global);
@@ -355,7 +434,20 @@ export class MapScene {
     }
   };
 
-  private readonly onUp = (): void => {
+  private readonly onUp = (event: FederatedPointerEvent): void => {
+    const drag = this.tokenDrag;
+    if (drag && this.mapSize) {
+      // Drop: snapped to the grid unless Alt is held; replaces any move still waiting.
+      const p = this.tokenDragPoint(event);
+      const snapped = event.altKey || !this.grid ? p : snapToGrid(p, this.grid);
+      const final = tokenPosition(snapped, this.mapSize);
+      this.moves.cancel();
+      this.tokens.dragTo(drag.id, final.x / 16, final.y / 16);
+      this.onMoveToken({ id: drag.id, ...final, final: true });
+      this.tokenDrag = null;
+      this.tokens.release();
+      return;
+    }
     const drawing = this.drawing;
     if (drawing && this.mapSize) {
       this.cancelDrawing();

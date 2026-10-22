@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next';
+import { CHARACTER_DRAG_TYPE } from '@/shared/dragTypes';
 import { useCampaign, useSnapshot, useSubmitIntent } from '@/shared/game/useGame';
 import type { CharacterKind } from '@/shared/ipc/client';
 import { uuidv7 } from '@/shared/ipc/uuid';
@@ -79,6 +80,13 @@ export function CharacterList() {
             key={c.id}
             className="nav-row"
             aria-current={c.id === selectedId}
+            // GM roles drag a character onto the map to place its token.
+            draggable={isGm}
+            title={isGm ? t('characters.dragHint') : undefined}
+            onDragStart={(e) => {
+              e.dataTransfer.setData(CHARACTER_DRAG_TYPE, c.id);
+              e.dataTransfer.effectAllowed = 'copy';
+            }}
             onClick={() => {
               selectCharacter(c.id);
             }}

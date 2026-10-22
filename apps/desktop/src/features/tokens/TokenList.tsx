@@ -13,7 +13,8 @@ export function TokenList() {
   const submit = useSubmitIntent();
   const mapId = useSelection((s) => s.mapId);
 
-  if (!mapId || !snapshot?.maps.some((m) => m.id === mapId)) {
+  const map = snapshot?.maps.find((m) => m.id === mapId);
+  if (!mapId || !snapshot || !map) {
     return <p className="muted">{t('tokens.noMap')}</p>;
   }
   const tokens = snapshot.tokens.filter((tok) => tok.map_id === mapId);
@@ -37,8 +38,9 @@ export function TokenList() {
                 character_id: null,
                 asset_id: null,
                 name: `${t('tokens.newName')} ${tokens.length + 1}`,
-                x: 0,
-                y: 0,
+                // The centre of the map (Units16); drag it into place from there.
+                x: map.width * 8,
+                y: map.height * 8,
                 rotation: 0,
                 scale: 1,
                 layer: 'tokens',

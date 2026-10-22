@@ -1,15 +1,17 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { mockIPC } from '@tauri-apps/api/mocks';
-import { render, screen, waitFor } from '@testing-library/react';
+import { createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GridForm } from './GridForm';
 import { MapView } from './MapView';
-import type { FogTool } from './MapScene';
+import type { FogTool, TokenMove } from './MapScene';
+import type { TokenView } from './TokenLayer';
 import type {
   AssetDto,
   CampaignInfo,
+  CharacterDto,
   FogDto,
   FogOpKind,
   FogShape,
@@ -17,6 +19,7 @@ import type {
   MapDto,
   Role,
   Snapshot,
+  TokenDto,
 } from '@/shared/ipc/client';
 import { useSelection } from '@/shared/state/selection';
 
@@ -30,6 +33,9 @@ const scene = vi.hoisted(() => ({
   }[],
   tools: [] as (FogTool | null)[],
   onFog: null as ((kind: FogOpKind, shapes: FogShape[]) => void) | null,
+  onMove: null as ((move: TokenMove) => void) | null,
+  tokens: [] as TokenView[],
+  /** canvasToMap returns the canvas point as is (scale 1, no pan). */
   fit: vi.fn(),
   destroy: vi.fn(),
   loadError: null as ((error: unknown) => void) | null,
@@ -42,9 +48,17 @@ vi.mock('./MapScene', () => ({
       _app: unknown,
       onLoadError: (error: unknown) => void,
       onFog: (kind: FogOpKind, shapes: FogShape[]) => void,
+      onMove: (move: TokenMove) => void,
     ) {
       scene.loadError = onLoadError;
       scene.onFog = onFog;
+      scene.onMove = onMove;
+    }
+    setTokens(views: TokenView[]) {
+      scene.tokens = views;
+    }
+    canvasToMap(x: number, y: number) {
+      return { x, y };
     }
     show(map: MapDto | null, background: AssetDto | null, fog: FogDto | null, gmView: boolean) {
       scene.shown.push({
@@ -114,7 +128,13 @@ const asset: AssetDto = {
   version: 1,
 };
 
-function setup(node: ReactNode, maps: MapDto[], role: Role = 'gm', fog: FogDto[] = []) {
+function setup(
+  node: ReactNode,
+  maps: MapDto[],
+  role: Role = 'gm',
+  fog: FogDto[] = [],
+  extra: Partial<Snapshot> = {},
+) {
   const snapshot: Snapshot = {
     seq: 1,
     campaign: { name: 'C', description: '', version: 1 },
@@ -126,6 +146,7 @@ function setup(node: ReactNode, maps: MapDto[], role: Role = 'gm', fog: FogDto[]
     assets: [asset],
     fog,
     chat: [],
+    ...extra,
   };
   const info: CampaignInfo = { name: 'C', path: '/c', user_id: id(99), role };
   const sent: IntentEnvelope[] = [];
@@ -147,6 +168,8 @@ beforeEach(() => {
   scene.shown = [];
   scene.tools = [];
   scene.onFog = null;
+  scene.onMove = null;
+  scene.tokens = [];
   scene.rendererError = null;
   scene.fit.mockClear();
   scene.destroy.mockClear();
@@ -283,6 +306,117 @@ describe('MapView fog (ADR-0019)', () => {
     setup(<MapView />, [map(1)]);
     expect(await screen.findByRole('button', { name: 'Remove all fog' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Cover the whole map' })).toBeEnabled();
+  });
+});
+
+describe('MapView tokens', () => {
+  const knight: CharacterDto = {
+    id: id(51),
+    kind: 'npc',
+    name: 'Restless Knight',
+    owner: null,
+    status: 'active',
+    sheet_json: '{}',
+    version: 1,
+  };
+  const token: TokenDto = {
+    id: id(80),
+    map_id: id(1),
+    character_id: knight.id,
+    asset_id: null,
+    name: 'Restless Knight',
+    x: 560,
+    y: 560,
+    rotation: 0,
+    scale: 1,
+    layer: 'tokens',
+    visible: true,
+    version: 1,
+  };
+
+  it('gives the scene the tokens of the shown map', async () => {
+    useSelection.setState({ mapId: id(1) });
+    setup(<MapView />, [map(1)], 'gm', [], {
+      tokens: [token, { ...token, id: id(81), map_id: id(2) }],
+      characters: [knight],
+    });
+    await waitFor(() => {
+      expect(scene.tokens.map((v) => v.token.id)).toEqual([id(80)]);
+    });
+    expect(scene.tokens[0]).toMatchObject({ movable: true, colorKey: knight.id });
+  });
+
+  it('sends dragged positions as last-write-wins move_token intents', async () => {
+    useSelection.setState({ mapId: id(1) });
+    const sent = setup(<MapView />, [map(1)], 'gm', [], { tokens: [token] });
+    await waitFor(() => {
+      expect(scene.onMove).not.toBeNull();
+    });
+    scene.onMove?.({ id: token.id, x: 1120, y: 1680, final: true });
+    await waitFor(() => {
+      expect(sent).toHaveLength(1);
+    });
+    expect(sent[0]).toMatchObject({
+      expected_version: null,
+      intent: { kind: 'move_token', id: token.id, x: 1120, y: 1680 },
+    });
+  });
+
+  it('a character dropped on the map becomes a token on the grid cell', async () => {
+    useSelection.setState({ mapId: id(1) });
+    const sent = setup(<MapView />, [map(1)], 'gm', [], { characters: [knight] });
+    const view = document.querySelector('.map-view');
+    if (!(view instanceof HTMLElement)) throw new Error('no map view');
+    await waitFor(() => {
+      expect(scene.onMove).not.toBeNull();
+    });
+    // GM tools are up once the campaign (role) is loaded.
+    await screen.findByRole('toolbar', { name: 'Fog' });
+    // The fake scene maps canvas pixels 1:1 to map units; (100, 30) is in cell (1, 0) of 70.
+    const data = new Map<string, string>([['application/x-dndstudio-character', knight.id]]);
+    const dataTransfer = {
+      types: [...data.keys()],
+      getData: (type: string) => data.get(type) ?? '',
+      dropEffect: 'none',
+    };
+    fireEvent.dragOver(view, { dataTransfer, clientX: 100, clientY: 30 });
+    expect(await screen.findByText('Drop to place the token')).toBeInTheDocument();
+    // jsdom has no DragEvent: the generic event it creates carries no coordinates.
+    const drop = createEvent.drop(view, { dataTransfer });
+    Object.defineProperty(drop, 'clientX', { value: 100 });
+    Object.defineProperty(drop, 'clientY', { value: 30 });
+    fireEvent(view, drop);
+    await waitFor(() => {
+      expect(sent).toHaveLength(1);
+    });
+    expect(sent[0]?.intent).toMatchObject({
+      kind: 'create_token',
+      map_id: id(1),
+      character_id: knight.id,
+      name: 'Restless Knight',
+      x: 105 * 16,
+      y: 35 * 16,
+      layer: 'tokens',
+    });
+    expect(screen.queryByText('Drop to place the token')).not.toBeInTheDocument();
+  });
+
+  it('players cannot drop characters on the map', async () => {
+    const sent = setup(<MapView />, [map(1, { visible_to_players: true })], 'player', [], {
+      characters: [knight],
+    });
+    const view = document.querySelector('.map-view');
+    if (!(view instanceof HTMLElement)) throw new Error('no map view');
+    await waitFor(() => {
+      expect(scene.shown.at(-1)?.map).toBe(id(1));
+    });
+    const dataTransfer = {
+      types: ['application/x-dndstudio-character'],
+      getData: () => knight.id,
+      dropEffect: 'none',
+    };
+    fireEvent.drop(view, { dataTransfer, clientX: 10, clientY: 10 });
+    expect(sent).toHaveLength(0);
   });
 });
 

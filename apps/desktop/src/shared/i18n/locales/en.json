@@ -130,6 +130,7 @@
     "fit": "Fit to window",
     "rendererFailed": "Could not start the map renderer (WebGL is unavailable)",
     "imagesFailed": "Some map images could not be loaded",
+    "dropHint": "Drop to place the token",
     "toolbar": "Map tools"
   },
   "inspector": {
@@ -185,6 +186,7 @@
   },
   "characters": {
     "title": "Characters",
+    "dragHint": "Drag onto the map to place a token",
     "empty": "No characters yet",
     "addPc": "Add PC",
     "addNpc": "Add NPC",

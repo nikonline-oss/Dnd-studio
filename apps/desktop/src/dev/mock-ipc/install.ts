@@ -130,7 +130,23 @@ export async function installMockIpc(role: Role, open = true): Promise<void> {
         version: 1,
       },
     ],
-    tokens: [],
+    // The restless knight waits in the flooded hall (Units16, cell centre on a 64-unit grid).
+    tokens: [
+      {
+        id: id(80),
+        map_id: id(10),
+        character_id: id(51),
+        asset_id: null,
+        name: 'Restless Knight',
+        x: (17 * 64 + 32) * 16,
+        y: (15 * 64 + 32) * 16,
+        rotation: 0,
+        scale: 1,
+        layer: 'tokens',
+        visible: true,
+        version: 1,
+      },
+    ],
     characters: [
       {
         id: id(50),
@@ -249,6 +265,36 @@ export async function installMockIpc(role: Role, open = true): Promise<void> {
         };
         return commit([{ kind: 'map_updated', map: updated }], intent_id);
       }
+      case 'create_token':
+        return commit(
+          [
+            {
+              kind: 'token_created',
+              token: {
+                id: intent.id,
+                map_id: intent.map_id,
+                character_id: intent.character_id,
+                asset_id: intent.asset_id,
+                name: intent.name,
+                x: intent.x,
+                y: intent.y,
+                rotation: intent.rotation,
+                scale: intent.scale,
+                layer: intent.layer,
+                visible: intent.visible,
+                version: 1,
+              },
+            },
+          ],
+          intent_id,
+        );
+      case 'move_token':
+        return commit(
+          [{ kind: 'token_moved', id: intent.id, x: intent.x, y: intent.y }],
+          intent_id,
+        );
+      case 'delete_token':
+        return commit([{ kind: 'token_deleted', id: intent.id }], intent_id);
       case 'apply_fog':
         return commit([{ kind: 'fog_applied', map_id: intent.map_id, op: intent.op }], intent_id);
       case 'reset_fog':
