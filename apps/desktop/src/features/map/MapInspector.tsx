@@ -3,6 +3,7 @@ import { GridForm } from './GridForm';
 import { useCampaign, useSnapshot } from '@/shared/game/useGame';
 import { assetUrl, type AssetDto, type MapDto } from '@/shared/ipc/client';
 import { useSelection } from '@/shared/state/selection';
+import { Icon } from '@/shared/ui/Icon';
 
 /** Inspector panel: properties of the selected map; GM roles edit its grid. */
 export function MapInspector() {
@@ -12,44 +13,67 @@ export function MapInspector() {
   const mapId = useSelection((s) => s.mapId);
   const map = snapshot?.maps.find((m) => m.id === mapId);
 
-  if (!map) return <p className="muted">{t('inspector.empty')}</p>;
+  if (!map) return <p className="inspector-empty muted">{t('inspector.empty')}</p>;
   const tokenCount = snapshot?.tokens.filter((tok) => tok.map_id === map.id).length ?? 0;
   const background = snapshot?.assets.find((a) => a.id === map.background_asset_id);
   const isGm = campaign?.role === 'gm' || campaign?.role === 'co_gm';
 
   return (
-    <>
-      <MapProperties map={map} background={background} tokenCount={tokenCount} showGrid={!isGm} />
-      {isGm && <GridForm key={`${map.id}:${map.version}`} map={map} />}
-    </>
+    <div className="inspector-stack">
+      <section className="inspector-section">
+        <MapPreview map={map} background={background} />
+        <MapProperties map={map} tokenCount={tokenCount} showGrid={!isGm} />
+      </section>
+      {isGm && (
+        <section className="inspector-section">
+          <h3 className="section-title">
+            <Icon name="grid" />
+            {t('inspector.grid')}
+          </h3>
+          <GridForm key={`${map.id}:${map.version}`} map={map} />
+        </section>
+      )}
+    </div>
+  );
+}
+
+function MapPreview({ map, background }: { map: MapDto; background: AssetDto | undefined }) {
+  const { t } = useTranslation();
+  return (
+    <figure className="map-preview">
+      {background ? (
+        <img
+          className="thumbnail"
+          src={assetUrl(background.thumbnail_sha256)}
+          alt={background.original_name ?? map.name}
+        />
+      ) : (
+        <div className="thumbnail placeholder" aria-hidden="true">
+          <Icon name="grid" size={28} />
+        </div>
+      )}
+      <figcaption>
+        <strong>{map.name}</strong>
+        <span className="muted">
+          {background
+            ? (background.original_name ?? t('inspector.background'))
+            : t('inspector.noBackground')}
+        </span>
+      </figcaption>
+    </figure>
   );
 }
 
 interface PropertiesProps {
   map: MapDto;
-  background: AssetDto | undefined;
   tokenCount: number;
   showGrid: boolean;
 }
 
-function MapProperties({ map, background, tokenCount, showGrid }: PropertiesProps) {
+function MapProperties({ map, tokenCount, showGrid }: PropertiesProps) {
   const { t } = useTranslation();
   return (
     <dl className="properties">
-      <dt>{t('inspector.name')}</dt>
-      <dd>{map.name}</dd>
-      {background && (
-        <>
-          <dt>{t('inspector.background')}</dt>
-          <dd>
-            <img
-              className="thumbnail"
-              src={assetUrl(background.thumbnail_sha256)}
-              alt={background.original_name ?? map.name}
-            />
-          </dd>
-        </>
-      )}
       <dt>{t('inspector.size')}</dt>
       <dd>
         {map.width} × {map.height}

@@ -31,7 +31,7 @@ export function CharacterEditor() {
   const { data: snapshot } = useSnapshot();
   const characterId = useSelection((s) => s.characterId);
   const character = snapshot?.characters.find((c) => c.id === characterId);
-  if (!character) return <p className="muted">{t('inspector.empty')}</p>;
+  if (!character) return <p className="inspector-empty muted">{t('inspector.empty')}</p>;
   // Remount on a new version so the draft starts from the current sheet.
   return <Editor key={`${character.id}:${character.version}`} character={character} />;
 }

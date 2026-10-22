@@ -1,54 +1,83 @@
 /*
  * Design tokens. Theme plugins (P1) may override only these variables (CLAUDE.md §9).
  * Light is the base; dark applies via prefers-color-scheme unless the user forced a theme.
+ * Fonts are system fonts only: the CSP allows no remote resources.
  */
 :root {
   color-scheme: light;
-  --color-bg: #f6f6f8;
-  --color-surface: #ffffff;
-  --color-surface-alt: #eeeef2;
-  --color-border: #d6d6de;
-  --color-text: #1d1d24;
-  --color-text-muted: #5f5f6e;
-  --color-accent: #8a5a12;
+  --color-bg: #efece5;
+  --color-surface: #f9f7f2;
+  --color-surface-alt: #e7e2d7;
+  --color-surface-raised: #ffffff;
+  --color-hover: rgb(60 45 20 / 0.06);
+  --color-border: #d9d2c3;
+  --color-border-strong: #c3b9a4;
+  --color-text: #26221b;
+  --color-text-muted: #6e6758;
+  --color-accent: #a0661a;
+  --color-accent-soft: rgb(160 102 26 / 0.12);
   --color-accent-contrast: #ffffff;
   --color-danger: #b3261e;
+  --color-danger-soft: rgb(179 38 30 / 0.1);
+  --color-success: #2f7d4f;
   --color-focus: #2f6fdb;
-  --font-ui: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --shadow-sm: 0 1px 2px rgb(40 30 10 / 0.08);
+  --shadow-md: 0 6px 20px rgb(40 30 10 / 0.14);
+  --font-ui: 'Segoe UI Variable Text', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif;
+  --font-mono: ui-monospace, 'Cascadia Mono', Consolas, monospace;
   --font-size-ui: 13px;
-  --radius: 4px;
+  --radius: 6px;
+  --radius-lg: 10px;
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
-  --bar-height: 28px;
+  --space-4: 16px;
+  --bar-height: 34px;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
     color-scheme: dark;
-    --color-bg: #17161c;
-    --color-surface: #1f1e26;
-    --color-surface-alt: #2a2932;
-    --color-border: #3a3944;
-    --color-text: #e8e6ef;
-    --color-text-muted: #a3a1ae;
-    --color-accent: #e8b04a;
-    --color-accent-contrast: #1d1d24;
+    --color-bg: #121117;
+    --color-surface: #19181f;
+    --color-surface-alt: #24232c;
+    --color-surface-raised: #201f27;
+    --color-hover: rgb(255 255 255 / 0.05);
+    --color-border: #2c2b35;
+    --color-border-strong: #3d3c48;
+    --color-text: #ebe8f1;
+    --color-text-muted: #9d9aab;
+    --color-accent: #e3aa45;
+    --color-accent-soft: rgb(227 170 69 / 0.14);
+    --color-accent-contrast: #1b160d;
     --color-danger: #f2766b;
+    --color-danger-soft: rgb(242 118 107 / 0.14);
+    --color-success: #6cc690;
     --color-focus: #7aa7ff;
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow-md: 0 8px 28px rgb(0 0 0 / 0.5);
   }
 }
 
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --color-bg: #17161c;
-  --color-surface: #1f1e26;
-  --color-surface-alt: #2a2932;
-  --color-border: #3a3944;
-  --color-text: #e8e6ef;
-  --color-text-muted: #a3a1ae;
-  --color-accent: #e8b04a;
-  --color-accent-contrast: #1d1d24;
+  --color-bg: #121117;
+  --color-surface: #19181f;
+  --color-surface-alt: #24232c;
+  --color-surface-raised: #201f27;
+  --color-hover: rgb(255 255 255 / 0.05);
+  --color-border: #2c2b35;
+  --color-border-strong: #3d3c48;
+  --color-text: #ebe8f1;
+  --color-text-muted: #9d9aab;
+  --color-accent: #e3aa45;
+  --color-accent-soft: rgb(227 170 69 / 0.14);
+  --color-accent-contrast: #1b160d;
   --color-danger: #f2766b;
+  --color-danger-soft: rgb(242 118 107 / 0.14);
+  --color-success: #6cc690;
   --color-focus: #7aa7ff;
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-md: 0 8px 28px rgb(0 0 0 / 0.5);
 }

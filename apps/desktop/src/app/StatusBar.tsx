@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { commands, type CampaignInfo } from '@/shared/ipc/client';
+import { Icon } from '@/shared/ui/Icon';
 
 /** Campaign, server status, active plugins, app version (CLAUDE.md §11). */
 export function StatusBar({ campaign }: { campaign: CampaignInfo }) {
@@ -9,12 +10,20 @@ export function StatusBar({ campaign }: { campaign: CampaignInfo }) {
 
   return (
     <footer className="statusbar" aria-label={t('status.label')}>
-      <span title={campaign.path}>{campaign.name}</span>
-      <span>{t('status.serverLocal')}</span>
-      <span>{t('status.plugins', { count: 0 })}</span>
+      <span className="status-item" title={campaign.path}>
+        <Icon name="book" size={13} />
+        {campaign.name}
+      </span>
+      <span className="status-item">
+        <span className="status-dot" data-state="local" aria-hidden="true" />
+        {t('status.serverLocal')}
+      </span>
+      <span className="status-item">{t('status.plugins', { count: 0 })}</span>
       <span className="spacer" />
-      <span>{t(`roles.${campaign.role}`)}</span>
-      {info && <span>v{info.version}</span>}
+      <span className="status-item role" data-role={campaign.role}>
+        {t(`roles.${campaign.role}`)}
+      </span>
+      {info && <span className="status-item">v{info.version}</span>}
     </footer>
   );
 }

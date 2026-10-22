@@ -21,6 +21,7 @@ import { errorCode, ipc, type CampaignInfo } from '@/shared/ipc/client';
 import { useSettings } from '@/shared/settings/settings';
 import { useSelection } from '@/shared/state/selection';
 import { ErrorBoundary } from '@/shared/ui/ErrorBoundary';
+import { Icon } from '@/shared/ui/Icon';
 import { useToast } from '@/shared/ui/Toast';
 
 /**
@@ -114,10 +115,12 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
                     selectJournal(null);
                   }}
                 >
+                  <Icon name="map" />
                   {mapName ?? t('panels.map')}
                 </button>
                 {journalTitle !== undefined && (
                   <button type="button" role="tab" aria-selected={center === 'journal'}>
+                    <Icon name="book" />
                     {journalTitle}
                   </button>
                 )}
@@ -149,6 +152,7 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
                       setBottomTab(tab);
                     }}
                   >
+                    <Icon name={tab === 'chat' ? 'send' : 'book'} />
                     {t(`panels.${tab}`)}
                   </button>
                 ))}
@@ -169,7 +173,7 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
         <Panel id="right" defaultSize="22" minSize="12" collapsible className="side-panel">
           {isGm ? (
             <>
-              <h2>{t('inspector.title')}</h2>
+              <h2 className="panel-title">{t('inspector.title')}</h2>
               <ErrorBoundary name={t('inspector.title')}>
                 {inspect === 'character' ? (
                   <CharacterEditor />

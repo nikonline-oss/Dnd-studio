@@ -6,6 +6,8 @@ import { useCampaign, useSnapshot } from '@/shared/game/useGame';
 import { logFrontend } from '@/shared/ipc/client';
 import { PixiHost } from '@/shared/pixi/PixiHost';
 import { useSelection } from '@/shared/state/selection';
+import { Icon } from '@/shared/ui/Icon';
+import { IconButton } from '@/shared/ui/IconButton';
 
 /**
  * Center tab: the selected map on a Pixi canvas (ADR-0017). Wheel zooms at the cursor, drag pans.
@@ -48,17 +50,22 @@ export function MapView() {
   return (
     <div className="map-view">
       <PixiHost onReady={onReady} onError={onError} />
-      {!map && <p className="map-view-empty muted">{t('mapView.noMap')}</p>}
+      {!map && (
+        <div className="map-view-empty">
+          <Icon name="map" size={40} />
+          <p>{t('mapView.noMap')}</p>
+        </div>
+      )}
       {map && (
-        <div className="map-toolbar">
-          <button
-            type="button"
+        <div className="map-toolbar" role="toolbar" aria-label={t('mapView.toolbar')}>
+          <span className="map-title">{map.name}</span>
+          <IconButton
+            icon="fit"
+            label={t('mapView.fit')}
             onClick={() => {
               scene?.fit();
             }}
-          >
-            {t('mapView.fit')}
-          </button>
+          />
         </div>
       )}
       {failure && (

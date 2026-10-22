@@ -137,7 +137,28 @@ describe('MapList', () => {
       outcome: { status: 'rejected', reason: { code: 'stale_version', current: 4 } },
     });
     await userEvent.click(await screen.findByRole('button', { name: 'Delete' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Delete?' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Someone changed this before you');
+  });
+
+  it('deletes only after a confirming second click', async () => {
+    const { sent } = renderWithIpc(<MapList />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Delete' }));
+    expect(sent).toHaveLength(0);
+    // Clicking elsewhere disarms the button.
+    await userEvent.click(document.body);
+    expect(screen.queryByRole('button', { name: 'Delete?' })).not.toBeInTheDocument();
+    expect(sent).toHaveLength(0);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Delete?' }));
+    await waitFor(() => {
+      expect(sent).toHaveLength(1);
+    });
+    expect(sent[0]).toMatchObject({
+      expected_version: 3,
+      intent: { kind: 'delete_map', id: MAP_ID },
+    });
   });
 
   it('imports an image, selects the new map and reports a downscale', async () => {

@@ -4,6 +4,9 @@ import type { JournalEntryMeta } from '@/shared/ipc/client';
 import { uuidv7 } from '@/shared/ipc/uuid';
 import { useSelection } from '@/shared/state/selection';
 import { ErrorText } from '@/shared/ui/ErrorText';
+import { Icon } from '@/shared/ui/Icon';
+import { IconButton } from '@/shared/ui/IconButton';
+import { NavSection } from '@/shared/ui/NavSection';
 
 /** Entries grouped by folder (folders sorted, root first), each sorted by `sort_order`. */
 export function groupByFolder(entries: JournalEntryMeta[]): [string, JournalEntryMeta[]][] {
@@ -55,36 +58,52 @@ export function JournalTree() {
   };
 
   return (
-    <section aria-labelledby="journal-title" className="list-panel">
-      <header className="panel-header">
-        <h2 id="journal-title">{t('journal.title')}</h2>
-        {isGm && (
-          <button type="button" onClick={add} disabled={submit.isPending}>
-            {t('journal.add')}
-          </button>
-        )}
-      </header>
-      {groups.length === 0 && <p className="muted">{t('journal.empty')}</p>}
+    <NavSection
+      icon="book"
+      title={t('journal.title')}
+      count={snapshot?.journal.length ?? 0}
+      actions={
+        isGm && (
+          <IconButton
+            icon="plus"
+            label={t('journal.add')}
+            onClick={add}
+            disabled={submit.isPending}
+          />
+        )
+      }
+    >
+      {groups.length === 0 && <p className="nav-empty">{t('journal.empty')}</p>}
       {groups.map(([folder, entries]) => (
         <div key={folder} className="journal-folder">
-          {folder !== '' && <h3 className="folder-name">{folder}</h3>}
-          <ul aria-label={folder === '' ? t('journal.root') : folder}>
+          {folder !== '' && (
+            <h3 className="folder-name">
+              <Icon name="folder" />
+              {folder}
+            </h3>
+          )}
+          <ul className="nav-list" aria-label={folder === '' ? t('journal.root') : folder}>
             {entries.map((e) => (
               <li
                 key={e.id}
+                className="nav-row"
+                data-nested={folder !== ''}
                 aria-current={e.id === selectedId}
                 onClick={() => {
                   selectJournal(e.id);
                 }}
               >
-                <span className="inline-edit">{e.title}</span>
-                <span className="badge">{t(`journal.visibility.${e.visibility}`)}</span>
+                <Icon name={e.visibility === 'gm' ? 'lock' : 'book'} className="row-icon" />
+                <span className="row-name">{e.title}</span>
+                <span className="badge" data-visibility={e.visibility}>
+                  {t(`journal.visibility.${e.visibility}`)}
+                </span>
               </li>
             ))}
           </ul>
         </div>
       ))}
       <ErrorText error={submit.error} />
-    </section>
+    </NavSection>
   );
 }

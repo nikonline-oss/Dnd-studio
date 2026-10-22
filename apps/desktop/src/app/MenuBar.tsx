@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useCampaignActions } from '@/shared/game/useCampaignActions';
 import { commands, errorCode, unwrap } from '@/shared/ipc/client';
 import { useSettings, type Settings } from '@/shared/settings/settings';
+import { Icon } from '@/shared/ui/Icon';
 import { Menu } from '@/shared/ui/Menu';
 
 export function MenuBar({ breadcrumbs }: { breadcrumbs: string[] }) {
@@ -27,6 +28,9 @@ export function MenuBar({ breadcrumbs }: { breadcrumbs: string[] }) {
 
   return (
     <header className="menubar">
+      <span className="brand" aria-hidden="true">
+        <Icon name="dice" size={16} />
+      </span>
       <nav aria-label={t('menu.label')} className="menus">
         <Menu
           label={t('menu.file')}

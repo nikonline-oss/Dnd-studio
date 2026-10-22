@@ -4,6 +4,8 @@ import type { CharacterKind } from '@/shared/ipc/client';
 import { uuidv7 } from '@/shared/ipc/uuid';
 import { useSelection } from '@/shared/state/selection';
 import { ErrorText } from '@/shared/ui/ErrorText';
+import { IconButton } from '@/shared/ui/IconButton';
+import { NavSection } from '@/shared/ui/NavSection';
 
 /** Navigator: characters with their status. GM roles create PCs and NPCs, players their own PC. */
 export function CharacterList() {
@@ -41,45 +43,50 @@ export function CharacterList() {
   };
 
   return (
-    <section aria-labelledby="characters-title" className="list-panel">
-      <header className="panel-header">
-        <h2 id="characters-title">{t('characters.title')}</h2>
-        {canCreate && (
-          <span className="inline">
-            <button
-              type="button"
+    <NavSection
+      icon="users"
+      title={t('characters.title')}
+      count={characters.length}
+      actions={
+        canCreate && (
+          <>
+            <IconButton
+              icon="user"
+              label={t('characters.addPc')}
               disabled={submit.isPending}
               onClick={() => {
                 create('pc');
               }}
-            >
-              {t('characters.addPc')}
-            </button>
+            />
             {isGm && (
-              <button
-                type="button"
+              <IconButton
+                icon="plus"
+                label={t('characters.addNpc')}
                 disabled={submit.isPending}
                 onClick={() => {
                   create('npc');
                 }}
-              >
-                {t('characters.addNpc')}
-              </button>
+              />
             )}
-          </span>
-        )}
-      </header>
-      {characters.length === 0 && <p className="muted">{t('characters.empty')}</p>}
-      <ul>
+          </>
+        )
+      }
+    >
+      {characters.length === 0 && <p className="nav-empty">{t('characters.empty')}</p>}
+      <ul className="nav-list">
         {characters.map((c) => (
           <li
             key={c.id}
+            className="nav-row"
             aria-current={c.id === selectedId}
             onClick={() => {
               selectCharacter(c.id);
             }}
           >
-            <span className="inline-edit">{c.name}</span>
+            <span className="avatar" data-kind={c.kind} aria-hidden="true">
+              {c.name.trim().charAt(0).toUpperCase() || '?'}
+            </span>
+            <span className="row-name">{c.name}</span>
             <span className="badge" data-status={c.status}>
               {t(`characters.status.${c.status}`)}
             </span>
@@ -87,6 +94,6 @@ export function CharacterList() {
         ))}
       </ul>
       <ErrorText error={submit.error} />
-    </section>
+    </NavSection>
   );
 }

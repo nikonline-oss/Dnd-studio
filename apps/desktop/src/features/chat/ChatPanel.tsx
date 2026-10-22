@@ -5,6 +5,7 @@ import { commands, unwrap, type ChatMessageDto, type DiceRollDto } from '@/share
 import { uuidv7 } from '@/shared/ipc/uuid';
 import { useSelection } from '@/shared/state/selection';
 import { ErrorText } from '@/shared/ui/ErrorText';
+import { Icon } from '@/shared/ui/Icon';
 
 export type ChatInput =
   | { kind: 'text'; body: string }
@@ -104,6 +105,7 @@ export function ChatPanel() {
         <div ref={bottom} />
       </ol>
       <form className="chat-input" onSubmit={send}>
+        <Icon name="dice" className="chat-input-icon" />
         <input
           aria-label={t('chat.input')}
           placeholder={t('chat.placeholder')}
@@ -113,11 +115,17 @@ export function ChatPanel() {
             setInput(e.target.value);
           }}
         />
-        <button type="submit" disabled={submit.isPending}>
-          {t('chat.send')}
+        {rollAs && <span className="chat-as">{t('chat.rollingAs', { name: rollAs.name })}</span>}
+        <button
+          type="submit"
+          className="icon-button btn-primary"
+          aria-label={t('chat.send')}
+          title={t('chat.send')}
+          disabled={submit.isPending}
+        >
+          <Icon name="send" />
         </button>
       </form>
-      {rollAs && <p className="muted">{t('chat.rollingAs', { name: rollAs.name })}</p>}
       {localError && (
         <p role="alert" className="error-text">
           {localError}
@@ -130,19 +138,37 @@ export function ChatPanel() {
 
 function ChatLine({ message: m }: { message: ChatMessageDto }) {
   const { t } = useTranslation();
-  const time = m.at_ms === null ? '' : new Date(m.at_ms).toLocaleTimeString();
+  const time =
+    m.at_ms === null
+      ? ''
+      : new Date(m.at_ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   if (m.kind === 'system' && m.system) {
     return (
       <li className="chat-line" data-kind="system">
-        <time>{time}</time> <em>{t(`chat.system.${m.system.code}`, { name: m.system.name })}</em>
+        <Icon name="sparkle" />
+        <em>{t(`chat.system.${m.system.code}`, { name: m.system.name })}</em>
+        <time>{time}</time>
       </li>
     );
   }
+  const name = m.sender_name || t('chat.unknownSender');
   return (
-    <li className="chat-line" data-kind={m.kind}>
-      <time>{time}</time> <strong>{m.sender_name || t('chat.unknownSender')}</strong>
-      {m.visibility === 'gm' && <span className="badge">{t('chat.hidden')}</span>}{' '}
-      {m.roll ? <RollView roll={m.roll} typed={m.body} /> : <span>{m.body}</span>}
+    <li className="chat-line" data-kind={m.kind} data-hidden={m.visibility === 'gm'}>
+      <span className="avatar" aria-hidden="true">
+        {name.trim().charAt(0).toUpperCase()}
+      </span>
+      <div className="chat-body">
+        <div className="chat-head">
+          <strong>{name}</strong>
+          {m.visibility === 'gm' && (
+            <span className="badge" data-status="pending_approval">
+              {t('chat.hidden')}
+            </span>
+          )}
+          <time>{time}</time>
+        </div>
+        {m.roll ? <RollView roll={m.roll} typed={m.body} /> : <p className="chat-text">{m.body}</p>}
+      </div>
     </li>
   );
 }
@@ -150,30 +176,28 @@ function ChatLine({ message: m }: { message: ChatMessageDto }) {
 function RollView({ roll, typed }: { roll: DiceRollDto; typed: string }) {
   const { t } = useTranslation();
   return (
-    <span className="roll" title={typed}>
-      <span className="roll-expr">{roll.expression}</span>{' '}
-      {roll.terms.map((term, n) => (
-        <span key={n} className="roll-term">
-          {term.negative ? '− ' : n > 0 ? '+ ' : ''}
-          {term.dice.length > 0 ? (
-            <>
-              [
-              {term.dice.map((d, i) => (
+    <div className="roll" title={typed}>
+      <Icon name="dice" className="roll-icon" />
+      <span className="roll-expr">{roll.expression}</span>
+      <span className="roll-terms">
+        {roll.terms.map((term, n) => (
+          <span key={n} className="roll-term">
+            {term.negative ? <span className="op">−</span> : n > 0 && <span className="op">+</span>}
+            {term.dice.length > 0 ? (
+              term.dice.map((d, i) => (
                 <span key={i} className="die" data-kept={d.kept}>
                   {d.value}
                 </span>
-              ))}
-              ]
-            </>
-          ) : (
-            term.notation
-          )}{' '}
-        </span>
-      ))}
-      ={' '}
+              ))
+            ) : (
+              <span className="roll-const">{term.notation}</span>
+            )}
+          </span>
+        ))}
+      </span>
       <strong className="roll-total" aria-label={t('chat.total')}>
         {roll.total}
       </strong>
-    </span>
+    </div>
   );
 }

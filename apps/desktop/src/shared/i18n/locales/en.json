@@ -1,4 +1,7 @@
 {
+  "common": {
+    "confirmDelete": "Delete?"
+  },
   "app": {
     "title": "DndStudio"
   },
@@ -10,6 +13,7 @@
     "open": "Open…",
     "close": "Close campaign",
     "createHint": "You will be asked where to create the campaign folder.",
+    "or": "or",
     "restore": "Restore from latest backup",
     "corruptHint": "The damaged file will be kept as campaign.sqlite.corrupt."
   },
@@ -106,7 +110,8 @@
     "noMap": "Select or create a map",
     "fit": "Fit to window",
     "rendererFailed": "Could not start the map renderer (WebGL is unavailable)",
-    "imagesFailed": "Some map images could not be loaded"
+    "imagesFailed": "Some map images could not be loaded",
+    "toolbar": "Map tools"
   },
   "inspector": {
     "title": "Inspector",
@@ -127,7 +132,8 @@
     "gridCell": "Cell size",
     "gridOffsetX": "Offset X",
     "gridOffsetY": "Offset Y",
-    "gridApply": "Apply grid"
+    "gridApply": "Apply grid",
+    "noBackground": "No background image"
   },
   "errorBoundary": {
     "message": "“{{name}}” crashed. The rest of the app keeps working.",
