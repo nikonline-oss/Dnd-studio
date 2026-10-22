@@ -194,6 +194,9 @@ export class MapScene {
       target: cell,
       frame: new Rectangle(0, 0, pattern.width, pattern.height),
       resolution,
+      // Zoomed out, a cell shrinks ~10× on screen: without mipmaps thin lines alias away or
+      // show up at random. The texture is one cell, so mipmaps cost nothing (unlike tiles).
+      textureSourceOptions: { autoGenerateMipmaps: true, scaleMode: 'linear' },
     });
     cell.destroy();
     this.gridTexture = texture;
