@@ -943,6 +943,89 @@ input[type='checkbox'] {
   border-radius: 50%;
 }
 
+.fog-toolbar {
+  position: absolute;
+  bottom: var(--space-3);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: var(--space-2);
+  width: max-content;
+  max-width: calc(100% - 2 * var(--space-3));
+  padding: 4px var(--space-2);
+  background: color-mix(in srgb, var(--color-surface-raised) 88%, transparent);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  backdrop-filter: blur(6px);
+}
+
+.fog-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.segmented {
+  display: inline-flex;
+  padding: 2px;
+  gap: 2px;
+  background: var(--color-surface-alt);
+  border-radius: var(--radius);
+}
+
+.segmented button {
+  min-height: 24px;
+  padding: 0 var(--space-2);
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  color: var(--color-text-muted);
+}
+
+.segmented button:hover:not(:disabled) {
+  background: var(--color-hover);
+  color: var(--color-text);
+}
+
+.segmented button[aria-checked='true'] {
+  background: var(--color-surface-raised);
+  box-shadow: var(--shadow-sm);
+  color: var(--color-accent);
+}
+
+.brush-size {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+}
+
+.brush-size input {
+  width: 96px;
+  accent-color: var(--color-accent);
+}
+
+.brush-size output {
+  min-width: 3ch;
+  text-align: right;
+}
+
+.toolbar-divider {
+  align-self: stretch;
+  width: 1px;
+  background: var(--color-border);
+}
+
 .map-title {
   font-family: var(--font-display);
   font-weight: 600;
@@ -967,7 +1050,8 @@ input[type='checkbox'] {
   position: absolute;
   left: var(--space-3);
   right: var(--space-3);
-  bottom: var(--space-3);
+  /* Above the fog toolbar. */
+  bottom: 64px;
   margin: 0;
   padding: var(--space-2) var(--space-3);
   background: var(--color-surface-raised);

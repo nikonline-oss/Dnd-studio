@@ -6,9 +6,13 @@ import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GridForm } from './GridForm';
 import { MapView } from './MapView';
+import type { FogTool } from './MapScene';
 import type {
   AssetDto,
   CampaignInfo,
+  FogDto,
+  FogOpKind,
+  FogShape,
   IntentEnvelope,
   MapDto,
   Role,
@@ -18,7 +22,14 @@ import { useSelection } from '@/shared/state/selection';
 
 // jsdom has no WebGL: the host hands over a fake app, the scene records what it is shown.
 const scene = vi.hoisted(() => ({
-  shown: [] as { map: string | null; background: string | null }[],
+  shown: [] as {
+    map: string | null;
+    background: string | null;
+    fogOps: number | null;
+    gmView: boolean;
+  }[],
+  tools: [] as (FogTool | null)[],
+  onFog: null as ((kind: FogOpKind, shapes: FogShape[]) => void) | null,
   fit: vi.fn(),
   destroy: vi.fn(),
   loadError: null as ((error: unknown) => void) | null,
@@ -27,11 +38,24 @@ const scene = vi.hoisted(() => ({
 
 vi.mock('./MapScene', () => ({
   MapScene: class {
-    constructor(_app: unknown, onLoadError: (error: unknown) => void) {
+    constructor(
+      _app: unknown,
+      onLoadError: (error: unknown) => void,
+      onFog: (kind: FogOpKind, shapes: FogShape[]) => void,
+    ) {
       scene.loadError = onLoadError;
+      scene.onFog = onFog;
     }
-    show(map: MapDto | null, background: AssetDto | null) {
-      scene.shown.push({ map: map?.id ?? null, background: background?.id ?? null });
+    show(map: MapDto | null, background: AssetDto | null, fog: FogDto | null, gmView: boolean) {
+      scene.shown.push({
+        map: map?.id ?? null,
+        background: background?.id ?? null,
+        fogOps: fog ? fog.ops.length : null,
+        gmView,
+      });
+    }
+    setTool(tool: FogTool | null) {
+      scene.tools.push(tool);
     }
     fit = scene.fit;
     destroy = scene.destroy;
@@ -90,7 +114,7 @@ const asset: AssetDto = {
   version: 1,
 };
 
-function setup(node: ReactNode, maps: MapDto[], role: Role = 'gm') {
+function setup(node: ReactNode, maps: MapDto[], role: Role = 'gm', fog: FogDto[] = []) {
   const snapshot: Snapshot = {
     seq: 1,
     campaign: { name: 'C', description: '', version: 1 },
@@ -100,7 +124,7 @@ function setup(node: ReactNode, maps: MapDto[], role: Role = 'gm') {
     users: [],
     journal: [],
     assets: [asset],
-    fog: [],
+    fog,
     chat: [],
   };
   const info: CampaignInfo = { name: 'C', path: '/c', user_id: id(99), role };
@@ -121,6 +145,8 @@ function setup(node: ReactNode, maps: MapDto[], role: Role = 'gm') {
 
 beforeEach(() => {
   scene.shown = [];
+  scene.tools = [];
+  scene.onFog = null;
   scene.rendererError = null;
   scene.fit.mockClear();
   scene.destroy.mockClear();
@@ -135,7 +161,7 @@ describe('MapView', () => {
     useSelection.setState({ mapId: id(2) });
     setup(<MapView />, [map(1), map(2, { background_asset_id: asset.id })]);
     await waitFor(() => {
-      expect(scene.shown.at(-1)).toEqual({ map: id(2), background: asset.id });
+      expect(scene.shown.at(-1)).toMatchObject({ map: id(2), background: asset.id });
     });
     await userEvent.click(screen.getByRole('button', { name: 'Fit to window' }));
     expect(scene.fit).toHaveBeenCalled();
@@ -144,7 +170,7 @@ describe('MapView', () => {
   it('asks to select a map when none is selected', async () => {
     setup(<MapView />, [map(1)]);
     expect(await screen.findByText('Select or create a map')).toBeInTheDocument();
-    expect(scene.shown.at(-1)).toEqual({ map: null, background: null });
+    expect(scene.shown.at(-1)).toMatchObject({ map: null, background: null });
   });
 
   it('shows players the first map shared with them', async () => {
@@ -179,6 +205,84 @@ describe('MapView', () => {
     });
     scene.loadError?.(new Error('404'));
     expect(await screen.findByRole('alert')).toHaveTextContent('could not be loaded');
+  });
+});
+
+describe('MapView fog (ADR-0019)', () => {
+  const fog: FogDto = {
+    map_id: id(1),
+    covered: true,
+    ops: [
+      {
+        id: id(70),
+        kind: 'reveal',
+        shape: { type: 'rect', x: 0, y: 0, width: 160, height: 160 },
+      },
+    ],
+  };
+
+  it('shows the fog translucent to the GM and opaque to players', async () => {
+    useSelection.setState({ mapId: id(1) });
+    setup(<MapView />, [map(1)], 'gm', [fog]);
+    await waitFor(() => {
+      expect(scene.shown.at(-1)).toMatchObject({ map: id(1), fogOps: 1, gmView: true });
+    });
+  });
+
+  it('players get no fog tools and no tool on the scene', async () => {
+    setup(<MapView />, [map(1, { visible_to_players: true })], 'player', [fog]);
+    await waitFor(() => {
+      expect(scene.shown.at(-1)).toMatchObject({ map: id(1), gmView: false });
+    });
+    expect(screen.queryByRole('toolbar', { name: 'Fog' })).not.toBeInTheDocument();
+    expect(scene.tools.every((tool) => tool === null)).toBe(true);
+  });
+
+  it('selects tools and sends each drawn shape as an apply_fog intent, in order', async () => {
+    useSelection.setState({ mapId: id(1) });
+    const sent = setup(<MapView />, [map(1)]);
+    await userEvent.click(await screen.findByRole('radio', { name: 'Brush' }));
+    await userEvent.click(screen.getByRole('radio', { name: 'Hide' }));
+    expect(scene.tools.at(-1)).toEqual({ shape: 'brush', kind: 'hide', radius: 40 });
+
+    const shapes: FogShape[] = [
+      { type: 'brush', radius: 640, points: [0, 0, 100, 100] },
+      { type: 'brush', radius: 640, points: [100, 100, 200, 200] },
+    ];
+    scene.onFog?.('hide', shapes);
+    await waitFor(() => {
+      expect(sent).toHaveLength(2);
+    });
+    expect(sent.map((e) => e.intent)).toMatchObject([
+      { kind: 'apply_fog', map_id: id(1), op: { kind: 'hide', shape: shapes[0] } },
+      { kind: 'apply_fog', map_id: id(1), op: { kind: 'hide', shape: shapes[1] } },
+    ]);
+    // Every operation gets its own UUIDv7.
+    const ids = sent.map((e) => (e.intent.kind === 'apply_fog' ? e.intent.op.id : ''));
+    expect(new Set(ids).size).toBe(2);
+    expect(ids[0]).toMatch(/^[0-9a-f-]{14}7/);
+
+    await userEvent.click(screen.getByRole('radio', { name: 'Pan (no fog tool)' }));
+    expect(scene.tools.at(-1)).toBeNull();
+  });
+
+  it('resets the fog only after confirmation', async () => {
+    useSelection.setState({ mapId: id(1) });
+    const sent = setup(<MapView />, [map(1)], 'gm', [fog]);
+    await userEvent.click(await screen.findByRole('button', { name: 'Remove all fog' }));
+    expect(sent).toHaveLength(0);
+    await userEvent.click(screen.getByRole('button', { name: 'Remove fog?' }));
+    await waitFor(() => {
+      expect(sent).toHaveLength(1);
+    });
+    expect(sent[0]?.intent).toEqual({ kind: 'reset_fog', map_id: id(1), covered: false });
+  });
+
+  it('cannot remove fog from a map that has none', async () => {
+    useSelection.setState({ mapId: id(1) });
+    setup(<MapView />, [map(1)]);
+    expect(await screen.findByRole('button', { name: 'Remove all fog' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Cover the whole map' })).toBeEnabled();
   });
 });
 

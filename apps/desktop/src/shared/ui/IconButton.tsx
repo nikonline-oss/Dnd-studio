@@ -30,22 +30,30 @@ export function IconButton({
   );
 }
 
-/** How long a delete waits for the confirming click. */
+/** How long a destructive button waits for the confirming click. */
 export const CONFIRM_MS = 4000;
 
-interface ConfirmDeleteProps {
-  /** What is deleted, for the labels ("Delete map Crypt"). */
+interface ConfirmButtonProps {
+  icon: IconName;
+  /** Accessible name and tooltip of the unarmed button. */
   label: string;
+  /** Text of the armed button ("Delete?"). */
+  confirmLabel: string;
   onConfirm: () => void;
   disabled?: boolean;
 }
 
 /**
- * A delete that needs a second click: the first one turns the button into "Delete?" for a few
- * seconds. Prevents losing a map or entry to a stray click next to its row.
+ * A destructive action that needs a second click: the first one turns the button into
+ * `confirmLabel` for a few seconds. Prevents losing work to a stray click.
  */
-export function ConfirmDelete({ label, onConfirm, disabled }: ConfirmDeleteProps) {
-  const { t } = useTranslation();
+export function ConfirmButton({
+  icon,
+  label,
+  confirmLabel,
+  onConfirm,
+  disabled,
+}: ConfirmButtonProps) {
   const [armed, setArmed] = useState(false);
 
   useEffect(() => {
@@ -61,7 +69,7 @@ export function ConfirmDelete({ label, onConfirm, disabled }: ConfirmDeleteProps
   if (!armed) {
     return (
       <IconButton
-        icon="trash"
+        icon={icon}
         label={label}
         className="danger-hover"
         disabled={disabled}
@@ -87,8 +95,26 @@ export function ConfirmDelete({ label, onConfirm, disabled }: ConfirmDeleteProps
         onConfirm();
       }}
     >
-      <Icon name="trash" />
-      {t('common.confirmDelete')}
+      <Icon name={icon} />
+      {confirmLabel}
     </button>
+  );
+}
+
+/** Delete with confirmation; `label` names what is deleted ("Delete map"). */
+export function ConfirmDelete({
+  label,
+  onConfirm,
+  disabled,
+}: Pick<ConfirmButtonProps, 'label' | 'onConfirm' | 'disabled'>) {
+  const { t } = useTranslation();
+  return (
+    <ConfirmButton
+      icon="trash"
+      label={label}
+      confirmLabel={t('common.confirmDelete')}
+      onConfirm={onConfirm}
+      {...(disabled === undefined ? {} : { disabled })}
+    />
   );
 }

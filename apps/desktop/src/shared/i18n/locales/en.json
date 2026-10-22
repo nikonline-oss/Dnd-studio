@@ -106,6 +106,21 @@
     "chat": "Chat",
     "logs": "Logs"
   },
+  "fog": {
+    "title": "Fog",
+    "tool": "Fog tool",
+    "mode": "Fog mode",
+    "pan": "Pan (no fog tool)",
+    "rect": "Rectangle",
+    "brush": "Brush",
+    "reveal": "Reveal",
+    "hide": "Hide",
+    "brushSize": "Brush size",
+    "coverAll": "Cover the whole map",
+    "clearAll": "Remove all fog",
+    "confirmCover": "Cover all?",
+    "confirmClear": "Remove fog?"
+  },
   "mapView": {
     "loading": "Loading the map view…",
     "noMap": "Select or create a map",

@@ -181,7 +181,20 @@ export async function installMockIpc(role: Role, open = true): Promise<void> {
         version: 1,
       },
     ],
-    fog: [],
+    // The crypt starts covered with its entrance hall revealed (Units16).
+    fog: [
+      {
+        map_id: id(10),
+        covered: true,
+        ops: [
+          {
+            id: id(60),
+            kind: 'reveal',
+            shape: { type: 'rect', x: 160 * 16, y: 160 * 16, width: 512 * 16, height: 384 * 16 },
+          },
+        ],
+      },
+    ],
     chat: sampleChat(),
   };
   const info: CampaignInfo = {
@@ -236,6 +249,13 @@ export async function installMockIpc(role: Role, open = true): Promise<void> {
         };
         return commit([{ kind: 'map_updated', map: updated }], intent_id);
       }
+      case 'apply_fog':
+        return commit([{ kind: 'fog_applied', map_id: intent.map_id, op: intent.op }], intent_id);
+      case 'reset_fog':
+        return commit(
+          [{ kind: 'fog_reset', map_id: intent.map_id, covered: intent.covered }],
+          intent_id,
+        );
       case 'delete_map':
         return commit([{ kind: 'map_deleted', id: intent.id }], intent_id);
       case 'send_message':
