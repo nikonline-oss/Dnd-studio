@@ -241,6 +241,10 @@ pub fn response_for(campaign_folder: Option<&Path>, sha: &str) -> Response<Vec<u
         Ok(bytes) => Response::builder()
             .status(StatusCode::OK)
             .header(header::CONTENT_TYPE, "image/webp")
+            // The page is another origin (`tauri.localhost`, or the dev server), and tiles are
+            // read with `fetch`, which needs CORS. Only this webview can reach the scheme, and
+            // the files are public within the campaign, so any origin is fine.
+            .header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*")
             // Content-addressed: a hash never changes its bytes.
             .header(header::CACHE_CONTROL, "public, max-age=31536000, immutable")
             .body(bytes)

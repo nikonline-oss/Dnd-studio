@@ -555,6 +555,8 @@ async fn importing_a_map_image_creates_asset_and_map() {
     let ok = response_for(Some(&folder), &asset.tiles[0].sha256);
     assert_eq!(ok.status(), 200);
     assert_eq!(ok.headers()["content-type"], "image/webp");
+    // The page (tauri.localhost / the dev server) is another origin: `fetch` needs CORS.
+    assert_eq!(ok.headers()["access-control-allow-origin"], "*");
     assert!(!ok.body().is_empty());
     assert_eq!(
         response_for(Some(&folder), &asset.thumbnail_sha256).status(),
