@@ -9,7 +9,7 @@ export function useCampaignActions() {
 
   const onOpened = (info: CampaignInfo | null) => {
     if (!info) return; // dialog cancelled
-    useSelection.getState().selectMap(null);
+    useSelection.getState().reset();
     queryClient.setQueryData(queryKeys.campaign, info);
     void queryClient.invalidateQueries({ queryKey: queryKeys.snapshot });
   };
@@ -19,7 +19,7 @@ export function useCampaignActions() {
   const close = useMutation({
     mutationFn: ipc.campaignClose,
     onSuccess: () => {
-      useSelection.getState().selectMap(null);
+      useSelection.getState().reset();
       queryClient.setQueryData(queryKeys.campaign, null);
       queryClient.removeQueries({ queryKey: queryKeys.snapshot });
     },

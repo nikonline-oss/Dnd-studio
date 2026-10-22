@@ -30,8 +30,8 @@ export function JournalTree() {
   const { data: campaign } = useCampaign();
   const { data: snapshot } = useSnapshot();
   const submit = useSubmitIntent();
-  const selectedId = useSelection((s) => (s.center === 'journal' ? s.journalId : null));
-  const selectJournal = useSelection((s) => s.selectJournal);
+  const selectedId = useSelection((s) => s.journalId);
+  const openJournal = useSelection((s) => s.openJournal);
   const isGm = campaign?.role === 'gm' || campaign?.role === 'co_gm';
   const groups = groupByFolder(snapshot?.journal ?? []);
 
@@ -51,7 +51,7 @@ export function JournalTree() {
       },
       {
         onSuccess: () => {
-          selectJournal(id);
+          openJournal(id);
         },
       },
     );
@@ -90,7 +90,7 @@ export function JournalTree() {
                 data-nested={folder !== ''}
                 aria-current={e.id === selectedId}
                 onClick={() => {
-                  selectJournal(e.id);
+                  openJournal(e.id);
                 }}
               >
                 <Icon name={e.visibility === 'gm' ? 'lock' : 'book'} className="row-icon" />

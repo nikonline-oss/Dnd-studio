@@ -2,6 +2,7 @@ import { useMutation } from '@tanstack/react-query';
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Group, Panel, Separator, useDefaultLayout } from 'react-resizable-panels';
+import { CenterTabs } from './CenterTabs';
 import { MenuBar } from './MenuBar';
 import { StatusBar } from './StatusBar';
 import { CharacterEditor } from '@/features/characters/CharacterEditor';
@@ -36,9 +37,10 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
   const inspect = useSelection((s) => s.inspect);
   const center = useSelection((s) => s.center);
   const journalId = useSelection((s) => s.journalId);
-  const selectJournal = useSelection((s) => s.selectJournal);
   const journalTitle = snapshot?.journal.find((e) => e.id === journalId)?.title;
   const mapName = snapshot?.maps.find((m) => m.id === mapId)?.name;
+  // Breadcrumbs follow the tab in front.
+  const crumb = center === 'journal' ? journalTitle : mapName;
   const isGm = preset === 'gm';
   // Logs are a GM/maintenance tool; the player preset keeps only chat (§5).
   const bottomTabs = isGm ? (['chat', 'logs'] as const) : (['chat'] as const);
@@ -76,7 +78,7 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
 
   return (
     <div className="app-shell">
-      <MenuBar breadcrumbs={[campaign.name, ...(mapName ? [mapName] : [])]} />
+      <MenuBar breadcrumbs={[campaign.name, ...(crumb ? [crumb] : [])]} />
       <Group
         orientation="horizontal"
         className="workbench"
@@ -106,25 +108,7 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
             onLayoutChanged={vertical.onLayoutChanged}
           >
             <Panel id="main" minSize="20" className="center-panel">
-              <div role="tablist" className="tabs">
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={center === 'map'}
-                  onClick={() => {
-                    selectJournal(null);
-                  }}
-                >
-                  <Icon name="map" />
-                  {mapName ?? t('panels.map')}
-                </button>
-                {journalTitle !== undefined && (
-                  <button type="button" role="tab" aria-selected={center === 'journal'}>
-                    <Icon name="book" />
-                    {journalTitle}
-                  </button>
-                )}
-              </div>
+              <CenterTabs />
               <div role="tabpanel" className="tab-body">
                 {center === 'journal' ? (
                   <ErrorBoundary name={t('journal.title')}>

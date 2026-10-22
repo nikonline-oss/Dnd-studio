@@ -19,7 +19,7 @@ export function MapList() {
   const { data: snapshot } = useSnapshot();
   const submit = useSubmitIntent();
   const selectedId = useSelection((s) => s.mapId);
-  const selectMap = useSelection((s) => s.selectMap);
+  const openMap = useSelection((s) => s.openMap);
   const maps = snapshot?.maps ?? [];
   const { data: campaign } = useCampaign();
   const isGm = campaign?.role === 'gm' || campaign?.role === 'co_gm';
@@ -30,7 +30,7 @@ export function MapList() {
     mutationFn: ipc.assetImportMap,
     onSuccess: (imported) => {
       if (!imported) return;
-      selectMap(imported.map_id);
+      openMap(imported.map_id);
       if (imported.downscaled) {
         showToast(
           t('maps.downscaled', {
@@ -60,7 +60,7 @@ export function MapList() {
       },
       {
         onSuccess: () => {
-          selectMap(id);
+          openMap(id);
         },
       },
     );
@@ -102,7 +102,7 @@ export function MapList() {
               className="nav-row"
               aria-current={map.id === selectedId}
               onClick={() => {
-                selectMap(map.id);
+                openMap(map.id);
               }}
             >
               <Icon name={background ? 'image' : 'grid'} className="row-icon" />
@@ -158,7 +158,6 @@ export function MapList() {
                       intent: { kind: 'delete_map', id: map.id },
                       expectedVersion: map.version,
                     });
-                    if (map.id === selectedId) selectMap(null);
                   }}
                 />
               </span>

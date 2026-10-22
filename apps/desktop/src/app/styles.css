@@ -567,6 +567,59 @@ input[type='checkbox'] {
   color: var(--color-accent);
 }
 
+/* Center tabs are divs (they hold a close button); give them the button look. */
+.tabs {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  max-width: 220px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.tab-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tab.closable {
+  padding-right: var(--space-1);
+}
+
+.tabs .tab-close {
+  min-width: 20px;
+  min-height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--color-text-muted);
+  opacity: 0;
+}
+
+.tab:hover .tab-close,
+.tab[aria-selected='true'] .tab-close,
+.tab:focus-visible .tab-close {
+  opacity: 1;
+}
+
+.tabs .tab-close:hover:not(:disabled) {
+  background: var(--color-hover);
+  color: var(--color-text);
+}
+
+.tabs .tab-close .icon {
+  color: inherit;
+}
+
 .tab-body {
   flex: 1;
   min-height: 0;

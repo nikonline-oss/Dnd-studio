@@ -25,7 +25,7 @@ function Editor({ entry }: { entry: JournalEntryDto }) {
   const { t } = useTranslation();
   const { data: campaign } = useCampaign();
   const submit = useSubmitIntent();
-  const selectJournal = useSelection((s) => s.selectJournal);
+  const closeTab = useSelection((s) => s.closeTab);
   /** Local text not yet confirmed by the core; `null` = showing the stored text. */
   const [draft, setDraft] = useState<string | null>(null);
   const [conflict, setConflict] = useState(false);
@@ -181,7 +181,7 @@ function Editor({ entry }: { entry: JournalEntryDto }) {
                 intent: { kind: 'delete_journal_entry', id: entry.id },
                 expectedVersion: entry.version,
               });
-              selectJournal(null);
+              closeTab({ kind: 'journal', id: entry.id });
             }}
           >
             {t('journal.delete')}
