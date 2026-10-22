@@ -157,6 +157,11 @@ pub const UNITS16_PER_UNIT: i64 = 16;
 /// Largest map width/height in logical units (ADR-0016).
 pub const MAX_MAP_SIZE: i64 = 65_536;
 
+/// Grid cell size bounds, in logical units: smaller cells would make the grid unreadable and
+/// too expensive to draw (ADR-0017).
+pub const MIN_CELL_SIZE: f64 = 8.0;
+pub const MAX_CELL_SIZE: f64 = 2048.0;
+
 /// Who may read a journal entry.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

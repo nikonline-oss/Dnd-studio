@@ -214,6 +214,38 @@ fn validation() {
     assert_eq!(state, table_state());
 }
 
+/// Tiny cells would make the grid unreadable and too expensive to draw (ADR-0017).
+#[test]
+fn grid_cell_size_is_bounded() {
+    let set_cell = |cell_size: f64| Intent::UpdateMap {
+        id: pooled_map_id(0),
+        name: None,
+        grid: Some(Grid {
+            kind: GridKind::HexFlat,
+            cell_size,
+            ..Grid::default()
+        }),
+        visible_to_players: None,
+    };
+    for cell_size in [
+        MIN_CELL_SIZE - 0.5,
+        MAX_CELL_SIZE + 1.0,
+        f64::NAN,
+        f64::INFINITY,
+    ] {
+        let mut state = table_state();
+        assert_eq!(
+            run(&mut state, Role::Gm, set_cell(cell_size), Some(Version(1))),
+            Err(RejectReason::invalid("grid.cell_size")),
+            "{cell_size}"
+        );
+    }
+    for cell_size in [MIN_CELL_SIZE, MAX_CELL_SIZE] {
+        let mut state = table_state();
+        run(&mut state, Role::Gm, set_cell(cell_size), Some(Version(1))).unwrap();
+    }
+}
+
 #[test]
 fn rotation_is_normalized_and_names_trimmed() {
     let mut state = table_state();

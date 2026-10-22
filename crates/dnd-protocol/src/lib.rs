@@ -31,7 +31,7 @@ pub use model::{
     MAX_CHAT_LEN, MAX_FOLDER_LEN, MAX_JOURNAL_BYTES, MAX_SHEET_BYTES, MapDto, SystemMessage,
     TokenDto, TokenLayer, UserDto,
 };
-pub use model::{MAX_MAP_SIZE, UNITS16_PER_UNIT};
+pub use model::{MAX_CELL_SIZE, MAX_MAP_SIZE, MIN_CELL_SIZE, UNITS16_PER_UNIT};
 pub use snapshot::Snapshot;
 /// Re-exported so dependants use the exact same UUID type.
 pub use uuid::Uuid;

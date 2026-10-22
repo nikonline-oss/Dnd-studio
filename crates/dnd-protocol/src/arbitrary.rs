@@ -96,7 +96,7 @@ pub fn grid_kind() -> impl Strategy<Value = GridKind> {
 }
 
 pub fn grid() -> impl Strategy<Value = Grid> {
-    (grid_kind(), 1.0f64..500.0, offset(), offset()).prop_map(
+    (grid_kind(), 8.0f64..500.0, offset(), offset()).prop_map(
         |(kind, cell_size, offset_x, offset_y)| Grid {
             kind,
             cell_size,

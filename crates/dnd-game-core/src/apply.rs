@@ -1,7 +1,8 @@
 //! `apply`: intent → events. Pure: never mutates state, never performs I/O.
 
 use dnd_protocol::{
-    Event, Grid, Intent, IntentEnvelope, MapDto, RejectReason, TokenDto, Version, VersionPolicy,
+    Event, Grid, Intent, IntentEnvelope, MAX_CELL_SIZE, MIN_CELL_SIZE, MapDto, RejectReason,
+    TokenDto, Version, VersionPolicy,
 };
 
 use crate::permissions::{Actor, authorize};
@@ -304,7 +305,7 @@ fn finite(value: f64, field: &str) -> Result<f64, RejectReason> {
 
 fn valid_grid(grid: Grid) -> Result<Grid, RejectReason> {
     let cell_size = finite(grid.cell_size, "grid.cell_size")?;
-    if cell_size <= 0.0 {
+    if !(MIN_CELL_SIZE..=MAX_CELL_SIZE).contains(&cell_size) {
         return Err(RejectReason::invalid("grid.cell_size"));
     }
     Ok(Grid {
