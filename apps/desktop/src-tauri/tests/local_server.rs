@@ -287,6 +287,19 @@ fn dev_config_has_no_updater() {
     assert!(config["plugins"]["updater"].is_null());
 }
 
+/// The window must not intercept drag-and-drop: with Tauri's native file drop on (the default),
+/// WebView2 never delivers HTML `drop` events, and dragging a character onto the map does
+/// nothing. Files dropped from outside (plugins, CLAUDE.md §8) will come as HTML `File`s too.
+#[test]
+fn window_leaves_drag_and_drop_to_the_page() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tauri.conf.json");
+    let config: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+    for window in config["app"]["windows"].as_array().unwrap() {
+        assert_eq!(window["dragDropEnabled"], false, "{window}");
+    }
+}
+
 /// ADR-0015: a repeated intent (reconnect, `pending_ops` replay) returns the original outcome
 /// and is not applied or written twice.
 #[tokio::test]
