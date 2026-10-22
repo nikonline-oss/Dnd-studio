@@ -14,7 +14,7 @@ use crate::rng::GameRng;
 use crate::state::GameState;
 
 /// Lets `dnd-dice` draw from the core's injected RNG (ADR-0001).
-struct DiceRngAdapter<'a>(&'a mut dyn GameRng);
+pub(crate) struct DiceRngAdapter<'a>(pub(crate) &'a mut dyn GameRng);
 
 impl DiceRng for DiceRngAdapter<'_> {
     fn next_u64(&mut self) -> u64 {
@@ -23,7 +23,7 @@ impl DiceRng for DiceRngAdapter<'_> {
 }
 
 /// `@path` references resolve against a character sheet (integers only, ADR-0016).
-struct SheetFields<'a>(Option<&'a str>);
+pub(crate) struct SheetFields<'a>(pub(crate) Option<&'a str>);
 
 impl FieldLookup for SheetFields<'_> {
     fn lookup(&self, path: &str) -> Result<i64, LookupError> {
@@ -108,9 +108,8 @@ pub(crate) fn apply(
 
 /// A system message with an id drawn from the core's RNG (deterministic for a seed).
 pub(crate) fn system(system: SystemMessage, rng: &mut dyn GameRng) -> Event {
-    let bits = (u128::from(rng.next_u64()) << 64) | u128::from(rng.next_u64());
     posted(ChatMessageDto {
-        id: ChatMessageId(uuid_v7_from_random(bits)),
+        id: message_id(rng),
         kind: ChatKind::System,
         sender: None,
         sender_name: String::new(),
@@ -122,11 +121,17 @@ pub(crate) fn system(system: SystemMessage, rng: &mut dyn GameRng) -> Event {
     })
 }
 
-fn posted(message: ChatMessageDto) -> Event {
+/// A chat message id drawn from the core's RNG (deterministic for a seed).
+pub(crate) fn message_id(rng: &mut dyn GameRng) -> ChatMessageId {
+    let bits = (u128::from(rng.next_u64()) << 64) | u128::from(rng.next_u64());
+    ChatMessageId(uuid_v7_from_random(bits))
+}
+
+pub(crate) fn posted(message: ChatMessageDto) -> Event {
     Event::ChatMessagePosted { message }
 }
 
-fn sender_name(state: &GameState, actor: &Actor) -> String {
+pub(crate) fn sender_name(state: &GameState, actor: &Actor) -> String {
     state
         .users
         .get(&actor.user_id)
@@ -134,7 +139,7 @@ fn sender_name(state: &GameState, actor: &Actor) -> String {
         .unwrap_or_default()
 }
 
-fn roll_dto(roll: &dnd_dice::Roll) -> DiceRollDto {
+pub(crate) fn roll_dto(roll: &dnd_dice::Roll) -> DiceRollDto {
     DiceRollDto {
         expression: roll.expression.to_string(),
         terms: roll

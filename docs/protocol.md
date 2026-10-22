@@ -36,6 +36,7 @@
 | `delete_map`           | проверяется    | GM, Co-GM (каскадно удаляет токены)              |
 | `apply_fog`            | —              | GM, Co-GM (ADR-0019; версию карты не меняет)     |
 | `reset_fog`            | LWW            | GM, Co-GM (ADR-0019)                             |
+| бой: `start_combat` …  | см. ADR-0020   | GM, Co-GM; игрок — свой бросок и свой ход        |
 | `create_token`         | —              | GM, Co-GM                                        |
 | `update_token`         | проверяется    | GM, Co-GM                                        |
 | `move_token`           | LWW, не растёт | GM, Co-GM; Player — свои токены на видимой карте |

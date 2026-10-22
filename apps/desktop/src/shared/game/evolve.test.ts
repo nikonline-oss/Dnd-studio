@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { applyBatch, applyEvent } from './evolve';
-import type { FogOp, MapDto, Snapshot, TokenDto } from '@/shared/ipc/client';
+import type {
+  CombatantDto,
+  CombatDto,
+  FogOp,
+  MapDto,
+  Snapshot,
+  TokenDto,
+} from '@/shared/ipc/client';
 
 const map = (id: string, version = 1): MapDto => ({
   id,
@@ -38,6 +45,8 @@ const empty: Snapshot = {
   journal: [],
   assets: [],
   fog: [],
+  combats: [],
+  combatants: [],
   chat: [],
 };
 
@@ -111,6 +120,57 @@ describe('applyEvent: fog (mirrors the core)', () => {
   it('ignores fog of an unknown map', () => {
     expect(applyEvent(empty, { kind: 'fog_applied', map_id: 'nope', op: reveal })).toBe(empty);
     expect(applyEvent(empty, { kind: 'fog_reset', map_id: 'nope', covered: true })).toBe(empty);
+  });
+});
+
+describe('applyEvent: combat (mirrors the core)', () => {
+  const combat: CombatDto = { id: 'c1', map_id: 'm1', round: 1, turn: null, version: 1 };
+  const combatant = (id: string, tokenId: string | null): CombatantDto => ({
+    id,
+    combat_id: 'c1',
+    token_id: tokenId,
+    character_id: null,
+    name: id,
+    initiative: null,
+    sort_order: 0,
+    version: 1,
+  });
+  let s = applyEvent(empty, { kind: 'map_created', map: map('m1') });
+  s = applyEvent(s, { kind: 'token_created', token: token('t1', 'm1') });
+  s = applyEvent(s, { kind: 'combat_started', combat });
+  s = applyEvent(s, { kind: 'combatant_added', combatant: combatant('a', 't1') });
+  s = applyEvent(s, { kind: 'combatant_added', combatant: combatant('b', null) });
+  const fight = s;
+
+  it('tracks turns and initiative', () => {
+    let next = applyEvent(fight, {
+      kind: 'combat_updated',
+      combat: { ...combat, turn: 'a', round: 2, version: 2 },
+    });
+    next = applyEvent(next, {
+      kind: 'combatant_updated',
+      combatant: { ...combatant('a', 't1'), initiative: 15, version: 2 },
+    });
+    expect(next.combats).toEqual([{ ...combat, turn: 'a', round: 2, version: 2 }]);
+    expect(next.combatants.find((c) => c.id === 'a')?.initiative).toBe(15);
+    next = applyEvent(next, { kind: 'combatant_removed', id: 'b' });
+    expect(next.combatants.map((c) => c.id)).toEqual(['a']);
+  });
+
+  it('a deleted token leaves its combatant without a token', () => {
+    const next = applyEvent(fight, { kind: 'token_deleted', id: 't1' });
+    expect(next.combatants.find((c) => c.id === 'a')?.token_id).toBeNull();
+  });
+
+  it('ending the combat or deleting its map removes everything', () => {
+    for (const event of [
+      { kind: 'combat_ended', id: 'c1' } as const,
+      { kind: 'map_deleted', id: 'm1' } as const,
+    ]) {
+      const next = applyEvent(fight, event);
+      expect(next.combats).toEqual([]);
+      expect(next.combatants).toEqual([]);
+    }
   });
 });
 

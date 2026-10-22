@@ -63,6 +63,8 @@ function renderWith(role: Role, characters: CharacterDto[], node: React.ReactNod
     journal: [],
     assets: [],
     fog: [],
+    combats: [],
+    combatants: [],
     chat: [],
   };
   const info: CampaignInfo = { name: 'C', path: '/c', user_id: ME, role };

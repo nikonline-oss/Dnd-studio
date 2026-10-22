@@ -28,6 +28,25 @@ pub fn authorize(actor: &Actor, intent: &Intent, state: &GameState) -> Result<()
             Intent::MoveToken { id, .. } if player_controls_token(actor.user_id, *id, state) => {
                 Ok(())
             }
+            // Initiative for their own character, and ending their own turn (ADR-0020).
+            Intent::RollInitiative { id }
+                if state
+                    .combatants
+                    .get(id)
+                    .is_some_and(|c| owns(actor.user_id, c.character_id, state)) =>
+            {
+                Ok(())
+            }
+            Intent::NextTurn { combat_id }
+                if state
+                    .combats
+                    .get(combat_id)
+                    .and_then(|c| c.turn)
+                    .and_then(|turn| state.combatants.get(&turn))
+                    .is_some_and(|c| owns(actor.user_id, c.character_id, state)) =>
+            {
+                Ok(())
+            }
             // Hidden rolls and sheets of other characters are checked in `chat`.
             Intent::SendMessage { .. } | Intent::RollDice { .. } => Ok(()),
             // Players create only their own player characters (they start as drafts).
@@ -64,6 +83,13 @@ pub fn authorize(actor: &Actor, intent: &Intent, state: &GameState) -> Result<()
             _ => Err(RejectReason::Forbidden),
         },
     }
+}
+
+/// `user` owns the (optional) character.
+fn owns(user: UserId, character: Option<CharacterId>, state: &GameState) -> bool {
+    character
+        .and_then(|c| state.characters.get(&c))
+        .is_some_and(|c| c.owner == Some(user))
 }
 
 /// `user` owns character `id` and its status passes `status_ok`.

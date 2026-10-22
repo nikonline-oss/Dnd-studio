@@ -8,11 +8,13 @@ use proptest::sample::select;
 use uuid::{Builder, Uuid};
 
 use crate::event::{Event, EventBatch};
-use crate::ids::{CharacterId, FogOpId, IntentId, MapId, Seq, TokenId, Version};
+use crate::ids::{
+    CharacterId, CombatId, CombatantId, FogOpId, IntentId, MapId, Seq, TokenId, Version,
+};
 use crate::intent::{Intent, IntentEnvelope};
 use crate::model::{
-    CampaignMeta, CharacterKind, FogOp, FogOpKind, FogShape, Grid, GridKind, MapDto, TokenDto,
-    TokenLayer,
+    CampaignMeta, CharacterKind, CombatDto, CombatantDto, FogOp, FogOpKind, FogShape, Grid,
+    GridKind, MapDto, TokenDto, TokenLayer,
 };
 
 /// Number of distinct map ids produced by [`map_id`].
@@ -78,6 +80,55 @@ pub fn offset() -> impl Strategy<Value = f64> {
 /// 1000 units wide, i.e. 16 000 Units16), sometimes negative to exercise rejections.
 pub fn position() -> impl Strategy<Value = i64> {
     -100i64..=16_000
+}
+
+pub fn combat_id() -> impl Strategy<Value = CombatId> {
+    (0x2_0000u128..0x2_0004).prop_map(|n| CombatId(v7(n)))
+}
+
+pub fn combatant_id() -> impl Strategy<Value = CombatantId> {
+    (0x3_0000u128..0x3_0008).prop_map(|n| CombatantId(v7(n)))
+}
+
+pub fn combat_dto() -> impl Strategy<Value = CombatDto> {
+    (
+        combat_id(),
+        map_id(),
+        1i64..20,
+        proptest::option::of(combatant_id()),
+        version(),
+    )
+        .prop_map(|(id, map_id, round, turn, version)| CombatDto {
+            id,
+            map_id,
+            round,
+            turn,
+            version,
+        })
+}
+
+pub fn combatant_dto() -> impl Strategy<Value = CombatantDto> {
+    (
+        combatant_id(),
+        combat_id(),
+        proptest::option::of(token_id()),
+        name(),
+        proptest::option::of(-5i64..40),
+        0i64..100,
+        version(),
+    )
+        .prop_map(
+            |(id, combat_id, token_id, name, initiative, sort_order, version)| CombatantDto {
+                id,
+                combat_id,
+                token_id,
+                character_id: None,
+                name,
+                initiative,
+                sort_order,
+                version,
+            },
+        )
 }
 
 /// Fog operations; ids from a large range so most are new, shapes partly off the map.
@@ -177,6 +228,26 @@ pub fn intent() -> impl Strategy<Value = Intent> {
         (map_id(), fog_op()).prop_map(|(map_id, op)| Intent::ApplyFog { map_id, op }),
         (map_id(), any::<bool>())
             .prop_map(|(map_id, covered)| Intent::ResetFog { map_id, covered }),
+        (combat_id(), map_id()).prop_map(|(id, map_id)| Intent::StartCombat { id, map_id }),
+        (
+            combatant_id(),
+            combat_id(),
+            proptest::option::of(token_id()),
+            name()
+        )
+            .prop_map(|(id, combat_id, token_id, name)| Intent::AddCombatant {
+                id,
+                combat_id,
+                token_id,
+                character_id: None,
+                name,
+            }),
+        combatant_id().prop_map(|id| Intent::RemoveCombatant { id }),
+        combatant_id().prop_map(|id| Intent::RollInitiative { id }),
+        (combatant_id(), proptest::option::of(-5i64..40))
+            .prop_map(|(id, initiative)| Intent::SetInitiative { id, initiative }),
+        combat_id().prop_map(|combat_id| Intent::NextTurn { combat_id }),
+        combat_id().prop_map(|id| Intent::EndCombat { id }),
         (
             token_id(),
             map_id(),
@@ -334,6 +405,12 @@ pub fn event() -> impl Strategy<Value = Event> {
         map_id().prop_map(|id| Event::MapDeleted { id }),
         (map_id(), fog_op()).prop_map(|(map_id, op)| Event::FogApplied { map_id, op }),
         (map_id(), any::<bool>()).prop_map(|(map_id, covered)| Event::FogReset { map_id, covered }),
+        combat_dto().prop_map(|combat| Event::CombatStarted { combat }),
+        combat_dto().prop_map(|combat| Event::CombatUpdated { combat }),
+        combat_id().prop_map(|id| Event::CombatEnded { id }),
+        combatant_dto().prop_map(|combatant| Event::CombatantAdded { combatant }),
+        combatant_dto().prop_map(|combatant| Event::CombatantUpdated { combatant }),
+        combatant_id().prop_map(|id| Event::CombatantRemoved { id }),
         token_dto().prop_map(|token| Event::TokenCreated { token }),
         token_dto().prop_map(|token| Event::TokenUpdated { token }),
         (token_id(), position(), position()).prop_map(|(id, x, y)| Event::TokenMoved { id, x, y }),

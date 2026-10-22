@@ -3,7 +3,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::ids::{
-    AssetId, CharacterId, ChatMessageId, FogOpId, JournalEntryId, MapId, TokenId, UserId, Version,
+    AssetId, CharacterId, ChatMessageId, CombatId, CombatantId, FogOpId, JournalEntryId, MapId,
+    TokenId, UserId, Version,
 };
 
 /// Campaign-wide metadata (singleton entity).
@@ -215,6 +216,43 @@ pub struct FogDto {
     pub covered: bool,
     pub ops: Vec<FogOp>,
 }
+
+/// A combat on a map (ADR-0020): the turn order of its combatants. At most one per map.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct CombatDto {
+    pub id: CombatId,
+    pub map_id: MapId,
+    /// Starts at 1; grows when the turn wraps around.
+    #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
+    pub round: i64,
+    /// Whose turn it is; `None` until the first `next_turn`.
+    pub turn: Option<CombatantId>,
+    pub version: Version,
+}
+
+/// A participant of a combat: usually a token, possibly linked to a character.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct CombatantDto {
+    pub id: CombatantId,
+    pub combat_id: CombatId,
+    /// `None` for a combatant without a token, or after its token was deleted.
+    pub token_id: Option<TokenId>,
+    /// The sheet the initiative formula reads (and who owns the combatant).
+    pub character_id: Option<CharacterId>,
+    pub name: String,
+    /// `None` until rolled or set.
+    #[cfg_attr(feature = "specta", specta(type = Option<specta_typescript::Number>))]
+    pub initiative: Option<i64>,
+    /// Order of joining; breaks ties in initiative.
+    #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
+    pub sort_order: i64,
+    pub version: Version,
+}
+
+/// Most combatants in one combat.
+pub const MAX_COMBATANTS: usize = 100;
 
 /// Most points in one brush stroke.
 pub const MAX_BRUSH_POINTS: usize = 512;

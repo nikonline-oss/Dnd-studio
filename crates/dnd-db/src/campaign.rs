@@ -5,9 +5,10 @@ use std::path::{Path, PathBuf};
 use dnd_game_core::GameState;
 use dnd_protocol::{
     AssetDto, AssetId, AssetTileDto, CampaignMeta, CharacterDto, CharacterId, ChatKind,
-    ChatMessageDto, ChatMessageId, DiceRollDto, Event, EventBatch, FogDto, FogOp, Grid, GridKind,
-    IntentId, JournalEntryDto, JournalEntryId, MapDto, MapId, PayloadHash, Role, Seq,
-    SystemMessage, TokenDto, TokenId, TokenLayer, UserDto, UserId, Version,
+    ChatMessageDto, ChatMessageId, CombatDto, CombatId, CombatantDto, CombatantId, DiceRollDto,
+    Event, EventBatch, FogDto, FogOp, Grid, GridKind, IntentId, JournalEntryDto, JournalEntryId,
+    MapDto, MapId, PayloadHash, Role, Seq, SystemMessage, TokenDto, TokenId, TokenLayer, UserDto,
+    UserId, Version,
 };
 use serde::{Deserialize, Serialize};
 use sqlx::sqlite::SqliteRow;
@@ -342,6 +343,61 @@ impl CampaignDb {
             state.tokens.insert(token.id, token);
         }
         for row in sqlx::query(
+            "SELECT id, map_id, round, turn_combatant_id, version FROM combats ORDER BY id",
+        )
+        .fetch_all(&self.pool)
+        .await?
+        {
+            let combat = CombatDto {
+                id: CombatId(uuid_from_str(
+                    "combats.id",
+                    &row.try_get::<String, _>("id")?,
+                )?),
+                map_id: MapId(uuid_from_str(
+                    "combats.map_id",
+                    &row.try_get::<String, _>("map_id")?,
+                )?),
+                round: row.try_get("round")?,
+                turn: opt_uuid_from_str(
+                    "combats.turn_combatant_id",
+                    row.try_get("turn_combatant_id")?,
+                )?
+                .map(CombatantId),
+                version: Version(row.try_get("version")?),
+            };
+            state.combats.insert(combat.id, combat);
+        }
+        for row in sqlx::query(
+            "SELECT id, combat_id, token_id, character_id, name, initiative, sort_order, version \
+             FROM combatants ORDER BY id",
+        )
+        .fetch_all(&self.pool)
+        .await?
+        {
+            let combatant = CombatantDto {
+                id: CombatantId(uuid_from_str(
+                    "combatants.id",
+                    &row.try_get::<String, _>("id")?,
+                )?),
+                combat_id: CombatId(uuid_from_str(
+                    "combatants.combat_id",
+                    &row.try_get::<String, _>("combat_id")?,
+                )?),
+                token_id: opt_uuid_from_str("combatants.token_id", row.try_get("token_id")?)?
+                    .map(TokenId),
+                character_id: opt_uuid_from_str(
+                    "combatants.character_id",
+                    row.try_get("character_id")?,
+                )?
+                .map(CharacterId),
+                name: row.try_get("name")?,
+                initiative: row.try_get("initiative")?,
+                sort_order: row.try_get("sort_order")?,
+                version: Version(row.try_get("version")?),
+            };
+            state.combatants.insert(combatant.id, combatant);
+        }
+        for row in sqlx::query(
             "SELECT id, kind, name, owner_user_id, status, sheet_data, version \
              FROM characters ORDER BY id",
         )
@@ -540,6 +596,59 @@ async fn project_event(conn: &mut SqliteConnection, event: &Event, at_ms: i64) -
         }
         Event::ChatMessagePosted { message } => insert_chat_message(conn, message, at_ms).await,
         Event::AssetRegistered { asset } => insert_asset(conn, asset, at_ms).await,
+        Event::CombatStarted { combat } | Event::CombatUpdated { combat } => {
+            sqlx::query(
+                "INSERT INTO combats (id, map_id, round, turn_combatant_id, version) \
+                 VALUES (?, ?, ?, ?, ?) \
+                 ON CONFLICT (id) DO UPDATE SET round = excluded.round, \
+                     turn_combatant_id = excluded.turn_combatant_id, version = excluded.version",
+            )
+            .bind(combat.id.to_string())
+            .bind(combat.map_id.to_string())
+            .bind(combat.round)
+            .bind(combat.turn.map(|t| t.to_string()))
+            .bind(combat.version.0)
+            .execute(conn)
+            .await?;
+            Ok(())
+        }
+        Event::CombatEnded { id } => {
+            // Combatants go with it (ON DELETE CASCADE).
+            sqlx::query("DELETE FROM combats WHERE id = ?")
+                .bind(id.to_string())
+                .execute(conn)
+                .await?;
+            Ok(())
+        }
+        Event::CombatantAdded { combatant } | Event::CombatantUpdated { combatant } => {
+            sqlx::query(
+                "INSERT INTO combatants (id, combat_id, token_id, character_id, name, initiative, \
+                     sort_order, version) \
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?) \
+                 ON CONFLICT (id) DO UPDATE SET token_id = excluded.token_id, \
+                     character_id = excluded.character_id, name = excluded.name, \
+                     initiative = excluded.initiative, sort_order = excluded.sort_order, \
+                     version = excluded.version",
+            )
+            .bind(combatant.id.to_string())
+            .bind(combatant.combat_id.to_string())
+            .bind(combatant.token_id.map(|t| t.to_string()))
+            .bind(combatant.character_id.map(|c| c.to_string()))
+            .bind(&combatant.name)
+            .bind(combatant.initiative)
+            .bind(combatant.sort_order)
+            .bind(combatant.version.0)
+            .execute(conn)
+            .await?;
+            Ok(())
+        }
+        Event::CombatantRemoved { id } => {
+            sqlx::query("DELETE FROM combatants WHERE id = ?")
+                .bind(id.to_string())
+                .execute(conn)
+                .await?;
+            Ok(())
+        }
     }
 }
 

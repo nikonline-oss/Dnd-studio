@@ -6,6 +6,8 @@ CREATE TABLE assets ( id TEXT PRIMARY KEY NOT NULL, type TEXT NOT NULL CHECK (ty
 CREATE TABLE campaign_meta ( key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL ) STRICT, WITHOUT ROWID;
 CREATE TABLE characters ( id TEXT PRIMARY KEY NOT NULL, kind TEXT NOT NULL CHECK (kind IN ('pc', 'npc')), name TEXT NOT NULL, sheet_template TEXT, sheet_data TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(sheet_data)), owner_user_id TEXT REFERENCES users (id) ON DELETE SET NULL, status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'pending_approval', 'active', 'archived')), version INTEGER NOT NULL DEFAULT 1 ) STRICT;
 CREATE TABLE chat_messages ( id TEXT PRIMARY KEY NOT NULL, sender_user_id TEXT REFERENCES users (id) ON DELETE SET NULL, kind TEXT NOT NULL CHECK (kind IN ('text', 'system', 'roll')), body TEXT NOT NULL, whisper_to TEXT CHECK (whisper_to IS NULL OR json_valid(whisper_to)), created_at INTEGER NOT NULL , sender_name TEXT NOT NULL DEFAULT '', visibility TEXT NOT NULL DEFAULT 'all' CHECK (visibility IN ('all', 'gm'))) STRICT;
+CREATE TABLE combatants ( id TEXT PRIMARY KEY NOT NULL, combat_id TEXT NOT NULL REFERENCES combats (id) ON DELETE CASCADE, token_id TEXT REFERENCES tokens (id) ON DELETE SET NULL, character_id TEXT REFERENCES characters (id) ON DELETE SET NULL, name TEXT NOT NULL, initiative INTEGER, sort_order INTEGER NOT NULL, version INTEGER NOT NULL DEFAULT 1 ) STRICT;
+CREATE TABLE combats ( id TEXT PRIMARY KEY NOT NULL, map_id TEXT NOT NULL UNIQUE REFERENCES maps (id) ON DELETE CASCADE, round INTEGER NOT NULL CHECK (round >= 1), -- Not a foreign key (combatants reference combats); the core keeps it valid. turn_combatant_id TEXT, version INTEGER NOT NULL DEFAULT 1 ) STRICT;
 CREATE TABLE compendia ( id TEXT PRIMARY KEY NOT NULL, plugin_id TEXT, name TEXT NOT NULL, entry_type TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 1 ) STRICT;
 CREATE TABLE compendium_entries ( id TEXT PRIMARY KEY NOT NULL, compendium_id TEXT NOT NULL REFERENCES compendia (id) ON DELETE CASCADE, name TEXT NOT NULL, data TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(data)), sort_order INTEGER NOT NULL DEFAULT 0, version INTEGER NOT NULL DEFAULT 1 ) STRICT;
 CREATE TABLE dice_rolls ( id TEXT PRIMARY KEY NOT NULL, user_id TEXT REFERENCES users (id) ON DELETE SET NULL, expression TEXT NOT NULL, result TEXT NOT NULL CHECK (json_valid(result)), total INTEGER NOT NULL, chat_message_id TEXT REFERENCES chat_messages (id), created_at INTEGER NOT NULL , user_name TEXT NOT NULL DEFAULT '') STRICT;
@@ -20,6 +22,9 @@ CREATE TABLE users ( id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL, role TEXT
 CREATE TABLE worlds ( id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', sort_order INTEGER NOT NULL DEFAULT 0, version INTEGER NOT NULL DEFAULT 1 ) STRICT;
 CREATE INDEX characters_owner_user_id ON characters (owner_user_id);
 CREATE INDEX chat_messages_created_at ON chat_messages (created_at);
+CREATE INDEX combatants_character_id ON combatants (character_id);
+CREATE INDEX combatants_combat_id ON combatants (combat_id);
+CREATE INDEX combatants_token_id ON combatants (token_id);
 CREATE INDEX compendia_plugin_id ON compendia (plugin_id);
 CREATE INDEX compendium_entries_compendium_id ON compendium_entries (compendium_id, sort_order);
 CREATE INDEX dice_rolls_chat_message_id ON dice_rolls (chat_message_id);

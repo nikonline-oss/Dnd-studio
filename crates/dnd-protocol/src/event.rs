@@ -5,9 +5,10 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::ids::{IntentId, JournalEntryId, MapId, Seq, TokenId};
+use crate::ids::{CombatId, CombatantId, IntentId, JournalEntryId, MapId, Seq, TokenId};
 use crate::model::{
-    AssetDto, CampaignMeta, CharacterDto, ChatMessageDto, FogOp, JournalEntryDto, MapDto, TokenDto,
+    AssetDto, CampaignMeta, CharacterDto, ChatMessageDto, CombatDto, CombatantDto, FogOp,
+    JournalEntryDto, MapDto, TokenDto,
 };
 
 /// A fact about a state change.
@@ -77,6 +78,28 @@ pub enum Event {
 
     AssetRegistered {
         asset: Box<AssetDto>,
+    },
+
+    CombatStarted {
+        combat: CombatDto,
+    },
+    /// Round or turn changed.
+    CombatUpdated {
+        combat: CombatDto,
+    },
+    /// The combat and all its combatants are gone.
+    CombatEnded {
+        id: CombatId,
+    },
+    CombatantAdded {
+        combatant: CombatantDto,
+    },
+    /// Initiative changed.
+    CombatantUpdated {
+        combatant: CombatantDto,
+    },
+    CombatantRemoved {
+        id: CombatantId,
     },
 
     /// A text, roll or system message.

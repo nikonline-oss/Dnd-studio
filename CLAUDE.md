@@ -165,7 +165,8 @@ players_can_edit), journal_links (source, target_type, target_id, link_type, dir
 visible_to_players), compendia + compendium_entries, installed_plugins (id, version, active, config,
 installed_at, compat_warning), chat_messages (append-only, `sender_name` на момент записи), dice_rolls
 (`user_name` на момент записи), event_log (seq, event JSON),
-pending_ops (только клиент, ADR-004).
+combats (map — один бой на карту, round, turn) + combatants (combat, token?, character?, name, initiative?,
+sort_order) — ADR-0020, pending_ops (только клиент, ADR-004).
 У всех изменяемых сущностей — `version`. Архив кампании: ZIP = `campaign.sqlite` + `assets/` + `manifest.json`.
 
 Сервер, `server.sqlite`: sessions (id, state: creating/active/stopped/expired, params, gm_key_hash,

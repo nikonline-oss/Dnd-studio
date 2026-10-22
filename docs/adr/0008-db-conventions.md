@@ -83,6 +83,11 @@ ADR-0002 выбрал SQLite. Нужно зафиксировать, как им
 | `INSERT … ON CONFLICT` `maps`             | `upsert_map`              | `queries.rs::every_event_kind_is_projected` (insert и update)                     |
 | `UPDATE maps SET fog = json_insert(…)`    | `project_event`           | `queries.rs::fog_is_appended_reset_and_loaded` (порядок, неизвестная карта)       |
 | `UPDATE maps SET fog = ?`                 | `project_event`           | `queries.rs::fog_is_appended_reset_and_loaded` (сброс; переименование не трогает) |
+| `INSERT … ON CONFLICT` `combats`          | `project_event`           | `queries.rs::combats_and_combatants_are_projected_and_loaded` (один бой на карту) |
+| `DELETE FROM combats` (+ FK cascade)      | `project_event`           | `queries.rs::combats_and_combatants_are_projected_and_loaded`                     |
+| `INSERT … ON CONFLICT` `combatants`       | `project_event`           | `queries.rs::combats_and_combatants_are_projected_and_loaded` (insert и update)   |
+| `DELETE FROM combatants`                  | `project_event`           | `queries.rs::combats_and_combatants_are_projected_and_loaded`                     |
+| `SELECT … FROM combats` / `combatants`    | `load_state`              | `queries.rs::combats_and_combatants_are_projected_and_loaded` (SET NULL токена)   |
 | `INSERT … ON CONFLICT` `tokens`           | `upsert_token`            | `queries.rs::every_event_kind_is_projected` (insert и update)                     |
 | миграции `server` (`open_server_db`)      | `connect::open_server_db` | `queries.rs::server_db_opens_migrates_and_enforces_constraints`                   |
 

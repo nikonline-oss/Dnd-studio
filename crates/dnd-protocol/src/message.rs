@@ -71,7 +71,8 @@ pub enum ClientMessage {
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum ServerMessage {
     Events(EventBatch),
-    Snapshot(Snapshot),
+    /// Boxed: by far the largest message (keeps `ServerMessage` small).
+    Snapshot(Box<Snapshot>),
     Rejected(Rejection),
     Pong,
 }

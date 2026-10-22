@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::ids::Seq;
 use crate::model::{
-    AssetDto, CampaignMeta, CharacterDto, ChatMessageDto, FogDto, JournalEntryMeta, MapDto,
-    TokenDto, UserDto,
+    AssetDto, CampaignMeta, CharacterDto, ChatMessageDto, CombatDto, CombatantDto, FogDto,
+    JournalEntryMeta, MapDto, TokenDto, UserDto,
 };
 
 /// The visible state as of event `seq`.
@@ -24,6 +24,9 @@ pub struct Snapshot {
     pub assets: Vec<AssetDto>,
     /// Fog of maps that have any (ADR-0019).
     pub fog: Vec<FogDto>,
+    /// Combats and their combatants (ADR-0020).
+    pub combats: Vec<CombatDto>,
+    pub combatants: Vec<CombatantDto>,
     /// The last `CHAT_SNAPSHOT_LEN` chat messages, oldest first.
     pub chat: Vec<ChatMessageDto>,
 }

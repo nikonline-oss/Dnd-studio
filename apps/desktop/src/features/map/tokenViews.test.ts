@@ -66,6 +66,8 @@ const snapshot = (visibleToPlayers: boolean): Snapshot => ({
   journal: [],
   assets: [],
   fog: [],
+  combats: [],
+  combatants: [],
   chat: [],
 });
 

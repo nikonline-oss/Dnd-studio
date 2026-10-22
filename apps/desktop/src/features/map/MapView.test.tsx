@@ -145,6 +145,8 @@ function setup(
     journal: [],
     assets: [asset],
     fog,
+    combats: [],
+    combatants: [],
     chat: [],
     ...extra,
   };

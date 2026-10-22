@@ -16,6 +16,16 @@ pub fn evolve(state: &mut GameState, event: &Event) {
             state.maps.remove(id);
             state.tokens.retain(|_, t| t.map_id != *id);
             state.fog.remove(id);
+            // The map's combat goes with it (FK cascade in the database).
+            let ended: Vec<_> = state
+                .combats
+                .values()
+                .filter(|c| c.map_id == *id)
+                .map(|c| c.id)
+                .collect();
+            for combat in ended {
+                end_combat(state, combat);
+            }
         }
         // Fog of an unknown map is ignored, like a move of an unknown token.
         Event::FogApplied { map_id, op } if state.maps.contains_key(map_id) => {
@@ -51,6 +61,22 @@ pub fn evolve(state: &mut GameState, event: &Event) {
         }
         Event::TokenDeleted { id } => {
             state.tokens.remove(id);
+            // Its combatant stays in the fight without a token (ON DELETE SET NULL).
+            for combatant in state.combatants.values_mut() {
+                if combatant.token_id == Some(*id) {
+                    combatant.token_id = None;
+                }
+            }
+        }
+        Event::CombatStarted { combat } | Event::CombatUpdated { combat } => {
+            state.combats.insert(combat.id, combat.clone());
+        }
+        Event::CombatEnded { id } => end_combat(state, *id),
+        Event::CombatantAdded { combatant } | Event::CombatantUpdated { combatant } => {
+            state.combatants.insert(combatant.id, combatant.clone());
+        }
+        Event::CombatantRemoved { id } => {
+            state.combatants.remove(id);
         }
         Event::CharacterCreated { character } | Event::CharacterUpdated { character } => {
             state.characters.insert(character.id, character.clone());
@@ -67,6 +93,11 @@ pub fn evolve(state: &mut GameState, event: &Event) {
         // Chat history is not part of the game state (see `chat`).
         Event::ChatMessagePosted { .. } => {}
     }
+}
+
+fn end_combat(state: &mut GameState, id: dnd_protocol::CombatId) {
+    state.combats.remove(&id);
+    state.combatants.retain(|_, c| c.combat_id != id);
 }
 
 /// Applies a sequence of events in order.

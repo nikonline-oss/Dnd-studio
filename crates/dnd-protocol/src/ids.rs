@@ -63,6 +63,14 @@ define_id!(
     FogOpId
 );
 define_id!(
+    /// A combat (initiative order) on a map.
+    CombatId
+);
+define_id!(
+    /// A participant of a combat.
+    CombatantId
+);
+define_id!(
     /// Client-chosen identifier of an intent, used to correlate `Rejected`/`Events`.
     IntentId
 );

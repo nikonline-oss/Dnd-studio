@@ -40,6 +40,8 @@ function renderTabs(maps: MapDto[]) {
     ],
     assets: [],
     fog: [],
+    combats: [],
+    combatants: [],
     chat: [],
   };
   mockIPC((cmd) => {

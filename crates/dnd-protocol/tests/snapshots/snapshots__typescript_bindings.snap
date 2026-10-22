@@ -110,6 +110,39 @@ export type ClientMessage = { type: "intent"; payload: IntentEnvelope } | { type
 	last_seq: Seq,
 } };
 
+/**  A combat on a map (ADR-0020): the turn order of its combatants. At most one per map. */
+export type CombatDto = {
+	id: CombatId,
+	map_id: MapId,
+	/**  Starts at 1; grows when the turn wraps around. */
+	round: number,
+	/**  Whose turn it is; `None` until the first `next_turn`. */
+	turn: CombatantId | null,
+	version: Version,
+};
+
+/**  A combat (initiative order) on a map. */
+export type CombatId = string;
+
+/**  A participant of a combat: usually a token, possibly linked to a character. */
+export type CombatantDto = {
+	id: CombatantId,
+	combat_id: CombatId,
+	/**  `None` for a combatant without a token, or after its token was deleted. */
+	token_id: TokenId | null,
+	/**  The sheet the initiative formula reads (and who owns the combatant). */
+	character_id: CharacterId | null,
+	name: string,
+	/**  `None` until rolled or set. */
+	initiative: number | null,
+	/**  Order of joining; breaks ties in initiative. */
+	sort_order: number,
+	version: Version,
+};
+
+/**  A participant of a combat. */
+export type CombatantId = string;
+
 /**  Result of a dice roll (ADR-0005, ADR-0016: all numbers are integers). */
 export type DiceRollDto = {
 	/**  Canonical form of the expression. */
@@ -144,7 +177,13 @@ export type Event = { kind: "campaign_meta_updated"; campaign: CampaignMeta } | 
 /**  Any change: name, sheet, status, owner. */
 { kind: "character_updated"; character: CharacterDto } | { kind: "journal_entry_created"; entry: JournalEntryDto } | 
 /**  Any change: text, title, folder, order, visibility. */
-{ kind: "journal_entry_updated"; entry: JournalEntryDto } | { kind: "journal_entry_deleted"; id: JournalEntryId } | { kind: "asset_registered"; asset: AssetDto } | 
+{ kind: "journal_entry_updated"; entry: JournalEntryDto } | { kind: "journal_entry_deleted"; id: JournalEntryId } | { kind: "asset_registered"; asset: AssetDto } | { kind: "combat_started"; combat: CombatDto } | 
+/**  Round or turn changed. */
+{ kind: "combat_updated"; combat: CombatDto } | 
+/**  The combat and all its combatants are gone. */
+{ kind: "combat_ended"; id: CombatId } | { kind: "combatant_added"; combatant: CombatantDto } | 
+/**  Initiative changed. */
+{ kind: "combatant_updated"; combatant: CombatantDto } | { kind: "combatant_removed"; id: CombatantId } | 
 /**  A text, roll or system message. */
 { kind: "chat_message_posted"; message: ChatMessageDto };
 
@@ -210,7 +249,27 @@ width: number; height: number; grid: Grid; visible_to_players: boolean } | { kin
  */
 { kind: "apply_fog"; map_id: MapId; op: FogOp } | 
 /**  GM / Co-GM. Drops every fog operation: the whole map becomes covered or clear. */
-{ kind: "reset_fog"; map_id: MapId; covered: boolean } | { kind: "create_token"; id: TokenId; map_id: MapId; character_id: CharacterId | null; asset_id: AssetId | null; name: string; x: number; y: number; rotation: number; scale: number; layer: TokenLayer; visible: boolean } | { kind: "update_token"; id: TokenId; name: string | null; rotation: number | null; scale: number | null; layer: TokenLayer | null; visible: boolean | null } | 
+{ kind: "reset_fog"; map_id: MapId; covered: boolean } | 
+/**  GM / Co-GM. Opens a combat on a map (one per map), round 1, nobody's turn yet (ADR-0020). */
+{ kind: "start_combat"; id: CombatId; map_id: MapId } | 
+/**  GM / Co-GM. A token of the combat's map (each at most once) and/or a character. */
+{ kind: "add_combatant"; id: CombatantId; combat_id: CombatId; token_id: TokenId | null; character_id: CharacterId | null; name: string } | 
+/**  GM / Co-GM. If it was their turn, the turn passes to the next combatant. */
+{ kind: "remove_combatant"; id: CombatantId } | 
+/**
+ *  GM / Co-GM, or the owner of the combatant's character. Rolls the initiative formula
+ *  against the character's sheet; the roll is posted to chat.
+ */
+{ kind: "roll_initiative"; id: CombatantId } | 
+/**  GM / Co-GM. Sets (or clears) a combatant's initiative by hand. */
+{ kind: "set_initiative"; id: CombatantId; initiative: number | null } | 
+/**
+ *  GM / Co-GM, or the owner of the character whose turn it is. Passes the turn in initiative
+ *  order; after the last combatant a new round starts.
+ */
+{ kind: "next_turn"; combat_id: CombatId } | 
+/**  GM / Co-GM. Removes the combat with its combatants. */
+{ kind: "end_combat"; id: CombatId } | { kind: "create_token"; id: TokenId; map_id: MapId; character_id: CharacterId | null; asset_id: AssetId | null; name: string; x: number; y: number; rotation: number; scale: number; layer: TokenLayer; visible: boolean } | { kind: "update_token"; id: TokenId; name: string | null; rotation: number | null; scale: number | null; layer: TokenLayer | null; visible: boolean | null } | 
 /**  Last-write-wins: no version check, does not bump the token version (ADR-0003). */
 { kind: "move_token"; id: TokenId; x: number; y: number } | { kind: "delete_token"; id: TokenId } | 
 /**
@@ -375,7 +434,9 @@ export type Role = "gm" | "co_gm" | "player" | "spectator";
 export type Seq = number;
 
 /**  Server → client. */
-export type ServerMessage = { type: "events"; payload: EventBatch } | { type: "snapshot"; payload: Snapshot } | { type: "rejected"; payload: Rejection } | { type: "pong" };
+export type ServerMessage = { type: "events"; payload: EventBatch } | 
+/**  Boxed: by far the largest message (keeps `ServerMessage` small). */
+{ type: "snapshot"; payload: Snapshot } | { type: "rejected"; payload: Rejection } | { type: "pong" };
 
 /**  The visible state as of event `seq`. */
 export type Snapshot = {
@@ -391,6 +452,9 @@ export type Snapshot = {
 	assets: AssetDto[],
 	/**  Fog of maps that have any (ADR-0019). */
 	fog: FogDto[],
+	/**  Combats and their combatants (ADR-0020). */
+	combats: CombatDto[],
+	combatants: CombatantDto[],
 	/**  The last `CHAT_SNAPSHOT_LEN` chat messages, oldest first. */
 	chat: ChatMessageDto[],
 };

@@ -71,6 +71,9 @@ impl Intent {
                 vec![("x", *x), ("y", *y)]
             }
             Self::MoveJournalEntry { sort_order, .. } => vec![("sort_order", *sort_order)],
+            Self::SetInitiative { initiative, .. } => {
+                initiative.map(|i| ("initiative", i)).into_iter().collect()
+            }
             Self::UpdateCampaignMeta { .. }
             | Self::UpdateMap { .. }
             | Self::DeleteMap { .. }
@@ -88,7 +91,13 @@ impl Intent {
             | Self::DeleteJournalEntry { .. }
             | Self::SendMessage { .. }
             | Self::RollDice { .. }
-            | Self::ResetFog { .. } => Vec::new(),
+            | Self::ResetFog { .. }
+            | Self::StartCombat { .. }
+            | Self::AddCombatant { .. }
+            | Self::RemoveCombatant { .. }
+            | Self::RollInitiative { .. }
+            | Self::NextTurn { .. }
+            | Self::EndCombat { .. } => Vec::new(),
             Self::RegisterAsset { asset } => vec![("size_bytes", asset.size_bytes)],
             Self::ApplyFog { op, .. } => match &op.shape {
                 FogShape::Rect {
@@ -122,6 +131,8 @@ impl Intent {
             Self::SendMessage { id, .. } | Self::RollDice { id, .. } => Some(id.0),
             Self::RegisterAsset { asset } => Some(asset.id.0),
             Self::ApplyFog { op, .. } => Some(op.id.0),
+            Self::StartCombat { id, .. } => Some(id.0),
+            Self::AddCombatant { id, .. } => Some(id.0),
             Self::UpdateCampaignMeta { .. }
             | Self::UpdateMap { .. }
             | Self::DeleteMap { .. }
@@ -137,7 +148,12 @@ impl Intent {
             | Self::AssignCharacterOwner { .. }
             | Self::UpdateJournalEntry { .. }
             | Self::MoveJournalEntry { .. }
-            | Self::DeleteJournalEntry { .. } => None,
+            | Self::DeleteJournalEntry { .. }
+            | Self::RemoveCombatant { .. }
+            | Self::RollInitiative { .. }
+            | Self::SetInitiative { .. }
+            | Self::NextTurn { .. }
+            | Self::EndCombat { .. } => None,
         }
     }
 }

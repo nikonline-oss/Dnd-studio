@@ -27,6 +27,11 @@ export function applyEvent(snapshot: Snapshot, event: Event): Snapshot {
         maps: snapshot.maps.filter((m) => m.id !== event.id),
         tokens: snapshot.tokens.filter((t) => t.map_id !== event.id),
         fog: snapshot.fog.filter((f) => f.map_id !== event.id),
+        // The map's combat goes with it.
+        ...endCombats(
+          snapshot,
+          snapshot.combats.filter((c) => c.map_id === event.id).map((c) => c.id),
+        ),
       };
     case 'fog_applied': {
       // Fog of an unknown map is ignored; a replayed operation is drawn once (as in the core).
@@ -59,7 +64,24 @@ export function applyEvent(snapshot: Snapshot, event: Event): Snapshot {
         ),
       };
     case 'token_deleted':
-      return { ...snapshot, tokens: snapshot.tokens.filter((t) => t.id !== event.id) };
+      return {
+        ...snapshot,
+        tokens: snapshot.tokens.filter((t) => t.id !== event.id),
+        // Its combatant stays in the fight without a token.
+        combatants: snapshot.combatants.map((c) =>
+          c.token_id === event.id ? { ...c, token_id: null } : c,
+        ),
+      };
+    case 'combat_started':
+    case 'combat_updated':
+      return { ...snapshot, combats: upsert(snapshot.combats, event.combat) };
+    case 'combat_ended':
+      return { ...snapshot, ...endCombats(snapshot, [event.id]) };
+    case 'combatant_added':
+    case 'combatant_updated':
+      return { ...snapshot, combatants: upsert(snapshot.combatants, event.combatant) };
+    case 'combatant_removed':
+      return { ...snapshot, combatants: snapshot.combatants.filter((c) => c.id !== event.id) };
     case 'character_created':
     case 'character_updated':
       return { ...snapshot, characters: upsert(snapshot.characters, event.character) };
@@ -92,6 +114,14 @@ export function applyBatch(snapshot: Snapshot, batch: EventBatch): Snapshot | nu
   if (batch.seq !== snapshot.seq + 1) return null;
   const next = batch.events.reduce(applyEvent, snapshot);
   return { ...next, seq: last };
+}
+
+/** Combats `ids` removed with all their combatants. */
+function endCombats(snapshot: Snapshot, ids: string[]): Pick<Snapshot, 'combats' | 'combatants'> {
+  return {
+    combats: snapshot.combats.filter((c) => !ids.includes(c.id)),
+    combatants: snapshot.combatants.filter((c) => !ids.includes(c.combat_id)),
+  };
 }
 
 function upsertFog(items: FogDto[], fog: FogDto): FogDto[] {

@@ -19,21 +19,21 @@ pub mod arbitrary;
 pub use error::RejectReason;
 pub use event::{Event, EventBatch};
 pub use ids::{
-    AssetId, CharacterId, ChatMessageId, FogOpId, IntentId, JournalEntryId, MapId, MessageId, Role,
-    Seq, SessionId, TokenId, UserId, Version, uuid_v7_from_random,
+    AssetId, CharacterId, ChatMessageId, CombatId, CombatantId, FogOpId, IntentId, JournalEntryId,
+    MapId, MessageId, Role, Seq, SessionId, TokenId, UserId, Version, uuid_v7_from_random,
 };
 pub use intent::{Intent, IntentEnvelope, IntentOutcome, PayloadHash, VersionPolicy};
 pub use message::{ClientMessage, Envelope, Rejection, ServerMessage};
 pub use model::{
     AssetDto, AssetTileDto, AssetUsage, CHAT_SNAPSHOT_LEN, CampaignMeta, CharacterDto,
-    CharacterKind, CharacterStatus, ChatKind, ChatMessageDto, ChatVisibility, DiceRollDto,
-    DiceTermDto, DieDto, FogDto, FogOp, FogOpKind, FogShape, Grid, GridKind, JournalEntryDto,
-    JournalEntryMeta, JournalVisibility, MAX_CHAT_LEN, MAX_FOLDER_LEN, MAX_JOURNAL_BYTES,
-    MAX_SHEET_BYTES, MapDto, SystemMessage, TokenDto, TokenLayer, UserDto,
+    CharacterKind, CharacterStatus, ChatKind, ChatMessageDto, ChatVisibility, CombatDto,
+    CombatantDto, DiceRollDto, DiceTermDto, DieDto, FogDto, FogOp, FogOpKind, FogShape, Grid,
+    GridKind, JournalEntryDto, JournalEntryMeta, JournalVisibility, MAX_CHAT_LEN, MAX_FOLDER_LEN,
+    MAX_JOURNAL_BYTES, MAX_SHEET_BYTES, MapDto, SystemMessage, TokenDto, TokenLayer, UserDto,
 };
 pub use model::{
-    MAX_BRUSH_POINTS, MAX_BRUSH_RADIUS, MAX_CELL_SIZE, MAX_FOG_OPS, MAX_FOG_POINTS, MAX_MAP_SIZE,
-    MIN_CELL_SIZE, UNITS16_PER_UNIT,
+    MAX_BRUSH_POINTS, MAX_BRUSH_RADIUS, MAX_CELL_SIZE, MAX_COMBATANTS, MAX_FOG_OPS, MAX_FOG_POINTS,
+    MAX_MAP_SIZE, MIN_CELL_SIZE, UNITS16_PER_UNIT,
 };
 pub use snapshot::Snapshot;
 /// Re-exported so dependants use the exact same UUID type.

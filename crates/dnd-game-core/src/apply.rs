@@ -239,6 +239,15 @@ pub fn apply(
             crate::fog::apply(state, intent).unwrap_or(Err(RejectReason::invalid("intent")))
         }
 
+        Intent::StartCombat { .. }
+        | Intent::AddCombatant { .. }
+        | Intent::RemoveCombatant { .. }
+        | Intent::RollInitiative { .. }
+        | Intent::SetInitiative { .. }
+        | Intent::NextTurn { .. }
+        | Intent::EndCombat { .. } => crate::combat::apply(state, intent, actor, rng)
+            .unwrap_or(Err(RejectReason::invalid("intent"))),
+
         Intent::SendMessage { .. } | Intent::RollDice { .. } => {
             crate::chat::apply(state, intent, actor, rng)
                 .unwrap_or(Err(RejectReason::invalid("intent")))
@@ -279,7 +288,15 @@ fn current_version(state: &GameState, intent: &Intent) -> Result<Version, Reject
         | Intent::RollDice { .. }
         | Intent::RegisterAsset { .. }
         | Intent::ApplyFog { .. }
-        | Intent::ResetFog { .. } => None,
+        | Intent::ResetFog { .. }
+        | Intent::StartCombat { .. }
+        | Intent::AddCombatant { .. } => None,
+        Intent::RemoveCombatant { id }
+        | Intent::RollInitiative { id }
+        | Intent::SetInitiative { id, .. } => state.combatants.get(id).map(|c| c.version),
+        Intent::NextTurn { combat_id: id } | Intent::EndCombat { id } => {
+            state.combats.get(id).map(|c| c.version)
+        }
     };
     version.ok_or(RejectReason::NotFound)
 }
@@ -351,6 +368,10 @@ fn id_in_use(state: &GameState, id: dnd_protocol::Uuid) -> bool {
             .fog
             .values()
             .any(|f| f.ops.iter().any(|op| op.id.0 == id))
+        || state.combats.contains_key(&dnd_protocol::CombatId(id))
+        || state
+            .combatants
+            .contains_key(&dnd_protocol::CombatantId(id))
 }
 
 /// Next version, rejected once it would leave the JS-safe range (ADR-0015).

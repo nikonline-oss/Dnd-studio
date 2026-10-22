@@ -3,7 +3,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::ids::{
-    AssetId, CharacterId, ChatMessageId, IntentId, JournalEntryId, MapId, TokenId, UserId, Version,
+    AssetId, CharacterId, ChatMessageId, CombatId, CombatantId, IntentId, JournalEntryId, MapId,
+    TokenId, UserId, Version,
 };
 use crate::model::{AssetDto, CharacterKind, FogOp, Grid, JournalVisibility, TokenLayer};
 
@@ -59,6 +60,44 @@ pub enum Intent {
     ResetFog {
         map_id: MapId,
         covered: bool,
+    },
+
+    /// GM / Co-GM. Opens a combat on a map (one per map), round 1, nobody's turn yet (ADR-0020).
+    StartCombat {
+        id: CombatId,
+        map_id: MapId,
+    },
+    /// GM / Co-GM. A token of the combat's map (each at most once) and/or a character.
+    AddCombatant {
+        id: CombatantId,
+        combat_id: CombatId,
+        token_id: Option<TokenId>,
+        character_id: Option<CharacterId>,
+        name: String,
+    },
+    /// GM / Co-GM. If it was their turn, the turn passes to the next combatant.
+    RemoveCombatant {
+        id: CombatantId,
+    },
+    /// GM / Co-GM, or the owner of the combatant's character. Rolls the initiative formula
+    /// against the character's sheet; the roll is posted to chat.
+    RollInitiative {
+        id: CombatantId,
+    },
+    /// GM / Co-GM. Sets (or clears) a combatant's initiative by hand.
+    SetInitiative {
+        id: CombatantId,
+        #[cfg_attr(feature = "specta", specta(type = Option<specta_typescript::Number>))]
+        initiative: Option<i64>,
+    },
+    /// GM / Co-GM, or the owner of the character whose turn it is. Passes the turn in initiative
+    /// order; after the last combatant a new round starts.
+    NextTurn {
+        combat_id: CombatId,
+    },
+    /// GM / Co-GM. Removes the combat with its combatants.
+    EndCombat {
+        id: CombatId,
     },
 
     CreateToken {
@@ -210,6 +249,13 @@ impl Intent {
             Self::DeleteMap { .. } => "delete_map",
             Self::ApplyFog { .. } => "apply_fog",
             Self::ResetFog { .. } => "reset_fog",
+            Self::StartCombat { .. } => "start_combat",
+            Self::AddCombatant { .. } => "add_combatant",
+            Self::RemoveCombatant { .. } => "remove_combatant",
+            Self::RollInitiative { .. } => "roll_initiative",
+            Self::SetInitiative { .. } => "set_initiative",
+            Self::NextTurn { .. } => "next_turn",
+            Self::EndCombat { .. } => "end_combat",
             Self::CreateToken { .. } => "create_token",
             Self::UpdateToken { .. } => "update_token",
             Self::MoveToken { .. } => "move_token",
@@ -242,7 +288,9 @@ impl Intent {
             | Self::SendMessage { .. }
             | Self::RollDice { .. }
             | Self::RegisterAsset { .. }
-            | Self::ApplyFog { .. } => VersionPolicy::Create,
+            | Self::ApplyFog { .. }
+            | Self::StartCombat { .. }
+            | Self::AddCombatant { .. } => VersionPolicy::Create,
             Self::MoveToken { .. } | Self::ResetFog { .. } => VersionPolicy::LastWriteWins,
             Self::UpdateCampaignMeta { .. }
             | Self::UpdateMap { .. }
@@ -257,7 +305,12 @@ impl Intent {
             | Self::AssignCharacterOwner { .. }
             | Self::UpdateJournalEntry { .. }
             | Self::MoveJournalEntry { .. }
-            | Self::DeleteJournalEntry { .. } => VersionPolicy::Checked,
+            | Self::DeleteJournalEntry { .. }
+            | Self::RemoveCombatant { .. }
+            | Self::RollInitiative { .. }
+            | Self::SetInitiative { .. }
+            | Self::NextTurn { .. }
+            | Self::EndCombat { .. } => VersionPolicy::Checked,
         }
     }
 

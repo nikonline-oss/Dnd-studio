@@ -444,7 +444,7 @@ fn query_inventory_matches_adr_0008() {
         .map(|s| s.matches("sqlx::query").count())
         .sum();
     assert_eq!(
-        count, 32,
+        count, 38,
         "runtime queries changed: add a real-SQLite test and update the table in docs/adr/0008-db-conventions.md"
     );
 }
@@ -914,4 +914,162 @@ async fn fog_is_appended_reset_and_loaded() {
     let (state, _) = db.load_state().await.unwrap();
     assert!(state.fog[&m0.id].covered);
     assert!(!state.fog.contains_key(&m1.id));
+}
+
+/// Combat (ADR-0020): combats and combatants round-trip with updates; deleting a token clears the
+/// reference; ending the combat or deleting its map removes everything (FK cascades).
+#[tokio::test]
+async fn combats_and_combatants_are_projected_and_loaded() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = new_campaign(&dir).await;
+    let (m0, t0) = (map(0, "Crypt", 1), token(0, 0, 1));
+    let combat = CombatDto {
+        id: CombatId(v7(0xC01)),
+        map_id: m0.id,
+        round: 1,
+        turn: None,
+        version: Version(1),
+    };
+    let knight = CombatantDto {
+        id: CombatantId(v7(0xC11)),
+        combat_id: combat.id,
+        token_id: Some(t0.id),
+        character_id: None,
+        name: "Knight".into(),
+        initiative: None,
+        sort_order: 0,
+        version: Version(1),
+    };
+    let goblin = CombatantDto {
+        id: CombatantId(v7(0xC12)),
+        token_id: None,
+        name: "Goblin".into(),
+        initiative: Some(-2),
+        sort_order: 1,
+        ..knight.clone()
+    };
+    let rolled = CombatantDto {
+        initiative: Some(17),
+        version: Version(2),
+        ..knight.clone()
+    };
+    let turned = CombatDto {
+        round: 3,
+        turn: Some(knight.id),
+        version: Version(2),
+        ..combat.clone()
+    };
+    db.project(&[
+        record(1, Some(0xA1), vec![Event::MapCreated { map: m0.clone() }]),
+        record(
+            2,
+            Some(0xA2),
+            vec![Event::TokenCreated { token: t0.clone() }],
+        ),
+        record(
+            3,
+            Some(0xA3),
+            vec![
+                Event::CombatStarted {
+                    combat: combat.clone(),
+                },
+                Event::CombatantAdded {
+                    combatant: knight.clone(),
+                },
+                Event::CombatantAdded {
+                    combatant: goblin.clone(),
+                },
+            ],
+        ),
+        record(
+            6,
+            Some(0xA4),
+            vec![
+                Event::CombatantUpdated {
+                    combatant: rolled.clone(),
+                },
+                Event::CombatUpdated {
+                    combat: turned.clone(),
+                },
+            ],
+        ),
+    ])
+    .await
+    .unwrap();
+    let (state, _) = db.load_state().await.unwrap();
+    assert_eq!(
+        state.combats.values().cloned().collect::<Vec<_>>(),
+        vec![turned]
+    );
+    assert_eq!(
+        state.combatants.values().cloned().collect::<Vec<_>>(),
+        vec![rolled.clone(), goblin.clone()]
+    );
+
+    // Deleting the token keeps its combatant without it; removing a combatant deletes the row.
+    db.project(&[
+        record(8, Some(0xA5), vec![Event::TokenDeleted { id: t0.id }]),
+        record(
+            9,
+            Some(0xA6),
+            vec![Event::CombatantRemoved { id: goblin.id }],
+        ),
+    ])
+    .await
+    .unwrap();
+    let (state, _) = db.load_state().await.unwrap();
+    assert_eq!(
+        state.combatants.values().cloned().collect::<Vec<_>>(),
+        vec![CombatantDto {
+            token_id: None,
+            ..rolled.clone()
+        }]
+    );
+
+    // A second combat on the same map is refused by the schema too.
+    let again = CombatDto {
+        id: CombatId(v7(0xC02)),
+        ..combat.clone()
+    };
+    assert!(
+        db.project(&[record(
+            10,
+            Some(0xA7),
+            vec![Event::CombatStarted { combat: again }]
+        )])
+        .await
+        .is_err()
+    );
+
+    // Ending the combat removes its combatants.
+    db.project(&[record(
+        10,
+        Some(0xA7),
+        vec![Event::CombatEnded { id: combat.id }],
+    )])
+    .await
+    .unwrap();
+    let (state, _) = db.load_state().await.unwrap();
+    assert!(state.combats.is_empty() && state.combatants.is_empty());
+
+    // Deleting a map removes its combat with everything in it.
+    db.project(&[
+        record(
+            11,
+            Some(0xA8),
+            vec![
+                Event::CombatStarted {
+                    combat: combat.clone(),
+                },
+                Event::CombatantAdded {
+                    combatant: goblin.clone(),
+                },
+            ],
+        ),
+        record(13, Some(0xA9), vec![Event::MapDeleted { id: m0.id }]),
+    ])
+    .await
+    .unwrap();
+    let (state, _) = db.load_state().await.unwrap();
+    assert!(state.combats.is_empty() && state.combatants.is_empty());
 }
