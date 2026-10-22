@@ -101,6 +101,13 @@
     "chat": "Chat",
     "logs": "Logs"
   },
+  "mapView": {
+    "loading": "Loading the map view…",
+    "noMap": "Select or create a map",
+    "fit": "Fit to window",
+    "rendererFailed": "Could not start the map renderer (WebGL is unavailable)",
+    "imagesFailed": "Some map images could not be loaded"
+  },
   "inspector": {
     "title": "Inspector",
     "empty": "Nothing selected",
@@ -116,7 +123,11 @@
     "tokens": "Tokens",
     "version": "Version",
     "background": "Background",
-    "size": "Size"
+    "size": "Size",
+    "gridCell": "Cell size",
+    "gridOffsetX": "Offset X",
+    "gridOffsetY": "Offset Y",
+    "gridApply": "Apply grid"
   },
   "errorBoundary": {
     "message": "“{{name}}” crashed. The rest of the app keeps working.",

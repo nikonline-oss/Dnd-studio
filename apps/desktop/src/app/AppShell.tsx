@@ -1,5 +1,5 @@
 import { useMutation } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Group, Panel, Separator, useDefaultLayout } from 'react-resizable-panels';
 import { MenuBar } from './MenuBar';
@@ -13,6 +13,9 @@ import { LogPanel } from '@/features/logs/LogPanel';
 import { MapInspector } from '@/features/map/MapInspector';
 import { MapList } from '@/features/map/MapList';
 import { TokenList } from '@/features/tokens/TokenList';
+
+// Pixi is large; it loads with the first map view, not with the app shell.
+const MapView = lazy(() => import('@/features/map/MapView').then((m) => ({ default: m.MapView })));
 import { useSnapshot } from '@/shared/game/useGame';
 import { errorCode, ipc, type CampaignInfo } from '@/shared/ipc/client';
 import { useSettings } from '@/shared/settings/settings';
@@ -125,8 +128,10 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
                     <JournalEditor />
                   </ErrorBoundary>
                 ) : (
-                  <ErrorBoundary name={t('tokens.title')}>
-                    <TokenList />
+                  <ErrorBoundary name={t('panels.map')}>
+                    <Suspense fallback={<p className="muted">{t('mapView.loading')}</p>}>
+                      <MapView />
+                    </Suspense>
                   </ErrorBoundary>
                 )}
               </div>
@@ -166,7 +171,15 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
             <>
               <h2>{t('inspector.title')}</h2>
               <ErrorBoundary name={t('inspector.title')}>
-                {inspect === 'character' ? <CharacterEditor /> : <MapInspector />}
+                {inspect === 'character' ? (
+                  <CharacterEditor />
+                ) : (
+                  <>
+                    <MapInspector />
+                    {/* Until tokens are drawn on the map (stage 2a, step 7). */}
+                    <TokenList />
+                  </>
+                )}
               </ErrorBoundary>
             </>
           ) : (

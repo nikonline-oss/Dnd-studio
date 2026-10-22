@@ -1,5 +1,5 @@
 import { convertFileSrc } from '@tauri-apps/api/core';
-import { commands, type IntentOutcome, type IpcError } from './bindings';
+import { commands, type IntentOutcome, type IpcError, type LogLevel } from './bindings';
 
 export { commands, events } from './bindings';
 export type * from './bindings';
@@ -57,6 +57,11 @@ export const ipc = {
   getSnapshot: () => unwrap(commands.getSnapshot()),
   assetImportMap: () => unwrap(commands.assetImportMap()),
 };
+
+/** Writes to the application log file; never throws (logging must not break the caller). */
+export function logFrontend(level: LogLevel, message: string): void {
+  commands.logFrontend(level, message).catch(() => undefined);
+}
 
 /** URL of a derived asset file (WebP) of the open campaign, served by the `dnd-asset` scheme. */
 export function assetUrl(sha256: string): string {

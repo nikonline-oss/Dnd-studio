@@ -1,7 +1,7 @@
 import type { Application } from 'pixi.js';
 import { useState } from 'react';
 import { commands } from '@/shared/ipc/bindings';
-import { PixiHost } from './PixiHost';
+import { PixiHost } from '@/shared/pixi/PixiHost';
 import {
   gpuInfo,
   MAP_SIZE,
@@ -93,7 +93,7 @@ export function PixiSpike() {
 
   return (
     <div style={{ position: 'fixed', inset: 0 }}>
-      <PixiHost onReady={onReady} />
+      <PixiHost onReady={onReady} background={0x202020} />
       <pre
         style={{
           position: 'absolute',

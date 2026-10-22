@@ -281,6 +281,58 @@ h2 {
   margin: 0;
 }
 
+/* Map view: the Pixi canvas fills the tab; overlays sit on top of it. */
+.map-view {
+  position: relative;
+  height: 100%;
+  min-height: 200px;
+  overflow: hidden;
+  border-radius: var(--radius);
+  background: var(--color-bg);
+}
+
+.map-view canvas {
+  display: block;
+  touch-action: none;
+}
+
+.map-toolbar {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  display: flex;
+  gap: var(--space-1);
+}
+
+.map-view-empty,
+.map-view-error {
+  position: absolute;
+  inset: auto var(--space-3) var(--space-3);
+  margin: 0;
+}
+
+.map-view-empty {
+  inset: 50% 0 auto;
+  text-align: center;
+}
+
+.grid-form {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-1) var(--space-2);
+  align-items: center;
+}
+
+.grid-form input {
+  width: 100%;
+  min-width: 0;
+}
+
+.grid-form button {
+  grid-column: 2;
+  justify-self: start;
+}
+
 .thumbnail {
   display: block;
   max-width: 100%;
