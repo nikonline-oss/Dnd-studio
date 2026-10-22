@@ -1,6 +1,7 @@
 import type {
   Event,
   EventBatch,
+  FogDto,
   JournalEntryDto,
   JournalEntryMeta,
   Snapshot,
@@ -25,6 +26,27 @@ export function applyEvent(snapshot: Snapshot, event: Event): Snapshot {
         ...snapshot,
         maps: snapshot.maps.filter((m) => m.id !== event.id),
         tokens: snapshot.tokens.filter((t) => t.map_id !== event.id),
+        fog: snapshot.fog.filter((f) => f.map_id !== event.id),
+      };
+    case 'fog_applied': {
+      // Fog of an unknown map is ignored; a replayed operation is drawn once (as in the core).
+      if (!snapshot.maps.some((m) => m.id === event.map_id)) return snapshot;
+      const current = snapshot.fog.find((f) => f.map_id === event.map_id) ?? {
+        map_id: event.map_id,
+        covered: false,
+        ops: [],
+      };
+      if (current.ops.some((op) => op.id === event.op.id)) return snapshot;
+      return {
+        ...snapshot,
+        fog: upsertFog(snapshot.fog, { ...current, ops: [...current.ops, event.op] }),
+      };
+    }
+    case 'fog_reset':
+      if (!snapshot.maps.some((m) => m.id === event.map_id)) return snapshot;
+      return {
+        ...snapshot,
+        fog: upsertFog(snapshot.fog, { map_id: event.map_id, covered: event.covered, ops: [] }),
       };
     case 'token_created':
     case 'token_updated':
@@ -70,6 +92,11 @@ export function applyBatch(snapshot: Snapshot, batch: EventBatch): Snapshot | nu
   if (batch.seq !== snapshot.seq + 1) return null;
   const next = batch.events.reduce(applyEvent, snapshot);
   return { ...next, seq: last };
+}
+
+function upsertFog(items: FogDto[], fog: FogDto): FogDto[] {
+  const rest = items.filter((f) => f.map_id !== fog.map_id);
+  return [...rest, fog].sort((a, b) => a.map_id.localeCompare(b.map_id));
 }
 
 function upsert<T extends { id: string }>(items: T[], item: T): T[] {

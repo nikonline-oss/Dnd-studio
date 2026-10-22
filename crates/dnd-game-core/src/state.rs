@@ -3,8 +3,9 @@
 use std::collections::BTreeMap;
 
 use dnd_protocol::{
-    AssetDto, AssetId, CampaignMeta, CharacterDto, CharacterId, JournalEntryDto, JournalEntryId,
-    JournalEntryMeta, MapDto, MapId, Seq, Snapshot, TokenDto, TokenId, UserDto, UserId, Version,
+    AssetDto, AssetId, CampaignMeta, CharacterDto, CharacterId, FogDto, JournalEntryDto,
+    JournalEntryId, JournalEntryMeta, MapDto, MapId, Seq, Snapshot, TokenDto, TokenId, UserDto,
+    UserId, Version,
 };
 
 /// The authoritative state the core reasons about. Ordered maps keep iteration (and therefore
@@ -19,6 +20,8 @@ pub struct GameState {
     pub users: BTreeMap<UserId, UserDto>,
     pub journal: BTreeMap<JournalEntryId, JournalEntryDto>,
     pub assets: BTreeMap<AssetId, AssetDto>,
+    /// Fog of war by map; maps without fog have no entry (ADR-0019).
+    pub fog: BTreeMap<MapId, FogDto>,
 }
 
 impl GameState {
@@ -37,6 +40,7 @@ impl GameState {
             users: BTreeMap::new(),
             journal: BTreeMap::new(),
             assets: BTreeMap::new(),
+            fog: BTreeMap::new(),
         }
     }
 
@@ -69,6 +73,7 @@ impl GameState {
                 })
                 .collect(),
             assets: snapshot.assets.into_iter().map(|a| (a.id, a)).collect(),
+            fog: snapshot.fog.into_iter().map(|f| (f.map_id, f)).collect(),
         }
     }
 
@@ -84,6 +89,7 @@ impl GameState {
             users: self.users.values().cloned().collect(),
             journal: self.journal.values().map(JournalEntryMeta::from).collect(),
             assets: self.assets.values().cloned().collect(),
+            fog: self.fog.values().cloned().collect(),
             // Chat history is kept by the server layer, not by the core.
             chat: Vec::new(),
         }

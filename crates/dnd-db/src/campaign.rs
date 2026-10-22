@@ -5,10 +5,11 @@ use std::path::{Path, PathBuf};
 use dnd_game_core::GameState;
 use dnd_protocol::{
     AssetDto, AssetId, AssetTileDto, CampaignMeta, CharacterDto, CharacterId, ChatKind,
-    ChatMessageDto, ChatMessageId, DiceRollDto, Event, EventBatch, Grid, GridKind, IntentId,
-    JournalEntryDto, JournalEntryId, MapDto, MapId, PayloadHash, Role, Seq, SystemMessage,
-    TokenDto, TokenId, TokenLayer, UserDto, UserId, Version,
+    ChatMessageDto, ChatMessageId, DiceRollDto, Event, EventBatch, FogDto, FogOp, Grid, GridKind,
+    IntentId, JournalEntryDto, JournalEntryId, MapDto, MapId, PayloadHash, Role, Seq,
+    SystemMessage, TokenDto, TokenId, TokenLayer, UserDto, UserId, Version,
 };
+use serde::{Deserialize, Serialize};
 use sqlx::sqlite::SqliteRow;
 use sqlx::{Row, SqliteConnection, SqlitePool};
 
@@ -16,6 +17,13 @@ use crate::backup::create_backup;
 use crate::codec::{enum_from_str, enum_to_str, opt_uuid_from_str, uuid_from_str};
 use crate::connect::{CAMPAIGN_MIGRATOR, has_pending_migrations, migrate, pool, quick_check};
 use crate::error::{DbError, DbResult};
+
+/// `maps.fog` (ADR-0019): the initial state and the operations in order. `NULL` = no fog.
+#[derive(Debug, Serialize, Deserialize)]
+struct StoredFog {
+    covered: bool,
+    ops: Vec<FogOp>,
+}
 
 const META_NAME: &str = "campaign.name";
 const META_DESCRIPTION: &str = "campaign.description";
@@ -309,6 +317,21 @@ impl CampaignDb {
             .await?
         {
             let map = map_from_row(&row)?;
+            if let Some(fog) = row.try_get::<Option<String>, _>("fog")? {
+                let stored: StoredFog =
+                    serde_json::from_str(&fog).map_err(|e| DbError::InvalidData {
+                        column: "maps.fog",
+                        details: e.to_string(),
+                    })?;
+                state.fog.insert(
+                    map.id,
+                    FogDto {
+                        map_id: map.id,
+                        covered: stored.covered,
+                        ops: stored.ops,
+                    },
+                );
+            }
             state.maps.insert(map.id, map);
         }
         for row in sqlx::query("SELECT * FROM tokens ORDER BY id")
@@ -451,6 +474,31 @@ async fn project_event(conn: &mut SqliteConnection, event: &Event, at_ms: i64) -
     match event {
         Event::CampaignMetaUpdated { campaign } => write_campaign_meta(conn, campaign).await,
         Event::MapCreated { map } | Event::MapUpdated { map } => upsert_map(conn, map).await,
+        Event::FogApplied { map_id, op } => {
+            // Appends in place; a map that never had fog starts clear (ADR-0019).
+            sqlx::query(
+                "UPDATE maps SET fog = json_insert(\
+                     COALESCE(fog, '{\"covered\":false,\"ops\":[]}'), '$.ops[#]', json(?)) \
+                 WHERE id = ?",
+            )
+            .bind(serde_json::to_string(op)?)
+            .bind(map_id.to_string())
+            .execute(conn)
+            .await?;
+            Ok(())
+        }
+        Event::FogReset { map_id, covered } => {
+            let fog = StoredFog {
+                covered: *covered,
+                ops: Vec::new(),
+            };
+            sqlx::query("UPDATE maps SET fog = ? WHERE id = ?")
+                .bind(serde_json::to_string(&fog)?)
+                .bind(map_id.to_string())
+                .execute(conn)
+                .await?;
+            Ok(())
+        }
         Event::MapDeleted { id } => {
             sqlx::query("DELETE FROM maps WHERE id = ?")
                 .bind(id.to_string())

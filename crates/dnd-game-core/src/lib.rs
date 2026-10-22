@@ -12,6 +12,7 @@ mod assets;
 mod characters;
 mod chat;
 mod evolve;
+mod fog;
 mod journal;
 mod permissions;
 mod recent;

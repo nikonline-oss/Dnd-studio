@@ -34,13 +34,15 @@
 | `create_map`           | —              | GM, Co-GM                                        |
 | `update_map`           | проверяется    | GM, Co-GM                                        |
 | `delete_map`           | проверяется    | GM, Co-GM (каскадно удаляет токены)              |
+| `apply_fog`            | —              | GM, Co-GM (ADR-0019; версию карты не меняет)     |
+| `reset_fog`            | LWW            | GM, Co-GM (ADR-0019)                             |
 | `create_token`         | —              | GM, Co-GM                                        |
 | `update_token`         | проверяется    | GM, Co-GM                                        |
 | `move_token`           | LWW, не растёт | GM, Co-GM; Player — свои токены на видимой карте |
 | `delete_token`         | проверяется    | GM, Co-GM                                        |
 
 Spectator не может ничего. Коды отказов: `stale_version`, `missing_expected_version`, `forbidden`,
-`not_found`, `already_exists`, `invalid`, `protocol_mismatch`.
+`not_found`, `already_exists`, `invalid`, `limit_exceeded`, `protocol_mismatch`.
 
 ## Идемпотентность и повторы (ADR-0015)
 

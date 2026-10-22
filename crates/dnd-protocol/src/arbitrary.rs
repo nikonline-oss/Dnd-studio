@@ -8,9 +8,12 @@ use proptest::sample::select;
 use uuid::{Builder, Uuid};
 
 use crate::event::{Event, EventBatch};
-use crate::ids::{CharacterId, IntentId, MapId, Seq, TokenId, Version};
+use crate::ids::{CharacterId, FogOpId, IntentId, MapId, Seq, TokenId, Version};
 use crate::intent::{Intent, IntentEnvelope};
-use crate::model::{CampaignMeta, CharacterKind, Grid, GridKind, MapDto, TokenDto, TokenLayer};
+use crate::model::{
+    CampaignMeta, CharacterKind, FogOp, FogOpKind, FogShape, Grid, GridKind, MapDto, TokenDto,
+    TokenLayer,
+};
 
 /// Number of distinct map ids produced by [`map_id`].
 pub const MAP_POOL: u128 = 3;
@@ -75,6 +78,27 @@ pub fn offset() -> impl Strategy<Value = f64> {
 /// 1000 units wide, i.e. 16 000 Units16), sometimes negative to exercise rejections.
 pub fn position() -> impl Strategy<Value = i64> {
     -100i64..=16_000
+}
+
+/// Fog operations; ids from a large range so most are new, shapes partly off the map.
+pub fn fog_op() -> impl Strategy<Value = FogOp> {
+    let rect =
+        (position(), position(), -10i64..4000, -10i64..4000).prop_map(|(x, y, width, height)| {
+            FogShape::Rect {
+                x,
+                y,
+                width,
+                height,
+            }
+        });
+    let brush = (-10i64..2000, proptest::collection::vec(position(), 0..12))
+        .prop_map(|(radius, points)| FogShape::Brush { radius, points });
+    (
+        (0x1_0000u128..0x10_0000).prop_map(|n| FogOpId(v7(n))),
+        select(vec![FogOpKind::Reveal, FogOpKind::Hide]),
+        prop_oneof![rect, brush],
+    )
+        .prop_map(|(id, kind, shape)| FogOp { id, kind, shape })
 }
 
 /// Logical map sizes.
@@ -150,6 +174,9 @@ pub fn intent() -> impl Strategy<Value = Intent> {
                 visible_to_players,
             }),
         map_id().prop_map(|id| Intent::DeleteMap { id }),
+        (map_id(), fog_op()).prop_map(|(map_id, op)| Intent::ApplyFog { map_id, op }),
+        (map_id(), any::<bool>())
+            .prop_map(|(map_id, covered)| Intent::ResetFog { map_id, covered }),
         (
             token_id(),
             map_id(),
@@ -305,6 +332,8 @@ pub fn event() -> impl Strategy<Value = Event> {
         map_dto().prop_map(|map| Event::MapCreated { map }),
         map_dto().prop_map(|map| Event::MapUpdated { map }),
         map_id().prop_map(|id| Event::MapDeleted { id }),
+        (map_id(), fog_op()).prop_map(|(map_id, op)| Event::FogApplied { map_id, op }),
+        (map_id(), any::<bool>()).prop_map(|(map_id, covered)| Event::FogReset { map_id, covered }),
         token_dto().prop_map(|token| Event::TokenCreated { token }),
         token_dto().prop_map(|token| Event::TokenUpdated { token }),
         (token_id(), position(), position()).prop_map(|(id, x, y)| Event::TokenMoved { id, x, y }),

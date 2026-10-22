@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::ids::{IntentId, JournalEntryId, MapId, Seq, TokenId};
 use crate::model::{
-    AssetDto, CampaignMeta, CharacterDto, ChatMessageDto, JournalEntryDto, MapDto, TokenDto,
+    AssetDto, CampaignMeta, CharacterDto, ChatMessageDto, FogOp, JournalEntryDto, MapDto, TokenDto,
 };
 
 /// A fact about a state change.
@@ -27,6 +27,16 @@ pub enum Event {
     },
     MapDeleted {
         id: MapId,
+    },
+    /// Appended to the map's fog; applying the same `op.id` twice adds it once.
+    FogApplied {
+        map_id: MapId,
+        op: FogOp,
+    },
+    /// The map's fog now has no operations, only the initial state.
+    FogReset {
+        map_id: MapId,
+        covered: bool,
     },
 
     TokenCreated {

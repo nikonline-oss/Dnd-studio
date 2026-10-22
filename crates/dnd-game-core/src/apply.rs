@@ -235,6 +235,10 @@ pub fn apply(
             crate::assets::apply(state, intent).unwrap_or(Err(RejectReason::invalid("intent")))
         }
 
+        Intent::ApplyFog { .. } | Intent::ResetFog { .. } => {
+            crate::fog::apply(state, intent).unwrap_or(Err(RejectReason::invalid("intent")))
+        }
+
         Intent::SendMessage { .. } | Intent::RollDice { .. } => {
             crate::chat::apply(state, intent, actor, rng)
                 .unwrap_or(Err(RejectReason::invalid("intent")))
@@ -273,7 +277,9 @@ fn current_version(state: &GameState, intent: &Intent) -> Result<Version, Reject
         | Intent::CreateJournalEntry { .. }
         | Intent::SendMessage { .. }
         | Intent::RollDice { .. }
-        | Intent::RegisterAsset { .. } => None,
+        | Intent::RegisterAsset { .. }
+        | Intent::ApplyFog { .. }
+        | Intent::ResetFog { .. } => None,
     };
     version.ok_or(RejectReason::NotFound)
 }
@@ -341,6 +347,10 @@ fn id_in_use(state: &GameState, id: dnd_protocol::Uuid) -> bool {
             .journal
             .contains_key(&dnd_protocol::JournalEntryId(id))
         || state.assets.contains_key(&dnd_protocol::AssetId(id))
+        || state
+            .fog
+            .values()
+            .any(|f| f.ops.iter().any(|op| op.id.0 == id))
 }
 
 /// Next version, rejected once it would leave the JS-safe range (ADR-0015).

@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::ids::{
-    AssetId, CharacterId, ChatMessageId, JournalEntryId, MapId, TokenId, UserId, Version,
+    AssetId, CharacterId, ChatMessageId, FogOpId, JournalEntryId, MapId, TokenId, UserId, Version,
 };
 
 /// Campaign-wide metadata (singleton entity).
@@ -161,6 +161,69 @@ pub const MAX_MAP_SIZE: i64 = 65_536;
 /// too expensive to draw (ADR-0017).
 pub const MIN_CELL_SIZE: f64 = 8.0;
 pub const MAX_CELL_SIZE: f64 = 2048.0;
+
+/// Whether a fog operation uncovers or covers its shape.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub enum FogOpKind {
+    Reveal,
+    Hide,
+}
+
+/// The area of a fog operation, in Units16 (ADR-0016, ADR-0019).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub enum FogShape {
+    /// Axis-aligned rectangle with its top-left corner at (`x`, `y`).
+    Rect {
+        #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
+        x: i64,
+        #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
+        y: i64,
+        #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
+        width: i64,
+        #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
+        height: i64,
+    },
+    /// A stroke: circles of `radius` swept along the polyline `points`.
+    Brush {
+        #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
+        radius: i64,
+        /// Flat `[x0, y0, x1, y1, …]`, 1..=[`MAX_BRUSH_POINTS`] points.
+        #[cfg_attr(feature = "specta", specta(type = Vec<specta_typescript::Number>))]
+        points: Vec<i64>,
+    },
+}
+
+/// One fog-of-war operation. Operations are applied in order over the initial state (ADR-0019).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct FogOp {
+    pub id: FogOpId,
+    pub kind: FogOpKind,
+    pub shape: FogShape,
+}
+
+/// Fog of war of one map: covered or clear at first, then the operations in order. A map
+/// without fog has none (same as `covered: false` with no operations).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct FogDto {
+    pub map_id: MapId,
+    pub covered: bool,
+    pub ops: Vec<FogOp>,
+}
+
+/// Most points in one brush stroke.
+pub const MAX_BRUSH_POINTS: usize = 512;
+/// Largest brush radius, in Units16 (256 logical units).
+pub const MAX_BRUSH_RADIUS: i64 = 256 * UNITS16_PER_UNIT;
+/// Most fog operations on one map; then the GM resets the fog (ADR-0019).
+pub const MAX_FOG_OPS: usize = 4096;
+/// Most brush points over all fog operations of one map (bounds the stored JSON, ~1 MB).
+pub const MAX_FOG_POINTS: usize = 65_536;
 
 /// Who may read a journal entry.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]

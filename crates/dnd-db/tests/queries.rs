@@ -444,7 +444,7 @@ fn query_inventory_matches_adr_0008() {
         .map(|s| s.matches("sqlx::query").count())
         .sum();
     assert_eq!(
-        count, 30,
+        count, 32,
         "runtime queries changed: add a real-SQLite test and update the table in docs/adr/0008-db-conventions.md"
     );
 }
@@ -800,4 +800,118 @@ async fn assets_are_registered_and_loaded() {
         .await
         .is_err()
     );
+}
+
+/// Fog (ADR-0019): operations are appended to `maps.fog` in order, a reset replaces them, a map
+/// that never had fog loads without any, and fog of an unknown map changes nothing.
+#[tokio::test]
+async fn fog_is_appended_reset_and_loaded() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = new_campaign(&dir).await;
+    let (m0, m1) = (map(0, "Crypt", 1), map(1, "Chapel", 1));
+    let op = |n: u128, kind: FogOpKind, shape: FogShape| FogOp {
+        id: FogOpId(v7(0x900 + n)),
+        kind,
+        shape,
+    };
+    let reveal = op(
+        1,
+        FogOpKind::Reveal,
+        FogShape::Rect {
+            x: 0,
+            y: 16,
+            width: 160,
+            height: 320,
+        },
+    );
+    let hide = op(
+        2,
+        FogOpKind::Hide,
+        FogShape::Brush {
+            radius: 48,
+            points: vec![10, 20, 30, 40],
+        },
+    );
+    db.project(&[
+        record(1, Some(0x91), vec![Event::MapCreated { map: m0.clone() }]),
+        record(2, Some(0x92), vec![Event::MapCreated { map: m1.clone() }]),
+        // No reset first: the map starts clear.
+        record(
+            3,
+            Some(0x93),
+            vec![Event::FogApplied {
+                map_id: m0.id,
+                op: reveal.clone(),
+            }],
+        ),
+        record(
+            4,
+            Some(0x94),
+            vec![Event::FogApplied {
+                map_id: m0.id,
+                op: hide.clone(),
+            }],
+        ),
+        record(
+            5,
+            Some(0x95),
+            vec![Event::FogApplied {
+                map_id: MapId(v7(0x7777)),
+                op: op(
+                    3,
+                    FogOpKind::Hide,
+                    FogShape::Rect {
+                        x: 0,
+                        y: 0,
+                        width: 16,
+                        height: 16,
+                    },
+                ),
+            }],
+        ),
+    ])
+    .await
+    .unwrap();
+    let (state, _) = db.load_state().await.unwrap();
+    assert_eq!(
+        state.fog.values().cloned().collect::<Vec<_>>(),
+        vec![FogDto {
+            map_id: m0.id,
+            covered: false,
+            ops: vec![reveal, hide],
+        }]
+    );
+
+    db.project(&[record(
+        6,
+        Some(0x96),
+        vec![Event::FogReset {
+            map_id: m0.id,
+            covered: true,
+        }],
+    )])
+    .await
+    .unwrap();
+    let (state, _) = db.load_state().await.unwrap();
+    assert_eq!(
+        state.fog.get(&m0.id),
+        Some(&FogDto {
+            map_id: m0.id,
+            covered: true,
+            ops: vec![],
+        })
+    );
+    // Renaming the map keeps its fog (upsert_map does not touch the column).
+    db.project(&[record(
+        7,
+        Some(0x97),
+        vec![Event::MapUpdated {
+            map: map(0, "Flooded crypt", 2),
+        }],
+    )])
+    .await
+    .unwrap();
+    let (state, _) = db.load_state().await.unwrap();
+    assert!(state.fog[&m0.id].covered);
+    assert!(!state.fog.contains_key(&m1.id));
 }

@@ -181,6 +181,7 @@ export async function installMockIpc(role: Role, open = true): Promise<void> {
         version: 1,
       },
     ],
+    fog: [],
     chat: sampleChat(),
   };
   const info: CampaignInfo = {

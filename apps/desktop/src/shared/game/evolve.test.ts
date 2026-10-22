@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { applyBatch, applyEvent } from './evolve';
-import type { MapDto, Snapshot, TokenDto } from '@/shared/ipc/client';
+import type { FogOp, MapDto, Snapshot, TokenDto } from '@/shared/ipc/client';
 
 const map = (id: string, version = 1): MapDto => ({
   id,
@@ -37,6 +37,7 @@ const empty: Snapshot = {
   users: [],
   journal: [],
   assets: [],
+  fog: [],
   chat: [],
 };
 
@@ -71,6 +72,45 @@ describe('applyEvent', () => {
     let s = applyEvent(empty, { kind: 'token_created', token: token('t1', 'm1') });
     s = applyEvent(s, { kind: 'token_moved', id: 't1', x: 70, y: 35 });
     expect(s.tokens[0]).toMatchObject({ x: 70, y: 35, version: 1 });
+  });
+});
+
+describe('applyEvent: fog (mirrors the core)', () => {
+  const reveal: FogOp = {
+    id: 'op1',
+    kind: 'reveal',
+    shape: { type: 'rect', x: 0, y: 0, width: 160, height: 160 },
+  };
+  const hide: FogOp = {
+    id: 'op2',
+    kind: 'hide',
+    shape: { type: 'brush', radius: 32, points: [10, 10, 40, 40] },
+  };
+  const withMap = applyEvent(empty, { kind: 'map_created', map: map('m1') });
+
+  it('appends operations in order; a map without a reset starts clear', () => {
+    let s = applyEvent(withMap, { kind: 'fog_applied', map_id: 'm1', op: reveal });
+    s = applyEvent(s, { kind: 'fog_applied', map_id: 'm1', op: hide });
+    expect(s.fog).toEqual([{ map_id: 'm1', covered: false, ops: [reveal, hide] }]);
+  });
+
+  it('draws a replayed operation once', () => {
+    let s = applyEvent(withMap, { kind: 'fog_applied', map_id: 'm1', op: reveal });
+    s = applyEvent(s, { kind: 'fog_applied', map_id: 'm1', op: reveal });
+    expect(s.fog[0]?.ops).toHaveLength(1);
+  });
+
+  it('reset drops operations; deleting the map drops its fog', () => {
+    let s = applyEvent(withMap, { kind: 'fog_applied', map_id: 'm1', op: reveal });
+    s = applyEvent(s, { kind: 'fog_reset', map_id: 'm1', covered: true });
+    expect(s.fog).toEqual([{ map_id: 'm1', covered: true, ops: [] }]);
+    s = applyEvent(s, { kind: 'map_deleted', id: 'm1' });
+    expect(s.fog).toEqual([]);
+  });
+
+  it('ignores fog of an unknown map', () => {
+    expect(applyEvent(empty, { kind: 'fog_applied', map_id: 'nope', op: reveal })).toBe(empty);
+    expect(applyEvent(empty, { kind: 'fog_reset', map_id: 'nope', covered: true })).toBe(empty);
   });
 });
 

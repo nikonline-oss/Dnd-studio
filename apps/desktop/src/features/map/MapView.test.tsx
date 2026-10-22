@@ -100,6 +100,7 @@ function setup(node: ReactNode, maps: MapDto[], role: Role = 'gm') {
     users: [],
     journal: [],
     assets: [asset],
+    fog: [],
     chat: [],
   };
   const info: CampaignInfo = { name: 'C', path: '/c', user_id: id(99), role };

@@ -238,7 +238,11 @@ export type DieDto = {
 };
 
 /**  A fact about a state change. */
-export type Event = { kind: "campaign_meta_updated"; campaign: CampaignMeta } | { kind: "map_created"; map: MapDto } | { kind: "map_updated"; map: MapDto } | { kind: "map_deleted"; id: MapId } | { kind: "token_created"; token: TokenDto } | { kind: "token_updated"; token: TokenDto } | { kind: "token_moved"; id: TokenId; x: number; y: number } | { kind: "token_deleted"; id: TokenId } | { kind: "character_created"; character: CharacterDto } | 
+export type Event = { kind: "campaign_meta_updated"; campaign: CampaignMeta } | { kind: "map_created"; map: MapDto } | { kind: "map_updated"; map: MapDto } | { kind: "map_deleted"; id: MapId } | 
+/**  Appended to the map's fog; applying the same `op.id` twice adds it once. */
+{ kind: "fog_applied"; map_id: MapId; op: FogOp } | 
+/**  The map's fog now has no operations, only the initial state. */
+{ kind: "fog_reset"; map_id: MapId; covered: boolean } | { kind: "token_created"; token: TokenDto } | { kind: "token_updated"; token: TokenDto } | { kind: "token_moved"; id: TokenId; x: number; y: number } | { kind: "token_deleted"; id: TokenId } | { kind: "character_created"; character: CharacterDto } | 
 /**  Any change: name, sheet, status, owner. */
 { kind: "character_updated"; character: CharacterDto } | { kind: "journal_entry_created"; entry: JournalEntryDto } | 
 /**  Any change: text, title, folder, order, visibility. */
@@ -254,6 +258,38 @@ export type EventBatch = {
 	caused_by: IntentId | null,
 	events: Event[],
 };
+
+/**
+ *  Fog of war of one map: covered or clear at first, then the operations in order. A map
+ *  without fog has none (same as `covered: false` with no operations).
+ */
+export type FogDto = {
+	map_id: MapId,
+	covered: boolean,
+	ops: FogOp[],
+};
+
+/**  One fog-of-war operation. Operations are applied in order over the initial state (ADR-0019). */
+export type FogOp = {
+	id: FogOpId,
+	kind: FogOpKind,
+	shape: FogShape,
+};
+
+/**  One fog-of-war operation (makes re-applying an event idempotent). */
+export type FogOpId = string;
+
+/**  Whether a fog operation uncovers or covers its shape. */
+export type FogOpKind = "reveal" | "hide";
+
+/**  The area of a fog operation, in Units16 (ADR-0016, ADR-0019). */
+export type FogShape = 
+/**  Axis-aligned rectangle with its top-left corner at (`x`, `y`). */
+{ type: "rect"; x: number; y: number; width: number; height: number } | 
+/**  A stroke: circles of `radius` swept along the polyline `points`. */
+{ type: "brush"; radius: number; 
+/**  Flat `[x0, y0, x1, y1, …]`, 1..=[`MAX_BRUSH_POINTS`] points. */
+points: number[] };
 
 /**
  *  Emitted after every accepted intent with the events it produced — only once they are
@@ -275,7 +311,14 @@ export type GridKind = "none" | "square" | "hex_flat" | "hex_pointy";
 /**  A request to change state. Update intents carry only the fields to change (`null` = keep). */
 export type Intent = { kind: "update_campaign_meta"; name: string | null; description: string | null } | { kind: "create_map"; id: MapId; name: string; background_asset_id: AssetId | null; 
 /**  Logical size (ADR-0016), `1..=MAX_MAP_SIZE`; fixed for the life of the map. */
-width: number; height: number; grid: Grid; visible_to_players: boolean } | { kind: "update_map"; id: MapId; name: string | null; grid: Grid | null; visible_to_players: boolean | null } | { kind: "delete_map"; id: MapId } | { kind: "create_token"; id: TokenId; map_id: MapId; character_id: CharacterId | null; asset_id: AssetId | null; name: string; x: number; y: number; rotation: number; scale: number; layer: TokenLayer; visible: boolean } | { kind: "update_token"; id: TokenId; name: string | null; rotation: number | null; scale: number | null; layer: TokenLayer | null; visible: boolean | null } | 
+width: number; height: number; grid: Grid; visible_to_players: boolean } | { kind: "update_map"; id: MapId; name: string | null; grid: Grid | null; visible_to_players: boolean | null } | { kind: "delete_map"; id: MapId } | 
+/**
+ *  GM / Co-GM. Appends a reveal/hide operation to the map's fog (ADR-0019). The shape must
+ *  lie on the map; `op.id` is a new UUIDv7. Does not change the map version.
+ */
+{ kind: "apply_fog"; map_id: MapId; op: FogOp } | 
+/**  GM / Co-GM. Drops every fog operation: the whole map becomes covered or clear. */
+{ kind: "reset_fog"; map_id: MapId; covered: boolean } | { kind: "create_token"; id: TokenId; map_id: MapId; character_id: CharacterId | null; asset_id: AssetId | null; name: string; x: number; y: number; rotation: number; scale: number; layer: TokenLayer; visible: boolean } | { kind: "update_token"; id: TokenId; name: string | null; rotation: number | null; scale: number | null; layer: TokenLayer | null; visible: boolean | null } | 
 /**  Last-write-wins: no version check, does not bump the token version (ADR-0003). */
 { kind: "move_token"; id: TokenId; x: number; y: number } | { kind: "delete_token"; id: TokenId } | 
 /**
@@ -456,6 +499,11 @@ export type RejectReason =
  *  data (e.g. a new `expected_version`) needs a new `intent_id` (ADR-0015).
  */
 { code: "intent_id_reused" } | 
+/**
+ *  A size limit of the target would be exceeded (e.g. too many fog operations on a map);
+ *  `limit` names it. Retrying the same intent cannot succeed.
+ */
+{ code: "limit_exceeded"; limit: string } | 
 /**  Client and server speak different protocol versions. */
 { code: "protocol_mismatch"; server: number; client: number };
 
@@ -490,6 +538,8 @@ export type Snapshot = {
 	/**  Journal index; texts are fetched per entry. */
 	journal: JournalEntryMeta[],
 	assets: AssetDto[],
+	/**  Fog of maps that have any (ADR-0019). */
+	fog: FogDto[],
 	/**  The last `CHAT_SNAPSHOT_LEN` chat messages, oldest first. */
 	chat: ChatMessageDto[],
 };

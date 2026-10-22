@@ -31,6 +31,10 @@ pub enum RejectReason {
     /// data (e.g. a new `expected_version`) needs a new `intent_id` (ADR-0015).
     #[error("intent_id was already used for a different intent")]
     IntentIdReused,
+    /// A size limit of the target would be exceeded (e.g. too many fog operations on a map);
+    /// `limit` names it. Retrying the same intent cannot succeed.
+    #[error("limit `{limit}` exceeded")]
+    LimitExceeded { limit: String },
     /// Client and server speak different protocol versions.
     #[error(
         "protocol version mismatch (server {server}, client {client}); update the client or the server"
@@ -50,6 +54,7 @@ impl RejectReason {
             Self::AlreadyExists => "already_exists",
             Self::IntentIdReused => "intent_id_reused",
             Self::Invalid { .. } => "invalid",
+            Self::LimitExceeded { .. } => "limit_exceeded",
             Self::ProtocolMismatch { .. } => "protocol_mismatch",
         }
     }

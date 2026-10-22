@@ -1,6 +1,6 @@
 //! `evolve`: applies an event to state. Used by the authority after `apply` and by every replica.
 
-use dnd_protocol::Event;
+use dnd_protocol::{Event, FogDto};
 
 use crate::state::GameState;
 
@@ -15,7 +15,31 @@ pub fn evolve(state: &mut GameState, event: &Event) {
         Event::MapDeleted { id } => {
             state.maps.remove(id);
             state.tokens.retain(|_, t| t.map_id != *id);
+            state.fog.remove(id);
         }
+        // Fog of an unknown map is ignored, like a move of an unknown token.
+        Event::FogApplied { map_id, op } if state.maps.contains_key(map_id) => {
+            let fog = state.fog.entry(*map_id).or_insert_with(|| FogDto {
+                map_id: *map_id,
+                covered: false,
+                ops: Vec::new(),
+            });
+            // Idempotent: a replayed event must not draw the shape twice.
+            if !fog.ops.iter().any(|o| o.id == op.id) {
+                fog.ops.push(op.clone());
+            }
+        }
+        Event::FogReset { map_id, covered } if state.maps.contains_key(map_id) => {
+            state.fog.insert(
+                *map_id,
+                FogDto {
+                    map_id: *map_id,
+                    covered: *covered,
+                    ops: Vec::new(),
+                },
+            );
+        }
+        Event::FogApplied { .. } | Event::FogReset { .. } => {}
         Event::TokenCreated { token } | Event::TokenUpdated { token } => {
             state.tokens.insert(token.id, token.clone());
         }

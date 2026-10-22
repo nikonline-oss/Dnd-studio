@@ -59,6 +59,10 @@ define_id!(
     ChatMessageId
 );
 define_id!(
+    /// One fog-of-war operation (makes re-applying an event idempotent).
+    FogOpId
+);
+define_id!(
     /// Client-chosen identifier of an intent, used to correlate `Rejected`/`Events`.
     IntentId
 );

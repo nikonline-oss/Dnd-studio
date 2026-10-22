@@ -10,6 +10,7 @@ use crate::error::RejectReason;
 use crate::ids::{Seq, Version};
 use crate::intent::{Intent, IntentEnvelope};
 use crate::message::{ClientMessage, Envelope};
+use crate::model::FogShape;
 
 /// `Number.MAX_SAFE_INTEGER`: the largest integer a JS client represents exactly (2^53 − 1).
 pub const MAX_SAFE_INTEGER: i64 = (1 << 53) - 1;
@@ -86,8 +87,25 @@ impl Intent {
             | Self::UpdateJournalEntry { .. }
             | Self::DeleteJournalEntry { .. }
             | Self::SendMessage { .. }
-            | Self::RollDice { .. } => Vec::new(),
+            | Self::RollDice { .. }
+            | Self::ResetFog { .. } => Vec::new(),
             Self::RegisterAsset { asset } => vec![("size_bytes", asset.size_bytes)],
+            Self::ApplyFog { op, .. } => match &op.shape {
+                FogShape::Rect {
+                    x,
+                    y,
+                    width,
+                    height,
+                } => vec![
+                    ("op.shape.x", *x),
+                    ("op.shape.y", *y),
+                    ("op.shape.width", *width),
+                    ("op.shape.height", *height),
+                ],
+                FogShape::Brush { radius, points } => std::iter::once(("op.shape.radius", *radius))
+                    .chain(points.iter().map(|p| ("op.shape.points", *p)))
+                    .collect(),
+            },
         }
     }
 }
@@ -103,9 +121,11 @@ impl Intent {
             Self::CreateJournalEntry { id, .. } => Some(id.0),
             Self::SendMessage { id, .. } | Self::RollDice { id, .. } => Some(id.0),
             Self::RegisterAsset { asset } => Some(asset.id.0),
+            Self::ApplyFog { op, .. } => Some(op.id.0),
             Self::UpdateCampaignMeta { .. }
             | Self::UpdateMap { .. }
             | Self::DeleteMap { .. }
+            | Self::ResetFog { .. }
             | Self::UpdateToken { .. }
             | Self::MoveToken { .. }
             | Self::DeleteToken { .. }

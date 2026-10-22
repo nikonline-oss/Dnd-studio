@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::ids::{
     AssetId, CharacterId, ChatMessageId, IntentId, JournalEntryId, MapId, TokenId, UserId, Version,
 };
-use crate::model::{AssetDto, CharacterKind, Grid, JournalVisibility, TokenLayer};
+use crate::model::{AssetDto, CharacterKind, FogOp, Grid, JournalVisibility, TokenLayer};
 
 /// An intent together with its correlation id and the version it was based on (ADR-0003).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -48,6 +48,17 @@ pub enum Intent {
     },
     DeleteMap {
         id: MapId,
+    },
+    /// GM / Co-GM. Appends a reveal/hide operation to the map's fog (ADR-0019). The shape must
+    /// lie on the map; `op.id` is a new UUIDv7. Does not change the map version.
+    ApplyFog {
+        map_id: MapId,
+        op: FogOp,
+    },
+    /// GM / Co-GM. Drops every fog operation: the whole map becomes covered or clear.
+    ResetFog {
+        map_id: MapId,
+        covered: bool,
     },
 
     CreateToken {
@@ -184,7 +195,7 @@ pub enum VersionPolicy {
     Create,
     /// Modifies or deletes an existing entity; `expected_version` must match.
     Checked,
-    /// Last-write-wins (token positions).
+    /// Last-write-wins (token positions, fog reset); does not bump versions.
     LastWriteWins,
 }
 
@@ -197,6 +208,8 @@ impl Intent {
             Self::CreateMap { .. } => "create_map",
             Self::UpdateMap { .. } => "update_map",
             Self::DeleteMap { .. } => "delete_map",
+            Self::ApplyFog { .. } => "apply_fog",
+            Self::ResetFog { .. } => "reset_fog",
             Self::CreateToken { .. } => "create_token",
             Self::UpdateToken { .. } => "update_token",
             Self::MoveToken { .. } => "move_token",
@@ -228,8 +241,9 @@ impl Intent {
             | Self::CreateJournalEntry { .. }
             | Self::SendMessage { .. }
             | Self::RollDice { .. }
-            | Self::RegisterAsset { .. } => VersionPolicy::Create,
-            Self::MoveToken { .. } => VersionPolicy::LastWriteWins,
+            | Self::RegisterAsset { .. }
+            | Self::ApplyFog { .. } => VersionPolicy::Create,
+            Self::MoveToken { .. } | Self::ResetFog { .. } => VersionPolicy::LastWriteWins,
             Self::UpdateCampaignMeta { .. }
             | Self::UpdateMap { .. }
             | Self::DeleteMap { .. }

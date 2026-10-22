@@ -41,6 +41,7 @@ describe('locales', () => {
       'invalid',
       'protocol_mismatch',
       'intent_id_reused',
+      'limit_exceeded',
       'asset_empty',
       'asset_too_large',
       'asset_svg',

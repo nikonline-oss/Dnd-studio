@@ -61,6 +61,7 @@
     "update_failed": "Could not check or install the update",
     "no_update": "There is no update to install",
     "intent_id_reused": "This request id was already used for different data; please retry",
+    "limit_exceeded": "This map has too much fog drawn on it; reset the fog to continue",
     "asset_empty": "The file is empty",
     "asset_too_large": "The file is larger than 100 MB",
     "asset_svg": "SVG images are not supported yet",
