@@ -7,10 +7,10 @@ import { snapToGrid, tokenPosition } from './tokenMath';
 import { tokenViews } from './tokenViews';
 import { CHARACTER_DRAG_TYPE } from '@/shared/dragTypes';
 import { useCampaign, useSnapshot, useSubmitIntent } from '@/shared/game/useGame';
+import { useShownMap } from '@/shared/game/useShownMap';
 import { logFrontend, type FogOpKind, type FogShape } from '@/shared/ipc/client';
 import { uuidv7 } from '@/shared/ipc/uuid';
 import { PixiHost } from '@/shared/pixi/PixiHost';
-import { useSelection } from '@/shared/state/selection';
 import { ErrorText } from '@/shared/ui/ErrorText';
 import { Icon } from '@/shared/ui/Icon';
 import { IconButton } from '@/shared/ui/IconButton';
@@ -25,12 +25,8 @@ export function MapView() {
   const { data: snapshot } = useSnapshot();
   const { data: campaign } = useCampaign();
   const submit = useSubmitIntent();
-  const mapId = useSelection((s) => s.mapId);
-  const maps = snapshot?.maps ?? [];
   const isGm = campaign?.role === 'gm' || campaign?.role === 'co_gm';
-  const map =
-    maps.find((m) => m.id === mapId) ??
-    (campaign?.role === 'player' ? maps.find((m) => m.visible_to_players) : undefined);
+  const map = useShownMap();
   const background = map && snapshot?.assets.find((a) => a.id === map.background_asset_id);
   const fog = map && snapshot?.fog.find((f) => f.map_id === map.id);
   const [scene, setScene] = useState<MapScene | null>(null);

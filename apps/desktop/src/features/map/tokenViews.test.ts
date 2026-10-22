@@ -102,3 +102,26 @@ describe('tokenViews', () => {
     expect(tokenViews(snapshot(true), 'nope', viewer('gm'))).toEqual([]);
   });
 });
+
+describe('tokenViews: whose turn', () => {
+  it('marks the token of the combatant whose turn it is', () => {
+    const s = snapshot(true);
+    const withCombat: Snapshot = {
+      ...s,
+      combats: [{ id: 'c1', map_id: 'm1', round: 1, turn: 'x2', version: 1 }],
+      combatants: ['mine', 'other'].map((tokenId, n) => ({
+        id: `x${n + 1}`,
+        combat_id: 'c1',
+        token_id: tokenId,
+        character_id: null,
+        name: tokenId,
+        initiative: 10 - n,
+        sort_order: n,
+        version: 1,
+      })),
+    };
+    const views = tokenViews(withCombat, 'm1', viewer('gm'));
+    expect(views.filter((v) => v.active).map((v) => v.token.id)).toEqual(['other']);
+    expect(tokenViews(s, 'm1', viewer('gm')).some((v) => v.active)).toBe(false);
+  });
+});

@@ -10,10 +10,13 @@ import { CharacterList } from '@/features/characters/CharacterList';
 import { ChatPanel } from '@/features/chat/ChatPanel';
 import { JournalEditor } from '@/features/journal/JournalEditor';
 import { JournalTree } from '@/features/journal/JournalTree';
+import { InitiativePanel } from '@/features/initiative/InitiativePanel';
 import { LogPanel } from '@/features/logs/LogPanel';
 import { MapInspector } from '@/features/map/MapInspector';
 import { MapList } from '@/features/map/MapList';
 import { TokenList } from '@/features/tokens/TokenList';
+
+const BOTTOM_TAB_ICONS = { chat: 'send', initiative: 'dice', logs: 'book' } as const;
 
 // Pixi is large; it loads with the first map view, not with the app shell.
 const MapView = lazy(() => import('@/features/map/MapView').then((m) => ({ default: m.MapView })));
@@ -43,8 +46,10 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
   const crumb = center === 'journal' ? journalTitle : mapName;
   const isGm = preset === 'gm';
   // Logs are a GM/maintenance tool; the player preset keeps only chat (§5).
-  const bottomTabs = isGm ? (['chat', 'logs'] as const) : (['chat'] as const);
-  const [bottomTab, setBottomTab] = useState<'chat' | 'logs'>('chat');
+  const bottomTabs = isGm
+    ? (['chat', 'initiative', 'logs'] as const)
+    : (['chat', 'initiative'] as const);
+  const [bottomTab, setBottomTab] = useState<'chat' | 'initiative' | 'logs'>('chat');
   const showToast = useToast((s) => s.show);
   // Ctrl+S: force a WAL checkpoint. Data is already saved on every action (ADR-0014); this only
   // folds the WAL into campaign.sqlite and reassures the user.
@@ -136,7 +141,7 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
                       setBottomTab(tab);
                     }}
                   >
-                    <Icon name={tab === 'chat' ? 'send' : 'book'} />
+                    <Icon name={BOTTOM_TAB_ICONS[tab]} />
                     {t(`panels.${tab}`)}
                   </button>
                 ))}
@@ -144,6 +149,10 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
               {bottomTab === 'logs' ? (
                 <ErrorBoundary name={t('panels.logs')}>
                   <LogPanel />
+                </ErrorBoundary>
+              ) : bottomTab === 'initiative' ? (
+                <ErrorBoundary name={t('panels.initiative')}>
+                  <InitiativePanel />
                 </ErrorBoundary>
               ) : (
                 <ErrorBoundary name={t('panels.chat')}>

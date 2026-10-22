@@ -4,7 +4,9 @@
 import { emit } from '@tauri-apps/api/event';
 import { mockIPC } from '@tauri-apps/api/mocks';
 import { drawSampleMap } from './sampleMap';
+import { turnOrder } from '@/features/initiative/turnOrder';
 import { applyEvent } from '@/shared/game/evolve';
+import { uuidv7 } from '@/shared/ipc/uuid';
 import type {
   CampaignInfo,
   ChatMessageDto,
@@ -295,6 +297,102 @@ export async function installMockIpc(role: Role, open = true): Promise<void> {
           [{ kind: 'token_moved', id: intent.id, x: intent.x, y: intent.y }],
           intent_id,
         );
+      // Combat: a rough stand-in for the core (ADR-0020), enough to look at the tracker.
+      case 'start_combat':
+        return commit(
+          [
+            {
+              kind: 'combat_started',
+              combat: { id: intent.id, map_id: intent.map_id, round: 1, turn: null, version: 1 },
+            },
+          ],
+          intent_id,
+        );
+      case 'add_combatant': {
+        const order = snapshot.combatants.filter((c) => c.combat_id === intent.combat_id).length;
+        return commit(
+          [
+            {
+              kind: 'combatant_added',
+              combatant: {
+                id: intent.id,
+                combat_id: intent.combat_id,
+                token_id: intent.token_id,
+                character_id: intent.character_id,
+                name: intent.name,
+                initiative: null,
+                sort_order: order,
+                version: 1,
+              },
+            },
+          ],
+          intent_id,
+        );
+      }
+      case 'roll_initiative':
+      case 'set_initiative': {
+        const c = snapshot.combatants.find((x) => x.id === intent.id);
+        if (!c) return { status: 'rejected', reason: { code: 'not_found' } };
+        const die = 1 + Math.floor(Math.random() * 20);
+        const value = intent.kind === 'set_initiative' ? intent.initiative : die;
+        const events: Event[] = [
+          {
+            kind: 'combatant_updated',
+            combatant: { ...c, initiative: value, version: c.version + 1 },
+          },
+        ];
+        if (intent.kind === 'roll_initiative') {
+          events.push({
+            kind: 'chat_message_posted',
+            message: {
+              id: uuidv7(),
+              kind: 'roll',
+              sender: info.user_id,
+              sender_name: c.name,
+              body: '1d20',
+              roll: {
+                expression: '1d20',
+                total: die,
+                terms: [
+                  {
+                    negative: false,
+                    notation: '1d20',
+                    subtotal: die,
+                    dice: [{ value: die, kept: true }],
+                  },
+                ],
+              },
+              system: null,
+              visibility: 'all',
+              at_ms: Date.now(),
+            },
+          });
+        }
+        return commit(events, intent_id);
+      }
+      case 'next_turn': {
+        const combat = snapshot.combats.find((x) => x.id === intent.combat_id);
+        if (!combat) return { status: 'rejected', reason: { code: 'not_found' } };
+        const order = turnOrder(snapshot.combatants, combat.id);
+        const first = order[0];
+        if (!first) return { status: 'rejected', reason: { code: 'invalid', field: 'combatants' } };
+        const pos = order.findIndex((c) => c.id === combat.turn);
+        const next = pos === -1 ? first : (order[pos + 1] ?? first);
+        const round = pos !== -1 && pos === order.length - 1 ? combat.round + 1 : combat.round;
+        return commit(
+          [
+            {
+              kind: 'combat_updated',
+              combat: { ...combat, turn: next.id, round, version: combat.version + 1 },
+            },
+          ],
+          intent_id,
+        );
+      }
+      case 'remove_combatant':
+        return commit([{ kind: 'combatant_removed', id: intent.id }], intent_id);
+      case 'end_combat':
+        return commit([{ kind: 'combat_ended', id: intent.id }], intent_id);
       case 'delete_token':
         return commit([{ kind: 'token_deleted', id: intent.id }], intent_id);
       case 'apply_fog':

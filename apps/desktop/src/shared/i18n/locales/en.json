@@ -104,7 +104,8 @@
   "panels": {
     "map": "Map",
     "chat": "Chat",
-    "logs": "Logs"
+    "logs": "Logs",
+    "initiative": "Initiative"
   },
   "tabs": {
     "close": "Close {{name}}"
@@ -258,5 +259,26 @@
       "character_approved": "{{name}} was approved",
       "character_returned": "{{name}} was returned for changes"
     }
+  },
+  "initiative": {
+    "noMap": "Open a map to track initiative on it",
+    "noCombat": "No combat on this map",
+    "startHint_one": "Start a combat with the {{count}} token on this map",
+    "startHint_other": "Start a combat with the {{count}} tokens on this map",
+    "start": "Start combat",
+    "round": "Round {{round}}",
+    "turnOf": "{{name}}’s turn",
+    "notStarted": "Roll initiative, then start the first turn",
+    "rollAll": "Roll for all",
+    "addTokens_one": "Add {{count}} token",
+    "addTokens_other": "Add {{count}} tokens",
+    "end": "End combat",
+    "confirmEnd": "End combat?",
+    "firstTurn": "First turn",
+    "nextTurn": "Next turn",
+    "empty": "No combatants yet",
+    "roll": "Roll initiative for {{name}}",
+    "remove": "Remove {{name}} from combat",
+    "value": "Initiative of {{name}}"
   }
 }

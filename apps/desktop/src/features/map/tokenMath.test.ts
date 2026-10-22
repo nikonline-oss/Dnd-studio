@@ -3,11 +3,10 @@ import {
   DEFAULT_TOKEN_SIZE,
   snapToGrid,
   Throttle,
-  tokenColor,
   tokenDiameter,
-  tokenInitial,
   tokenPosition,
 } from './tokenMath';
+import { tokenColor, tokenInitial } from '@/shared/game/tokenLook';
 import type { Grid } from '@/shared/ipc/client';
 
 const square: Grid = { kind: 'square', cell_size: 70, offset_x: 0, offset_y: 0 };

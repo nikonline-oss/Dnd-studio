@@ -12,6 +12,11 @@ export function tokenViews(snapshot: Snapshot, mapId: string, campaign: Campaign
   const isGm = campaign.role === 'gm' || campaign.role === 'co_gm';
   const map = snapshot.maps.find((m) => m.id === mapId);
   if (!map) return [];
+  // Whose turn it is in this map's combat (ADR-0020).
+  const combat = snapshot.combats.find((c) => c.map_id === mapId);
+  const turnToken = combat?.turn
+    ? snapshot.combatants.find((c) => c.id === combat.turn)?.token_id
+    : null;
   const owned = new Set(
     snapshot.characters.filter((c) => c.owner === campaign.user_id).map((c) => c.id),
   );
@@ -30,5 +35,6 @@ export function tokenViews(snapshot: Snapshot, mapId: string, campaign: Campaign
           owned.has(token.character_id)),
       gmOnly: token.layer === 'gm' || !token.visible,
       colorKey: token.character_id ?? token.id,
+      active: token.id === turnToken,
     }));
 }

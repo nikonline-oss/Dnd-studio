@@ -1,8 +1,12 @@
 // Tokens on the canvas (ADR-0017: Pixi is driven imperatively, React never renders a token).
 // One container per token, updated in place; positions come in Units16 (ADR-0016).
 import { Container, Graphics, Text, type FederatedPointerEvent } from 'pixi.js';
-import { tokenColor, tokenDiameter, tokenInitial } from './tokenMath';
+import { tokenDiameter } from './tokenMath';
+import { tokenColor, tokenInitial } from '@/shared/game/tokenLook';
 import type { Grid, TokenDto } from '@/shared/ipc/client';
+
+/** Ring around the token whose turn it is (the accent colour). */
+const ACTIVE_RING = 0xe3aa45;
 
 /** How the viewer sees a token. */
 export interface TokenView {
@@ -13,6 +17,8 @@ export interface TokenView {
   gmOnly: boolean;
   /** Colour key: the character, else the token itself. */
   colorKey: string;
+  /** It is this token's turn in combat: drawn with a ring. */
+  active: boolean;
 }
 
 interface Sprite {
@@ -50,7 +56,7 @@ export class TokenLayer {
         this.view.addChild(sprite.root);
       }
       const diameter = tokenDiameter(grid, token.scale);
-      const look = `${diameter}:${token.name}:${view.colorKey}:${view.gmOnly}`;
+      const look = `${diameter}:${token.name}:${view.colorKey}:${view.gmOnly}:${view.active}`;
       if (look !== sprite.look) {
         this.draw(sprite, view, diameter);
         sprite.look = look;
@@ -137,6 +143,12 @@ export class TokenLayer {
       .stroke({ color: 0xffffff, width: Math.max(1.5, r * 0.08), alignment: 1 })
       .circle(0, 0, r)
       .stroke({ color: 0x000000, alpha: 0.35, width: Math.max(1, r * 0.04), alignment: 0 });
+    if (view.active) {
+      // Whose turn it is: a bright ring outside the token.
+      sprite.disc
+        .circle(0, 0, r + Math.max(3, r * 0.18))
+        .stroke({ color: ACTIVE_RING, width: Math.max(2.5, r * 0.14) });
+    }
     sprite.root.alpha = view.gmOnly ? 0.55 : 1;
     sprite.label.text = tokenInitial(view.token.name);
     sprite.label.style.fontSize = r;

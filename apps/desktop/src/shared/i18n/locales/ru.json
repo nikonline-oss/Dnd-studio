@@ -106,7 +106,8 @@
   "panels": {
     "map": "Карта",
     "chat": "Чат",
-    "logs": "Логи"
+    "logs": "Логи",
+    "initiative": "Инициатива"
   },
   "tabs": {
     "close": "Закрыть «{{name}}»"
@@ -260,5 +261,30 @@
       "character_approved": "{{name}} одобрен",
       "character_returned": "{{name}} возвращён на доработку"
     }
+  },
+  "initiative": {
+    "noMap": "Откройте карту, чтобы вести на ней инициативу",
+    "noCombat": "На этой карте боя нет",
+    "startHint_one": "Начать бой с {{count}} токеном на этой карте",
+    "startHint_few": "Начать бой с {{count}} токенами на этой карте",
+    "startHint_many": "Начать бой с {{count}} токенами на этой карте",
+    "startHint_other": "Начать бой с {{count}} токенами на этой карте",
+    "start": "Начать бой",
+    "round": "Раунд {{round}}",
+    "turnOf": "Ходит {{name}}",
+    "notStarted": "Бросьте инициативу и начните первый ход",
+    "rollAll": "Бросить всем",
+    "addTokens_one": "Добавить {{count}} токен",
+    "addTokens_few": "Добавить {{count}} токена",
+    "addTokens_many": "Добавить {{count}} токенов",
+    "addTokens_other": "Добавить {{count}} токена",
+    "end": "Завершить бой",
+    "confirmEnd": "Завершить бой?",
+    "firstTurn": "Первый ход",
+    "nextTurn": "Следующий ход",
+    "empty": "Участников пока нет",
+    "roll": "Бросить инициативу за {{name}}",
+    "remove": "Убрать {{name}} из боя",
+    "value": "Инициатива: {{name}}"
   }
 }
