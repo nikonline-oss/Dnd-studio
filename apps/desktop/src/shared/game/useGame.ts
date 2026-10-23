@@ -41,6 +41,11 @@ export function useSnapshotSelect<T>(select: (snapshot: Snapshot) => T): T | und
 export function useGameEventsSync() {
   const queryClient = useQueryClient();
   useEffect(() => {
+    // A session server replaces the whole state (connect, reconnect, visibility change).
+    const unlistenSnapshot = events.gameSnapshotReplaced.listen(({ payload }) => {
+      queryClient.setQueryData(queryKeys.snapshot, payload);
+      void queryClient.invalidateQueries({ queryKey: ['journal'] });
+    });
     const unlisten = events.gameEventsEmitted.listen(({ payload }) => {
       // Journal texts live in their own cache entries (the snapshot has only the index).
       for (const event of payload.events) {
@@ -60,9 +65,11 @@ export function useGameEventsSync() {
       }
     });
     return () => {
-      void unlisten.then((stop) => {
-        stop();
-      });
+      for (const listener of [unlisten, unlistenSnapshot]) {
+        void listener.then((stop) => {
+          stop();
+        });
+      }
     };
   }, [queryClient]);
 }

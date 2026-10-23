@@ -17,6 +17,8 @@ import type {
   JournalEntryDto,
   LogRecord,
   Role,
+  RemoteEntry,
+  RemoteInfo,
   Snapshot,
 } from '@/shared/ipc/client';
 
@@ -102,7 +104,36 @@ function sampleChat(): ChatMessageDto[] {
 }
 
 /** `open: false` starts on the start screen (no campaign open). */
-export async function installMockIpc(role: Role, open = true, stress = false): Promise<void> {
+export async function installMockIpc(
+  role: Role,
+  open = true,
+  stress = false,
+  onServer = false,
+): Promise<void> {
+  let remote: RemoteInfo | null = onServer
+    ? {
+        server: 'https://dnd.example.org',
+        session_id: id(90),
+        session_name: 'Curse of the Lost Mine',
+        role,
+        hosted: false,
+        status: { state: 'online' },
+      }
+    : null;
+  const savedSessions: RemoteEntry[] = [
+    {
+      server: 'https://dnd.example.org',
+      session_id: id(90),
+      session_name: 'Curse of the Lost Mine',
+      hosted: role !== 'player',
+      name: role === 'player' ? 'Mira' : 'Game Master',
+      role,
+      user_id: role === 'player' ? PLAYER : GM,
+      invite_url: `https://dnd.example.org/api/sessions/${id(90)}`,
+      access_code: role === 'player' ? null : 'K7PQX-2MWRT',
+      saved_at_ms: Date.now(),
+    },
+  ];
   const image = await drawSampleMap();
   const files = new Map<string, string>([
     [sha(0xa1), image.tile],
@@ -569,6 +600,38 @@ export async function installMockIpc(role: Role, open = true, stress = false): P
           return null;
         case 'campaign_checkpoint':
         case 'update_check':
+          return null;
+        // Session server (ADR-0022): enough to look at the dialogs and the status bar.
+        case 'remote_current':
+          return remote;
+        case 'remote_sessions':
+          return savedSessions;
+        case 'remote_host':
+          return {
+            server: String(payload.server),
+            session_id: id(91),
+            name: snapshot.campaign.name,
+            access_code: 'K7PQX-2MWRT',
+            invite_url: `${String(payload.server)}/api/sessions/${id(91)}`,
+          };
+        case 'remote_join':
+        case 'remote_connect':
+          remote = {
+            server: 'https://dnd.example.org',
+            session_id: id(90),
+            session_name: snapshot.campaign.name,
+            role,
+            hosted: cmd === 'remote_connect' && role !== 'player',
+            status: { state: 'online' },
+          };
+          open = true;
+          return info;
+        case 'remote_forget':
+        case 'remote_stop':
+          return null;
+        case 'campaign_close':
+          remote = null;
+          open = false;
           return null;
         case 'asset_import_map':
           // The real command opens a native file dialog; here it behaves as if cancelled.

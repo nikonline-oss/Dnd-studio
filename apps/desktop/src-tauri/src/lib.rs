@@ -6,6 +6,7 @@ mod commands;
 mod error;
 mod local_server;
 pub mod logging;
+pub mod remote;
 mod updater;
 
 pub use commands::{AppInfo, AppState, GameEventsEmitted};
@@ -50,6 +51,13 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::chat_history,
             assets::asset_import_map::<tauri::Wry>,
             commands::submit_intent::<tauri::Wry>,
+            commands::remote_host,
+            commands::remote_join::<tauri::Wry>,
+            commands::remote_connect::<tauri::Wry>,
+            commands::remote_sessions,
+            commands::remote_forget,
+            commands::remote_stop,
+            commands::remote_current,
             commands::logs_recent,
             commands::log_frontend,
             updater::update_check::<tauri::Wry>,
@@ -57,6 +65,8 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
         ])
         .events(collect_events![
             GameEventsEmitted,
+            commands::GameSnapshotReplaced,
+            commands::RemoteStatusChanged,
             logging::LogRecord,
             updater::UpdateAvailable
         ])
@@ -82,13 +92,19 @@ struct LogGuard(StdMutex<Option<WorkerGuard>>);
 pub fn run() -> Result<(), tauri::Error> {
     let builder = specta_builder();
 
-    let app = tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+    let mut app = tauri::Builder::default();
+    // A second window to try a session as GM and player on one machine: debug builds only,
+    // with `DNDSTUDIO_MULTI_INSTANCE=1`.
+    let multi = cfg!(debug_assertions) && std::env::var_os("DNDSTUDIO_MULTI_INSTANCE").is_some();
+    if !multi {
+        app = app.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.unminimize();
                 let _ = window.set_focus();
             }
-        }))
+        }));
+    }
+    let app = app
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_dialog::init())
         .register_asynchronous_uri_scheme_protocol(assets::SCHEME, assets::serve)
@@ -106,6 +122,7 @@ pub fn run() -> Result<(), tauri::Error> {
             tracing::info!(version = env!("CARGO_PKG_VERSION"), log_dir = %log_dir.display(), "DndStudio started");
 
             let state = AppState::new(logs);
+            commands::init_dirs(app.handle(), &state)?;
             tauri::async_runtime::spawn(autosave::run(state.server.clone()));
             app.manage(state);
 

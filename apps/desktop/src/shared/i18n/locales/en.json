@@ -85,14 +85,29 @@
     "asset_dimensions": "The image is too large to open",
     "asset_decode": "The image file is damaged",
     "import_failed": "Could not import the image",
-    "invalid_archive": "Not a DndStudio campaign archive, or it is damaged"
+    "invalid_archive": "Not a DndStudio campaign archive, or it is damaged",
+    "no_host_token": "Enter this server's host token",
+    "server_unreachable": "The server cannot be reached",
+    "invalid_address": "Not a server address or invite link",
+    "unauthorized": "Wrong access code or token",
+    "session_closed": "The session has already ended",
+    "session_full": "The session is full",
+    "too_many_sessions": "The server has no room for another session",
+    "offline": "Not connected to the server",
+    "connection_lost": "The connection broke; check whether it went through",
+    "timeout": "The server did not answer in time",
+    "connecting": "Waiting for the server",
+    "keychain_unavailable": "The system password store is unavailable",
+    "not_in_remote_session": "Not connected to a server",
+    "protocol_error": "The server answered something unexpected"
   },
   "menu": {
     "label": "Main menu",
     "file": "File",
     "view": "View",
     "breadcrumbs": "Breadcrumbs",
-    "help": "Help"
+    "help": "Help",
+    "session": "Session"
   },
   "layout": {
     "gm": "Game master layout",
@@ -110,7 +125,16 @@
     "label": "Status bar",
     "serverLocal": "Local game",
     "plugins_one": "{{count}} plugin",
-    "plugins_other": "{{count}} plugins"
+    "plugins_other": "{{count}} plugins",
+    "connecting": "Connecting to the server…",
+    "online": "On the server",
+    "reconnecting": "Offline, retrying in {{seconds}} s",
+    "closed": {
+      "session_closed": "The session has ended",
+      "unauthorized": "Access to the session was revoked",
+      "protocol_mismatch": "Update the application",
+      "other": "Connection closed"
+    }
   },
   "roles": {
     "gm": "Game master",
@@ -311,5 +335,32 @@
     "journal": "Journal",
     "badge_one": "{{count}} waiting for approval",
     "badge_other": "{{count}} waiting for approval"
+  },
+  "session": {
+    "host": "Invite players…",
+    "connect": "Join a session…",
+    "stop": "Stop the session",
+    "leave": "Disconnect",
+    "close": "Close",
+    "hostTitle": "Invite players",
+    "hostIntro": "The campaign is uploaded to your session server. Players join it with the link and the access code.",
+    "server": "Server address",
+    "hostToken": "Host token",
+    "hostTokenHint": "Set by the server owner. Leave empty if you already entered it for this server.",
+    "upload": "Upload the campaign",
+    "uploading": "Uploading…",
+    "hosted": "“{{name}}” is on the server. Give the players the link and the access code.",
+    "accessCode": "Access code",
+    "invite": "Invite link",
+    "copy": "Copy",
+    "copied": "Copied",
+    "hostedHint": "While the session runs, changes are kept on the server. Your local campaign stays as it is.",
+    "joinAsGm": "Join as the GM",
+    "connectTitle": "Join a session",
+    "yourName": "Your name",
+    "join": "Join",
+    "saved": "My sessions",
+    "reconnect": "Connect",
+    "forget": "Forget the session"
   }
 }

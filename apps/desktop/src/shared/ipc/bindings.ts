@@ -90,6 +90,27 @@ export const commands = {
 	 *  play and never shows an event that is not on disk.
 	 */
 	submitIntent: (envelope: IntentEnvelope) => typedError<IntentOutcome, IpcError>(__TAURI_INVOKE("submit_intent", { envelope })),
+	/**  Uploads the open campaign to a session server. An empty `host_token` uses the saved one. */
+	remoteHost: (server: string, hostToken: string) => typedError<HostedSession, IpcError>(__TAURI_INVOKE("remote_host", { server, hostToken })),
+	/**  Joins a session as a player with an invite link, the access code and a name, and plays there. */
+	remoteJoin: (invite: string, accessCode: string, name: string) => typedError<CampaignInfo, IpcError>(__TAURI_INVOKE("remote_join", { invite, accessCode, name })),
+	/**  Connects to a saved session (hosted or joined before). */
+	remoteConnect: (server: string, sessionId: SessionId) => typedError<CampaignInfo, IpcError>(__TAURI_INVOKE("remote_connect", { server, sessionId })),
+	/**  Sessions hosted or joined from this app, newest first. */
+	remoteSessions: () => typedError<RemoteEntry[], IpcError>(__TAURI_INVOKE("remote_sessions")),
+	/**  Forgets a saved session and its secrets. */
+	remoteForget: (server: string, sessionId: SessionId) => typedError<null, IpcError>(__TAURI_INVOKE("remote_forget", { server, sessionId })),
+	/**  Stops the connected session on the server (GM) and leaves it. */
+	remoteStop: () => typedError<null, IpcError>(__TAURI_INVOKE("remote_stop")),
+	/**  The connected session, if any. */
+	remoteCurrent: () => typedError<{
+	server: string,
+	session_id: SessionId,
+	session_name: string,
+	role: Role,
+	hosted: boolean,
+	status: RemoteStatus,
+} | null, IpcError>(__TAURI_INVOKE("remote_current")),
 	/**  Recent log records for the log panel (live ones arrive as [`LogRecord`] events). */
 	logsRecent: () => __TAURI_INVOKE<LogRecord[]>("logs_recent"),
 	/**  Lets the UI write to the application log (e.g. a crashed feature in an error boundary). */
@@ -107,7 +128,9 @@ export const commands = {
 /** Events */
 export const events = {
 	gameEventsEmitted: makeEvent<GameEventsEmitted>("game-events-emitted"),
+	gameSnapshotReplaced: makeEvent<GameSnapshotReplaced>("game-snapshot-replaced"),
 	logRecord: makeEvent<LogRecord>("log-record"),
+	remoteStatusChanged: makeEvent<RemoteStatusChanged>("remote-status-changed"),
 	updateAvailable: makeEvent<UpdateAvailable>("update-available"),
 };
 
@@ -375,6 +398,12 @@ points: number[] };
  */
 export type GameEventsEmitted = EventBatch;
 
+/**
+ *  The server sent a whole new state (connect, reconnect, a visibility change): it replaces the
+ *  snapshot the UI has (ADR-0022).
+ */
+export type GameSnapshotReplaced = Snapshot;
+
 /**  Grid settings of a map. Lengths are in logical map units (ADR-0016). */
 export type Grid = {
 	kind: GridKind,
@@ -385,6 +414,15 @@ export type Grid = {
 
 /**  Grid geometry of a map. */
 export type GridKind = "none" | "square" | "hex_flat" | "hex_pointy";
+
+/**  What the GM sees after uploading a campaign. */
+export type HostedSession = {
+	server: string,
+	session_id: SessionId,
+	name: string,
+	access_code: string,
+	invite_url: string,
+};
 
 /**  A request to change state. Update intents carry only the fields to change (`null` = keep). */
 export type Intent = { kind: "update_campaign_meta"; name: string | null; description: string | null } | { kind: "create_map"; id: MapId; name: string; background_asset_id: AssetId | null; 
@@ -636,6 +674,39 @@ export type Rejection = {
 	reason: RejectReason,
 };
 
+/**  A session this app hosted or joined (no secrets). */
+export type RemoteEntry = {
+	server: string,
+	session_id: SessionId,
+	session_name: string,
+	/**  Uploaded from this app (its GM key is in the keychain). */
+	hosted: boolean,
+	/**  The participant's name, role and campaign user once joined. */
+	name: string | null,
+	role: Role | null,
+	user_id: UserId | null,
+	invite_url: string | null,
+	/**  The access code, for the GM to pass on (from the keychain, never stored in the list). */
+	access_code: string | null,
+	saved_at_ms: number,
+};
+
+/**  The connected session, for the status bar and the hosting screen. */
+export type RemoteInfo = {
+	server: string,
+	session_id: SessionId,
+	session_name: string,
+	role: Role,
+	hosted: boolean,
+	status: RemoteStatus,
+};
+
+/**  Connection state for the status bar. */
+export type RemoteStatus = { state: "connecting" } | { state: "online" } | { state: "reconnecting"; attempt: number; retry_in_ms: number } | { state: "closed"; reason: string };
+
+/**  The connection to the session server changed. */
+export type RemoteStatusChanged = RemoteStatus;
+
 /**  Role of a participant (CLAUDE.md §5). */
 export type Role = "gm" | "co_gm" | "player" | "spectator";
 
@@ -663,6 +734,9 @@ export type ServerMessage = { type: "events"; payload: EventBatch } |
 	id: JournalEntryId,
 	entry: JournalEntryDto | null,
 } };
+
+/**  A session on the session server. */
+export type SessionId = string;
 
 /**  The visible state as of event `seq`. */
 export type Snapshot = {

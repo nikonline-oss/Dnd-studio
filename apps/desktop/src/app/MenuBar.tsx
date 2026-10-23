@@ -1,7 +1,10 @@
 import { useMutation } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useCampaignActions } from '@/shared/game/useCampaignActions';
-import { commands, errorCode, unwrap } from '@/shared/ipc/client';
+import { useCampaign } from '@/shared/game/useGame';
+import { useRemote } from '@/shared/game/useRemote';
+import { commands, errorCode, ipc, unwrap } from '@/shared/ipc/client';
+import { useDialogs } from '@/shared/state/dialogs';
 import { useSettings, type Settings } from '@/shared/settings/settings';
 import { Icon } from '@/shared/ui/Icon';
 import { Menu } from '@/shared/ui/Menu';
@@ -11,6 +14,15 @@ export function MenuBar({ breadcrumbs }: { breadcrumbs: string[] }) {
   const { t } = useTranslation();
   const { open, close, importArchive, exportArchive } = useCampaignActions();
   const showToast = useToast((s) => s.show);
+  const showDialog = useDialogs((s) => s.show);
+  const remote = useRemote();
+  const { data: campaign } = useCampaign();
+  const stopSession = useMutation({
+    mutationFn: ipc.remoteStop,
+    onSuccess: () => {
+      close.mutate();
+    },
+  });
   const failed = (error: unknown) => {
     showToast(t(`errors.${errorCode(error)}`, { defaultValue: t('errors.unknown') }), 'error');
   };
@@ -54,7 +66,8 @@ export function MenuBar({ breadcrumbs }: { breadcrumbs: string[] }) {
             },
             {
               label: t('campaign.export'),
-              disabled: exportArchive.isPending,
+              // A session's campaign lives on the server (bringing it home: stage 4).
+              disabled: exportArchive.isPending || remote !== null,
               onSelect: () => {
                 exportArchive.mutate(undefined, {
                   onSuccess: (path) => {
@@ -67,6 +80,39 @@ export function MenuBar({ breadcrumbs }: { breadcrumbs: string[] }) {
             'separator',
             {
               label: t('campaign.close'),
+              onSelect: () => {
+                close.mutate();
+              },
+            },
+          ]}
+        />
+        <Menu
+          label={t('menu.session')}
+          items={[
+            {
+              label: t('session.host'),
+              disabled: remote !== null || campaign?.role !== 'gm',
+              onSelect: () => {
+                showDialog('hosting');
+              },
+            },
+            {
+              label: t('session.connect'),
+              onSelect: () => {
+                showDialog('connect');
+              },
+            },
+            'separator',
+            {
+              label: t('session.stop'),
+              disabled: remote?.role !== 'gm' || stopSession.isPending,
+              onSelect: () => {
+                stopSession.mutate(undefined, { onError: failed });
+              },
+            },
+            {
+              label: t('session.leave'),
+              disabled: remote === null,
               onSelect: () => {
                 close.mutate();
               },

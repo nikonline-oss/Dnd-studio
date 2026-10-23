@@ -87,6 +87,8 @@ getrandom = "0.4.3"
 reqwest = { version = "0.13.5", default-features = false, features = ["json", "multipart", "http2", "rustls-no-provider"] }
 tokio-tungstenite = { version = "0.30.0", features = ["rustls-tls-native-roots"] }
 # The crypto provider reqwest needs when Tauri's `rustls-no-provider` is unified in (ring, as Tauri).
+# OS keychain for GM keys and participant tokens (CLAUDE.md §7, ADR-0022).
+keyring = "4.2.0"
 rustls = { version = "0.23.46", default-features = false, features = ["ring", "std", "tls12"] }
 futures-util = { version = "0.3.34", default-features = false, features = ["sink", "std"] }
 sqlx = { version = "0.9.0", default-features = false }

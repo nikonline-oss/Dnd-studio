@@ -1,6 +1,7 @@
 import { useMutation } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useCampaign, useSnapshotSelect, useSubmitIntent } from '@/shared/game/useGame';
+import { useRemote } from '@/shared/game/useRemote';
 import { ipc } from '@/shared/ipc/client';
 import { uuidv7 } from '@/shared/ipc/uuid';
 import { useSelection } from '@/shared/state/selection';
@@ -24,6 +25,8 @@ export function MapList() {
   const maps = useSnapshotSelect((s) => s.maps) ?? [];
   const { data: campaign } = useCampaign();
   const isGm = campaign?.role === 'gm' || campaign?.role === 'co_gm';
+  // Images are imported into the local campaign; uploading them to a session comes with stage 4.
+  const remote = useRemote();
   const showToast = useToast((s) => s.show);
 
   // The file is picked in a native dialog on the Rust side; the map arrives as game events.
@@ -74,7 +77,7 @@ export function MapList() {
       count={maps.length}
       actions={
         <>
-          {isGm && (
+          {isGm && remote === null && (
             <IconButton
               icon="image"
               label={t('maps.import')}

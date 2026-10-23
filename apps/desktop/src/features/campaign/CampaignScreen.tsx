@@ -3,6 +3,7 @@ import { useState, type SyntheticEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { queryKeys } from '@/shared/game/useGame';
 import { useCampaignActions } from '@/shared/game/useCampaignActions';
+import { useDialogs } from '@/shared/state/dialogs';
 import { errorCode, ipc } from '@/shared/ipc/client';
 import { ErrorText } from '@/shared/ui/ErrorText';
 import { Icon } from '@/shared/ui/Icon';
@@ -12,6 +13,7 @@ export function CampaignScreen() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { create, open, importArchive } = useCampaignActions();
+  const showDialog = useDialogs((s) => s.show);
   const [name, setName] = useState('');
 
   // Offered when opening failed because the file is damaged (CLAUDE.md §10).
@@ -86,6 +88,16 @@ export function CampaignScreen() {
         >
           <Icon name="filePlus" />
           {t('campaign.import')}
+        </button>
+        <button
+          type="button"
+          className="with-text"
+          onClick={() => {
+            showDialog('connect');
+          }}
+        >
+          <Icon name="cloud" />
+          {t('session.connect')}
         </button>
       </div>
       <ErrorText error={create.error ?? open.error ?? importArchive.error ?? restore.error} />

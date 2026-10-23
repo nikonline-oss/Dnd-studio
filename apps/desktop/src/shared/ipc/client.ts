@@ -54,6 +54,15 @@ export const ipc = {
   campaignClose: () => unwrap(commands.campaignClose()),
   campaignExport: () => unwrap(commands.campaignExport()),
   campaignImport: () => unwrap(commands.campaignImport()),
+  remoteHost: (server: string, hostToken: string) => unwrap(commands.remoteHost(server, hostToken)),
+  remoteJoin: (invite: string, accessCode: string, name: string) =>
+    unwrap(commands.remoteJoin(invite, accessCode, name)),
+  remoteConnect: (server: string, sessionId: string) =>
+    unwrap(commands.remoteConnect(server, sessionId)),
+  remoteSessions: () => unwrap(commands.remoteSessions()),
+  remoteForget: (server: string, sessionId: string) =>
+    unwrap(commands.remoteForget(server, sessionId)),
+  remoteStop: () => unwrap(commands.remoteStop()),
   campaignCheckpoint: () => unwrap(commands.campaignCheckpoint()),
   campaignCurrent: () => unwrap(commands.campaignCurrent()),
   getSnapshot: () => unwrap(commands.getSnapshot()),

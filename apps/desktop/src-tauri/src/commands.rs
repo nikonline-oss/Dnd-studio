@@ -5,10 +5,10 @@ use std::sync::Arc;
 
 use dnd_protocol::{
     ChatMessageDto, ChatMessageId, EventBatch, IntentEnvelope, IntentOutcome, JournalEntryDto,
-    JournalEntryId, Snapshot,
+    JournalEntryId, SessionId, Snapshot,
 };
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Runtime, State};
+use tauri::{AppHandle, Manager, Runtime, State};
 use tauri_plugin_dialog::DialogExt;
 use tauri_specta::Event;
 use tokio::sync::Mutex;
@@ -16,14 +16,30 @@ use tokio::sync::Mutex;
 use crate::error::IpcError;
 use crate::local_server::{CAMPAIGN_FILE, CampaignInfo, LocalServer, folder_name};
 use crate::logging::{LogBuffer, LogLevel, LogRecord};
+use crate::remote::{
+    HostedSession, OsKeychain, RemoteBook, RemoteEntry, RemoteEvent, RemoteInfo, RemoteSession,
+    RemoteStatus, Secrets,
+};
 
-/// Shared application state.
+/// Shared application state. At most one of `server` (local play) and `remote` (a session
+/// server, ADR-0022) is open.
 #[derive(Debug)]
 pub struct AppState {
     pub(crate) server: Arc<Mutex<Option<LocalServer>>>,
+    pub(crate) remote: Arc<Mutex<Option<RemoteSession>>>,
+    pub(crate) secrets: Arc<dyn Secrets>,
+    /// `remote_sessions.json` and the asset cache, known once the app has started.
+    pub(crate) dirs: std::sync::OnceLock<Dirs>,
     /// Folder whose open failed as corrupted; the only target `campaign_restore_backup` accepts.
     pub(crate) last_corrupt: Mutex<Option<PathBuf>>,
     pub(crate) logs: LogBuffer,
+}
+
+/// Folders of the app.
+#[derive(Debug)]
+pub struct Dirs {
+    pub book: PathBuf,
+    pub asset_cache: PathBuf,
 }
 
 impl AppState {
@@ -31,6 +47,9 @@ impl AppState {
     pub fn new(logs: LogBuffer) -> Self {
         Self {
             server: Arc::default(),
+            remote: Arc::default(),
+            secrets: Arc::new(OsKeychain),
+            dirs: std::sync::OnceLock::new(),
             last_corrupt: Mutex::default(),
             logs,
         }
@@ -41,6 +60,15 @@ impl AppState {
 /// committed to the campaign file (ADR-0014).
 #[derive(Clone, Debug, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
 pub struct GameEventsEmitted(pub EventBatch);
+
+/// The server sent a whole new state (connect, reconnect, a visibility change): it replaces the
+/// snapshot the UI has (ADR-0022).
+#[derive(Clone, Debug, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
+pub struct GameSnapshotReplaced(pub Snapshot);
+
+/// The connection to the session server changed.
+#[derive(Clone, Debug, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
+pub struct RemoteStatusChanged(pub RemoteStatus);
 
 /// Static application information for the status bar.
 #[derive(Clone, Debug, Serialize, specta::Type)]
@@ -169,6 +197,9 @@ pub async fn campaign_import<R: Runtime>(
 #[tauri::command]
 #[specta::specta]
 pub async fn campaign_close(state: State<'_, AppState>) -> Result<(), IpcError> {
+    if let Some(remote) = state.remote.lock().await.take() {
+        remote.close();
+    }
     if let Some(server) = state.server.lock().await.take() {
         server.close().await?;
     }
@@ -180,6 +211,10 @@ pub async fn campaign_close(state: State<'_, AppState>) -> Result<(), IpcError> 
 #[tauri::command]
 #[specta::specta]
 pub async fn campaign_checkpoint(state: State<'_, AppState>) -> Result<(), IpcError> {
+    // On a session server the data is the server's to keep.
+    if state.remote.lock().await.is_some() {
+        return Ok(());
+    }
     let guard = state.server.lock().await;
     guard
         .as_ref()
@@ -193,6 +228,9 @@ pub async fn campaign_checkpoint(state: State<'_, AppState>) -> Result<(), IpcEr
 pub async fn campaign_current(
     state: State<'_, AppState>,
 ) -> Result<Option<CampaignInfo>, IpcError> {
+    if let Some(remote) = state.remote.lock().await.as_ref() {
+        return Ok(Some(remote.campaign_info()));
+    }
     Ok(state.server.lock().await.as_ref().map(LocalServer::info))
 }
 
@@ -204,6 +242,10 @@ pub async fn chat_history(
     before: Option<ChatMessageId>,
     limit: u32,
 ) -> Result<Vec<ChatMessageDto>, IpcError> {
+    // Paging through the server comes with stage 4; the snapshot carries the recent chat.
+    if state.remote.lock().await.is_some() {
+        return Ok(Vec::new());
+    }
     let guard = state.server.lock().await;
     let server = guard.as_ref().ok_or_else(IpcError::no_campaign)?;
     server
@@ -219,6 +261,10 @@ pub async fn journal_entry(
     state: State<'_, AppState>,
     id: JournalEntryId,
 ) -> Result<JournalEntryDto, IpcError> {
+    let remote = state.remote.lock().await.clone();
+    if let Some(remote) = remote {
+        return remote.journal_entry(id).await;
+    }
     let guard = state.server.lock().await;
     let server = guard.as_ref().ok_or_else(IpcError::no_campaign)?;
     server
@@ -229,6 +275,9 @@ pub async fn journal_entry(
 #[tauri::command]
 #[specta::specta]
 pub async fn get_snapshot(state: State<'_, AppState>) -> Result<Snapshot, IpcError> {
+    if let Some(remote) = state.remote.lock().await.as_ref() {
+        return remote.snapshot();
+    }
     state
         .server
         .lock()
@@ -248,6 +297,12 @@ pub async fn submit_intent<R: Runtime>(
     state: State<'_, AppState>,
     envelope: IntentEnvelope,
 ) -> Result<IntentOutcome, IpcError> {
+    // Cloned out of the lock: the round trip to the server must not block other commands.
+    let remote = state.remote.lock().await.clone();
+    if let Some(remote) = remote {
+        // The batch comes back from the server like everyone else's.
+        return remote.submit(envelope).await;
+    }
     let mut guard = state.server.lock().await;
     let server = guard.as_mut().ok_or_else(IpcError::no_campaign)?;
     let (outcome, batch) = server.submit(&envelope).await?;
@@ -282,6 +337,9 @@ pub fn log_frontend(level: LogLevel, message: String) {
 }
 
 async fn replace_open(state: &AppState, server: LocalServer) -> Result<CampaignInfo, IpcError> {
+    if let Some(remote) = state.remote.lock().await.take() {
+        remote.close();
+    }
     let info = server.info();
     let previous = state.server.lock().await.replace(server);
     if let Some(previous) = previous {
@@ -296,4 +354,153 @@ async fn pick_folder<R: Runtime>(app: &AppHandle<R>) -> Option<PathBuf> {
         let _ = tx.send(folder.and_then(|f| f.into_path().ok()));
     });
     rx.await.ok().flatten()
+}
+
+// ---------- Session server (ADR-0022) ----------
+
+fn dirs(state: &AppState) -> Result<&Dirs, IpcError> {
+    state
+        .dirs
+        .get()
+        .ok_or_else(|| IpcError::internal("not_ready", "the app is still starting"))
+}
+
+/// Uploads the open campaign to a session server. An empty `host_token` uses the saved one.
+#[tauri::command]
+#[specta::specta]
+pub async fn remote_host(
+    state: State<'_, AppState>,
+    server: String,
+    host_token: String,
+) -> Result<HostedSession, IpcError> {
+    let book = RemoteBook::new(dirs(&state)?.book.clone());
+    let guard = state.server.lock().await;
+    let local = guard.as_ref().ok_or_else(IpcError::no_campaign)?;
+    crate::remote::host(local, &server, &host_token, state.secrets.as_ref(), &book).await
+}
+
+/// Joins a session as a player with an invite link, the access code and a name, and plays there.
+#[tauri::command]
+#[specta::specta]
+pub async fn remote_join<R: Runtime>(
+    app: AppHandle<R>,
+    state: State<'_, AppState>,
+    invite: String,
+    access_code: String,
+    name: String,
+) -> Result<CampaignInfo, IpcError> {
+    let book = RemoteBook::new(dirs(&state)?.book.clone());
+    let (entry, token) =
+        crate::remote::join(&invite, &access_code, &name, state.secrets.as_ref(), &book).await?;
+    go_remote(&app, &state, entry, token).await
+}
+
+/// Connects to a saved session (hosted or joined before).
+#[tauri::command]
+#[specta::specta]
+pub async fn remote_connect<R: Runtime>(
+    app: AppHandle<R>,
+    state: State<'_, AppState>,
+    server: String,
+    session_id: SessionId,
+) -> Result<CampaignInfo, IpcError> {
+    let book = RemoteBook::new(dirs(&state)?.book.clone());
+    let (entry, token) =
+        crate::remote::token_for(&server, session_id, state.secrets.as_ref(), &book).await?;
+    go_remote(&app, &state, entry, token).await
+}
+
+/// Sessions hosted or joined from this app, newest first.
+#[tauri::command]
+#[specta::specta]
+pub async fn remote_sessions(state: State<'_, AppState>) -> Result<Vec<RemoteEntry>, IpcError> {
+    let book = RemoteBook::new(dirs(&state)?.book.clone());
+    Ok(crate::remote::sessions(state.secrets.as_ref(), &book))
+}
+
+/// Forgets a saved session and its secrets.
+#[tauri::command]
+#[specta::specta]
+pub async fn remote_forget(
+    state: State<'_, AppState>,
+    server: String,
+    session_id: SessionId,
+) -> Result<(), IpcError> {
+    let book = RemoteBook::new(dirs(&state)?.book.clone());
+    crate::remote::forget(&server, session_id, state.secrets.as_ref(), &book)
+}
+
+/// Stops the connected session on the server (GM) and leaves it.
+#[tauri::command]
+#[specta::specta]
+pub async fn remote_stop(state: State<'_, AppState>) -> Result<(), IpcError> {
+    let remote = state
+        .remote
+        .lock()
+        .await
+        .clone()
+        .ok_or_else(|| IpcError::user("not_in_remote_session", "not connected to a server"))?;
+    remote.stop().await?;
+    if let Some(remote) = state.remote.lock().await.take() {
+        remote.close();
+    }
+    Ok(())
+}
+
+/// The connected session, if any.
+#[tauri::command]
+#[specta::specta]
+pub async fn remote_current(state: State<'_, AppState>) -> Result<Option<RemoteInfo>, IpcError> {
+    Ok(state.remote.lock().await.as_ref().map(RemoteSession::info))
+}
+
+/// Leaves local play (the local campaign is closed, untouched) and connects to the session.
+async fn go_remote<R: Runtime>(
+    app: &AppHandle<R>,
+    state: &AppState,
+    entry: RemoteEntry,
+    token: String,
+) -> Result<CampaignInfo, IpcError> {
+    let emitter = app.clone();
+    let session = RemoteSession::connect(
+        entry,
+        token,
+        dnd_net::ConnectOptions::default(),
+        move |event| {
+            let sent = match event {
+                RemoteEvent::Snapshot(snapshot) => GameSnapshotReplaced(*snapshot).emit(&emitter),
+                RemoteEvent::Events(batch) => GameEventsEmitted(batch).emit(&emitter),
+                RemoteEvent::Status(status) => RemoteStatusChanged(status).emit(&emitter),
+            };
+            if let Err(e) = sent {
+                tracing::error!(error = %e, "failed to emit a session event");
+            }
+        },
+    )?;
+    let info = session.campaign_info();
+    if let Some(local) = state.server.lock().await.take() {
+        local.close().await?;
+    }
+    if let Some(previous) = state.remote.lock().await.replace(session) {
+        previous.close();
+    }
+    tracing::info!(campaign = %info.path, role = ?info.role, "connected to a session server");
+    Ok(info)
+}
+
+/// Remembers the app's folders (called once at startup).
+pub fn init_dirs<R: Runtime>(app: &AppHandle<R>, state: &AppState) -> Result<(), IpcError> {
+    let data = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| IpcError::internal("no_data_dir", e.to_string()))?;
+    let cache = app
+        .path()
+        .app_cache_dir()
+        .map_err(|e| IpcError::internal("no_cache_dir", e.to_string()))?;
+    let _ = state.dirs.set(Dirs {
+        book: data.join("remote_sessions.json"),
+        asset_cache: cache.join("remote-assets"),
+    });
+    Ok(())
 }

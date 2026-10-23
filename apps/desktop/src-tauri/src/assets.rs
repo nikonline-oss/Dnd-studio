@@ -214,8 +214,19 @@ pub fn serve<R: Runtime>(
     let app = ctx.app_handle().clone();
     let sha = request.uri().path().trim_start_matches('/').to_owned();
     tauri::async_runtime::spawn(async move {
+        let state = app.state::<AppState>();
+        let remote = state.remote.lock().await.clone();
+        if let Some(remote) = remote {
+            // On a session server: fetched once (hash checked), then from the cache.
+            let cache = state.dirs.get().map(|d| d.asset_cache.clone());
+            let bytes = match cache {
+                Some(cache) if is_sha256_hex(&sha) => remote.asset(&sha, &cache).await.ok(),
+                _ => None,
+            };
+            responder.respond(webp_response(bytes));
+            return;
+        }
         let folder = {
-            let state = app.state::<AppState>();
             let guard = state.server.lock().await;
             guard.as_ref().map(|s| s.folder().to_owned())
         };
@@ -237,8 +248,19 @@ pub fn response_for(campaign_folder: Option<&Path>, sha: &str) -> Response<Vec<u
     if !is_sha256_hex(sha) {
         return not_found();
     }
-    match std::fs::read(served_path(&folder.join(ASSETS_DIR), sha)) {
-        Ok(bytes) => Response::builder()
+    webp_response(std::fs::read(served_path(&folder.join(ASSETS_DIR), sha)).ok())
+}
+
+/// A WebP file, or 404.
+fn webp_response(bytes: Option<Vec<u8>>) -> Response<Vec<u8>> {
+    let not_found = || {
+        Response::builder()
+            .status(StatusCode::NOT_FOUND)
+            .body(Vec::new())
+            .unwrap_or_default()
+    };
+    match bytes {
+        Some(bytes) => Response::builder()
             .status(StatusCode::OK)
             .header(header::CONTENT_TYPE, "image/webp")
             // The page is another origin (`tauri.localhost`, or the dev server), and tiles are
@@ -249,6 +271,6 @@ pub fn response_for(campaign_folder: Option<&Path>, sha: &str) -> Response<Vec<u
             .header(header::CACHE_CONTROL, "public, max-age=31536000, immutable")
             .body(bytes)
             .unwrap_or_default(),
-        Err(_) => not_found(),
+        None => not_found(),
     }
 }

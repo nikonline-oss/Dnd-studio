@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from './useGame';
+import { remoteKey } from './useRemote';
 import { ipc, type CampaignInfo } from '@/shared/ipc/client';
 import { useSelection } from '@/shared/state/selection';
 
@@ -12,6 +13,7 @@ export function useCampaignActions() {
     useSelection.getState().reset();
     queryClient.setQueryData(queryKeys.campaign, info);
     void queryClient.invalidateQueries({ queryKey: queryKeys.snapshot });
+    void queryClient.invalidateQueries({ queryKey: remoteKey });
   };
 
   const create = useMutation({ mutationFn: ipc.campaignCreate, onSuccess: onOpened });
@@ -23,9 +25,10 @@ export function useCampaignActions() {
     onSuccess: () => {
       useSelection.getState().reset();
       queryClient.setQueryData(queryKeys.campaign, null);
+      queryClient.setQueryData(remoteKey, null);
       queryClient.removeQueries({ queryKey: queryKeys.snapshot });
     },
   });
 
-  return { create, open, close, importArchive, exportArchive };
+  return { create, open, close, importArchive, exportArchive, onOpened };
 }

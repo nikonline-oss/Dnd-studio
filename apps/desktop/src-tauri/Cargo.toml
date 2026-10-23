@@ -22,6 +22,8 @@ tauri-build = { workspace = true, features = [] }
 dnd-protocol = { workspace = true, features = ["specta"] }
 dnd-game-core.workspace = true
 dnd-db.workspace = true
+dnd-net.workspace = true
+keyring.workspace = true
 tauri = { workspace = true, features = [] }
 tauri-plugin-dialog.workspace = true
 tauri-plugin-window-state.workspace = true
@@ -34,13 +36,15 @@ specta-typescript.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
-tokio = { workspace = true, features = ["sync", "time", "macros"] }
+tokio = { workspace = true, features = ["sync", "time", "macros", "fs"] }
 tracing.workspace = true
 tracing-subscriber = { workspace = true, features = ["fmt", "std", "registry"] }
 tracing-appender.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]
+dnd-session-server = { path = "../../session-server" }
+dnd-net.workspace = true
 tempfile.workspace = true
 image.workspace = true
 sqlx = { workspace = true, features = ["sqlite", "runtime-tokio"] }

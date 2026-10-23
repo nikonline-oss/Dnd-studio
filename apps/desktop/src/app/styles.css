@@ -660,6 +660,17 @@ input[type='checkbox'] {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-success) 20%, transparent);
 }
 
+.status-dot[data-state='connecting'],
+.status-dot[data-state='reconnecting'] {
+  background: var(--color-warning, #d4a017);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-warning, #d4a017) 20%, transparent);
+}
+
+.status-dot[data-state='closed'] {
+  background: var(--color-danger);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-danger) 20%, transparent);
+}
+
 .status-item.role {
   padding: 0 var(--space-2);
   border-radius: 999px;
@@ -1794,4 +1805,116 @@ input[type='checkbox'] {
 .virtual-list.bounded {
   flex: none;
   max-height: 320px;
+}
+
+/* ---------- Dialogs (session hosting and joining) ---------- */
+
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+  background: color-mix(in srgb, #000 45%, transparent);
+}
+
+.dialog {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  width: min(520px, 100%);
+  max-height: calc(100vh - 2 * var(--space-4));
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+
+.dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-3) var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.dialog-header h2 {
+  font-size: 16px;
+}
+
+.dialog-body {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  overflow: auto;
+}
+
+.dialog-form {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.dialog-form label {
+  display: grid;
+  gap: 6px;
+  font-weight: 500;
+}
+
+.dialog-form input,
+.dialog-form button {
+  min-height: 34px;
+}
+
+.secret-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.access-code {
+  font-family: var(--font-mono);
+  font-size: 20px;
+  letter-spacing: 0.08em;
+}
+
+.invite-link {
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.saved-sessions h3 {
+  margin: 0 0 var(--space-2);
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.saved-sessions ul {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.saved-session {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.saved-session-name {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+
+.saved-session-name .muted {
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
