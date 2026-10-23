@@ -6,6 +6,23 @@ Self-hosted сервер сессий: axum + `dnd-game-core` + SQLite (CLAUDE.m
 
 ## Запуск
 
+Docker (из корня репозитория):
+
+```bash
+cp .env.example .env
+```
+
+Задайте в `.env` длинный `DND_HOST_TOKEN`, затем:
+
+```bash
+docker compose up -d
+```
+
+Данные лежат в томе `dnd-data` (`/data`). Образ — distroless, процесс работает не от root;
+`dnd-session-server healthcheck` проверяет `/api/health` (это и есть HEALTHCHECK образа).
+
+Без Docker:
+
 ```bash
 DND_HOST_TOKEN=change-me-to-a-long-secret DND_DATA_DIR=./data cargo run -p dnd-session-server
 ```

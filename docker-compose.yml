@@ -1,0 +1,22 @@
+# Session server (CLAUDE.md §1, §7). Copy .env.example to .env, set DND_HOST_TOKEN, then:
+#   docker compose up -d
+# It works behind any reverse proxy; a bundled Caddy profile with automatic TLS comes in stage 4.
+services:
+  session-server:
+    build:
+      context: .
+      dockerfile: apps/session-server/Dockerfile
+    image: dnd-session-server:local
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DND_DATA_DIR: /data
+      DND_BIND: 0.0.0.0:8080
+    ports:
+      - '${DND_PORT:-8080}:8080'
+    volumes:
+      - dnd-data:/data
+    stop_grace_period: 20s
+
+volumes:
+  dnd-data:

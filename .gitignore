@@ -31,3 +31,4 @@ Thumbs.db
 
 # Dev-only spike output (tools/spike-map-gen), never committed
 apps/desktop/src/dev/pixi-spike/generated/
+.env

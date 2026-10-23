@@ -46,6 +46,21 @@ jobs:
         if: runner.os == 'Linux'
         run: git diff --exit-code
 
+  docker:
+    name: Session server image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # Built and smoke-tested only; publishing to GHCR comes with stage 4.
+      - name: Build
+        run: docker build -f apps/session-server/Dockerfile -t dnd-session-server:ci .
+      - name: Smoke test
+        run: |
+          docker run -d --name dnd -e DND_HOST_TOKEN=ci-host-token-0123456789 -p 8080:8080 dnd-session-server:ci
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8080/api/health && break; sleep 1; done
+          docker exec dnd /usr/local/bin/dnd-session-server healthcheck
+          docker logs dnd
+
   frontend:
     name: Frontend
     runs-on: ubuntu-latest
