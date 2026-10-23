@@ -92,6 +92,7 @@ ADR-0002 выбрал SQLite. Нужно зафиксировать, как им
 | `DELETE FROM journal_folders` (+ cascade) | `project_event`           | `queries.rs::journal_folders_are_projected_loaded_and_cascade` (записи внутри)    |
 | `SELECT … FROM journal_folders`           | `load_state`              | `queries.rs::journal_folders_are_projected_loaded_and_cascade`                    |
 | `INSERT … ON CONFLICT` `tokens`           | `upsert_token`            | `queries.rs::every_event_kind_is_projected` (insert и update)                     |
+| `INSERT … ON CONFLICT` `users`            | `project_event`           | `queries.rs::joined_users_are_projected_and_redacted_events_refused`              |
 | миграции `server` (`open_server_db`)      | `connect::open_server_db` | `queries.rs::server_db_opens_migrates_and_enforces_constraints`                   |
 
 ## Дополнение (2026-10-21): имена авторов в истории

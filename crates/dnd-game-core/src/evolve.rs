@@ -96,8 +96,12 @@ pub fn evolve(state: &mut GameState, event: &Event) {
         Event::AssetRegistered { asset } => {
             state.assets.insert(asset.id, asset.as_ref().clone());
         }
-        // Chat history is not part of the game state (see `chat`).
-        Event::ChatMessagePosted { .. } => {}
+        Event::UserJoined { user } => {
+            state.users.insert(user.id, user.clone());
+        }
+        // Chat history is not part of the game state (see `chat`); redacted events hide nothing
+        // to apply.
+        Event::ChatMessagePosted { .. } | Event::Redacted => {}
     }
 }
 

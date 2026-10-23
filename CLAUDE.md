@@ -178,8 +178,9 @@ status), audit_log (действия GM). Ключи и коды — тольк�
 
 Конверт: `{ v, id, type, ts, seq, session_id, sender, payload }`. Одна версия протокола; несовпадение → отказ
 с понятной ошибкой «обновите клиент/сервер».
-- Клиент → сервер: `Intent { expected_version?, ... }`, `Ping`, `Resync { last_seq }`.
-- Сервер → клиент: `Events { seq, events[] }`, `Snapshot`, `Rejected { intent_id, reason }`, `Pong`.
+- Клиент → сервер: `Intent { expected_version?, ... }`, `Ping`, `Resync { last_seq }`, `GetJournalEntry { id }`.
+- Сервер → клиент: `Events { seq, events[] }`, `Snapshot`, `Accepted { intent_id, seq }`, `Rejected { intent_id, reason }`,
+  `JournalEntry { id, entry? }`, `Pong`. Скрытое от получателя событие приходит как `Redacted` (ADR-0022).
 - Сервер ведёт `event_log`; при переподключении клиент шлёт `last_seq` и получает дельту или полный снапшот.
 - Фильтрация видимости — на сервере, для каждого получателя (скрытые токены, GM-записи журнала, точное HP).
 - Реконнект: экспоненциальный backoff 1→30 с. Офлайн-очередь до 100 сообщений: только чат (< 5 мин) и

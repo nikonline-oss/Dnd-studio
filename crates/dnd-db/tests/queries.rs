@@ -444,7 +444,7 @@ fn query_inventory_matches_adr_0008() {
         .map(|s| s.matches("sqlx::query").count())
         .sum();
     assert_eq!(
-        count, 41,
+        count, 42,
         "runtime queries changed: add a real-SQLite test and update the table in docs/adr/0008-db-conventions.md"
     );
 }
@@ -555,6 +555,58 @@ async fn characters_and_users_are_projected_and_loaded() {
             role: Role::Gm
         }]
     );
+}
+
+/// Participants joining a session become users (ADR-0022); joining again updates name and role.
+/// A redacted placeholder is never stored, and the whole batch fails with it.
+#[tokio::test]
+async fn joined_users_are_projected_and_redacted_events_refused() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = new_campaign(&dir).await;
+    let mut mira = UserDto {
+        id: UserId(v7(0x700)),
+        name: "Mira".into(),
+        role: Role::Player,
+    };
+    db.project(&[record(
+        1,
+        None,
+        vec![Event::UserJoined { user: mira.clone() }],
+    )])
+    .await
+    .unwrap();
+    mira.name = "Mira the Bold".into();
+    db.project(&[record(
+        2,
+        None,
+        vec![Event::UserJoined { user: mira.clone() }],
+    )])
+    .await
+    .unwrap();
+    let (state, last) = db.load_state().await.unwrap();
+    assert_eq!(state.users.get(&mira.id), Some(&mira));
+    assert_eq!(state.users.len(), 2);
+    assert_eq!(last, Seq(2));
+
+    let refused = db
+        .project(&[record(
+            3,
+            None,
+            vec![
+                Event::UserJoined {
+                    user: UserDto {
+                        id: UserId(v7(0x701)),
+                        name: "Never".into(),
+                        role: Role::Player,
+                    },
+                },
+                Event::Redacted,
+            ],
+        )])
+        .await;
+    assert!(refused.is_err());
+    let (state, last) = db.load_state().await.unwrap();
+    assert_eq!((state.users.len(), last), (2, Seq(2)));
 }
 
 /// Journal projection: insert keeps `created_at`, updates move `updated_at`, delete removes.

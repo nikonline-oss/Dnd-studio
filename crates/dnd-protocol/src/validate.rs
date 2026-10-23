@@ -191,6 +191,7 @@ impl ClientMessage {
             Self::Intent(envelope) => envelope.validate(),
             Self::Ping => Ok(()),
             Self::Resync { last_seq } => js_safe(last_seq.0, "last_seq"),
+            Self::GetJournalEntry { .. } => Ok(()),
         }
     }
 }

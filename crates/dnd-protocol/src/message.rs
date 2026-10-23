@@ -5,8 +5,9 @@ use serde::{Deserialize, Serialize};
 use crate::PROTOCOL_VERSION;
 use crate::error::RejectReason;
 use crate::event::EventBatch;
-use crate::ids::{IntentId, MessageId, Seq, SessionId, UserId};
+use crate::ids::{IntentId, JournalEntryId, MessageId, Seq, SessionId, UserId};
 use crate::intent::IntentEnvelope;
+use crate::model::JournalEntryDto;
 use crate::snapshot::Snapshot;
 
 /// `{ v, id, type, ts, seq, session_id, sender, payload }`.
@@ -62,7 +63,13 @@ impl<B> Envelope<B> {
 pub enum ClientMessage {
     Intent(IntentEnvelope),
     Ping,
-    Resync { last_seq: Seq },
+    Resync {
+        last_seq: Seq,
+    },
+    /// The text of a journal entry (snapshots carry only the index).
+    GetJournalEntry {
+        id: JournalEntryId,
+    },
 }
 
 /// Server → client.
@@ -73,8 +80,25 @@ pub enum ServerMessage {
     Events(EventBatch),
     /// Boxed: by far the largest message (keeps `ServerMessage` small).
     Snapshot(Box<Snapshot>),
+    /// The sender's intent was applied (or had been: a repeat, ADR-0015). Its events arrive in
+    /// `events` like everyone else's.
+    Accepted(Acceptance),
     Rejected(Rejection),
     Pong,
+    /// Answer to `get_journal_entry`; `entry` is `None` when it is gone or not visible to the
+    /// recipient.
+    JournalEntry {
+        id: JournalEntryId,
+        entry: Option<Box<JournalEntryDto>>,
+    },
+}
+
+/// An intent was applied; `seq` is the last event it produced.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct Acceptance {
+    pub intent_id: IntentId,
+    pub seq: Seq,
 }
 
 /// An intent was not applied.

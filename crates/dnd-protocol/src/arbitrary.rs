@@ -9,13 +9,13 @@ use uuid::{Builder, Uuid};
 
 use crate::event::{Event, EventBatch};
 use crate::ids::{
-    CharacterId, CombatId, CombatantId, FogOpId, IntentId, JournalFolderId, MapId, Seq, TokenId,
-    Version,
+    CharacterId, CombatId, CombatantId, FogOpId, IntentId, JournalFolderId, MapId, Role, Seq,
+    TokenId, UserId, Version,
 };
 use crate::intent::{Intent, IntentEnvelope};
 use crate::model::{
     CampaignMeta, CharacterKind, CombatDto, CombatantDto, FogOp, FogOpKind, FogShape, Grid,
-    GridKind, JournalFolderDto, MapDto, TokenDto, TokenLayer,
+    GridKind, JournalFolderDto, MapDto, TokenDto, TokenLayer, UserDto,
 };
 
 /// Number of distinct map ids produced by [`map_id`].
@@ -464,6 +464,15 @@ pub fn event() -> impl Strategy<Value = Event> {
         token_dto().prop_map(|token| Event::TokenUpdated { token }),
         (token_id(), position(), position()).prop_map(|(id, x, y)| Event::TokenMoved { id, x, y }),
         token_id().prop_map(|id| Event::TokenDeleted { id }),
+        (
+            (0u128..3).prop_map(|n| UserId(v7(0xB000 + n))),
+            name(),
+            prop_oneof![Just(Role::Player), Just(Role::Gm)]
+        )
+            .prop_map(|(id, name, role)| Event::UserJoined {
+                user: UserDto { id, name, role }
+            }),
+        Just(Event::Redacted),
     ]
 }
 

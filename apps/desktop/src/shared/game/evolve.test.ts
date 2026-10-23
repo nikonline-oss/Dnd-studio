@@ -200,3 +200,27 @@ describe('applyBatch', () => {
     expect(applyBatch(empty, batch(3))).toBeNull();
   });
 });
+
+describe('applyEvent: session events (ADR-0022)', () => {
+  it('adds a joined user and updates a rejoining one', () => {
+    const mira = { id: 'u2', name: 'Mira', role: 'player' as const };
+    const joined = applyEvent(empty, { kind: 'user_joined', user: mira });
+    expect(joined.users).toEqual([mira]);
+    const renamed = applyEvent(joined, {
+      kind: 'user_joined',
+      user: { ...mira, name: 'Mira the Bold' },
+    });
+    expect(renamed.users.map((u) => u.name)).toEqual(['Mira the Bold']);
+  });
+
+  it('a redacted event only advances the sequence', () => {
+    const s = applyBatch(empty, {
+      seq: 1,
+      caused_by: null,
+      events: [{ kind: 'redacted' }, { kind: 'map_created', map: map('m1') }, { kind: 'redacted' }],
+    });
+    expect(s?.seq).toBe(3);
+    expect(s?.maps).toHaveLength(1);
+    expect(applyEvent(empty, { kind: 'redacted' })).toBe(empty);
+  });
+});

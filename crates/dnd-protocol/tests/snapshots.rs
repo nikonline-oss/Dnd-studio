@@ -54,6 +54,9 @@ fn client_messages_json() {
         })),
         envelope(ClientMessage::Ping),
         envelope(ClientMessage::Resync { last_seq: Seq(41) }),
+        envelope(ClientMessage::GetJournalEntry {
+            id: JournalEntryId(Uuid::from_u128(30)),
+        }),
     ];
     insta::assert_json_snapshot!(messages);
 }
@@ -71,6 +74,14 @@ fn server_messages_json() {
                 id: TokenId(Uuid::from_u128(20)),
                 x: 1120,
                 y: 568,
+            },
+            Event::Redacted,
+            Event::UserJoined {
+                user: UserDto {
+                    id: UserId(Uuid::from_u128(2)),
+                    name: "Mira".into(),
+                    role: Role::Player,
+                },
             },
         ],
     }));
@@ -91,6 +102,14 @@ fn server_messages_json() {
             },
         })),
         envelope(ServerMessage::Pong),
+        envelope(ServerMessage::Accepted(Acceptance {
+            intent_id: IntentId(Uuid::from_u128(5)),
+            seq: Seq(45),
+        })),
+        envelope(ServerMessage::JournalEntry {
+            id: JournalEntryId(Uuid::from_u128(30)),
+            entry: None,
+        }),
     ];
     insta::assert_json_snapshot!(messages);
 }

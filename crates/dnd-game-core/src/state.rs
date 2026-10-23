@@ -16,7 +16,7 @@ pub struct GameState {
     pub maps: BTreeMap<MapId, MapDto>,
     pub tokens: BTreeMap<TokenId, TokenDto>,
     pub characters: BTreeMap<CharacterId, CharacterDto>,
-    /// Known users. Read-only for the core in stage 2a (they join through the server in 2b).
+    /// Known users. Not changed by intents: participants join through the session server.
     pub users: BTreeMap<UserId, UserDto>,
     pub journal: BTreeMap<JournalEntryId, JournalEntryDto>,
     /// Journal folders (ADR-0021).

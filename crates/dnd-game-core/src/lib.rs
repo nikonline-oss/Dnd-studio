@@ -19,6 +19,8 @@ mod permissions;
 mod recent;
 mod rng;
 mod state;
+mod users;
+mod visibility;
 
 pub use apply::{MAX_DESCRIPTION_LEN, MAX_NAME_LEN, RuleError, apply};
 pub use combat::{initiative_expression, turn_order, turn_order_cmp};
@@ -27,3 +29,8 @@ pub use permissions::{Actor, authorize};
 pub use recent::{IntentWindow, Recall, RecentIntents};
 pub use rng::{GameRng, SplitMix64};
 pub use state::GameState;
+pub use users::join;
+pub use visibility::{
+    ForPlayers, PlayersSee, chat_visible_to_players, filter_for_players, players_state,
+    sees_everything, snapshot_for,
+};

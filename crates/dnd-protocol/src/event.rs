@@ -10,7 +10,7 @@ use crate::ids::{
 };
 use crate::model::{
     AssetDto, CampaignMeta, CharacterDto, ChatMessageDto, CombatDto, CombatantDto, FogOp,
-    JournalEntryDto, JournalFolderDto, MapDto, TokenDto,
+    JournalEntryDto, JournalFolderDto, MapDto, TokenDto, UserDto,
 };
 
 /// A fact about a state change.
@@ -120,6 +120,16 @@ pub enum Event {
     ChatMessagePosted {
         message: ChatMessageDto,
     },
+
+    /// A participant of a session became (or already is) a user of the campaign. Produced by the
+    /// session server when someone joins, not by an intent (ADR-0022).
+    UserJoined {
+        user: UserDto,
+    },
+
+    /// Stands in for an event the recipient may not see, so sequence numbers stay contiguous
+    /// (ADR-0022). Never stored; applying it changes nothing.
+    Redacted,
 }
 
 /// Events produced by one accepted intent. Event `i` of the batch has sequence number `seq + i`.

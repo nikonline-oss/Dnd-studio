@@ -645,6 +645,23 @@ async fn project_event(conn: &mut SqliteConnection, event: &Event, at_ms: i64) -
             Ok(())
         }
         Event::ChatMessagePosted { message } => insert_chat_message(conn, message, at_ms).await,
+        Event::UserJoined { user } => {
+            sqlx::query(
+                "INSERT INTO users (id, name, role, created_at) VALUES (?, ?, ?, ?)                  ON CONFLICT (id) DO UPDATE SET name = excluded.name, role = excluded.role,                      version = version + 1",
+            )
+            .bind(user.id.to_string())
+            .bind(&user.name)
+            .bind(enum_to_str(&user.role)?)
+            .bind(at_ms)
+            .execute(conn)
+            .await?;
+            Ok(())
+        }
+        // Only recipients see placeholders; the authority never commits one.
+        Event::Redacted => Err(DbError::InvalidData {
+            column: "event_log.event",
+            details: "a redacted event cannot be stored".to_owned(),
+        }),
         Event::AssetRegistered { asset } => insert_asset(conn, asset, at_ms).await,
         Event::CombatStarted { combat } | Event::CombatUpdated { combat } => {
             sqlx::query(

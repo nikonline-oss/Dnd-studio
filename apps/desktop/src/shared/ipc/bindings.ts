@@ -96,6 +96,12 @@ export const events = {
 };
 
 /* Types */
+/**  An intent was applied; `seq` is the last event it produced. */
+export type Acceptance = {
+	intent_id: IntentId,
+	seq: Seq,
+};
+
 /**  Static application information for the status bar. */
 export type AppInfo = {
 	version: string,
@@ -294,7 +300,17 @@ export type Event = { kind: "campaign_meta_updated"; campaign: CampaignMeta } | 
 /**  Initiative changed. */
 { kind: "combatant_updated"; combatant: CombatantDto } | { kind: "combatant_removed"; id: CombatantId } | 
 /**  A text, roll or system message. */
-{ kind: "chat_message_posted"; message: ChatMessageDto };
+{ kind: "chat_message_posted"; message: ChatMessageDto } | 
+/**
+ *  A participant of a session became (or already is) a user of the campaign. Produced by the
+ *  session server when someone joins, not by an intent (ADR-0022).
+ */
+{ kind: "user_joined"; user: UserDto } | 
+/**
+ *  Stands in for an event the recipient may not see, so sequence numbers stay contiguous
+ *  (ADR-0022). Never stored; applying it changes nothing.
+ */
+{ kind: "redacted" };
 
 /**  Events produced by one accepted intent. Event `i` of the batch has sequence number `seq + i`. */
 export type EventBatch = {
@@ -617,7 +633,20 @@ export type Seq = number;
 /**  Server → client. */
 export type ServerMessage = { type: "events"; payload: EventBatch } | 
 /**  Boxed: by far the largest message (keeps `ServerMessage` small). */
-{ type: "snapshot"; payload: Snapshot } | { type: "rejected"; payload: Rejection } | { type: "pong" };
+{ type: "snapshot"; payload: Snapshot } | 
+/**
+ *  The sender's intent was applied (or had been: a repeat, ADR-0015). Its events arrive in
+ *  `events` like everyone else's.
+ */
+{ type: "accepted"; payload: Acceptance } | { type: "rejected"; payload: Rejection } | { type: "pong" } | 
+/**
+ *  Answer to `get_journal_entry`; `entry` is `None` when it is gone or not visible to the
+ *  recipient.
+ */
+{ type: "journal_entry"; payload: {
+	id: JournalEntryId,
+	entry: JournalEntryDto | null,
+} };
 
 /**  The visible state as of event `seq`. */
 export type Snapshot = {

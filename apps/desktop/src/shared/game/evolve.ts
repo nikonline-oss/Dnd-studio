@@ -110,6 +110,11 @@ export function applyEvent(snapshot: Snapshot, event: Event): Snapshot {
           { ...event.message, at_ms: event.message.at_ms ?? Date.now() },
         ].slice(-CHAT_SNAPSHOT_LEN),
       };
+    case 'user_joined':
+      return { ...snapshot, users: upsert(snapshot.users, event.user) };
+    case 'redacted':
+      // Something the server hides from this recipient: only its sequence number counts.
+      return snapshot;
   }
 }
 
