@@ -84,8 +84,8 @@ argon2 = "0.6.0"
 getrandom = "0.4.3"
 # Client side of the session server (dnd-net) and server tests; TLS through rustls + ring, as
 # Tauri already uses (no aws-lc build).
-reqwest = { version = "0.13.5", default-features = false, features = ["json", "multipart", "http2"] }
-tokio-tungstenite = "0.30.0"
+reqwest = { version = "0.13.5", default-features = false, features = ["json", "multipart", "http2", "rustls-no-provider"] }
+tokio-tungstenite = { version = "0.30.0", features = ["rustls-tls-native-roots"] }
 # The crypto provider reqwest needs when Tauri's `rustls-no-provider` is unified in (ring, as Tauri).
 rustls = { version = "0.23.46", default-features = false, features = ["ring", "std", "tls12"] }
 futures-util = { version = "0.3.34", default-features = false, features = ["sink", "std"] }

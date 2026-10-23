@@ -1244,6 +1244,24 @@ dependencies = [
 [[package]]
 name = "dnd-net"
 version = "0.0.1"
+dependencies = [
+ "dnd-db",
+ "dnd-game-core",
+ "dnd-protocol",
+ "dnd-session-server",
+ "futures-util",
+ "reqwest",
+ "rustls",
+ "serde",
+ "serde_json",
+ "sha2 0.11.1",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tokio",
+ "tokio-tungstenite 0.30.0",
+ "tracing",
+ "uuid",
+]
 
 [[package]]
 name = "dnd-plugin"
@@ -5601,7 +5619,11 @@ checksum = "17a073bfed563fa236697a068031408a93cd9522e08abf9933ead3e73411bd71"
 dependencies = [
  "futures-util",
  "log",
+ "rustls",
+ "rustls-native-certs",
+ "rustls-pki-types",
  "tokio",
+ "tokio-rustls",
  "tungstenite 0.30.0",
 ]
 
@@ -5926,6 +5948,8 @@ dependencies = [
  "httparse",
  "log",
  "rand 0.10.3",
+ "rustls",
+ "rustls-pki-types",
  "sha1 0.11.0",
  "thiserror 2.0.21",
 ]

@@ -354,7 +354,7 @@ pub async fn stop_session(
     }
     let row = app.row(id).await?;
     if row.state == SessionState::Active {
-        app.unload(id).await;
+        app.unload(id, crate::session::SESSION_CLOSED).await;
         let now = now_ms();
         app.db
             .set_session_state(id, SessionState::Stopped, now)
@@ -402,7 +402,7 @@ pub async fn export_session(
             .export(out.clone())
             .await
             .map_err(ApiError::internal)?;
-        session.stop().await;
+        session.stop(crate::session::SESSION_CLOSED).await;
         result
     };
     result.map_err(ApiError::internal)?;

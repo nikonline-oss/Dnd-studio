@@ -20,6 +20,11 @@ use tokio::sync::{broadcast, mpsc, oneshot, watch};
 
 use crate::now_ms;
 
+/// Close reason: the session is over for good (stopped by the GM, expired).
+pub const SESSION_CLOSED: &str = "session_closed";
+/// Close reason: the server is going down; clients reconnect.
+pub const SERVER_RESTART: &str = "server_restart";
+
 /// A committed batch for everyone: GM roles take `full`, the others `players`.
 #[derive(Debug)]
 pub struct Broadcast {
@@ -56,6 +61,7 @@ enum Command {
         reply: oneshot::Sender<anyhow::Result<()>>,
     },
     Stop {
+        reason: &'static str,
         reply: oneshot::Sender<()>,
     },
 }
@@ -69,8 +75,8 @@ pub struct SessionHandle {
     pub name: String,
     tx: mpsc::Sender<Command>,
     events: broadcast::Sender<Arc<Broadcast>>,
-    /// Becomes `true` when the session task ends (stopped, expired or failed).
-    closed: watch::Receiver<bool>,
+    /// Why the session task ended, once it has.
+    closed: watch::Receiver<Option<&'static str>>,
     connections: Arc<AtomicUsize>,
     last_activity: Arc<AtomicI64>,
 }
@@ -104,7 +110,7 @@ impl SessionHandle {
             .unwrap_or_default();
         let (tx, rx) = mpsc::channel(256);
         let (events, _) = broadcast::channel(256);
-        let (closing, closed) = watch::channel(false);
+        let (closing, closed) = watch::channel(None);
         let handle = Self {
             id,
             gm,
@@ -117,8 +123,8 @@ impl SessionHandle {
         };
         let last_activity = handle.last_activity.clone();
         tokio::spawn(async move {
-            run(engine, rx, events, last_activity, assets).await;
-            let _ = closing.send(true);
+            let reason = run(engine, rx, events, last_activity, assets).await;
+            let _ = closing.send(Some(reason));
         });
         tracing::info!(session = %id, "session loaded");
         Ok(handle)
@@ -140,10 +146,17 @@ impl SessionHandle {
         self.events.subscribe()
     }
 
-    /// Resolves once the session has ended.
-    pub async fn ended(&self) {
+    /// Resolves once the session has ended, with the reason for its connections.
+    pub async fn ended(&self) -> &'static str {
         let mut closed = self.closed.clone();
-        let _ = closed.wait_for(|closed| *closed).await;
+        let _ = closed.wait_for(Option::is_some).await;
+        self.end_reason()
+    }
+
+    /// Why the session ended (a task that vanished without saying is treated as a restart).
+    #[must_use]
+    pub fn end_reason(&self) -> &'static str {
+        self.closed.borrow().unwrap_or(SERVER_RESTART)
     }
 
     pub async fn submit(
@@ -197,9 +210,9 @@ impl SessionHandle {
         self.ask(|reply| Command::Export { out, reply }).await
     }
 
-    /// Closes the campaign file; connections see their broadcast end.
-    pub async fn stop(&self) {
-        self.ask(|reply| Command::Stop { reply }).await.ok();
+    /// Closes the campaign file; connections close with `reason`.
+    pub async fn stop(&self, reason: &'static str) {
+        self.ask(|reply| Command::Stop { reason, reply }).await.ok();
     }
 
     /// Counts a WS connection for as long as the guard lives.
@@ -259,7 +272,7 @@ async fn run(
     events: broadcast::Sender<Arc<Broadcast>>,
     last_activity: Arc<AtomicI64>,
     assets: PathBuf,
-) {
+) -> &'static str {
     while let Some(command) = rx.recv().await {
         match command {
             Command::Submit {
@@ -350,17 +363,18 @@ async fn run(
             Command::Export { out, reply } => {
                 let _ = reply.send(export(&engine, &assets, &out).await);
             }
-            Command::Stop { reply } => {
+            Command::Stop { reason, reply } => {
                 if let Err(e) = engine.close().await {
                     tracing::error!(error = %e, "closing a session failed");
                 }
                 let _ = reply.send(());
-                return;
+                return reason;
             }
         }
     }
     // Every handle is gone without a stop (server shutting down).
     engine.close().await.ok();
+    SERVER_RESTART
 }
 
 async fn export(engine: &CampaignEngine, assets: &Path, out: &Path) -> anyhow::Result<()> {

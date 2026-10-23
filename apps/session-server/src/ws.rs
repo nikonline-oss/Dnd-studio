@@ -115,15 +115,15 @@ impl Connection {
                             // Missed batches: start over from a snapshot.
                             Err(RecvError::Lagged(_)) => self.send_snapshot().await,
                             Err(RecvError::Closed) => {
-                                break 'conn Some(Close(close_code::AWAY, "session_closed"));
+                                break 'conn Some(Close(close_code::AWAY, self.session.end_reason()));
                             }
                         };
                         if sent.is_err() {
                             break 'conn None;
                         }
                     }
-                    () = &mut ended => {
-                        break 'conn Some(Close(close_code::AWAY, "session_closed"));
+                    reason = &mut ended => {
+                        break 'conn Some(Close(close_code::AWAY, reason));
                     }
                     _ = tick.tick() => {
                         if last_seen.elapsed() > limits.idle_timeout {
@@ -178,7 +178,8 @@ impl Connection {
             )));
         }
         let role = self.participant.role;
-        let gone = |_| Some(Close(close_code::AWAY, "session_closed"));
+        let reason = self.session.end_reason();
+        let gone = |_| Some(Close(close_code::AWAY, reason));
         match envelope.body {
             ClientMessage::Intent(intent) => {
                 let intent_id = intent.intent_id;

@@ -14,7 +14,7 @@ use crate::config::Config;
 use crate::error::ApiError;
 use crate::now_ms;
 use crate::secrets::token_hash;
-use crate::session::SessionHandle;
+use crate::session::{SERVER_RESTART, SESSION_CLOSED, SessionHandle};
 
 pub type App = Arc<AppState>;
 
@@ -79,11 +79,12 @@ impl AppState {
         self.sessions.lock().await.insert(handle.id, handle);
     }
 
-    /// Stops and forgets a loaded session (no-op when it is not loaded).
-    pub async fn unload(&self, id: SessionId) {
+    /// Stops and forgets a loaded session (no-op when it is not loaded); its connections close
+    /// with `reason`.
+    pub async fn unload(&self, id: SessionId, reason: &'static str) {
         let handle = self.sessions.lock().await.remove(&id);
         if let Some(handle) = handle {
-            handle.stop().await;
+            handle.stop(reason).await;
             tracing::info!(session = %id, "session unloaded");
         }
     }
@@ -117,7 +118,7 @@ impl AppState {
             let idle_since = handle.map_or(row.last_activity, SessionHandle::last_activity);
             let busy = handle.is_some_and(|h| h.connection_count() > 0);
             if !busy && now.saturating_sub(idle_since) > ttl {
-                self.unload(row.id).await;
+                self.unload(row.id, SESSION_CLOSED).await;
                 self.db
                     .set_session_state(row.id, SessionState::Expired, now)
                     .await?;
@@ -143,7 +144,7 @@ impl AppState {
             if let Some(handle) = self.sessions.lock().await.get(&id).cloned() {
                 self.db.touch_session(id, handle.last_activity()).await.ok();
             }
-            self.unload(id).await;
+            self.unload(id, SERVER_RESTART).await;
         }
         self.db.close().await;
     }
