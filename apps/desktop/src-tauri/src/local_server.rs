@@ -1,20 +1,15 @@
-//! The in-process "server" for local play (ADR-0001): the same intent pipeline as the session
-//! server, backed by the campaign's SQLite file. Independent of Tauri so it can be tested directly.
-//!
-//! Persistence is write-through (CLAUDE.md §10, ADR-0014): every accepted batch is committed before
-//! the in-memory state changes and before anyone is told about it.
+//! The in-process "server" for local play (ADR-0001): the campaign folder around a
+//! [`CampaignEngine`] — the same write-through intent pipeline the session server runs (ADR-0014).
+//! Independent of Tauri so it can be tested directly.
 
-use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use dnd_db::{BatchRecord, CampaignDb, LocalUser, list_backups};
-use dnd_game_core::{
-    Actor, GameState, IntentWindow, Recall, RecentIntents, SplitMix64, apply, evolve_all,
-};
+use dnd_db::{CampaignDb, CampaignEngine, EngineError, LocalUser, list_backups};
+use dnd_game_core::{Actor, IntentWindow};
 use dnd_protocol::{
-    CHAT_SNAPSHOT_LEN, ChatMessageDto, ChatMessageId, Event, EventBatch, IntentEnvelope,
-    IntentOutcome, JournalEntryDto, JournalEntryId, RejectReason, Role, Seq, Snapshot, UserId,
+    ChatMessageDto, ChatMessageId, EventBatch, IntentEnvelope, IntentOutcome, JournalEntryDto,
+    JournalEntryId, Role, Snapshot, UserId,
 };
 use serde::Serialize;
 
@@ -76,16 +71,19 @@ pub fn folder_name(name: &str) -> String {
 /// An open campaign and its authoritative state.
 #[derive(Debug)]
 pub struct LocalServer {
-    db: CampaignDb,
+    engine: CampaignEngine,
     folder: PathBuf,
-    state: GameState,
-    next_seq: Seq,
+    /// The local user: every intent of this app is theirs.
     actor: Actor,
-    rng: SplitMix64,
-    /// Outcomes of recent intents by `intent_id` (ADR-0015).
-    recent: RecentIntents<IntentOutcome>,
-    /// The last `CHAT_SNAPSHOT_LEN` chat messages for snapshots (older ones are paged from the DB).
-    chat: VecDeque<ChatMessageDto>,
+}
+
+impl From<EngineError> for IpcError {
+    fn from(e: EngineError) -> Self {
+        match e {
+            EngineError::Db(e) => e.into(),
+            EngineError::SeqExhausted => Self::internal("seq_exhausted", e.to_string()),
+        }
+    }
 }
 
 impl LocalServer {
@@ -148,68 +146,35 @@ impl LocalServer {
         folder: PathBuf,
         window: IntentWindow,
     ) -> Result<Self, IpcError> {
-        match Self::load(&db, window).await {
-            Ok((user, state, last_seq, recent, chat)) => Ok(Self {
-                db,
-                folder,
-                state,
-                next_seq: last_seq.next(),
-                actor: Actor {
-                    user_id: user.id,
-                    role: user.role,
-                },
-                rng: SplitMix64::new(seed()),
-                recent,
-                chat: chat.into(),
-            }),
+        let user = match db.local_user().await {
+            Ok(Some(user)) => user,
+            Ok(None) => {
+                db.close().await.ok();
+                return Err(IpcError::internal(
+                    "no_local_user",
+                    "campaign has no local user",
+                ));
+            }
             Err(e) => {
                 db.close().await.ok();
-                Err(e)
+                return Err(e.into());
             }
-        }
-    }
-
-    async fn load(
-        db: &CampaignDb,
-        window: IntentWindow,
-    ) -> Result<
-        (
-            LocalUser,
-            GameState,
-            Seq,
-            RecentIntents<IntentOutcome>,
-            Vec<ChatMessageDto>,
-        ),
-        IpcError,
-    > {
-        let user = db
-            .local_user()
-            .await?
-            .ok_or_else(|| IpcError::internal("no_local_user", "campaign has no local user"))?;
-        let (state, last_seq) = db.load_state().await?;
-        // Accepted intents survive restarts through `event_log`; rejections are remembered per run.
-        let mut recent = RecentIntents::new(window);
-        let now = now_ms();
-        for r in db
-            .recent_intents(window.max_count, window.since_ms(now))
-            .await?
-        {
-            recent.insert(
-                r.intent_id,
-                r.intent_hash,
-                IntentOutcome::Accepted { seq: r.last_seq },
-                r.at_ms,
-            );
-        }
-        recent.prune(now);
-        let chat = db.chat_history(None, CHAT_SNAPSHOT_LEN).await?;
-        Ok((user, state, last_seq, recent, chat))
+        };
+        let engine = CampaignEngine::load(db, window, seed(), now_ms()).await?;
+        Ok(Self {
+            engine,
+            folder,
+            actor: Actor {
+                user_id: user.id,
+                role: user.role,
+            },
+        })
     }
 
     #[must_use]
     pub fn info(&self) -> CampaignInfo {
         CampaignInfo {
-            name: self.state.campaign.name.clone(),
+            name: self.engine.state().campaign.name.clone(),
             path: self.folder.display().to_string(),
             user_id: self.actor.user_id,
             role: self.actor.role,
@@ -223,9 +188,7 @@ impl LocalServer {
 
     #[must_use]
     pub fn snapshot(&self) -> Snapshot {
-        let mut snapshot = self.state.to_snapshot(Seq(self.next_seq.0 - 1));
-        snapshot.chat = self.chat.iter().cloned().collect();
-        snapshot
+        self.engine.snapshot()
     }
 
     /// Older chat messages, oldest first, before message `before` (or the newest).
@@ -234,16 +197,14 @@ impl LocalServer {
         before: Option<ChatMessageId>,
         limit: usize,
     ) -> Result<Vec<ChatMessageDto>, IpcError> {
-        Ok(self
-            .db
-            .chat_history(before, limit.min(CHAT_SNAPSHOT_LEN))
-            .await?)
+        Ok(self.engine.chat_history(before, limit).await?)
     }
 
     /// The asset registered for an original upload with this SHA-256, if any (dedup on import).
     #[must_use]
     pub fn asset_by_sha(&self, sha256: &str) -> Option<dnd_protocol::AssetId> {
-        self.state
+        self.engine
+            .state()
             .assets
             .values()
             .find(|a| a.sha256 == sha256)
@@ -253,95 +214,27 @@ impl LocalServer {
     /// Full text of a journal entry (the snapshot carries only the index).
     #[must_use]
     pub fn journal_entry(&self, id: &JournalEntryId) -> Option<JournalEntryDto> {
-        self.state.journal.get(id).cloned()
+        self.engine.journal_entry(id)
     }
 
-    /// Runs the intent pipeline write-through (ADR-0014): `apply` → commit the batch (`event_log` +
-    /// projection, one transaction) → `evolve`. Memory changes only after the commit, so a storage
-    /// failure leaves memory, disk and `next_seq` untouched; the caller then broadcasts the batch.
-    ///
-    /// Idempotent by `intent_id` (ADR-0015): a repeat returns the original outcome and no batch;
-    /// the same id with a different payload is rejected with `IntentIdReused`.
+    /// Runs the intent pipeline as the local user (see [`CampaignEngine::submit`]); the caller
+    /// broadcasts the returned batch.
     pub async fn submit(
         &mut self,
         envelope: &IntentEnvelope,
     ) -> Result<(IntentOutcome, Option<EventBatch>), IpcError> {
-        let hash = envelope.payload_hash();
-        match self.recent.recall(&envelope.intent_id, &hash, now_ms()) {
-            Recall::New => {}
-            Recall::Repeat(outcome) => {
-                tracing::debug!(intent_id = %envelope.intent_id, "duplicate intent");
-                return Ok((outcome.clone(), None));
-            }
-            Recall::Reused => {
-                tracing::warn!(intent_id = %envelope.intent_id, "intent_id reused with other data");
-                let reason = RejectReason::IntentIdReused;
-                return Ok((IntentOutcome::Rejected { reason }, None));
-            }
-        }
-        let events = match apply(&self.state, envelope, &self.actor, &mut self.rng) {
-            Ok(events) => events,
-            Err(reason) => {
-                tracing::debug!(
-                    intent = envelope.intent.kind(),
-                    code = reason.code(),
-                    "intent rejected"
-                );
-                let outcome = IntentOutcome::Rejected { reason };
-                self.recent
-                    .insert(envelope.intent_id, Some(hash), outcome.clone(), now_ms());
-                return Ok((outcome, None));
-            }
-        };
-        let batch = EventBatch {
-            seq: self.next_seq,
-            caused_by: Some(envelope.intent_id),
-            events,
-        };
-        let last = batch.last_seq();
-        if !dnd_protocol::is_js_safe(last.0) {
-            return Err(IpcError::internal(
-                "seq_exhausted",
-                "event sequence reached 2^53-1",
-            ));
-        }
-        let at_ms = now_ms();
-        self.db
-            .project(&[BatchRecord {
-                batch: batch.clone(),
-                intent_hash: Some(hash),
-                actor: Some(self.actor.user_id),
-                at_ms,
-            }])
-            .await?;
-        evolve_all(&mut self.state, &batch.events);
-        for event in &batch.events {
-            if let Event::ChatMessagePosted { message } = event {
-                self.chat.push_back(ChatMessageDto {
-                    at_ms: Some(at_ms),
-                    ..message.clone()
-                });
-                while self.chat.len() > CHAT_SNAPSHOT_LEN {
-                    self.chat.pop_front();
-                }
-            }
-        }
-        self.next_seq = last.next();
-        let outcome = IntentOutcome::Accepted { seq: last };
-        self.recent
-            .insert(envelope.intent_id, Some(hash), outcome.clone(), now_ms());
-        Ok((outcome, Some(batch)))
+        Ok(self.engine.submit(envelope, &self.actor, now_ms()).await?)
     }
 
     /// Moves the WAL into the main file (periodic housekeeping, not needed for durability).
     pub async fn checkpoint(&self) -> Result<(), IpcError> {
-        self.db.checkpoint().await?;
+        self.engine.checkpoint().await?;
         Ok(())
     }
 
     /// Checkpoints and closes the database.
     pub async fn close(self) -> Result<(), IpcError> {
-        self.db.close().await?;
+        self.engine.close().await?;
         tracing::info!(folder = %self.folder.display(), "campaign closed");
         Ok(())
     }
