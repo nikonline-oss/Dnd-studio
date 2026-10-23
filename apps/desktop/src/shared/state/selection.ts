@@ -18,8 +18,10 @@ interface SelectionState {
   /** The journal entry in front (only while a journal tab is active). */
   journalId: string | null;
   characterId: string | null;
+  /** The token selected on the map (shown in the inspector). */
+  tokenId: string | null;
   /** What the inspector shows. */
-  inspect: 'map' | 'character';
+  inspect: 'map' | 'character' | 'token';
   /** What the center area shows (follows the active tab). */
   center: 'map' | 'journal';
   /** Opens a map in a tab (or brings its tab to the front). */
@@ -32,6 +34,8 @@ interface SelectionState {
   /** Closes tabs whose entity no longer exists (deleted locally or by someone else). */
   pruneTabs: (exists: (tab: TabRef) => boolean) => void;
   selectCharacter: (characterId: string | null) => void;
+  /** Selects a token on the map (`null`: back to the map in the inspector). */
+  selectToken: (tokenId: string | null) => void;
   /** Nothing open or selected (another campaign was opened or this one closed). */
   reset: () => void;
 }
@@ -42,6 +46,7 @@ const EMPTY = {
   mapId: null,
   journalId: null,
   characterId: null,
+  tokenId: null,
   inspect: 'map',
   center: 'map',
 } as const satisfies Partial<SelectionState>;
@@ -121,6 +126,9 @@ export const useSelection = create<SelectionState>()((set) => {
             : (tabs[Math.min(index, tabs.length - 1)] ?? null);
         return derive(tabs, active, s.mapId);
       });
+    },
+    selectToken: (tokenId) => {
+      set(tokenId === null ? { tokenId, inspect: 'map' } : { tokenId, inspect: 'token' });
     },
     selectCharacter: (characterId) => {
       set(

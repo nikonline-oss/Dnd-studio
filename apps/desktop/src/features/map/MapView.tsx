@@ -8,6 +8,7 @@ import { tokenViews } from './tokenViews';
 import { CHARACTER_DRAG_TYPE } from '@/shared/dragTypes';
 import { useCampaign, useSnapshot, useSubmitIntent } from '@/shared/game/useGame';
 import { useShownMap } from '@/shared/game/useShownMap';
+import { useSelection } from '@/shared/state/selection';
 import { logFrontend, type FogOpKind, type FogShape } from '@/shared/ipc/client';
 import { uuidv7 } from '@/shared/ipc/uuid';
 import { PixiHost } from '@/shared/pixi/PixiHost';
@@ -27,6 +28,7 @@ export function MapView() {
   const submit = useSubmitIntent();
   const isGm = campaign?.role === 'gm' || campaign?.role === 'co_gm';
   const map = useShownMap();
+  const selectedTokenId = useSelection((s) => s.tokenId);
   const background = map && snapshot?.assets.find((a) => a.id === map.background_asset_id);
   const fog = map && snapshot?.fog.find((f) => f.map_id === map.id);
   const [scene, setScene] = useState<MapScene | null>(null);
@@ -45,9 +47,11 @@ export function MapView() {
   useEffect(() => {
     if (!scene) return;
     scene.setTokens(
-      shownMapId && snapshot && campaign ? tokenViews(snapshot, shownMapId, campaign) : [],
+      shownMapId && snapshot && campaign
+        ? tokenViews(snapshot, shownMapId, campaign, selectedTokenId)
+        : [],
     );
-  }, [scene, shownMapId, snapshot, campaign]);
+  }, [scene, shownMapId, snapshot, campaign, selectedTokenId]);
 
   // Token moves are last-write-wins: no version, a new intent id each (ADR-0003).
   const sendMove = useRef<(move: TokenMove) => void>(() => undefined);
@@ -89,6 +93,9 @@ export function MapView() {
       },
       (move) => {
         sendMove.current(move);
+      },
+      (tokenId) => {
+        useSelection.getState().selectToken(tokenId);
       },
     );
     setScene(created);

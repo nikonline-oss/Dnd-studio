@@ -36,8 +36,21 @@
     "empty": "No tokens on this map",
     "newName": "Token",
     "add": "Add token",
-    "nudge": "Move right",
-    "delete": "Delete"
+    "delete": "Delete",
+    "unnamed": "Unnamed token",
+    "linkedTo": "Token of {{name}}",
+    "noCharacter": "Not linked to a character",
+    "layer": "Layer",
+    "layers": {
+      "background": "Background (props)",
+      "tokens": "Tokens",
+      "gm": "GM only"
+    },
+    "size": "Size",
+    "cells_one": "{{count}} cell",
+    "cells_other": "{{count}} cells",
+    "rotation": "Rotation, °",
+    "visibleToPlayers": "Visible to players"
   },
   "errors": {
     "unknown": "Something went wrong",

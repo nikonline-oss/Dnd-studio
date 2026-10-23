@@ -6,12 +6,13 @@ import { ErrorText } from '@/shared/ui/ErrorText';
 import { ConfirmDelete, IconButton } from '@/shared/ui/IconButton';
 import { NavSection } from '@/shared/ui/NavSection';
 
-/** Tokens of the selected map, as a list until they are drawn on the map (stage 2a, step 7). */
+/** Tokens of the selected map as a list; clicking one selects it like a click on the map. */
 export function TokenList() {
   const { t } = useTranslation();
   const { data: snapshot } = useSnapshot();
   const submit = useSubmitIntent();
   const mapId = useSelection((s) => s.mapId);
+  const selectToken = useSelection((s) => s.selectToken);
 
   const map = snapshot?.maps.find((m) => m.id === mapId);
   if (!mapId || !snapshot || !map) {
@@ -54,7 +55,13 @@ export function TokenList() {
       {tokens.length === 0 && <p className="nav-empty">{t('tokens.empty')}</p>}
       <ul className="nav-list">
         {tokens.map((token) => (
-          <li key={token.id} className="nav-row">
+          <li
+            key={token.id}
+            className="nav-row"
+            onClick={() => {
+              selectToken(token.id);
+            }}
+          >
             <span className="avatar" aria-hidden="true">
               {token.name.trim().charAt(0).toUpperCase() || '?'}
             </span>
@@ -63,15 +70,6 @@ export function TokenList() {
               {token.x / 16}, {token.y / 16}
             </span>
             <span className="row-actions">
-              <IconButton
-                icon="send"
-                label={t('tokens.nudge')}
-                onClick={() => {
-                  submit.mutate({
-                    intent: { kind: 'move_token', id: token.id, x: token.x + 70 * 16, y: token.y },
-                  });
-                }}
-              />
               <ConfirmDelete
                 label={t('tokens.delete')}
                 onConfirm={() => {

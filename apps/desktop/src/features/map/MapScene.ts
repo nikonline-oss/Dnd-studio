@@ -38,6 +38,8 @@ const GRID_TEXTURE_PX = 256;
 const REVEAL_PREVIEW = 0xe3aa45;
 const HIDE_PREVIEW = 0x0b0a10;
 const PREVIEW_ALPHA = 0.45;
+/** A press that moves less than this (CSS px) is a click, not a drag. */
+const CLICK_SLOP_PX = 4;
 /** Token moves while dragging: ~12 Hz (ADR-0003 asks for 10–15 Hz). */
 const MOVE_INTERVAL_MS = 80;
 
@@ -87,13 +89,22 @@ export class MapScene {
   /** Fit once the canvas has a size (it may still be 0×0 when the first map arrives). */
   private pendingFit = false;
   private dragFrom: { x: number; y: number } | null = null;
+  /** Where a pan started: a press without movement on the map clears the token selection. */
+  private panStart: { x: number; y: number } | null = null;
   private tool: FogTool | null = null;
   private drawing: Drawing | null = null;
   private readonly tokens: TokenLayer;
   private tokenViews: TokenView[] = [];
   private grid: Grid | null = null;
   /** The token being dragged and where on it it was grabbed (map units). */
-  private tokenDrag: { id: string; dx: number; dy: number } | null = null;
+  private tokenDrag: {
+    id: string;
+    dx: number;
+    dy: number;
+    /** Screen point of the press; until the pointer leaves it, this is a click. */
+    start: Point;
+    moved: boolean;
+  } | null = null;
   private readonly moves: Throttle<TokenMove>;
 
   constructor(
@@ -103,6 +114,8 @@ export class MapScene {
     private readonly onFog: (kind: FogOpKind, shapes: FogShape[]) => void = () => undefined,
     /** A token was dragged: throttled positions while moving, then the final one. */
     private readonly onMoveToken: (move: TokenMove) => void = () => undefined,
+    /** A token was clicked (`null`: the empty map was clicked). */
+    private readonly onSelectToken: (id: string | null) => void = () => undefined,
   ) {
     this.fog = new FogLayer(app);
     this.tokens = new TokenLayer(this.onGrabToken);
@@ -333,7 +346,13 @@ export class MapScene {
     const view = this.tokenViews.find((v) => v.token.id === id);
     if (!view || this.tool) return;
     const at = this.world.toLocal(event.global);
-    this.tokenDrag = { id, dx: at.x - view.token.x / 16, dy: at.y - view.token.y / 16 };
+    this.tokenDrag = {
+      id,
+      dx: at.x - view.token.x / 16,
+      dy: at.y - view.token.y / 16,
+      start: { x: event.global.x, y: event.global.y },
+      moved: false,
+    };
   };
 
   /** The shapes the current drawing would send. */
@@ -401,6 +420,7 @@ export class MapScene {
     }
     if (event.button !== 0 && event.button !== 1) return;
     this.dragFrom = { x: event.global.x, y: event.global.y };
+    this.panStart = event.button === 0 ? { ...this.dragFrom } : null;
     this.app.canvas.style.cursor = 'grabbing';
   };
 
@@ -408,6 +428,11 @@ export class MapScene {
     if (!this.mapSize) return;
     const drag = this.tokenDrag;
     if (drag) {
+      if (!drag.moved) {
+        const distance = Math.hypot(event.global.x - drag.start.x, event.global.y - drag.start.y);
+        if (distance < CLICK_SLOP_PX) return;
+        drag.moved = true;
+      }
       const p = this.tokenDragPoint(event);
       const clamped = tokenPosition(p, this.mapSize);
       this.tokens.dragTo(drag.id, clamped.x / 16, clamped.y / 16);
@@ -436,6 +461,12 @@ export class MapScene {
 
   private readonly onUp = (event: FederatedPointerEvent): void => {
     const drag = this.tokenDrag;
+    if (drag && !drag.moved) {
+      // A click: select the token, do not move it.
+      this.endTokenDrag();
+      this.onSelectToken(drag.id);
+      return;
+    }
     if (drag && this.mapSize) {
       // Drop: snapped to the grid unless Alt is held; replaces any move still waiting.
       const p = this.tokenDragPoint(event);
@@ -455,8 +486,14 @@ export class MapScene {
       if (shapes.length > 0) this.onFog(drawing.kind, shapes);
     }
     if (this.dragFrom) {
+      const start = this.panStart;
+      const clicked =
+        start !== null &&
+        Math.hypot(event.global.x - start.x, event.global.y - start.y) < CLICK_SLOP_PX;
       this.dragFrom = null;
+      this.panStart = null;
       this.app.canvas.style.cursor = this.tool ? 'crosshair' : 'grab';
+      if (clicked) this.onSelectToken(null);
     }
   };
 }

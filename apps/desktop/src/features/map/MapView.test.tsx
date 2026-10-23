@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { mockIPC } from '@tauri-apps/api/mocks';
-import { createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -34,6 +34,7 @@ const scene = vi.hoisted(() => ({
   tools: [] as (FogTool | null)[],
   onFog: null as ((kind: FogOpKind, shapes: FogShape[]) => void) | null,
   onMove: null as ((move: TokenMove) => void) | null,
+  onSelect: null as ((id: string | null) => void) | null,
   tokens: [] as TokenView[],
   /** canvasToMap returns the canvas point as is (scale 1, no pan). */
   fit: vi.fn(),
@@ -49,7 +50,9 @@ vi.mock('./MapScene', () => ({
       onLoadError: (error: unknown) => void,
       onFog: (kind: FogOpKind, shapes: FogShape[]) => void,
       onMove: (move: TokenMove) => void,
+      onSelect: (id: string | null) => void,
     ) {
+      scene.onSelect = onSelect;
       scene.loadError = onLoadError;
       scene.onFog = onFog;
       scene.onMove = onMove;
@@ -178,7 +181,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  useSelection.setState({ mapId: null });
+  useSelection.setState({ mapId: null, tokenId: null, inspect: 'map' });
 });
 
 describe('MapView', () => {
@@ -346,6 +349,25 @@ describe('MapView tokens', () => {
       expect(scene.tokens.map((v) => v.token.id)).toEqual([id(80)]);
     });
     expect(scene.tokens[0]).toMatchObject({ movable: true, colorKey: knight.id });
+  });
+
+  it('a clicked token is selected and drawn as selected; the empty map clears it', async () => {
+    useSelection.setState({ mapId: id(1) });
+    setup(<MapView />, [map(1)], 'gm', [], { tokens: [token] });
+    await waitFor(() => {
+      expect(scene.onSelect).not.toBeNull();
+    });
+    act(() => {
+      scene.onSelect?.(token.id);
+    });
+    expect(useSelection.getState()).toMatchObject({ tokenId: token.id, inspect: 'token' });
+    await waitFor(() => {
+      expect(scene.tokens[0]?.selected).toBe(true);
+    });
+    act(() => {
+      scene.onSelect?.(null);
+    });
+    expect(useSelection.getState()).toMatchObject({ tokenId: null, inspect: 'map' });
   });
 
   it('sends dragged positions as last-write-wins move_token intents', async () => {

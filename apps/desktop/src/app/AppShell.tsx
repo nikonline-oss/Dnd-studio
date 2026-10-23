@@ -14,6 +14,7 @@ import { InitiativePanel } from '@/features/initiative/InitiativePanel';
 import { LogPanel } from '@/features/logs/LogPanel';
 import { MapInspector } from '@/features/map/MapInspector';
 import { MapList } from '@/features/map/MapList';
+import { TokenInspector } from '@/features/tokens/TokenInspector';
 import { TokenList } from '@/features/tokens/TokenList';
 
 const BOTTOM_TAB_ICONS = { chat: 'send', initiative: 'dice', logs: 'book' } as const;
@@ -170,10 +171,11 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
               <ErrorBoundary name={t('inspector.title')}>
                 {inspect === 'character' ? (
                   <CharacterEditor />
+                ) : inspect === 'token' ? (
+                  <TokenInspector />
                 ) : (
                   <>
                     <MapInspector />
-                    {/* Until tokens are drawn on the map (stage 2a, step 7). */}
                     <TokenList />
                   </>
                 )}

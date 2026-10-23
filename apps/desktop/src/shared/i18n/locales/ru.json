@@ -36,8 +36,23 @@
     "empty": "На карте нет токенов",
     "newName": "Токен",
     "add": "Добавить токен",
-    "nudge": "Сдвинуть вправо",
-    "delete": "Удалить"
+    "delete": "Удалить",
+    "unnamed": "Безымянный токен",
+    "linkedTo": "Токен персонажа {{name}}",
+    "noCharacter": "Не привязан к персонажу",
+    "layer": "Слой",
+    "layers": {
+      "background": "Фон (реквизит)",
+      "tokens": "Токены",
+      "gm": "Только мастер"
+    },
+    "size": "Размер",
+    "cells_one": "{{count}} клетка",
+    "cells_few": "{{count}} клетки",
+    "cells_many": "{{count}} клеток",
+    "cells_other": "{{count}} клетки",
+    "rotation": "Поворот, °",
+    "visibleToPlayers": "Видна игрокам"
   },
   "errors": {
     "unknown": "Что-то пошло не так",

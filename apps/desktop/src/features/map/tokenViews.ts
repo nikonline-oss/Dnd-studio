@@ -8,7 +8,12 @@ const LAYER_ORDER: Record<TokenLayer, number> = { background: 0, tokens: 1, gm: 
  * layer or hidden tokens; they may drag tokens of their own characters on a shared map. This
  * mirrors `dnd_game_core::authorize` for the UI only — the core decides for real (§5).
  */
-export function tokenViews(snapshot: Snapshot, mapId: string, campaign: CampaignInfo): TokenView[] {
+export function tokenViews(
+  snapshot: Snapshot,
+  mapId: string,
+  campaign: CampaignInfo,
+  selectedTokenId: string | null = null,
+): TokenView[] {
   const isGm = campaign.role === 'gm' || campaign.role === 'co_gm';
   const map = snapshot.maps.find((m) => m.id === mapId);
   if (!map) return [];
@@ -36,5 +41,6 @@ export function tokenViews(snapshot: Snapshot, mapId: string, campaign: Campaign
       gmOnly: token.layer === 'gm' || !token.visible,
       colorKey: token.character_id ?? token.id,
       active: token.id === turnToken,
+      selected: token.id === selectedTokenId,
     }));
 }

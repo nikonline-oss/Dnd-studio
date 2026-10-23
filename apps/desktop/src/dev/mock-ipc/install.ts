@@ -393,6 +393,27 @@ export async function installMockIpc(role: Role, open = true): Promise<void> {
         return commit([{ kind: 'combatant_removed', id: intent.id }], intent_id);
       case 'end_combat':
         return commit([{ kind: 'combat_ended', id: intent.id }], intent_id);
+      case 'update_token': {
+        const tok = snapshot.tokens.find((x) => x.id === intent.id);
+        if (!tok) return { status: 'rejected', reason: { code: 'not_found' } };
+        return commit(
+          [
+            {
+              kind: 'token_updated',
+              token: {
+                ...tok,
+                name: intent.name ?? tok.name,
+                rotation: intent.rotation ?? tok.rotation,
+                scale: intent.scale ?? tok.scale,
+                layer: intent.layer ?? tok.layer,
+                visible: intent.visible ?? tok.visible,
+                version: tok.version + 1,
+              },
+            },
+          ],
+          intent_id,
+        );
+      }
       case 'delete_token':
         return commit([{ kind: 'token_deleted', id: intent.id }], intent_id);
       case 'apply_fog':

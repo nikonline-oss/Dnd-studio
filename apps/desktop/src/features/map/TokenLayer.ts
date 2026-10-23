@@ -19,6 +19,8 @@ export interface TokenView {
   colorKey: string;
   /** It is this token's turn in combat: drawn with a ring. */
   active: boolean;
+  /** Selected (its properties are in the inspector): drawn with a white ring. */
+  selected: boolean;
 }
 
 interface Sprite {
@@ -56,7 +58,7 @@ export class TokenLayer {
         this.view.addChild(sprite.root);
       }
       const diameter = tokenDiameter(grid, token.scale);
-      const look = `${diameter}:${token.name}:${view.colorKey}:${view.gmOnly}:${view.active}`;
+      const look = `${diameter}:${token.name}:${view.colorKey}:${view.gmOnly}:${view.active}:${view.selected}`;
       if (look !== sprite.look) {
         this.draw(sprite, view, diameter);
         sprite.look = look;
@@ -143,6 +145,11 @@ export class TokenLayer {
       .stroke({ color: 0xffffff, width: Math.max(1.5, r * 0.08), alignment: 1 })
       .circle(0, 0, r)
       .stroke({ color: 0x000000, alpha: 0.35, width: Math.max(1, r * 0.04), alignment: 0 });
+    if (view.selected) {
+      sprite.disc
+        .circle(0, 0, r + Math.max(1.5, r * 0.06))
+        .stroke({ color: 0xffffff, width: Math.max(2, r * 0.1) });
+    }
     if (view.active) {
       // Whose turn it is: a bright ring outside the token.
       sprite.disc

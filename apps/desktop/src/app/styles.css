@@ -1586,3 +1586,26 @@ input[type='checkbox'] {
   min-height: 26px;
   padding: 0 2px;
 }
+
+/* ---------- Token inspector ---------- */
+
+.token-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.token-head strong {
+  font-family: var(--font-display);
+  font-size: 16px;
+}
+
+.avatar.large {
+  width: 40px;
+  height: 40px;
+  font-size: 18px;
+}
+
+.token-form .inline {
+  color: var(--color-text);
+}
