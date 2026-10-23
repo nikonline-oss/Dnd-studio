@@ -30,6 +30,11 @@ const PATHS = {
   cloud: 'M7 18h10a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.1 9.6 4.2 4.2 0 0 0 7 18z',
   folderOpen:
     'M3 7a1.5 1.5 0 0 1 1.5-1.5H9l2 2h7.5A1.5 1.5 0 0 1 20 9v1.5M3 7v10.5A1.5 1.5 0 0 0 4.5 19H17l4-8.5H7.5L3 19',
+  chevron: 'M9.5 6l6 6-6 6',
+  folderPlus:
+    'M3 6.5A1.5 1.5 0 0 1 4.5 5H9l2 2.5h8.5A1.5 1.5 0 0 1 21 9v8.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5zM12 10.5v6M9 13.5h6',
+  filePlus: 'M6 3h8l4 4v14H6zM14 3v4h4M12 11v6M9 14h6',
+  collapse: 'M5 5h14v14H5zM9 12h6',
 } as const;
 
 export type IconName = keyof typeof PATHS;

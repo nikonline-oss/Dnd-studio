@@ -5,7 +5,9 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type HTMLAttributes,
   type ReactNode,
+  type Ref,
 } from 'react';
 
 interface VirtualListProps<T> {
@@ -22,6 +24,8 @@ interface VirtualListProps<T> {
   overscan?: number;
   /** Keeps this row in view when it changes (keyboard navigation). */
   scrollToIndex?: number | null;
+  /** Extra attributes of the `<ul>` (a tree role, keyboard handling, focus). */
+  listProps?: HTMLAttributes<HTMLUListElement> & { ref?: Ref<HTMLUListElement> };
 }
 
 /** Height of a navigator row (`.nav-row`). */
@@ -44,6 +48,7 @@ export function VirtualList<T>({
   className,
   overscan = 8,
   scrollToIndex = null,
+  listProps,
 }: VirtualListProps<T>) {
   const box = useRef<HTMLDivElement>(null);
   const [scrollTop, setScrollTop] = useState(0);
@@ -87,6 +92,7 @@ export function VirtualList<T>({
       }}
     >
       <ul
+        {...listProps}
         className="nav-list"
         aria-label={label}
         style={{ height: items.length * rowHeight, paddingTop: first * rowHeight }}

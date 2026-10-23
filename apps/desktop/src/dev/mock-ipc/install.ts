@@ -453,6 +453,94 @@ export async function installMockIpc(role: Role, open = true, stress = false): P
           ],
           intent_id,
         );
+      // Journal: entries keep their text here, the snapshot only the index (ADR-0018/0021).
+      case 'create_journal_entry': {
+        const entry: JournalEntryDto = {
+          id: intent.id,
+          folder_id: intent.folder_id,
+          title: intent.title,
+          markdown: intent.markdown,
+          sort_order: journal.filter((e) => e.folder_id === intent.folder_id).length,
+          visibility: intent.visibility,
+          players_can_edit: intent.players_can_edit,
+          author: info.user_id,
+          version: 1,
+        };
+        journal.push(entry);
+        return commit([{ kind: 'journal_entry_created', entry }], intent_id);
+      }
+      case 'update_journal_entry':
+      case 'move_journal_entry': {
+        const n = journal.findIndex((e) => e.id === intent.id);
+        const old = journal[n];
+        if (!old) return { status: 'rejected', reason: { code: 'not_found' } };
+        const entry: JournalEntryDto =
+          intent.kind === 'move_journal_entry'
+            ? { ...old, folder_id: intent.folder_id, sort_order: intent.sort_order }
+            : {
+                ...old,
+                title: intent.title ?? old.title,
+                markdown: intent.markdown ?? old.markdown,
+                visibility: intent.visibility ?? old.visibility,
+                players_can_edit: intent.players_can_edit ?? old.players_can_edit,
+              };
+        entry.version = old.version + 1;
+        journal[n] = entry;
+        return commit([{ kind: 'journal_entry_updated', entry }], intent_id);
+      }
+      case 'delete_journal_entry':
+        journal.splice(
+          journal.findIndex((e) => e.id === intent.id),
+          1,
+        );
+        return commit([{ kind: 'journal_entry_deleted', id: intent.id }], intent_id);
+      case 'create_journal_folder': {
+        const clash = snapshot.journal_folders.some(
+          (f) => f.parent === intent.parent && f.name.toLowerCase() === intent.name.toLowerCase(),
+        );
+        if (clash) return { status: 'rejected', reason: { code: 'already_exists' } };
+        const folder = {
+          id: intent.id,
+          parent: intent.parent,
+          name: intent.name,
+          sort_order: snapshot.journal_folders.filter((f) => f.parent === intent.parent).length,
+          version: 1,
+        };
+        return commit([{ kind: 'journal_folder_created', folder }], intent_id);
+      }
+      case 'rename_journal_folder':
+      case 'move_journal_folder': {
+        const old = snapshot.journal_folders.find((f) => f.id === intent.id);
+        if (!old) return { status: 'rejected', reason: { code: 'not_found' } };
+        const folder =
+          intent.kind === 'rename_journal_folder'
+            ? { ...old, name: intent.name, version: old.version + 1 }
+            : {
+                ...old,
+                parent: intent.parent,
+                sort_order: intent.sort_order,
+                version: old.version + 1,
+              };
+        return commit([{ kind: 'journal_folder_updated', folder }], intent_id);
+      }
+      case 'delete_journal_folder': {
+        // Entries first, then folders deepest first — as the core does.
+        const doomed: string[] = [];
+        const visit = (folderId: string) => {
+          for (const f of snapshot.journal_folders) if (f.parent === folderId) visit(f.id);
+          doomed.push(folderId);
+        };
+        visit(intent.id);
+        const entries = journal.filter((e) => e.folder_id !== null && doomed.includes(e.folder_id));
+        for (const e of entries) journal.splice(journal.indexOf(e), 1);
+        return commit(
+          [
+            ...entries.map((e): Event => ({ kind: 'journal_entry_deleted', id: e.id })),
+            ...doomed.map((f): Event => ({ kind: 'journal_folder_deleted', id: f })),
+          ],
+          intent_id,
+        );
+      }
       default:
         return { status: 'accepted', seq };
     }

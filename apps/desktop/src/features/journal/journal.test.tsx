@@ -3,7 +3,6 @@ import { mockIPC } from '@tauri-apps/api/mocks';
 import { act, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DRAFT_DEBOUNCE_MS, JournalEditor } from './JournalEditor';
-import { groupByFolder } from './JournalTree';
 import type {
   CampaignInfo,
   IntentEnvelope,
@@ -51,32 +50,6 @@ const entry: JournalEntryDto = {
   ...meta({ id: '0190a000-0000-7000-8000-0000000000e1', title: 'Gods', version: 3 }),
   markdown: '# Pantheon',
 };
-
-describe('groupByFolder', () => {
-  it('puts the root first, sorts folders and entries', () => {
-    const folder = (id: string, name: string) => ({
-      id,
-      parent: null,
-      name,
-      sort_order: 0,
-      version: 1,
-    });
-    const groups = groupByFolder(
-      [
-        meta({ id: '1', folder_id: 'fp', sort_order: 1, title: 'B' }),
-        meta({ id: '2', folder_id: null, title: 'Root' }),
-        meta({ id: '3', folder_id: 'fl', title: 'L' }),
-        meta({ id: '4', folder_id: 'fp', sort_order: 0, title: 'A' }),
-      ],
-      [folder('fp', 'Places'), folder('fl', 'Lore')],
-    );
-    expect(groups.map(([f, es]) => [f, es.map((e) => e.id)])).toEqual([
-      ['', ['2']],
-      ['Lore', ['3']],
-      ['Places', ['4', '1']],
-    ]);
-  });
-});
 
 describe('Markdown', () => {
   it('renders formatting but no HTML, scripts or navigable links', () => {
