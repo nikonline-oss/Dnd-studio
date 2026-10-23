@@ -3,7 +3,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)] // test code
 
 use dnd_db::*;
-use dnd_protocol::{Role, UserId};
+use dnd_protocol::{JournalEntryId, JournalFolderId, Role, UserId};
 use uuid::Uuid;
 
 fn gm() -> LocalUser {
@@ -259,4 +259,76 @@ async fn float_positions_are_converted_to_units16() {
     );
     let (state, _) = db.load_state().await.unwrap();
     assert_eq!(state.tokens.len(), 2);
+}
+
+/// Migration 0009 (ADR-0021): folder paths of existing entries become nested folder rows; every
+/// entry points at its folder; root entries stay at the root.
+#[tokio::test]
+async fn folder_paths_become_folder_rows() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("v8.sqlite");
+    {
+        let opts = sqlx::sqlite::SqliteConnectOptions::new()
+            .filename(&path)
+            .create_if_missing(true)
+            .foreign_keys(true);
+        let pool = sqlx::SqlitePool::connect_with(opts).await.unwrap();
+        CAMPAIGN_MIGRATOR.run_to(8, &pool).await.unwrap();
+        for (n, folder) in [
+            (1, "Lore"),
+            (2, "Lore/Places/Towns"),
+            (3, ""),
+            (4, "Lore/Places"),
+        ] {
+            sqlx::query(
+                "INSERT INTO journal_entries (id, folder, title, created_at, updated_at) \
+                 VALUES (?, ?, ?, 0, 0)",
+            )
+            .bind(format!("0190a000-0000-7000-8000-00000000000{n}"))
+            .bind(folder)
+            .bind(format!("Entry {n}"))
+            .execute(&pool)
+            .await
+            .unwrap();
+        }
+        pool.close().await;
+    }
+
+    let (db, report) = CampaignDb::open(&path, 7).await.unwrap();
+    assert!(report.pre_migration_backup.is_some());
+    let (state, _) = db.load_state().await.unwrap();
+
+    // Lore > Places > Towns: three folders, each prefix once.
+    let path_of = |id: JournalFolderId| {
+        let mut names = Vec::new();
+        let mut current = Some(id);
+        while let Some(id) = current {
+            let folder = &state.journal_folders[&id];
+            names.push(folder.name.clone());
+            current = folder.parent;
+        }
+        names.reverse();
+        names.join("/")
+    };
+    let mut paths: Vec<_> = state
+        .journal_folders
+        .keys()
+        .map(|&id| path_of(id))
+        .collect();
+    paths.sort();
+    assert_eq!(paths, ["Lore", "Lore/Places", "Lore/Places/Towns"]);
+    for folder in state.journal_folders.values() {
+        assert!(dnd_protocol::is_uuid_v7(&folder.id.0), "{}", folder.id);
+    }
+
+    let folder_of = |n: u128| {
+        let id = JournalEntryId(Uuid::from_u128(
+            0x0190_a000_0000_7000_8000_0000_0000_0000 + n,
+        ));
+        state.journal[&id].folder_id.map(path_of)
+    };
+    assert_eq!(folder_of(1).as_deref(), Some("Lore"));
+    assert_eq!(folder_of(2).as_deref(), Some("Lore/Places/Towns"));
+    assert_eq!(folder_of(3), None);
+    assert_eq!(folder_of(4).as_deref(), Some("Lore/Places"));
 }

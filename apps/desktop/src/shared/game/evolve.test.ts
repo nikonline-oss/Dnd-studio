@@ -43,6 +43,7 @@ const empty: Snapshot = {
   characters: [],
   users: [],
   journal: [],
+  journal_folders: [],
   assets: [],
   fog: [],
   combats: [],

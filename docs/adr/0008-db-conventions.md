@@ -88,6 +88,9 @@ ADR-0002 выбрал SQLite. Нужно зафиксировать, как им
 | `INSERT … ON CONFLICT` `combatants`       | `project_event`           | `queries.rs::combats_and_combatants_are_projected_and_loaded` (insert и update)   |
 | `DELETE FROM combatants`                  | `project_event`           | `queries.rs::combats_and_combatants_are_projected_and_loaded`                     |
 | `SELECT … FROM combats` / `combatants`    | `load_state`              | `queries.rs::combats_and_combatants_are_projected_and_loaded` (SET NULL токена)   |
+| `INSERT … ON CONFLICT` `journal_folders`  | `project_event`           | `queries.rs::journal_folders_are_projected_loaded_and_cascade` (переименование)   |
+| `DELETE FROM journal_folders` (+ cascade) | `project_event`           | `queries.rs::journal_folders_are_projected_loaded_and_cascade` (записи внутри)    |
+| `SELECT … FROM journal_folders`           | `load_state`              | `queries.rs::journal_folders_are_projected_loaded_and_cascade`                    |
 | `INSERT … ON CONFLICT` `tokens`           | `upsert_token`            | `queries.rs::every_event_kind_is_projected` (insert и update)                     |
 | миграции `server` (`open_server_db`)      | `connect::open_server_db` | `queries.rs::server_db_opens_migrates_and_enforces_constraints`                   |
 

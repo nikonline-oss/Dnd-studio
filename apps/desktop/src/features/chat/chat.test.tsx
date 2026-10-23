@@ -86,6 +86,7 @@ function renderChat(role: Role, chat: ChatMessageDto[] = []) {
     characters: [],
     users: [],
     journal: [],
+    journal_folders: [],
     assets: [],
     fog: [],
     combats: [],

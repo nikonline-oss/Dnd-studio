@@ -87,6 +87,12 @@ pub fn evolve(state: &mut GameState, event: &Event) {
         Event::JournalEntryDeleted { id } => {
             state.journal.remove(id);
         }
+        Event::JournalFolderCreated { folder } | Event::JournalFolderUpdated { folder } => {
+            state.journal_folders.insert(folder.id, folder.clone());
+        }
+        Event::JournalFolderDeleted { id } => {
+            state.journal_folders.remove(id);
+        }
         Event::AssetRegistered { asset } => {
             state.assets.insert(asset.id, asset.as_ref().clone());
         }

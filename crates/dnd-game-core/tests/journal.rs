@@ -12,10 +12,19 @@ fn entry_id(n: u128) -> JournalEntryId {
     JournalEntryId(v7(0x5000 + n))
 }
 
-fn create(n: u128, folder: &str, visibility: JournalVisibility, players_can_edit: bool) -> Intent {
+fn folder_id(n: u128) -> JournalFolderId {
+    JournalFolderId(v7(0x6000 + n))
+}
+
+fn create(
+    n: u128,
+    folder: Option<JournalFolderId>,
+    visibility: JournalVisibility,
+    players_can_edit: bool,
+) -> Intent {
     Intent::CreateJournalEntry {
         id: entry_id(n),
-        folder: folder.into(),
+        folder_id: folder,
         title: format!("Entry {n}"),
         markdown: "# Hello".into(),
         visibility,
@@ -33,30 +42,31 @@ fn edit_text(n: u128, text: &str) -> Intent {
     }
 }
 
-/// Entry 0: GM-only. Entry 1: shared, read-only. Entry 2: shared, players may edit.
+/// Folders 0 "Secrets" and 1 "Lore". Entry 0: GM-only in Secrets. Entry 1: shared, read-only,
+/// in Lore. Entry 2: shared, players may edit, in Lore.
 fn journal_state() -> dnd_game_core::GameState {
     let mut state = table_state();
-    run(
-        &mut state,
-        Role::Gm,
-        create(0, "Secrets", JournalVisibility::Gm, false),
-        None,
-    )
-    .unwrap();
-    run(
-        &mut state,
-        Role::Gm,
-        create(1, "Lore", JournalVisibility::Players, false),
-        None,
-    )
-    .unwrap();
-    run(
-        &mut state,
-        Role::Gm,
-        create(2, "Lore", JournalVisibility::Players, true),
-        None,
-    )
-    .unwrap();
+    for (n, name) in [(0, "Secrets"), (1, "Lore")] {
+        run(
+            &mut state,
+            Role::Gm,
+            Intent::CreateJournalFolder {
+                id: folder_id(n),
+                parent: None,
+                name: name.into(),
+            },
+            None,
+        )
+        .unwrap();
+    }
+    let (secrets, lore) = (Some(folder_id(0)), Some(folder_id(1)));
+    for intent in [
+        create(0, secrets, JournalVisibility::Gm, false),
+        create(1, lore, JournalVisibility::Players, false),
+        create(2, lore, JournalVisibility::Players, true),
+    ] {
+        run(&mut state, Role::Gm, intent, None).unwrap();
+    }
     state
 }
 
@@ -72,7 +82,7 @@ fn only_gm_roles_create_move_and_delete() {
         let created = run(
             &mut state,
             role,
-            create(9, "", JournalVisibility::Gm, false),
+            create(9, None, JournalVisibility::Gm, false),
             None,
         );
         assert_eq!(created.is_ok(), allowed, "{role:?} create: {created:?}");
@@ -83,7 +93,7 @@ fn only_gm_roles_create_move_and_delete() {
             role,
             Intent::MoveJournalEntry {
                 id: entry_id(2),
-                folder: "Archive".into(),
+                folder_id: Some(folder_id(0)),
                 sort_order: 5,
             },
             Some(Version(1)),
@@ -205,54 +215,42 @@ fn concurrent_edits_conflict_by_version() {
 }
 
 #[test]
-fn new_entries_go_last_in_their_folder_and_folders_are_normalized() {
+fn new_entries_go_last_in_their_folder() {
     let mut state = journal_state();
     run(
         &mut state,
         Role::Gm,
-        create(3, "  Lore / ", JournalVisibility::Gm, false),
-        None,
-    )
-    .unwrap_err();
-    run(
-        &mut state,
-        Role::Gm,
-        create(3, " Lore ", JournalVisibility::Gm, false),
+        create(3, Some(folder_id(1)), JournalVisibility::Gm, false),
         None,
     )
     .unwrap();
     let e = &state.journal[&entry_id(3)];
-    assert_eq!((e.folder.as_str(), e.sort_order), ("Lore", 2));
+    assert_eq!((e.folder_id, e.sort_order), (Some(folder_id(1)), 2));
     assert_eq!(e.author, Some(GM));
 
     run(
         &mut state,
         Role::Gm,
-        create(4, " Places /  Towns ", JournalVisibility::Gm, false),
+        create(4, None, JournalVisibility::Gm, false),
         None,
     )
     .unwrap();
     let e = &state.journal[&entry_id(4)];
-    assert_eq!((e.folder.as_str(), e.sort_order), ("Places/Towns", 0));
+    assert_eq!((e.folder_id, e.sort_order), (None, 0));
 }
 
 #[test]
 fn invalid_values_are_rejected() {
     let cases = [
-        (create(9, "a//b", JournalVisibility::Gm, false), "folder"),
+        // An unknown folder.
         (
-            create(
-                9,
-                &"x".repeat(MAX_FOLDER_LEN + 1),
-                JournalVisibility::Gm,
-                false,
-            ),
-            "folder",
+            create(9, Some(folder_id(99)), JournalVisibility::Gm, false),
+            "folder_id",
         ),
         (
             Intent::CreateJournalEntry {
                 id: entry_id(9),
-                folder: String::new(),
+                folder_id: None,
                 title: "  ".into(),
                 markdown: String::new(),
                 visibility: JournalVisibility::Gm,
@@ -263,7 +261,7 @@ fn invalid_values_are_rejected() {
         (
             Intent::CreateJournalEntry {
                 id: entry_id(9),
-                folder: String::new(),
+                folder_id: None,
                 title: "Big".into(),
                 markdown: "x".repeat(MAX_JOURNAL_BYTES + 1),
                 visibility: JournalVisibility::Gm,

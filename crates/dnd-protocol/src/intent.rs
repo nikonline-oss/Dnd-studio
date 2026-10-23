@@ -3,8 +3,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::ids::{
-    AssetId, CharacterId, ChatMessageId, CombatId, CombatantId, IntentId, JournalEntryId, MapId,
-    TokenId, UserId, Version,
+    AssetId, CharacterId, ChatMessageId, CombatId, CombatantId, IntentId, JournalEntryId,
+    JournalFolderId, MapId, TokenId, UserId, Version,
 };
 use crate::model::{AssetDto, CharacterKind, FogOp, Grid, JournalVisibility, TokenLayer};
 
@@ -178,7 +178,7 @@ pub enum Intent {
     /// GM / Co-GM. Placed last in its folder.
     CreateJournalEntry {
         id: JournalEntryId,
-        folder: String,
+        folder_id: Option<JournalFolderId>,
         title: String,
         markdown: String,
         visibility: JournalVisibility,
@@ -193,16 +193,39 @@ pub enum Intent {
         visibility: Option<JournalVisibility>,
         players_can_edit: Option<bool>,
     },
-    /// GM / Co-GM: move to `folder` at position `sort_order`.
+    /// GM / Co-GM: move into `folder_id` (`None`: the root) at position `sort_order`.
     MoveJournalEntry {
         id: JournalEntryId,
-        folder: String,
+        folder_id: Option<JournalFolderId>,
         #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
         sort_order: i64,
     },
     /// GM / Co-GM.
     DeleteJournalEntry {
         id: JournalEntryId,
+    },
+    /// GM / Co-GM. A folder in `parent` (`None`: the root), last among its siblings. Sibling folders
+    /// have different names (ADR-0021).
+    CreateJournalFolder {
+        id: JournalFolderId,
+        parent: Option<JournalFolderId>,
+        name: String,
+    },
+    /// GM / Co-GM.
+    RenameJournalFolder {
+        id: JournalFolderId,
+        name: String,
+    },
+    /// GM / Co-GM: into `parent` at `sort_order`; never into itself or its own subfolders.
+    MoveJournalFolder {
+        id: JournalFolderId,
+        parent: Option<JournalFolderId>,
+        #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
+        sort_order: i64,
+    },
+    /// GM / Co-GM. Deletes the folder with all its subfolders and entries.
+    DeleteJournalFolder {
+        id: JournalFolderId,
     },
 
     /// GM / Co-GM. Records an image the server-side import already validated, converted and
@@ -271,6 +294,10 @@ impl Intent {
             Self::UpdateJournalEntry { .. } => "update_journal_entry",
             Self::MoveJournalEntry { .. } => "move_journal_entry",
             Self::DeleteJournalEntry { .. } => "delete_journal_entry",
+            Self::CreateJournalFolder { .. } => "create_journal_folder",
+            Self::RenameJournalFolder { .. } => "rename_journal_folder",
+            Self::MoveJournalFolder { .. } => "move_journal_folder",
+            Self::DeleteJournalFolder { .. } => "delete_journal_folder",
             Self::RegisterAsset { .. } => "register_asset",
             Self::SendMessage { .. } => "send_message",
             Self::RollDice { .. } => "roll_dice",
@@ -290,7 +317,8 @@ impl Intent {
             | Self::RegisterAsset { .. }
             | Self::ApplyFog { .. }
             | Self::StartCombat { .. }
-            | Self::AddCombatant { .. } => VersionPolicy::Create,
+            | Self::AddCombatant { .. }
+            | Self::CreateJournalFolder { .. } => VersionPolicy::Create,
             Self::MoveToken { .. } | Self::ResetFog { .. } => VersionPolicy::LastWriteWins,
             Self::UpdateCampaignMeta { .. }
             | Self::UpdateMap { .. }
@@ -310,7 +338,10 @@ impl Intent {
             | Self::RollInitiative { .. }
             | Self::SetInitiative { .. }
             | Self::NextTurn { .. }
-            | Self::EndCombat { .. } => VersionPolicy::Checked,
+            | Self::EndCombat { .. }
+            | Self::RenameJournalFolder { .. }
+            | Self::MoveJournalFolder { .. }
+            | Self::DeleteJournalFolder { .. } => VersionPolicy::Checked,
         }
     }
 

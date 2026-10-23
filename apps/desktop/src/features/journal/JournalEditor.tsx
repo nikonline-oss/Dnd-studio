@@ -136,23 +136,6 @@ function Editor({ entry }: { entry: JournalEntryDto }) {
 
       {isGm && (
         <div className="inline actions">
-          <label className="inline">
-            {t('journal.folder')}
-            <FolderInput
-              value={entry.folder}
-              onCommit={(folder) => {
-                submit.mutate({
-                  intent: {
-                    kind: 'move_journal_entry',
-                    id: entry.id,
-                    folder,
-                    sort_order: entry.sort_order,
-                  },
-                  expectedVersion: entry.version,
-                });
-              }}
-            />
-          </label>
           <select
             aria-label={t('journal.visibilityLabel')}
             value={entry.visibility}
@@ -226,26 +209,5 @@ function Editor({ entry }: { entry: JournalEntryDto }) {
       {draft !== null && !conflict && <p className="muted">{t('journal.unsaved')}</p>}
       <ErrorText error={conflict ? null : submit.error} />
     </article>
-  );
-}
-
-function FolderInput({ value, onCommit }: { value: string; onCommit: (folder: string) => void }) {
-  const [draft, setDraft] = useState(value);
-  const commit = () => {
-    if (draft.trim() !== value) onCommit(draft);
-  };
-  return (
-    <input
-      value={draft}
-      maxLength={200}
-      placeholder="/"
-      onChange={(e) => {
-        setDraft(e.target.value);
-      }}
-      onBlur={commit}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') commit();
-      }}
-    />
   );
 }

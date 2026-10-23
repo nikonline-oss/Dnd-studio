@@ -161,7 +161,7 @@ GM / Co-GM / Player / Spectator. Проверка — всегда в game-core;
 
 campaign_meta (kv), users, assets (уникальность type+sha256, миниатюра), worlds, maps (сетка, туман,
 visible_to_players), characters (kind, sheet_template, sheet_data JSON, owner, status), tokens (map, character?,
-asset?, x, y, rotation, scale, layer, visible), journal_entries (markdown, folder, order, visibility,
+asset?, x, y, rotation, scale, layer, visible), journal_folders (parent, name, order), journal_entries (markdown, folder_id, order, visibility,
 players_can_edit), journal_links (source, target_type, target_id, link_type, directed, weight, label, meta,
 visible_to_players), compendia + compendium_entries, installed_plugins (id, version, active, config,
 installed_at, compat_warning), chat_messages (append-only, `sender_name` на момент записи), dice_rolls

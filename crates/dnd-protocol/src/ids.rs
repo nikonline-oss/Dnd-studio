@@ -67,6 +67,10 @@ define_id!(
     CombatId
 );
 define_id!(
+    /// A folder of the journal (ADR-0021).
+    JournalFolderId
+);
+define_id!(
     /// A participant of a combat.
     CombatantId
 );

@@ -61,6 +61,7 @@ function renderWith(role: Role, characters: CharacterDto[], node: React.ReactNod
       { id: OTHER, name: 'Bob', role: 'player' },
     ],
     journal: [],
+    journal_folders: [],
     assets: [],
     fog: [],
     combats: [],

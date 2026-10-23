@@ -41,6 +41,7 @@ function setup(role: Role) {
     ],
     users: [],
     journal: [],
+    journal_folders: [],
     assets: [],
     fog: [],
     combats: [],

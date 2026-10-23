@@ -4,8 +4,8 @@ use std::collections::BTreeMap;
 
 use dnd_protocol::{
     AssetDto, AssetId, CampaignMeta, CharacterDto, CharacterId, CombatDto, CombatId, CombatantDto,
-    CombatantId, FogDto, JournalEntryDto, JournalEntryId, JournalEntryMeta, MapDto, MapId, Seq,
-    Snapshot, TokenDto, TokenId, UserDto, UserId, Version,
+    CombatantId, FogDto, JournalEntryDto, JournalEntryId, JournalEntryMeta, JournalFolderDto,
+    JournalFolderId, MapDto, MapId, Seq, Snapshot, TokenDto, TokenId, UserDto, UserId, Version,
 };
 
 /// The authoritative state the core reasons about. Ordered maps keep iteration (and therefore
@@ -19,6 +19,8 @@ pub struct GameState {
     /// Known users. Read-only for the core in stage 2a (they join through the server in 2b).
     pub users: BTreeMap<UserId, UserDto>,
     pub journal: BTreeMap<JournalEntryId, JournalEntryDto>,
+    /// Journal folders (ADR-0021).
+    pub journal_folders: BTreeMap<JournalFolderId, JournalFolderDto>,
     pub assets: BTreeMap<AssetId, AssetDto>,
     /// Fog of war by map; maps without fog have no entry (ADR-0019).
     pub fog: BTreeMap<MapId, FogDto>,
@@ -42,6 +44,7 @@ impl GameState {
             characters: BTreeMap::new(),
             users: BTreeMap::new(),
             journal: BTreeMap::new(),
+            journal_folders: BTreeMap::new(),
             assets: BTreeMap::new(),
             fog: BTreeMap::new(),
             combats: BTreeMap::new(),
@@ -65,7 +68,7 @@ impl GameState {
                 .map(|m| {
                     let entry = JournalEntryDto {
                         id: m.id,
-                        folder: m.folder,
+                        folder_id: m.folder_id,
                         title: m.title,
                         markdown: String::new(),
                         sort_order: m.sort_order,
@@ -76,6 +79,11 @@ impl GameState {
                     };
                     (entry.id, entry)
                 })
+                .collect(),
+            journal_folders: snapshot
+                .journal_folders
+                .into_iter()
+                .map(|f| (f.id, f))
                 .collect(),
             assets: snapshot.assets.into_iter().map(|a| (a.id, a)).collect(),
             fog: snapshot.fog.into_iter().map(|f| (f.map_id, f)).collect(),
@@ -95,6 +103,7 @@ impl GameState {
             characters: self.characters.values().cloned().collect(),
             users: self.users.values().cloned().collect(),
             journal: self.journal.values().map(JournalEntryMeta::from).collect(),
+            journal_folders: self.journal_folders.values().cloned().collect(),
             assets: self.assets.values().cloned().collect(),
             fog: self.fog.values().cloned().collect(),
             combats: self.combats.values().cloned().collect(),

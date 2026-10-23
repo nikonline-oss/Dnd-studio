@@ -5,10 +5,12 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::ids::{CombatId, CombatantId, IntentId, JournalEntryId, MapId, Seq, TokenId};
+use crate::ids::{
+    CombatId, CombatantId, IntentId, JournalEntryId, JournalFolderId, MapId, Seq, TokenId,
+};
 use crate::model::{
     AssetDto, CampaignMeta, CharacterDto, ChatMessageDto, CombatDto, CombatantDto, FogOp,
-    JournalEntryDto, MapDto, TokenDto,
+    JournalEntryDto, JournalFolderDto, MapDto, TokenDto,
 };
 
 /// A fact about a state change.
@@ -74,6 +76,18 @@ pub enum Event {
     },
     JournalEntryDeleted {
         id: JournalEntryId,
+    },
+    JournalFolderCreated {
+        folder: JournalFolderDto,
+    },
+    /// Renamed or moved.
+    JournalFolderUpdated {
+        folder: JournalFolderDto,
+    },
+    /// The folder only: deleting a folder also sends the deletion of everything in it, entries
+    /// and subfolders first.
+    JournalFolderDeleted {
+        id: JournalFolderId,
     },
 
     AssetRegistered {

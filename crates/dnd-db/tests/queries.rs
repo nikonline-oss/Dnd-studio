@@ -444,7 +444,7 @@ fn query_inventory_matches_adr_0008() {
         .map(|s| s.matches("sqlx::query").count())
         .sum();
     assert_eq!(
-        count, 38,
+        count, 41,
         "runtime queries changed: add a real-SQLite test and update the table in docs/adr/0008-db-conventions.md"
     );
 }
@@ -564,7 +564,7 @@ async fn journal_entries_are_projected_and_loaded() {
     let db = new_campaign(&dir).await;
     let mut entry = JournalEntryDto {
         id: JournalEntryId(v7(0x500)),
-        folder: "Lore".into(),
+        folder_id: None,
         title: "Gods".into(),
         markdown: "# Pantheon".into(),
         sort_order: 0,
@@ -590,7 +590,6 @@ async fn journal_entries_are_projected_and_loaded() {
     .await
     .unwrap();
     entry.markdown = "# Pantheon\n\nUpdated".into();
-    entry.folder = "Lore/Old".into();
     entry.sort_order = 3;
     entry.version = Version(2);
     db.project(&[at(
@@ -1072,4 +1071,112 @@ async fn combats_and_combatants_are_projected_and_loaded() {
     .unwrap();
     let (state, _) = db.load_state().await.unwrap();
     assert!(state.combats.is_empty() && state.combatants.is_empty());
+}
+
+/// Journal folders (ADR-0021): created, renamed and moved; entries reference them; deleting a
+/// folder cascades to its subfolders and entries.
+#[tokio::test]
+async fn journal_folders_are_projected_loaded_and_cascade() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = new_campaign(&dir).await;
+    let folder = |n: u128, parent: Option<u128>, name: &str| JournalFolderDto {
+        id: JournalFolderId(v7(0x600 + n)),
+        parent: parent.map(|p| JournalFolderId(v7(0x600 + p))),
+        name: name.into(),
+        sort_order: 0,
+        version: Version(1),
+    };
+    let (lore, places) = (folder(0, None, "Lore"), folder(1, Some(0), "Places"));
+    let entry = JournalEntryDto {
+        id: JournalEntryId(v7(0x700)),
+        folder_id: Some(places.id),
+        title: "Harbour".into(),
+        markdown: String::new(),
+        sort_order: 0,
+        visibility: JournalVisibility::Gm,
+        players_can_edit: false,
+        author: None,
+        version: Version(1),
+    };
+    let root = JournalEntryDto {
+        id: JournalEntryId(v7(0x701)),
+        folder_id: None,
+        ..entry.clone()
+    };
+    db.project(&[record(
+        1,
+        Some(0x61),
+        vec![
+            Event::JournalFolderCreated {
+                folder: lore.clone(),
+            },
+            Event::JournalFolderCreated {
+                folder: places.clone(),
+            },
+            Event::JournalEntryCreated {
+                entry: entry.clone(),
+            },
+            Event::JournalEntryCreated {
+                entry: root.clone(),
+            },
+        ],
+    )])
+    .await
+    .unwrap();
+    let renamed = JournalFolderDto {
+        name: "Regions".into(),
+        parent: None,
+        sort_order: 4,
+        version: Version(2),
+        ..places.clone()
+    };
+    db.project(&[record(
+        5,
+        Some(0x62),
+        vec![Event::JournalFolderUpdated {
+            folder: renamed.clone(),
+        }],
+    )])
+    .await
+    .unwrap();
+    let (state, _) = db.load_state().await.unwrap();
+    assert_eq!(
+        state.journal_folders.values().cloned().collect::<Vec<_>>(),
+        vec![lore.clone(), renamed.clone()]
+    );
+    assert_eq!(state.journal[&entry.id].folder_id, Some(places.id));
+
+    // An entry cannot point at a missing folder.
+    let orphan = JournalEntryDto {
+        id: JournalEntryId(v7(0x702)),
+        folder_id: Some(JournalFolderId(v7(0x6FF))),
+        ..entry.clone()
+    };
+    assert!(
+        db.project(&[record(
+            6,
+            Some(0x63),
+            vec![Event::JournalEntryCreated { entry: orphan }]
+        )])
+        .await
+        .is_err()
+    );
+
+    // Deleting a folder takes its entries; the root entry stays.
+    db.project(&[record(
+        6,
+        Some(0x64),
+        vec![Event::JournalFolderDeleted { id: renamed.id }],
+    )])
+    .await
+    .unwrap();
+    let (state, _) = db.load_state().await.unwrap();
+    assert_eq!(
+        state.journal_folders.keys().copied().collect::<Vec<_>>(),
+        vec![lore.id]
+    );
+    assert_eq!(
+        state.journal.keys().copied().collect::<Vec<_>>(),
+        vec![root.id]
+    );
 }

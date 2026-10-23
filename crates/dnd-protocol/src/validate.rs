@@ -70,7 +70,10 @@ impl Intent {
             Self::CreateToken { x, y, .. } | Self::MoveToken { x, y, .. } => {
                 vec![("x", *x), ("y", *y)]
             }
-            Self::MoveJournalEntry { sort_order, .. } => vec![("sort_order", *sort_order)],
+            Self::MoveJournalEntry { sort_order, .. }
+            | Self::MoveJournalFolder { sort_order, .. } => {
+                vec![("sort_order", *sort_order)]
+            }
             Self::SetInitiative { initiative, .. } => {
                 initiative.map(|i| ("initiative", i)).into_iter().collect()
             }
@@ -97,7 +100,10 @@ impl Intent {
             | Self::RemoveCombatant { .. }
             | Self::RollInitiative { .. }
             | Self::NextTurn { .. }
-            | Self::EndCombat { .. } => Vec::new(),
+            | Self::EndCombat { .. }
+            | Self::CreateJournalFolder { .. }
+            | Self::RenameJournalFolder { .. }
+            | Self::DeleteJournalFolder { .. } => Vec::new(),
             Self::RegisterAsset { asset } => vec![("size_bytes", asset.size_bytes)],
             Self::ApplyFog { op, .. } => match &op.shape {
                 FogShape::Rect {
@@ -133,6 +139,7 @@ impl Intent {
             Self::ApplyFog { op, .. } => Some(op.id.0),
             Self::StartCombat { id, .. } => Some(id.0),
             Self::AddCombatant { id, .. } => Some(id.0),
+            Self::CreateJournalFolder { id, .. } => Some(id.0),
             Self::UpdateCampaignMeta { .. }
             | Self::UpdateMap { .. }
             | Self::DeleteMap { .. }
@@ -153,7 +160,10 @@ impl Intent {
             | Self::RollInitiative { .. }
             | Self::SetInitiative { .. }
             | Self::NextTurn { .. }
-            | Self::EndCombat { .. } => None,
+            | Self::EndCombat { .. }
+            | Self::RenameJournalFolder { .. }
+            | Self::MoveJournalFolder { .. }
+            | Self::DeleteJournalFolder { .. } => None,
         }
     }
 }

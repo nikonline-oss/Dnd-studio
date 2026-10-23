@@ -256,7 +256,11 @@ pub fn apply(
         Intent::CreateJournalEntry { .. }
         | Intent::UpdateJournalEntry { .. }
         | Intent::MoveJournalEntry { .. }
-        | Intent::DeleteJournalEntry { .. } => crate::journal::apply(state, intent, actor)
+        | Intent::DeleteJournalEntry { .. }
+        | Intent::CreateJournalFolder { .. }
+        | Intent::RenameJournalFolder { .. }
+        | Intent::MoveJournalFolder { .. }
+        | Intent::DeleteJournalFolder { .. } => crate::journal::apply(state, intent, actor)
             .unwrap_or(Err(RejectReason::invalid("intent"))),
     }
 }
@@ -290,7 +294,11 @@ fn current_version(state: &GameState, intent: &Intent) -> Result<Version, Reject
         | Intent::ApplyFog { .. }
         | Intent::ResetFog { .. }
         | Intent::StartCombat { .. }
-        | Intent::AddCombatant { .. } => None,
+        | Intent::AddCombatant { .. }
+        | Intent::CreateJournalFolder { .. } => None,
+        Intent::RenameJournalFolder { id, .. }
+        | Intent::MoveJournalFolder { id, .. }
+        | Intent::DeleteJournalFolder { id } => state.journal_folders.get(id).map(|f| f.version),
         Intent::RemoveCombatant { id }
         | Intent::RollInitiative { id }
         | Intent::SetInitiative { id, .. } => state.combatants.get(id).map(|c| c.version),
@@ -368,6 +376,9 @@ fn id_in_use(state: &GameState, id: dnd_protocol::Uuid) -> bool {
             .fog
             .values()
             .any(|f| f.ops.iter().any(|op| op.id.0 == id))
+        || state
+            .journal_folders
+            .contains_key(&dnd_protocol::JournalFolderId(id))
         || state.combats.contains_key(&dnd_protocol::CombatId(id))
         || state
             .combatants

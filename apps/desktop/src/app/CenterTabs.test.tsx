@@ -29,7 +29,7 @@ function renderTabs(maps: MapDto[]) {
     journal: [
       {
         id: 'j1',
-        folder: '',
+        folder_id: null,
         title: 'Notes',
         sort_order: 0,
         visibility: 'gm',
@@ -38,6 +38,7 @@ function renderTabs(maps: MapDto[]) {
         version: 1,
       },
     ],
+    journal_folders: [],
     assets: [],
     fog: [],
     combats: [],

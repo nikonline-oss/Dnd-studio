@@ -146,6 +146,7 @@ function setup(
     characters: [],
     users: [],
     journal: [],
+    journal_folders: [],
     assets: [asset],
     fog,
     combats: [],

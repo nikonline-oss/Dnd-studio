@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::ids::Seq;
 use crate::model::{
     AssetDto, CampaignMeta, CharacterDto, ChatMessageDto, CombatDto, CombatantDto, FogDto,
-    JournalEntryMeta, MapDto, TokenDto, UserDto,
+    JournalEntryMeta, JournalFolderDto, MapDto, TokenDto, UserDto,
 };
 
 /// The visible state as of event `seq`.
@@ -21,6 +21,8 @@ pub struct Snapshot {
     pub users: Vec<UserDto>,
     /// Journal index; texts are fetched per entry.
     pub journal: Vec<JournalEntryMeta>,
+    /// Journal folders (ADR-0021).
+    pub journal_folders: Vec<JournalFolderDto>,
     pub assets: Vec<AssetDto>,
     /// Fog of maps that have any (ADR-0019).
     pub fog: Vec<FogDto>,

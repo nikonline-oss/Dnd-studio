@@ -90,6 +90,15 @@ export function applyEvent(snapshot: Snapshot, event: Event): Snapshot {
       return { ...snapshot, journal: upsert(snapshot.journal, toMeta(event.entry)) };
     case 'journal_entry_deleted':
       return { ...snapshot, journal: snapshot.journal.filter((e) => e.id !== event.id) };
+    case 'journal_folder_created':
+    case 'journal_folder_updated':
+      return { ...snapshot, journal_folders: upsert(snapshot.journal_folders, event.folder) };
+    case 'journal_folder_deleted':
+      // The core sends the deletion of everything inside first (ADR-0021).
+      return {
+        ...snapshot,
+        journal_folders: snapshot.journal_folders.filter((f) => f.id !== event.id),
+      };
     case 'asset_registered':
       return { ...snapshot, assets: upsert(snapshot.assets, event.asset) };
     case 'chat_message_posted':
@@ -139,7 +148,7 @@ function upsert<T extends { id: string }>(items: T[], item: T): T[] {
 function toMeta(entry: JournalEntryDto): JournalEntryMeta {
   return {
     id: entry.id,
-    folder: entry.folder,
+    folder_id: entry.folder_id,
     title: entry.title,
     sort_order: entry.sort_order,
     visibility: entry.visibility,

@@ -23,13 +23,15 @@ import type {
 const id = (n: number) => `0190a000-0000-7000-8000-${n.toString(16).padStart(12, '0')}`;
 const GM = id(1);
 const PLAYER = id(2);
+const LORE = id(70);
+const GM_NOTES = id(71);
 const sha = (n: number) => n.toString(16).padStart(2, '0').repeat(32);
 
 function sampleJournal(): JournalEntryDto[] {
   return [
     {
       id: id(30),
-      folder: 'Lore',
+      folder_id: LORE,
       title: 'The Sunken Crypt',
       markdown:
         '# The Sunken Crypt\n\nBeneath the old chapel lies a crypt half-flooded by the river.\n\n- Entrance: collapsed stairs\n- **Guardian:** a restless knight\n',
@@ -41,7 +43,7 @@ function sampleJournal(): JournalEntryDto[] {
     },
     {
       id: id(31),
-      folder: 'GM notes',
+      folder_id: GM_NOTES,
       title: 'Session 3 plan',
       markdown: 'The knight remembers the party if they bring the signet ring.',
       sort_order: 0,
@@ -174,9 +176,13 @@ export async function installMockIpc(role: Role, open = true, stress = false): P
       { id: GM, name: 'Game Master', role: 'gm' },
       { id: PLAYER, name: 'Mira', role: 'player' },
     ],
+    journal_folders: [
+      { id: LORE, parent: null, name: 'Lore', sort_order: 0, version: 1 },
+      { id: GM_NOTES, parent: null, name: 'GM notes', sort_order: 1, version: 1 },
+    ],
     journal: journal.map((e) => ({
       id: e.id,
-      folder: e.folder,
+      folder_id: e.folder_id,
       title: e.title,
       sort_order: e.sort_order,
       visibility: e.visibility,

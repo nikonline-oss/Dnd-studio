@@ -9,12 +9,13 @@ use uuid::{Builder, Uuid};
 
 use crate::event::{Event, EventBatch};
 use crate::ids::{
-    CharacterId, CombatId, CombatantId, FogOpId, IntentId, MapId, Seq, TokenId, Version,
+    CharacterId, CombatId, CombatantId, FogOpId, IntentId, JournalFolderId, MapId, Seq, TokenId,
+    Version,
 };
 use crate::intent::{Intent, IntentEnvelope};
 use crate::model::{
     CampaignMeta, CharacterKind, CombatDto, CombatantDto, FogOp, FogOpKind, FogShape, Grid,
-    GridKind, MapDto, TokenDto, TokenLayer,
+    GridKind, JournalFolderDto, MapDto, TokenDto, TokenLayer,
 };
 
 /// Number of distinct map ids produced by [`map_id`].
@@ -80,6 +81,28 @@ pub fn offset() -> impl Strategy<Value = f64> {
 /// 1000 units wide, i.e. 16 000 Units16), sometimes negative to exercise rejections.
 pub fn position() -> impl Strategy<Value = i64> {
     -100i64..=16_000
+}
+
+/// Journal folder ids from a small pool, so moves and deletes hit existing folders.
+pub fn journal_folder_id() -> impl Strategy<Value = JournalFolderId> {
+    (0x4_0000u128..0x4_0006).prop_map(|n| JournalFolderId(v7(n)))
+}
+
+pub fn journal_folder_dto() -> impl Strategy<Value = JournalFolderDto> {
+    (
+        journal_folder_id(),
+        proptest::option::of(journal_folder_id()),
+        name(),
+        0i64..50,
+        version(),
+    )
+        .prop_map(|(id, parent, name, sort_order, version)| JournalFolderDto {
+            id,
+            parent,
+            name,
+            sort_order,
+            version,
+        })
 }
 
 pub fn combat_id() -> impl Strategy<Value = CombatId> {
@@ -249,6 +272,29 @@ pub fn intent() -> impl Strategy<Value = Intent> {
         combat_id().prop_map(|combat_id| Intent::NextTurn { combat_id }),
         combat_id().prop_map(|id| Intent::EndCombat { id }),
         (
+            journal_folder_id(),
+            proptest::option::of(journal_folder_id()),
+            name()
+        )
+            .prop_map(|(id, parent, name)| Intent::CreateJournalFolder {
+                id,
+                parent,
+                name
+            }),
+        (journal_folder_id(), name())
+            .prop_map(|(id, name)| Intent::RenameJournalFolder { id, name }),
+        (
+            journal_folder_id(),
+            proptest::option::of(journal_folder_id()),
+            0i64..50
+        )
+            .prop_map(|(id, parent, sort_order)| Intent::MoveJournalFolder {
+                id,
+                parent,
+                sort_order
+            }),
+        journal_folder_id().prop_map(|id| Intent::DeleteJournalFolder { id }),
+        (
             token_id(),
             map_id(),
             proptest::option::of(character_id()),
@@ -411,6 +457,9 @@ pub fn event() -> impl Strategy<Value = Event> {
         combatant_dto().prop_map(|combatant| Event::CombatantAdded { combatant }),
         combatant_dto().prop_map(|combatant| Event::CombatantUpdated { combatant }),
         combatant_id().prop_map(|id| Event::CombatantRemoved { id }),
+        journal_folder_dto().prop_map(|folder| Event::JournalFolderCreated { folder }),
+        journal_folder_dto().prop_map(|folder| Event::JournalFolderUpdated { folder }),
+        journal_folder_id().prop_map(|id| Event::JournalFolderDeleted { id }),
         token_dto().prop_map(|token| Event::TokenCreated { token }),
         token_dto().prop_map(|token| Event::TokenUpdated { token }),
         (token_id(), position(), position()).prop_map(|(id, x, y)| Event::TokenMoved { id, x, y }),

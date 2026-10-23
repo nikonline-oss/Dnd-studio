@@ -3,8 +3,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::ids::{
-    AssetId, CharacterId, ChatMessageId, CombatId, CombatantId, FogOpId, JournalEntryId, MapId,
-    TokenId, UserId, Version,
+    AssetId, CharacterId, ChatMessageId, CombatId, CombatantId, FogOpId, JournalEntryId,
+    JournalFolderId, MapId, TokenId, UserId, Version,
 };
 
 /// Campaign-wide metadata (singleton entity).
@@ -279,8 +279,8 @@ pub enum JournalVisibility {
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct JournalEntryDto {
     pub id: JournalEntryId,
-    /// `/`-separated folder path, `""` for the root.
-    pub folder: String,
+    /// The folder it is in; `None` for the root (ADR-0021).
+    pub folder_id: Option<JournalFolderId>,
     pub title: String,
     pub markdown: String,
     /// Order inside the folder (ascending).
@@ -293,12 +293,29 @@ pub struct JournalEntryDto {
     pub version: Version,
 }
 
+/// A folder of the journal (ADR-0021): folders nest; an empty folder exists on its own.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct JournalFolderDto {
+    pub id: JournalFolderId,
+    /// `None` for a folder at the root.
+    pub parent: Option<JournalFolderId>,
+    pub name: String,
+    /// Order among its siblings (ascending).
+    #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
+    pub sort_order: i64,
+    pub version: Version,
+}
+
+/// Deepest nesting of journal folders.
+pub const MAX_FOLDER_DEPTH: usize = 16;
+
 /// A journal entry without its text, as listed in the snapshot (texts are fetched on demand).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct JournalEntryMeta {
     pub id: JournalEntryId,
-    pub folder: String,
+    pub folder_id: Option<JournalFolderId>,
     pub title: String,
     #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
     pub sort_order: i64,
@@ -312,7 +329,7 @@ impl From<&JournalEntryDto> for JournalEntryMeta {
     fn from(e: &JournalEntryDto) -> Self {
         Self {
             id: e.id,
-            folder: e.folder.clone(),
+            folder_id: e.folder_id,
             title: e.title.clone(),
             sort_order: e.sort_order,
             visibility: e.visibility,
@@ -325,8 +342,6 @@ impl From<&JournalEntryDto> for JournalEntryMeta {
 
 /// Largest Markdown text of a journal entry, in bytes.
 pub const MAX_JOURNAL_BYTES: usize = 1024 * 1024;
-/// Largest folder path, in characters.
-pub const MAX_FOLDER_LEN: usize = 200;
 
 /// What a chat message is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]

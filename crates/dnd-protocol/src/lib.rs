@@ -20,7 +20,8 @@ pub use error::RejectReason;
 pub use event::{Event, EventBatch};
 pub use ids::{
     AssetId, CharacterId, ChatMessageId, CombatId, CombatantId, FogOpId, IntentId, JournalEntryId,
-    MapId, MessageId, Role, Seq, SessionId, TokenId, UserId, Version, uuid_v7_from_random,
+    JournalFolderId, MapId, MessageId, Role, Seq, SessionId, TokenId, UserId, Version,
+    uuid_v7_from_random,
 };
 pub use intent::{Intent, IntentEnvelope, IntentOutcome, PayloadHash, VersionPolicy};
 pub use message::{ClientMessage, Envelope, Rejection, ServerMessage};
@@ -28,12 +29,12 @@ pub use model::{
     AssetDto, AssetTileDto, AssetUsage, CHAT_SNAPSHOT_LEN, CampaignMeta, CharacterDto,
     CharacterKind, CharacterStatus, ChatKind, ChatMessageDto, ChatVisibility, CombatDto,
     CombatantDto, DiceRollDto, DiceTermDto, DieDto, FogDto, FogOp, FogOpKind, FogShape, Grid,
-    GridKind, JournalEntryDto, JournalEntryMeta, JournalVisibility, MAX_CHAT_LEN, MAX_FOLDER_LEN,
+    GridKind, JournalEntryDto, JournalEntryMeta, JournalFolderDto, JournalVisibility, MAX_CHAT_LEN,
     MAX_JOURNAL_BYTES, MAX_SHEET_BYTES, MapDto, SystemMessage, TokenDto, TokenLayer, UserDto,
 };
 pub use model::{
     MAX_BRUSH_POINTS, MAX_BRUSH_RADIUS, MAX_CELL_SIZE, MAX_COMBATANTS, MAX_FOG_OPS, MAX_FOG_POINTS,
-    MAX_MAP_SIZE, MIN_CELL_SIZE, UNITS16_PER_UNIT,
+    MAX_FOLDER_DEPTH, MAX_MAP_SIZE, MIN_CELL_SIZE, UNITS16_PER_UNIT,
 };
 pub use snapshot::Snapshot;
 /// Re-exported so dependants use the exact same UUID type.
@@ -44,7 +45,7 @@ pub use validate::{
 
 /// Protocol version. Peers with a different version are refused with
 /// [`RejectReason::ProtocolMismatch`].
-pub const PROTOCOL_VERSION: u32 = 2;
+pub const PROTOCOL_VERSION: u32 = 3;
 
 /// Registers every protocol type that is exported to TypeScript.
 #[cfg(feature = "specta")]

@@ -1,8 +1,10 @@
-//! Journal intents (CLAUDE.md §12): Markdown entries in folders with visibility and optional
-//! editing by players. Permissions are checked in `permissions::authorize` before this runs.
+//! Journal intents (CLAUDE.md §12): Markdown entries in nested folders (ADR-0021) with visibility
+//! and optional editing by players. Permissions are checked in `permissions::authorize` before
+//! this runs; folders are GM-only.
 
 use dnd_protocol::{
-    Event, Intent, JournalEntryDto, MAX_FOLDER_LEN, MAX_JOURNAL_BYTES, RejectReason, Version,
+    Event, Intent, JournalEntryDto, JournalEntryId, JournalFolderDto, JournalFolderId,
+    MAX_FOLDER_DEPTH, MAX_JOURNAL_BYTES, RejectReason, Version,
 };
 
 use crate::apply::{bump, valid_name};
@@ -18,28 +20,21 @@ pub(crate) fn apply(
     let result = match intent {
         Intent::CreateJournalEntry {
             id,
-            folder,
+            folder_id,
             title,
             markdown,
             visibility,
             players_can_edit,
         } => (|| {
-            let folder = valid_folder(folder)?;
-            // New entries go last in their folder; deterministic, no client-supplied order.
-            let sort_order = state
-                .journal
-                .values()
-                .filter(|e| e.folder == folder)
-                .map(|e| e.sort_order)
-                .max()
-                .map_or(0, |max| max.saturating_add(1));
+            known_folder(state, *folder_id, "folder_id")?;
             Ok(vec![Event::JournalEntryCreated {
                 entry: JournalEntryDto {
                     id: *id,
-                    folder,
+                    folder_id: *folder_id,
                     title: valid_name(title, "title")?,
                     markdown: valid_markdown(markdown)?,
-                    sort_order,
+                    // Last in its folder; deterministic, no client-supplied order.
+                    sort_order: next_entry_order(state, *folder_id),
                     visibility: *visibility,
                     players_can_edit: *players_can_edit,
                     author: Some(actor.user_id),
@@ -77,14 +72,59 @@ pub(crate) fn apply(
         }),
         Intent::MoveJournalEntry {
             id,
-            folder,
+            folder_id,
             sort_order,
         } => change(state, *id, |e| {
-            e.folder = valid_folder(folder)?;
+            known_folder(state, *folder_id, "folder_id")?;
+            e.folder_id = *folder_id;
             e.sort_order = *sort_order;
             Ok(())
         }),
         Intent::DeleteJournalEntry { id } => Ok(vec![Event::JournalEntryDeleted { id: *id }]),
+        Intent::CreateJournalFolder { id, parent, name } => (|| {
+            known_folder(state, *parent, "parent")?;
+            if depth(state, *parent) + 1 > MAX_FOLDER_DEPTH {
+                return Err(RejectReason::invalid("parent"));
+            }
+            let name = sibling_name(state, *parent, name, None)?;
+            Ok(vec![Event::JournalFolderCreated {
+                folder: JournalFolderDto {
+                    id: *id,
+                    parent: *parent,
+                    name,
+                    sort_order: next_folder_order(state, *parent),
+                    version: Version::INITIAL,
+                },
+            }])
+        })(),
+        Intent::RenameJournalFolder { id, name } => change_folder(state, *id, |f| {
+            f.name = sibling_name(state, f.parent, name, Some(f.id))?;
+            Ok(())
+        }),
+        Intent::MoveJournalFolder {
+            id,
+            parent,
+            sort_order,
+        } => change_folder(state, *id, |f| {
+            known_folder(state, *parent, "parent")?;
+            // Never into itself or one of its own subfolders.
+            if parent.is_some_and(|p| p == f.id || is_inside(state, p, f.id)) {
+                return Err(RejectReason::invalid("parent"));
+            }
+            if depth(state, *parent) + subtree_height(state, f.id) > MAX_FOLDER_DEPTH {
+                return Err(RejectReason::invalid("parent"));
+            }
+            f.name = sibling_name(state, *parent, &f.name, Some(f.id))?;
+            f.parent = *parent;
+            f.sort_order = *sort_order;
+            Ok(())
+        }),
+        Intent::DeleteJournalFolder { id } => (|| {
+            if !state.journal_folders.contains_key(id) {
+                return Err(RejectReason::NotFound);
+            }
+            Ok(delete_folder(state, *id))
+        })(),
         _ => return None,
     };
     Some(result)
@@ -92,7 +132,7 @@ pub(crate) fn apply(
 
 fn change(
     state: &GameState,
-    id: dnd_protocol::JournalEntryId,
+    id: JournalEntryId,
     edit: impl FnOnce(&mut JournalEntryDto) -> Result<(), RejectReason>,
 ) -> Result<Vec<Event>, RejectReason> {
     let mut entry = state
@@ -105,27 +145,146 @@ fn change(
     Ok(vec![Event::JournalEntryUpdated { entry }])
 }
 
+fn change_folder(
+    state: &GameState,
+    id: JournalFolderId,
+    edit: impl FnOnce(&mut JournalFolderDto) -> Result<(), RejectReason>,
+) -> Result<Vec<Event>, RejectReason> {
+    let mut folder = state
+        .journal_folders
+        .get(&id)
+        .cloned()
+        .ok_or(RejectReason::NotFound)?;
+    edit(&mut folder)?;
+    folder.version = bump(folder.version)?;
+    Ok(vec![Event::JournalFolderUpdated { folder }])
+}
+
+/// The folder and everything in it: entries first, then folders deepest first, so that applying
+/// the events in order never leaves an entry or a folder without its parent.
+fn delete_folder(state: &GameState, id: JournalFolderId) -> Vec<Event> {
+    let mut folders = vec![id];
+    let mut i = 0;
+    while let Some(&current) = folders.get(i) {
+        folders.extend(
+            state
+                .journal_folders
+                .values()
+                .filter(|f| f.parent == Some(current))
+                .map(|f| f.id),
+        );
+        i += 1;
+    }
+    let mut events: Vec<Event> = state
+        .journal
+        .values()
+        .filter(|e| e.folder_id.is_some_and(|f| folders.contains(&f)))
+        .map(|e| Event::JournalEntryDeleted { id: e.id })
+        .collect();
+    events.extend(
+        folders
+            .iter()
+            .rev()
+            .map(|&id| Event::JournalFolderDeleted { id }),
+    );
+    events
+}
+
+/// `None` (the root) or an existing folder.
+fn known_folder(
+    state: &GameState,
+    folder: Option<JournalFolderId>,
+    field: &str,
+) -> Result<(), RejectReason> {
+    match folder {
+        Some(id) if !state.journal_folders.contains_key(&id) => Err(RejectReason::invalid(field)),
+        _ => Ok(()),
+    }
+}
+
+/// Nesting level of a folder's contents: 0 for the root, 1 inside a top-level folder, ...
+fn depth(state: &GameState, folder: Option<JournalFolderId>) -> usize {
+    let mut depth = 0;
+    let mut current = folder;
+    while let Some(id) = current {
+        depth += 1;
+        // Parents form a tree (moves never create cycles); the bound guards bad data.
+        if depth > MAX_FOLDER_DEPTH {
+            break;
+        }
+        current = state.journal_folders.get(&id).and_then(|f| f.parent);
+    }
+    depth
+}
+
+/// Levels of folders in the subtree of `id`, itself included (1 for a folder without subfolders).
+fn subtree_height(state: &GameState, id: JournalFolderId) -> usize {
+    1 + state
+        .journal_folders
+        .values()
+        .filter(|f| f.parent == Some(id))
+        .map(|f| subtree_height(state, f.id))
+        .max()
+        .unwrap_or(0)
+}
+
+/// `folder` lies somewhere below `ancestor`.
+fn is_inside(state: &GameState, folder: JournalFolderId, ancestor: JournalFolderId) -> bool {
+    let mut current = state.journal_folders.get(&folder).and_then(|f| f.parent);
+    let mut steps = 0;
+    while let Some(id) = current {
+        if id == ancestor {
+            return true;
+        }
+        steps += 1;
+        if steps > MAX_FOLDER_DEPTH {
+            break;
+        }
+        current = state.journal_folders.get(&id).and_then(|f| f.parent);
+    }
+    false
+}
+
+/// A valid name not used by another folder in `parent` (case-insensitive, as file explorers do).
+fn sibling_name(
+    state: &GameState,
+    parent: Option<JournalFolderId>,
+    name: &str,
+    except: Option<JournalFolderId>,
+) -> Result<String, RejectReason> {
+    let name = valid_name(name, "name")?;
+    let taken = state.journal_folders.values().any(|f| {
+        f.parent == parent && Some(f.id) != except && f.name.to_lowercase() == name.to_lowercase()
+    });
+    if taken {
+        return Err(RejectReason::AlreadyExists);
+    }
+    Ok(name)
+}
+
+fn next_entry_order(state: &GameState, folder: Option<JournalFolderId>) -> i64 {
+    state
+        .journal
+        .values()
+        .filter(|e| e.folder_id == folder)
+        .map(|e| e.sort_order)
+        .max()
+        .map_or(0, |max| max.saturating_add(1))
+}
+
+fn next_folder_order(state: &GameState, parent: Option<JournalFolderId>) -> i64 {
+    state
+        .journal_folders
+        .values()
+        .filter(|f| f.parent == parent)
+        .map(|f| f.sort_order)
+        .max()
+        .map_or(0, |max| max.saturating_add(1))
+}
+
 fn valid_markdown(markdown: &str) -> Result<String, RejectReason> {
     if markdown.len() > MAX_JOURNAL_BYTES {
         return Err(RejectReason::invalid("markdown"));
     }
     Ok(markdown.to_owned())
-}
-
-/// `/`-separated path of non-empty, trimmed segments (`""` = root), at most
-/// [`MAX_FOLDER_LEN`] characters, no control characters. Normalizes `" a / b "` to `"a/b"`.
-pub(crate) fn valid_folder(folder: &str) -> Result<String, RejectReason> {
-    let invalid = || RejectReason::invalid("folder");
-    if folder.trim().is_empty() {
-        return Ok(String::new());
-    }
-    let segments: Vec<&str> = folder.split('/').map(str::trim).collect();
-    if segments.iter().any(|s| s.is_empty()) || folder.chars().any(char::is_control) {
-        return Err(invalid());
-    }
-    let normalized = segments.join("/");
-    if normalized.chars().count() > MAX_FOLDER_LEN {
-        return Err(invalid());
-    }
-    Ok(normalized)
 }

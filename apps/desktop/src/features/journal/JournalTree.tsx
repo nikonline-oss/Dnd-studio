@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { useCampaign, useSnapshotSelect, useSubmitIntent } from '@/shared/game/useGame';
-import type { JournalEntryMeta } from '@/shared/ipc/client';
+import type { JournalEntryMeta, JournalFolderDto } from '@/shared/ipc/client';
 import { uuidv7 } from '@/shared/ipc/uuid';
 import { useSelection } from '@/shared/state/selection';
 import { ErrorText } from '@/shared/ui/ErrorText';
@@ -8,13 +8,17 @@ import { Icon } from '@/shared/ui/Icon';
 import { IconButton } from '@/shared/ui/IconButton';
 import { NavSection } from '@/shared/ui/NavSection';
 
-/** Entries grouped by folder (folders sorted, root first), each sorted by `sort_order`. */
-export function groupByFolder(entries: JournalEntryMeta[]): [string, JournalEntryMeta[]][] {
+/** Entries grouped by folder name (root first), each sorted by `sort_order`. */
+export function groupByFolder(
+  entries: JournalEntryMeta[],
+  folders: JournalFolderDto[] = [],
+): [string, JournalEntryMeta[]][] {
   const groups = new Map<string, JournalEntryMeta[]>();
   for (const e of entries) {
-    const list = groups.get(e.folder) ?? [];
+    const name = folders.find((f) => f.id === e.folder_id)?.name ?? '';
+    const list = groups.get(name) ?? [];
     list.push(e);
-    groups.set(e.folder, list);
+    groups.set(name, list);
   }
   return [...groups.entries()]
     .sort(([a], [b]) => (a === '' ? -1 : b === '' ? 1 : a.localeCompare(b)))
@@ -29,11 +33,12 @@ export function JournalTree() {
   const { t } = useTranslation();
   const { data: campaign } = useCampaign();
   const journal = useSnapshotSelect((s) => s.journal);
+  const folders = useSnapshotSelect((s) => s.journal_folders);
   const submit = useSubmitIntent();
   const selectedId = useSelection((s) => s.journalId);
   const openJournal = useSelection((s) => s.openJournal);
   const isGm = campaign?.role === 'gm' || campaign?.role === 'co_gm';
-  const groups = groupByFolder(journal ?? []);
+  const groups = groupByFolder(journal ?? [], folders);
 
   const add = () => {
     const id = uuidv7();
@@ -42,7 +47,7 @@ export function JournalTree() {
         intent: {
           kind: 'create_journal_entry',
           id,
-          folder: '',
+          folder_id: null,
           title: t('journal.newTitle'),
           markdown: '',
           visibility: 'gm',

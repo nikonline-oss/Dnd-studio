@@ -4,6 +4,7 @@ import type {
   ChatMessageDto,
   JournalEntryDto,
   JournalEntryMeta,
+  JournalFolderDto,
   Snapshot,
 } from '@/shared/ipc/client';
 
@@ -50,9 +51,25 @@ export function addStress(snapshot: Snapshot, journal: JournalEntryDto[]): Snaps
     visible: true,
     version: 1,
   }));
+  // Regions at the top, places inside them: STRESS.folders places in all.
+  const regionCount = STRESS.folders / 10;
+  const regions: JournalFolderDto[] = Array.from({ length: regionCount }, (_, n) => ({
+    id: id(6, n),
+    parent: null,
+    name: `Region ${n + 1}`,
+    sort_order: n,
+    version: 1,
+  }));
+  const places: JournalFolderDto[] = Array.from({ length: STRESS.folders }, (_, n) => ({
+    id: id(7, n),
+    parent: regions[n % regionCount]?.id ?? null,
+    name: `Place ${n + 1}`,
+    sort_order: n,
+    version: 1,
+  }));
   const entries: JournalEntryDto[] = Array.from({ length: STRESS.journal }, (_, n) => ({
     id: id(3, n),
-    folder: `Region ${Math.floor(n / 100) + 1}/Place ${(n % STRESS.folders) + 1}`,
+    folder_id: places[n % STRESS.folders]?.id ?? null,
     title: `Note ${n + 1}`,
     markdown: `# Note ${n + 1}\n\nGenerated for the stress test.`,
     sort_order: n,
@@ -64,7 +81,7 @@ export function addStress(snapshot: Snapshot, journal: JournalEntryDto[]): Snaps
   journal.push(...entries);
   const meta: JournalEntryMeta[] = entries.map((e) => ({
     id: e.id,
-    folder: e.folder,
+    folder_id: e.folder_id,
     title: e.title,
     sort_order: e.sort_order,
     visibility: e.visibility,
@@ -96,6 +113,7 @@ export function addStress(snapshot: Snapshot, journal: JournalEntryDto[]): Snaps
     characters: [...snapshot.characters, ...characters],
     tokens: [...snapshot.tokens, ...tokens],
     journal: [...snapshot.journal, ...meta],
+    journal_folders: [...snapshot.journal_folders, ...regions, ...places],
     maps: [...snapshot.maps, ...maps],
     chat: [...snapshot.chat, ...chat].slice(-STRESS.chat),
   };

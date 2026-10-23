@@ -75,6 +75,7 @@ function setup(role: Role, combat: CombatDto | null, combatants: CombatantDto[] 
     ],
     users: [],
     journal: [],
+    journal_folders: [],
     assets: [],
     fog: [],
     combats: combat ? [combat] : [],

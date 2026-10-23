@@ -38,6 +38,7 @@ const snapshot: Snapshot = {
   characters: [mira],
   users: [],
   journal: [],
+  journal_folders: [],
   assets: [],
   fog: [],
   combats: [],

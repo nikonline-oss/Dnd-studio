@@ -7,8 +7,8 @@ use dnd_protocol::{
     AssetDto, AssetId, AssetTileDto, CampaignMeta, CharacterDto, CharacterId, ChatKind,
     ChatMessageDto, ChatMessageId, CombatDto, CombatId, CombatantDto, CombatantId, DiceRollDto,
     Event, EventBatch, FogDto, FogOp, Grid, GridKind, IntentId, JournalEntryDto, JournalEntryId,
-    MapDto, MapId, PayloadHash, Role, Seq, SystemMessage, TokenDto, TokenId, TokenLayer, UserDto,
-    UserId, Version,
+    JournalFolderDto, JournalFolderId, MapDto, MapId, PayloadHash, Role, Seq, SystemMessage,
+    TokenDto, TokenId, TokenLayer, UserDto, UserId, Version,
 };
 use serde::{Deserialize, Serialize};
 use sqlx::sqlite::SqliteRow;
@@ -423,7 +423,8 @@ impl CampaignDb {
             state.characters.insert(character.id, character);
         }
         for row in sqlx::query(
-            "SELECT id, folder, title, markdown, sort_order, visibility, players_can_edit, \n             author_user_id, version FROM journal_entries ORDER BY id",
+            "SELECT id, folder_id, title, markdown, sort_order, visibility, players_can_edit, \
+             author_user_id, version FROM journal_entries ORDER BY id",
         )
         .fetch_all(&self.pool)
         .await?
@@ -433,7 +434,11 @@ impl CampaignDb {
                     "journal_entries.id",
                     &row.try_get::<String, _>("id")?,
                 )?),
-                folder: row.try_get("folder")?,
+                folder_id: opt_uuid_from_str(
+                    "journal_entries.folder_id",
+                    row.try_get("folder_id")?,
+                )?
+                .map(JournalFolderId),
                 title: row.try_get("title")?,
                 markdown: row.try_get("markdown")?,
                 sort_order: row.try_get("sort_order")?,
@@ -450,6 +455,25 @@ impl CampaignDb {
                 version: Version(row.try_get("version")?),
             };
             state.journal.insert(entry.id, entry);
+        }
+        for row in sqlx::query(
+            "SELECT id, parent_id, name, sort_order, version FROM journal_folders ORDER BY id",
+        )
+        .fetch_all(&self.pool)
+        .await?
+        {
+            let folder = JournalFolderDto {
+                id: JournalFolderId(uuid_from_str(
+                    "journal_folders.id",
+                    &row.try_get::<String, _>("id")?,
+                )?),
+                parent: opt_uuid_from_str("journal_folders.parent_id", row.try_get("parent_id")?)?
+                    .map(JournalFolderId),
+                name: row.try_get("name")?,
+                sort_order: row.try_get("sort_order")?,
+                version: Version(row.try_get("version")?),
+            };
+            state.journal_folders.insert(folder.id, folder);
         }
         for row in sqlx::query(
             "SELECT id, usage, sha256, mime, size_bytes, original_name, width, height, \n             display_sha256, thumbnail_sha256, tiles, version FROM assets ORDER BY id",
@@ -589,6 +613,32 @@ async fn project_event(conn: &mut SqliteConnection, event: &Event, at_ms: i64) -
         }
         Event::JournalEntryDeleted { id } => {
             sqlx::query("DELETE FROM journal_entries WHERE id = ?")
+                .bind(id.to_string())
+                .execute(conn)
+                .await?;
+            Ok(())
+        }
+        Event::JournalFolderCreated { folder } | Event::JournalFolderUpdated { folder } => {
+            sqlx::query(
+                "INSERT INTO journal_folders (id, parent_id, name, sort_order, version) \
+                 VALUES (?, ?, ?, ?, ?) \
+                 ON CONFLICT (id) DO UPDATE SET parent_id = excluded.parent_id, \
+                     name = excluded.name, sort_order = excluded.sort_order, \
+                     version = excluded.version",
+            )
+            .bind(folder.id.to_string())
+            .bind(folder.parent.map(|p| p.to_string()))
+            .bind(&folder.name)
+            .bind(folder.sort_order)
+            .bind(folder.version.0)
+            .execute(conn)
+            .await?;
+            Ok(())
+        }
+        Event::JournalFolderDeleted { id } => {
+            // Subfolders and entries go with it (ON DELETE CASCADE); the core sends their
+            // deletions first anyway (ADR-0021).
+            sqlx::query("DELETE FROM journal_folders WHERE id = ?")
                 .bind(id.to_string())
                 .execute(conn)
                 .await?;
@@ -854,18 +904,18 @@ async fn upsert_journal_entry(
     at_ms: i64,
 ) -> DbResult<()> {
     sqlx::query(
-        "INSERT INTO journal_entries (id, folder, title, markdown, sort_order, visibility, \
+        "INSERT INTO journal_entries (id, folder_id, title, markdown, sort_order, visibility, \
              players_can_edit, author_user_id, created_at, updated_at, version) \
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) \
          ON CONFLICT (id) DO UPDATE SET \
-             folder = excluded.folder, title = excluded.title, markdown = excluded.markdown, \
+             folder_id = excluded.folder_id, title = excluded.title, markdown = excluded.markdown, \
              sort_order = excluded.sort_order, visibility = excluded.visibility, \
              players_can_edit = excluded.players_can_edit, \
              author_user_id = excluded.author_user_id, updated_at = excluded.updated_at, \
              version = excluded.version",
     )
     .bind(e.id.to_string())
-    .bind(&e.folder)
+    .bind(e.folder_id.map(|f| f.to_string()))
     .bind(&e.title)
     .bind(&e.markdown)
     .bind(e.sort_order)

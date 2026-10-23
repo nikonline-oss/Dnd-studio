@@ -279,7 +279,14 @@ export type Event = { kind: "campaign_meta_updated"; campaign: CampaignMeta } | 
 /**  Any change: name, sheet, status, owner. */
 { kind: "character_updated"; character: CharacterDto } | { kind: "journal_entry_created"; entry: JournalEntryDto } | 
 /**  Any change: text, title, folder, order, visibility. */
-{ kind: "journal_entry_updated"; entry: JournalEntryDto } | { kind: "journal_entry_deleted"; id: JournalEntryId } | { kind: "asset_registered"; asset: AssetDto } | { kind: "combat_started"; combat: CombatDto } | 
+{ kind: "journal_entry_updated"; entry: JournalEntryDto } | { kind: "journal_entry_deleted"; id: JournalEntryId } | { kind: "journal_folder_created"; folder: JournalFolderDto } | 
+/**  Renamed or moved. */
+{ kind: "journal_folder_updated"; folder: JournalFolderDto } | 
+/**
+ *  The folder only: deleting a folder also sends the deletion of everything in it, entries
+ *  and subfolders first.
+ */
+{ kind: "journal_folder_deleted"; id: JournalFolderId } | { kind: "asset_registered"; asset: AssetDto } | { kind: "combat_started"; combat: CombatDto } | 
 /**  Round or turn changed. */
 { kind: "combat_updated"; combat: CombatDto } | 
 /**  The combat and all its combatants are gone. */
@@ -396,16 +403,27 @@ width: number; height: number; grid: Grid; visible_to_players: boolean } | { kin
 /**  GM / Co-GM; `owner` must be a known user. */
 { kind: "assign_character_owner"; id: CharacterId; owner: UserId | null } | 
 /**  GM / Co-GM. Placed last in its folder. */
-{ kind: "create_journal_entry"; id: JournalEntryId; folder: string; title: string; markdown: string; visibility: JournalVisibility; players_can_edit: boolean } | 
+{ kind: "create_journal_entry"; id: JournalEntryId; folder_id: JournalFolderId | null; title: string; markdown: string; visibility: JournalVisibility; players_can_edit: boolean } | 
 /**
  *  GM / Co-GM change anything; players only `title`/`markdown` of entries that are visible to
  *  them and marked `players_can_edit`.
  */
 { kind: "update_journal_entry"; id: JournalEntryId; title: string | null; markdown: string | null; visibility: JournalVisibility | null; players_can_edit: boolean | null } | 
-/**  GM / Co-GM: move to `folder` at position `sort_order`. */
-{ kind: "move_journal_entry"; id: JournalEntryId; folder: string; sort_order: number } | 
+/**  GM / Co-GM: move into `folder_id` (`None`: the root) at position `sort_order`. */
+{ kind: "move_journal_entry"; id: JournalEntryId; folder_id: JournalFolderId | null; sort_order: number } | 
 /**  GM / Co-GM. */
 { kind: "delete_journal_entry"; id: JournalEntryId } | 
+/**
+ *  GM / Co-GM. A folder in `parent` (`None`: the root), last among its siblings. Sibling folders
+ *  have different names (ADR-0021).
+ */
+{ kind: "create_journal_folder"; id: JournalFolderId; parent: JournalFolderId | null; name: string } | 
+/**  GM / Co-GM. */
+{ kind: "rename_journal_folder"; id: JournalFolderId; name: string } | 
+/**  GM / Co-GM: into `parent` at `sort_order`; never into itself or its own subfolders. */
+{ kind: "move_journal_folder"; id: JournalFolderId; parent: JournalFolderId | null; sort_order: number } | 
+/**  GM / Co-GM. Deletes the folder with all its subfolders and entries. */
+{ kind: "delete_journal_folder"; id: JournalFolderId } | 
 /**
  *  GM / Co-GM. Records an image the server-side import already validated, converted and
  *  stored; the same original (`sha256`) cannot be registered twice.
@@ -467,8 +485,8 @@ export type IpcErrorKind =
 /**  A journal entry with its Markdown text. */
 export type JournalEntryDto = {
 	id: JournalEntryId,
-	/**  `/`-separated folder path, `""` for the root. */
-	folder: string,
+	/**  The folder it is in; `None` for the root (ADR-0021). */
+	folder_id: JournalFolderId | null,
 	title: string,
 	markdown: string,
 	/**  Order inside the folder (ascending). */
@@ -486,7 +504,7 @@ export type JournalEntryId = string;
 /**  A journal entry without its text, as listed in the snapshot (texts are fetched on demand). */
 export type JournalEntryMeta = {
 	id: JournalEntryId,
-	folder: string,
+	folder_id: JournalFolderId | null,
 	title: string,
 	sort_order: number,
 	visibility: JournalVisibility,
@@ -494,6 +512,20 @@ export type JournalEntryMeta = {
 	author: UserId | null,
 	version: Version,
 };
+
+/**  A folder of the journal (ADR-0021): folders nest; an empty folder exists on its own. */
+export type JournalFolderDto = {
+	id: JournalFolderId,
+	/**  `None` for a folder at the root. */
+	parent: JournalFolderId | null,
+	name: string,
+	/**  Order among its siblings (ascending). */
+	sort_order: number,
+	version: Version,
+};
+
+/**  A folder of the journal (ADR-0021). */
+export type JournalFolderId = string;
 
 /**  Who may read a journal entry. */
 export type JournalVisibility = 
@@ -598,6 +630,8 @@ export type Snapshot = {
 	users: UserDto[],
 	/**  Journal index; texts are fetched per entry. */
 	journal: JournalEntryMeta[],
+	/**  Journal folders (ADR-0021). */
+	journal_folders: JournalFolderDto[],
 	assets: AssetDto[],
 	/**  Fog of maps that have any (ADR-0019). */
 	fog: FogDto[],

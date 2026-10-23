@@ -41,6 +41,7 @@
 | `update_token`         | проверяется    | GM, Co-GM                                        |
 | `move_token`           | LWW, не растёт | GM, Co-GM; Player — свои токены на видимой карте |
 | `delete_token`         | проверяется    | GM, Co-GM                                        |
+| журнал: записи, папки  | см. ADR-0021   | GM, Co-GM; игрок — текст разрешённых записей     |
 
 Spectator не может ничего. Коды отказов: `stale_version`, `missing_expected_version`, `forbidden`,
 `not_found`, `already_exists`, `invalid`, `limit_exceeded`, `protocol_mismatch`.
