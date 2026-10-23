@@ -1609,3 +1609,88 @@ input[type='checkbox'] {
 .token-form .inline {
   color: var(--color-text);
 }
+
+/* ---------- Activity Bar ---------- */
+
+.workbench-row {
+  display: flex;
+  min-height: 0;
+}
+
+.workbench-row > .workbench {
+  flex: 1;
+  min-width: 0;
+}
+
+.activity-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+  width: 44px;
+  padding: var(--space-1) 0;
+  background: var(--color-bg);
+  border-right: 1px solid var(--color-border);
+}
+
+.activity-item {
+  position: relative;
+  width: 44px;
+  height: 42px;
+  min-height: 42px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--color-text-muted);
+}
+
+.activity-item:hover:not(:disabled) {
+  background: transparent;
+  color: var(--color-text);
+}
+
+.activity-item[aria-pressed='true'] {
+  color: var(--color-text);
+}
+
+.activity-item[aria-pressed='true']::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  border-radius: 0 2px 2px 0;
+  background: var(--color-accent);
+}
+
+.activity-badge {
+  position: absolute;
+  right: 5px;
+  bottom: 5px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+}
+
+/* One view fills the side panel; its list scrolls, the header stays. */
+.side-panel > .nav-section {
+  flex: 1;
+  min-height: 0;
+}
+
+.side-panel > .nav-section > .nav-list,
+.side-panel > .nav-section > .journal-tree {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}

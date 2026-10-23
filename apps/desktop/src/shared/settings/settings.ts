@@ -7,7 +7,11 @@ export const settingsSchema = z.object({
   language: z.enum(['system', 'ru', 'en']),
   /** Panel preset (CLAUDE.md §5): `player` = map + chat + character sheet, other panels hidden. */
   layoutPreset: z.enum(['gm', 'player']),
+  /** The view open in the side panel (Activity Bar). */
+  sideView: z.enum(['maps', 'characters', 'journal']),
 });
+
+export type SideView = Settings['sideView'];
 
 export type Settings = z.infer<typeof settingsSchema>;
 
@@ -15,6 +19,7 @@ export const defaultSettings: Settings = {
   theme: 'system',
   language: 'system',
   layoutPreset: 'gm',
+  sideView: 'maps',
 };
 
 interface SettingsState extends Settings {
@@ -37,7 +42,12 @@ export const useSettings = create<SettingsState>()(
       name: 'dndstudio.settings',
       version: 1,
       storage: createJSONStorage(() => localStorage),
-      partialize: ({ theme, language, layoutPreset }) => ({ theme, language, layoutPreset }),
+      partialize: ({ theme, language, layoutPreset, sideView }) => ({
+        theme,
+        language,
+        layoutPreset,
+        sideView,
+      }),
       merge: (persisted, current) => ({ ...current, ...parseSettings(persisted) }),
     },
   ),

@@ -301,5 +301,15 @@
     "roll": "Бросить инициативу за {{name}}",
     "remove": "Убрать {{name}} из боя",
     "value": "Инициатива: {{name}}"
+  },
+  "activity": {
+    "label": "Разделы",
+    "maps": "Карты",
+    "characters": "Персонажи",
+    "journal": "Журнал",
+    "badge_one": "{{count}} ждёт одобрения",
+    "badge_few": "{{count}} ждут одобрения",
+    "badge_many": "{{count}} ждут одобрения",
+    "badge_other": "{{count}} ждут одобрения"
   }
 }

@@ -1,7 +1,8 @@
 import { useMutation } from '@tanstack/react-query';
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Group, Panel, Separator, useDefaultLayout } from 'react-resizable-panels';
+import { Group, Panel, Separator, useDefaultLayout, usePanelRef } from 'react-resizable-panels';
+import { ActivityBar } from './ActivityBar';
 import { CenterTabs } from './CenterTabs';
 import { MenuBar } from './MenuBar';
 import { StatusBar } from './StatusBar';
@@ -17,21 +18,28 @@ import { MapList } from '@/features/map/MapList';
 import { TokenInspector } from '@/features/tokens/TokenInspector';
 import { TokenList } from '@/features/tokens/TokenList';
 
-const BOTTOM_TAB_ICONS = { chat: 'send', initiative: 'dice', logs: 'book' } as const;
-
-// Pixi is large; it loads with the first map view, not with the app shell.
-const MapView = lazy(() => import('@/features/map/MapView').then((m) => ({ default: m.MapView })));
 import { useSnapshotSelect } from '@/shared/game/useGame';
 import { errorCode, ipc, type CampaignInfo } from '@/shared/ipc/client';
-import { useSettings } from '@/shared/settings/settings';
+import { useSettings, type SideView } from '@/shared/settings/settings';
 import { useSelection } from '@/shared/state/selection';
 import { ErrorBoundary } from '@/shared/ui/ErrorBoundary';
 import { Icon } from '@/shared/ui/Icon';
 import { useToast } from '@/shared/ui/Toast';
 
+const BOTTOM_TAB_ICONS = { chat: 'send', initiative: 'dice', logs: 'book' } as const;
+
+// Pixi is large; it loads with the first map view, not with the app shell.
+const MapView = lazy(() => import('@/features/map/MapView').then((m) => ({ default: m.MapView })));
+
+/** Side panel views per preset; players get no map list (§5: the map is chosen for them). */
+const GM_VIEWS: SideView[] = ['maps', 'characters', 'journal'];
+const PLAYER_VIEWS: SideView[] = ['characters', 'journal'];
+const VIEW_ICONS = { maps: 'map', characters: 'users', journal: 'book' } as const;
+
 /**
- * IDE layout (CLAUDE.md §11): menu + breadcrumbs, left navigator, center tabs, right inspector,
- * bottom panel, status bar. The Player preset (§5) keeps only the center and the bottom panel.
+ * IDE layout (CLAUDE.md §11): menu + breadcrumbs, Activity Bar with one side view at a time (as in
+ * VS Code), center tabs, right inspector, bottom panel, status bar. The Player preset (§5) keeps
+ * the map, chat and the character sheet; its side panel starts collapsed.
  */
 export function AppShell({ campaign }: { campaign: CampaignInfo }) {
   const { t } = useTranslation();
@@ -50,6 +58,32 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
     ? (['chat', 'initiative', 'logs'] as const)
     : (['chat', 'initiative'] as const);
   const [bottomTab, setBottomTab] = useState<'chat' | 'initiative' | 'logs'>('chat');
+
+  // Activity Bar: which view the side panel shows, and whether the panel is collapsed.
+  const views = isGm ? GM_VIEWS : PLAYER_VIEWS;
+  const storedView = useSettings((s) => s.sideView);
+  const updateSettings = useSettings((s) => s.update);
+  const sideView = views.includes(storedView) ? storedView : (views[0] ?? 'journal');
+  const sidePanel = usePanelRef();
+  const [sideCollapsed, setSideCollapsed] = useState(!isGm);
+  const pendingApproval = useSnapshotSelect(
+    (s) => s.characters.filter((c) => c.status === 'pending_approval').length,
+  );
+  const selectView = (view: SideView) => {
+    const panel = sidePanel.current;
+    if (view === sideView && !sideCollapsed) {
+      panel?.collapse();
+      return;
+    }
+    updateSettings({ sideView: view });
+    if (sideCollapsed) panel?.expand();
+  };
+  const toggleSide = () => {
+    const panel = sidePanel.current;
+    if (!panel) return;
+    if (panel.isCollapsed()) panel.expand();
+    else panel.collapse();
+  };
   const showToast = useToast((s) => s.show);
   // Ctrl+S: force a WAL checkpoint. Data is already saved on every action (ADR-0014); this only
   // folds the WAL into campaign.sqlite and reassures the user.
@@ -68,12 +102,25 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
         e.preventDefault();
         checkpoint();
       }
+      // Ctrl+B: collapse or expand the side panel; Alt+1..3: its views (as in VS Code).
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'b') {
+        e.preventDefault();
+        toggleSide();
+      }
+      const n = Number(e.key);
+      if (e.altKey && !e.ctrlKey && !e.metaKey && n >= 1) {
+        const view = views[n - 1];
+        if (view) {
+          e.preventDefault();
+          selectView(view);
+        }
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => {
       window.removeEventListener('keydown', onKey);
     };
-  }, [checkpoint]);
+  });
 
   const horizontal = useDefaultLayout({
     id: `dndstudio.layout.${preset}.h`,
@@ -84,111 +131,132 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
   return (
     <div className="app-shell">
       <MenuBar breadcrumbs={[campaign.name, ...(crumb ? [crumb] : [])]} />
-      <Group
-        orientation="horizontal"
-        className="workbench"
-        defaultLayout={horizontal.defaultLayout}
-        onLayoutChanged={horizontal.onLayoutChanged}
-      >
-        {isGm && (
-          <>
-            <Panel id="left" defaultSize="20" minSize="12" collapsible className="side-panel">
+      <div className="workbench-row">
+        <ActivityBar
+          views={views.map((id) => ({
+            id,
+            icon: VIEW_ICONS[id],
+            ...(id === 'characters' && isGm ? { badge: pendingApproval ?? 0 } : {}),
+          }))}
+          active={sideCollapsed ? null : sideView}
+          onSelect={selectView}
+        />
+        <Group
+          orientation="horizontal"
+          className="workbench"
+          defaultLayout={horizontal.defaultLayout}
+          onLayoutChanged={horizontal.onLayoutChanged}
+        >
+          <Panel
+            id="left"
+            panelRef={sidePanel}
+            defaultSize={isGm ? '20' : '0'}
+            minSize="12"
+            collapsible
+            className="side-panel"
+            onResize={(size) => {
+              setSideCollapsed(size.inPixels === 0);
+            }}
+          >
+            {sideView === 'maps' ? (
               <ErrorBoundary name={t('maps.title')}>
                 <MapList />
               </ErrorBoundary>
+            ) : sideView === 'characters' ? (
               <ErrorBoundary name={t('characters.title')}>
                 <CharacterList />
               </ErrorBoundary>
+            ) : (
               <ErrorBoundary name={t('journal.title')}>
                 <JournalTree />
               </ErrorBoundary>
-            </Panel>
-            <Separator className="separator" />
-          </>
-        )}
-        <Panel id="center" minSize="30">
-          <Group
-            orientation="vertical"
-            defaultLayout={vertical.defaultLayout}
-            onLayoutChanged={vertical.onLayoutChanged}
-          >
-            <Panel id="main" minSize="20" className="center-panel">
-              <CenterTabs />
-              <div role="tabpanel" className="tab-body">
-                {center === 'journal' ? (
-                  <ErrorBoundary name={t('journal.title')}>
-                    <JournalEditor />
+            )}
+          </Panel>
+          <Separator className="separator" />
+          <Panel id="center" minSize="30">
+            <Group
+              orientation="vertical"
+              defaultLayout={vertical.defaultLayout}
+              onLayoutChanged={vertical.onLayoutChanged}
+            >
+              <Panel id="main" minSize="20" className="center-panel">
+                <CenterTabs />
+                <div role="tabpanel" className="tab-body">
+                  {center === 'journal' ? (
+                    <ErrorBoundary name={t('journal.title')}>
+                      <JournalEditor />
+                    </ErrorBoundary>
+                  ) : (
+                    <ErrorBoundary name={t('panels.map')}>
+                      <Suspense fallback={<p className="muted">{t('mapView.loading')}</p>}>
+                        <MapView />
+                      </Suspense>
+                    </ErrorBoundary>
+                  )}
+                </div>
+              </Panel>
+              <Separator className="separator" />
+              <Panel id="bottom" defaultSize="25" minSize="10" collapsible className="bottom-panel">
+                <div role="tablist" className="tabs">
+                  {bottomTabs.map((tab) => (
+                    <button
+                      key={tab}
+                      type="button"
+                      role="tab"
+                      aria-selected={bottomTab === tab}
+                      onClick={() => {
+                        setBottomTab(tab);
+                      }}
+                    >
+                      <Icon name={BOTTOM_TAB_ICONS[tab]} />
+                      {t(`panels.${tab}`)}
+                    </button>
+                  ))}
+                </div>
+                {bottomTab === 'logs' ? (
+                  <ErrorBoundary name={t('panels.logs')}>
+                    <LogPanel />
+                  </ErrorBoundary>
+                ) : bottomTab === 'initiative' ? (
+                  <ErrorBoundary name={t('panels.initiative')}>
+                    <InitiativePanel />
                   </ErrorBoundary>
                 ) : (
-                  <ErrorBoundary name={t('panels.map')}>
-                    <Suspense fallback={<p className="muted">{t('mapView.loading')}</p>}>
-                      <MapView />
-                    </Suspense>
+                  <ErrorBoundary name={t('panels.chat')}>
+                    <ChatPanel />
                   </ErrorBoundary>
                 )}
-              </div>
-            </Panel>
-            <Separator className="separator" />
-            <Panel id="bottom" defaultSize="25" minSize="10" collapsible className="bottom-panel">
-              <div role="tablist" className="tabs">
-                {bottomTabs.map((tab) => (
-                  <button
-                    key={tab}
-                    type="button"
-                    role="tab"
-                    aria-selected={bottomTab === tab}
-                    onClick={() => {
-                      setBottomTab(tab);
-                    }}
-                  >
-                    <Icon name={BOTTOM_TAB_ICONS[tab]} />
-                    {t(`panels.${tab}`)}
-                  </button>
-                ))}
-              </div>
-              {bottomTab === 'logs' ? (
-                <ErrorBoundary name={t('panels.logs')}>
-                  <LogPanel />
+              </Panel>
+            </Group>
+          </Panel>
+          <Separator className="separator" />
+          <Panel id="right" defaultSize="22" minSize="12" collapsible className="side-panel">
+            {isGm ? (
+              <>
+                <h2 className="panel-title">{t('inspector.title')}</h2>
+                <ErrorBoundary name={t('inspector.title')}>
+                  {inspect === 'character' ? (
+                    <CharacterEditor />
+                  ) : inspect === 'token' ? (
+                    <TokenInspector />
+                  ) : (
+                    <>
+                      <MapInspector />
+                      <TokenList />
+                    </>
+                  )}
                 </ErrorBoundary>
-              ) : bottomTab === 'initiative' ? (
-                <ErrorBoundary name={t('panels.initiative')}>
-                  <InitiativePanel />
-                </ErrorBoundary>
-              ) : (
-                <ErrorBoundary name={t('panels.chat')}>
-                  <ChatPanel />
-                </ErrorBoundary>
-              )}
-            </Panel>
-          </Group>
-        </Panel>
-        <Separator className="separator" />
-        <Panel id="right" defaultSize="22" minSize="12" collapsible className="side-panel">
-          {isGm ? (
-            <>
-              <h2 className="panel-title">{t('inspector.title')}</h2>
-              <ErrorBoundary name={t('inspector.title')}>
-                {inspect === 'character' ? (
-                  <CharacterEditor />
-                ) : inspect === 'token' ? (
-                  <TokenInspector />
-                ) : (
-                  <>
-                    <MapInspector />
-                    <TokenList />
-                  </>
-                )}
+              </>
+            ) : (
+              // Player preset (§5): the character sheet next to the map and chat.
+              <ErrorBoundary name={t('characters.title')}>
+                <CharacterList />
+                <CharacterEditor />
               </ErrorBoundary>
-            </>
-          ) : (
-            // Player preset (§5): the character sheet next to the map and chat.
-            <ErrorBoundary name={t('characters.title')}>
-              <CharacterList />
-              <CharacterEditor />
-            </ErrorBoundary>
-          )}
-        </Panel>
-      </Group>
+            )}
+          </Panel>
+        </Group>
+      </div>
       <StatusBar campaign={campaign} />
     </div>
   );

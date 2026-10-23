@@ -293,5 +293,13 @@
     "roll": "Roll initiative for {{name}}",
     "remove": "Remove {{name}} from combat",
     "value": "Initiative of {{name}}"
+  },
+  "activity": {
+    "label": "Views",
+    "maps": "Maps",
+    "characters": "Characters",
+    "journal": "Journal",
+    "badge_one": "{{count}} waiting for approval",
+    "badge_other": "{{count}} waiting for approval"
   }
 }

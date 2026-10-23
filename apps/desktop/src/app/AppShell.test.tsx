@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { mockIPC } from '@tauri-apps/api/mocks';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AppShell } from './AppShell';
@@ -75,6 +75,27 @@ describe('AppShell', () => {
     expect(screen.queryByRole('heading', { name: 'Maps' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Inspector' })).not.toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Chat' })).toBeInTheDocument();
+    // Their Activity Bar offers characters and the journal, not the map list (§5).
+    const bar = screen.getByRole('navigation', { name: 'Views' });
+    expect(within(bar).queryByRole('button', { name: 'Maps' })).not.toBeInTheDocument();
+    expect(within(bar).getByRole('button', { name: 'Journal' })).toBeInTheDocument();
+  });
+
+  it('the Activity Bar shows one side view at a time and remembers it', async () => {
+    useSettings.setState({ sideView: 'maps' });
+    renderShell('gm');
+    const bar = screen.getByRole('navigation', { name: 'Views' });
+    expect(within(bar).getByRole('button', { name: 'Maps' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    await userEvent.click(within(bar).getByRole('button', { name: 'Journal' }));
+    expect(screen.getByRole('heading', { name: 'Journal' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Maps' })).not.toBeInTheDocument();
+    expect(useSettings.getState().sideView).toBe('journal');
+    // Alt+2 opens the characters.
+    await userEvent.keyboard('{Alt>}2{/Alt}');
+    expect(screen.getByRole('heading', { name: 'Characters' })).toBeInTheDocument();
   });
 
   it('View menu switches theme and language', async () => {
