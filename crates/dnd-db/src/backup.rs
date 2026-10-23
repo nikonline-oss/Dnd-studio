@@ -67,13 +67,19 @@ pub async fn create_backup(
         target = dir.join(format!("backup-{now_ms:015}-{reason}-{n}.sqlite"));
         n += 1;
     }
+    vacuum_into(pool, &target).await?;
+    prune(campaign_path)?;
+    tracing::info!(backup = %target.display(), "campaign backup created");
+    Ok(target)
+}
+
+/// Writes a consistent copy of the open database to `target` (which must not exist).
+pub(crate) async fn vacuum_into(pool: &SqlitePool, target: &Path) -> DbResult<()> {
     sqlx::query("VACUUM INTO ?")
         .bind(target.to_string_lossy().into_owned())
         .execute(pool)
         .await?;
-    prune(campaign_path)?;
-    tracing::info!(backup = %target.display(), "campaign backup created");
-    Ok(target)
+    Ok(())
 }
 
 fn prune(campaign_path: &Path) -> DbResult<()> {

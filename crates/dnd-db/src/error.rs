@@ -29,6 +29,9 @@ pub enum DbError {
     Json(#[from] serde_json::Error),
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
+    /// A campaign archive is malformed, too large or contains unexpected files.
+    #[error("invalid campaign archive: {reason}")]
+    InvalidArchive { reason: String },
 }
 
 pub type DbResult<T> = Result<T, DbError>;

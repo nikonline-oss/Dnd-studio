@@ -36,6 +36,22 @@ export const commands = {
 	 *  opens it. The damaged file is kept as `campaign.sqlite.corrupt`.
 	 */
 	campaignRestoreBackup: () => typedError<CampaignInfo, IpcError>(__TAURI_INVOKE("campaign_restore_backup")),
+	/**
+	 *  Asks where to save and writes the open campaign's archive there (CLAUDE.md §6), originals
+	 *  included. Returns the file written, or `None` if the dialog was cancelled.
+	 */
+	campaignExport: () => typedError<string | null, IpcError>(__TAURI_INVOKE("campaign_export")),
+	/**
+	 *  Asks for an archive and a parent folder, unpacks the campaign into a new folder there and
+	 *  opens it. `None` if a dialog was cancelled.
+	 */
+	campaignImport: () => typedError<{
+	name: string,
+	/**  The campaign folder. */
+	path: string,
+	user_id: UserId,
+	role: Role,
+} | null, IpcError>(__TAURI_INVOKE("campaign_import")),
 	campaignClose: () => typedError<null, IpcError>(__TAURI_INVOKE("campaign_close")),
 	/**
 	 *  Ctrl+S: forces a WAL checkpoint, so `campaign.sqlite` alone is fully up to date (e.g. before

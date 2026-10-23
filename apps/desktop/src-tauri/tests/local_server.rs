@@ -580,3 +580,37 @@ async fn importing_a_map_image_creates_asset_and_map() {
     }
     assert_eq!(response_for(None, &asset.tiles[0].sha256).status(), 404);
 }
+
+/// CLAUDE.md §6: export writes an archive; import unpacks it into a new folder named after the
+/// campaign (never over an existing one) that opens with the same state.
+#[tokio::test]
+async fn exported_campaign_imports_with_the_same_state() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut server = LocalServer::create(dir.path(), "Lost Mine").await.unwrap();
+    server.submit(&create_map(MapId::new_v7())).await.unwrap();
+    let archive = dir.path().join("lost-mine.zip");
+    let stats = server.export(&archive, true).await.unwrap();
+    assert!(stats.files >= 2);
+
+    let parent = dir.path().join("imports");
+    std::fs::create_dir_all(&parent).unwrap();
+    let first = dnd_desktop_lib::import(&archive, &parent).await.unwrap();
+    let second = dnd_desktop_lib::import(&archive, &parent).await.unwrap();
+    assert_eq!(first, parent.join("Lost Mine"));
+    assert_eq!(second, parent.join("Lost Mine (2)"));
+    // Only the two campaign folders: no staging folder left behind.
+    assert_eq!(std::fs::read_dir(&parent).unwrap().count(), 2);
+
+    let imported = LocalServer::open(&first).await.unwrap();
+    assert_eq!(imported.snapshot(), server.snapshot());
+    assert_eq!(imported.info().user_id, server.info().user_id);
+    imported.close().await.unwrap();
+    server.close().await.unwrap();
+
+    std::fs::write(dir.path().join("junk.zip"), b"junk").unwrap();
+    let err = dnd_desktop_lib::import(&dir.path().join("junk.zip"), &parent)
+        .await
+        .unwrap_err();
+    assert_eq!(err.code, "invalid_archive");
+    assert_eq!(std::fs::read_dir(&parent).unwrap().count(), 2);
+}

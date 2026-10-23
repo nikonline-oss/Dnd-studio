@@ -11,7 +11,7 @@ import { Icon } from '@/shared/ui/Icon';
 export function CampaignScreen() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const { create, open } = useCampaignActions();
+  const { create, open, importArchive } = useCampaignActions();
   const [name, setName] = useState('');
 
   // Offered when opening failed because the file is damaged (CLAUDE.md §10).
@@ -76,8 +76,19 @@ export function CampaignScreen() {
           <Icon name="folderOpen" />
           {t('campaign.open')}
         </button>
+        <button
+          type="button"
+          className="with-text"
+          disabled={importArchive.isPending}
+          onClick={() => {
+            importArchive.mutate();
+          }}
+        >
+          <Icon name="filePlus" />
+          {t('campaign.import')}
+        </button>
       </div>
-      <ErrorText error={create.error ?? open.error ?? restore.error} />
+      <ErrorText error={create.error ?? open.error ?? importArchive.error ?? restore.error} />
       {corrupt && (
         <div className="notice">
           <p>{t('campaign.corruptHint')}</p>

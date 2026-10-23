@@ -5,10 +5,15 @@ import { commands, errorCode, unwrap } from '@/shared/ipc/client';
 import { useSettings, type Settings } from '@/shared/settings/settings';
 import { Icon } from '@/shared/ui/Icon';
 import { Menu } from '@/shared/ui/Menu';
+import { useToast } from '@/shared/ui/Toast';
 
 export function MenuBar({ breadcrumbs }: { breadcrumbs: string[] }) {
   const { t } = useTranslation();
-  const { open, close } = useCampaignActions();
+  const { open, close, importArchive, exportArchive } = useCampaignActions();
+  const showToast = useToast((s) => s.show);
+  const failed = (error: unknown) => {
+    showToast(t(`errors.${errorCode(error)}`, { defaultValue: t('errors.unknown') }), 'error');
+  };
   const settings = useSettings();
   // A found update is announced by the UpdateBanner via the event; here we only report the rest.
   const checkUpdate = useMutation({ mutationFn: () => unwrap(commands.updateCheck()) });
@@ -39,6 +44,24 @@ export function MenuBar({ breadcrumbs }: { breadcrumbs: string[] }) {
               label: t('campaign.open'),
               onSelect: () => {
                 open.mutate();
+              },
+            },
+            {
+              label: t('campaign.import'),
+              onSelect: () => {
+                importArchive.mutate(undefined, { onError: failed });
+              },
+            },
+            {
+              label: t('campaign.export'),
+              disabled: exportArchive.isPending,
+              onSelect: () => {
+                exportArchive.mutate(undefined, {
+                  onSuccess: (path) => {
+                    if (path !== null) showToast(t('campaign.exported'));
+                  },
+                  onError: failed,
+                });
               },
             },
             'separator',

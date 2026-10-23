@@ -141,6 +141,15 @@ impl CampaignDb {
         &self.pool
     }
 
+    /// Writes a consistent copy of the database to `target` (for an archive); `target` must not
+    /// exist.
+    pub async fn copy_to(&self, target: &Path) -> DbResult<()> {
+        if target.exists() {
+            return Err(DbError::AlreadyExists(target.to_owned()));
+        }
+        crate::backup::vacuum_into(&self.pool, target).await
+    }
+
     /// Takes a backup now.
     pub async fn backup(&self, reason: &str, now_ms: i64) -> DbResult<PathBuf> {
         create_backup(&self.pool, &self.path, reason, now_ms).await

@@ -5,7 +5,10 @@
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use dnd_db::{CampaignDb, CampaignEngine, EngineError, LocalUser, list_backups};
+use dnd_db::{
+    ArchiveLimits, ArchiveManifest, ArchiveStats, CampaignDb, CampaignEngine, EngineError,
+    LocalUser, list_backups,
+};
 use dnd_game_core::{Actor, IntentWindow};
 use dnd_protocol::{
     ChatMessageDto, ChatMessageId, EventBatch, IntentEnvelope, IntentOutcome, JournalEntryDto,
@@ -226,6 +229,40 @@ impl LocalServer {
         Ok(self.engine.submit(envelope, &self.actor, now_ms()).await?)
     }
 
+    /// Writes the campaign archive (CLAUDE.md §6) to `out`: a consistent copy of the database,
+    /// the assets (with originals when `include_originals`) and the manifest.
+    pub async fn export(
+        &self,
+        out: &Path,
+        include_originals: bool,
+    ) -> Result<ArchiveStats, IpcError> {
+        let copy =
+            std::env::temp_dir().join(format!("dndstudio-export-{}.sqlite", uuid::Uuid::now_v7()));
+        self.engine.db().copy_to(&copy).await?;
+        let manifest = ArchiveManifest {
+            format: dnd_db::ARCHIVE_FORMAT,
+            name: self.engine.state().campaign.name.clone(),
+            exported_at_ms: now_ms(),
+            generator: format!("dndstudio {}", env!("CARGO_PKG_VERSION")),
+        };
+        let assets = self.folder.join(ASSETS_DIR);
+        let out = out.to_owned();
+        let copy_path = copy.clone();
+        let written = tokio::task::spawn_blocking(move || {
+            dnd_db::write_archive(&out, &copy_path, &assets, &manifest, include_originals)
+        })
+        .await
+        .map_err(|e| IpcError::internal("export_failed", e.to_string()));
+        std::fs::remove_file(&copy).ok();
+        let stats = written??;
+        tracing::info!(
+            files = stats.files,
+            bytes = stats.bytes,
+            "campaign exported"
+        );
+        Ok(stats)
+    }
+
     /// Moves the WAL into the main file (periodic housekeeping, not needed for durability).
     pub async fn checkpoint(&self) -> Result<(), IpcError> {
         self.engine.checkpoint().await?;
@@ -238,6 +275,32 @@ impl LocalServer {
         tracing::info!(folder = %self.folder.display(), "campaign closed");
         Ok(())
     }
+}
+
+/// Unpacks a campaign archive into a new folder under `parent`, named after the campaign (with
+/// " (2)", " (3)"… when taken), and returns that folder. The caller opens it.
+pub async fn import(archive: &Path, parent: &Path) -> Result<PathBuf, IpcError> {
+    let staging = parent.join(format!(".dndstudio-import-{}", uuid::Uuid::now_v7()));
+    let archive = archive.to_owned();
+    let target = staging.clone();
+    let (manifest, stats) = tokio::task::spawn_blocking(move || {
+        dnd_db::read_archive(&archive, &target, ArchiveLimits::DEFAULT)
+    })
+    .await
+    .map_err(|e| IpcError::internal("import_failed", e.to_string()))??;
+    let base = folder_name(&manifest.name);
+    let mut folder = parent.join(&base);
+    let mut n = 2;
+    while folder.exists() {
+        folder = parent.join(format!("{base} ({n})"));
+        n += 1;
+    }
+    if let Err(e) = std::fs::rename(&staging, &folder) {
+        std::fs::remove_dir_all(&staging).ok();
+        return Err(e.into());
+    }
+    tracing::info!(folder = %folder.display(), files = stats.files, "campaign imported");
+    Ok(folder)
 }
 
 /// True when there is no backup or the newest is older than [`BACKUP_MAX_AGE`].

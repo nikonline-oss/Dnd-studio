@@ -3,7 +3,7 @@ import { queryKeys } from './useGame';
 import { ipc, type CampaignInfo } from '@/shared/ipc/client';
 import { useSelection } from '@/shared/state/selection';
 
-/** Open / create / close the campaign and keep the query cache in sync. */
+/** Open / create / import / export / close the campaign and keep the query cache in sync. */
 export function useCampaignActions() {
   const queryClient = useQueryClient();
 
@@ -16,6 +16,8 @@ export function useCampaignActions() {
 
   const create = useMutation({ mutationFn: ipc.campaignCreate, onSuccess: onOpened });
   const open = useMutation({ mutationFn: ipc.campaignOpen, onSuccess: onOpened });
+  const importArchive = useMutation({ mutationFn: ipc.campaignImport, onSuccess: onOpened });
+  const exportArchive = useMutation({ mutationFn: ipc.campaignExport });
   const close = useMutation({
     mutationFn: ipc.campaignClose,
     onSuccess: () => {
@@ -25,5 +27,5 @@ export function useCampaignActions() {
     },
   });
 
-  return { create, open, close };
+  return { create, open, close, importArchive, exportArchive };
 }

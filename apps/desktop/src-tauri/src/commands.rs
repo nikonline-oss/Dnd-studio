@@ -14,7 +14,7 @@ use tauri_specta::Event;
 use tokio::sync::Mutex;
 
 use crate::error::IpcError;
-use crate::local_server::{CAMPAIGN_FILE, CampaignInfo, LocalServer};
+use crate::local_server::{CAMPAIGN_FILE, CampaignInfo, LocalServer, folder_name};
 use crate::logging::{LogBuffer, LogLevel, LogRecord};
 
 /// Shared application state.
@@ -108,6 +108,62 @@ pub async fn campaign_restore_backup(state: State<'_, AppState>) -> Result<Campa
     tracing::warn!(folder = %folder.display(), backup = %backup.display(), "restored from backup");
     let server = LocalServer::open(&folder).await?;
     replace_open(&state, server).await
+}
+
+/// Asks where to save and writes the open campaign's archive there (CLAUDE.md §6), originals
+/// included. Returns the file written, or `None` if the dialog was cancelled.
+#[tauri::command]
+#[specta::specta]
+pub async fn campaign_export<R: Runtime>(
+    app: AppHandle<R>,
+    state: State<'_, AppState>,
+) -> Result<Option<String>, IpcError> {
+    let name = {
+        let guard = state.server.lock().await;
+        let server = guard.as_ref().ok_or_else(IpcError::no_campaign)?;
+        folder_name(&server.info().name)
+    };
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    app.dialog()
+        .file()
+        .add_filter("DndStudio", &["zip"])
+        .set_file_name(format!("{name}.zip"))
+        .save_file(move |file| {
+            let _ = tx.send(file.and_then(|f| f.into_path().ok()));
+        });
+    let Some(out) = rx.await.ok().flatten() else {
+        return Ok(None);
+    };
+    let guard = state.server.lock().await;
+    let server = guard.as_ref().ok_or_else(IpcError::no_campaign)?;
+    server.export(&out, true).await?;
+    Ok(Some(out.display().to_string()))
+}
+
+/// Asks for an archive and a parent folder, unpacks the campaign into a new folder there and
+/// opens it. `None` if a dialog was cancelled.
+#[tauri::command]
+#[specta::specta]
+pub async fn campaign_import<R: Runtime>(
+    app: AppHandle<R>,
+    state: State<'_, AppState>,
+) -> Result<Option<CampaignInfo>, IpcError> {
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    app.dialog()
+        .file()
+        .add_filter("DndStudio", &["zip"])
+        .pick_file(move |file| {
+            let _ = tx.send(file.and_then(|f| f.into_path().ok()));
+        });
+    let Some(archive) = rx.await.ok().flatten() else {
+        return Ok(None);
+    };
+    let Some(parent) = pick_folder(&app).await else {
+        return Ok(None);
+    };
+    let folder = crate::local_server::import(&archive, &parent).await?;
+    let server = LocalServer::open(&folder).await?;
+    replace_open(&state, server).await.map(Some)
 }
 
 #[tauri::command]

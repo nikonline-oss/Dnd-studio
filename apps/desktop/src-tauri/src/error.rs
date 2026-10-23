@@ -60,6 +60,7 @@ impl From<DbError> for IpcError {
             DbError::AlreadyExists(_) => Self::user("already_exists", message),
             DbError::NotFound(_) => Self::user("not_found", message),
             DbError::NoBackup(_) => Self::user("no_backup", message),
+            DbError::InvalidArchive { .. } => Self::user("invalid_archive", message),
             DbError::Sqlx(_)
             | DbError::Migrate(_)
             | DbError::InvalidData { .. }

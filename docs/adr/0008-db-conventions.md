@@ -56,7 +56,7 @@ ADR-0002 выбрал SQLite. Нужно зафиксировать, как им
 | `PRAGMA quick_check`                      | `connect::quick_check`    | `backup.rs`: corrupted / non-database file                                        |
 | `sqlite_schema` EXISTS `_sqlx_migrations` | `has_pending_migrations`  | `schema.rs::campaign_schema`, `backup.rs::pending_migrations_trigger_a_backup`    |
 | `SELECT version FROM _sqlx_migrations`    | `has_pending_migrations`  | `backup.rs::campaign_from_previous_schema_is_backed_up_and_upgraded`              |
-| `VACUUM INTO ?`                           | `backup::create_backup`   | `backup.rs::backups_are_rotated`, restore test                                    |
+| `VACUUM INTO ?`                           | `backup::vacuum_into`     | `backup.rs::backups_are_rotated`, `archive.rs::export_and_import_round_trip`      |
 | `INSERT INTO users`                       | `CampaignDb::create`      | `projection.rs::create_and_reopen_keeps_meta_and_local_user`                      |
 | `PRAGMA wal_checkpoint(TRUNCATE)`         | `CampaignDb::checkpoint`  | `queries.rs::checkpoint_empties_the_wal`                                          |
 | `SELECT … FROM users WHERE id`            | `local_user`              | `projection.rs::create_and_reopen_keeps_meta_and_local_user`                      |

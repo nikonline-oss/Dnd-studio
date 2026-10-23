@@ -15,7 +15,10 @@
     "createHint": "You will be asked where to create the campaign folder.",
     "or": "or",
     "restore": "Restore from latest backup",
-    "corruptHint": "The damaged file will be kept as campaign.sqlite.corrupt."
+    "corruptHint": "The damaged file will be kept as campaign.sqlite.corrupt.",
+    "import": "Import campaign…",
+    "export": "Export campaign…",
+    "exported": "Campaign saved to an archive"
   },
   "maps": {
     "title": "Maps",
@@ -81,7 +84,8 @@
     "asset_unsupported": "Unsupported image format (use PNG, JPEG or WebP)",
     "asset_dimensions": "The image is too large to open",
     "asset_decode": "The image file is damaged",
-    "import_failed": "Could not import the image"
+    "import_failed": "Could not import the image",
+    "invalid_archive": "Not a DndStudio campaign archive, or it is damaged"
   },
   "menu": {
     "label": "Main menu",

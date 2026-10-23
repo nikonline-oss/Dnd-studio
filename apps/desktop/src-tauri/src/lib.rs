@@ -11,7 +11,7 @@ mod updater;
 pub use commands::{AppInfo, AppState, GameEventsEmitted};
 pub use dnd_protocol::IntentOutcome;
 pub use error::{IpcError, IpcErrorKind};
-pub use local_server::{CampaignInfo, LocalServer, folder_name};
+pub use local_server::{CampaignInfo, LocalServer, folder_name, import};
 pub mod assets_api {
     //! Re-exports for integration tests.
     pub use crate::assets::{MapImported, read_and_import, register_map, response_for};
@@ -40,6 +40,8 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::campaign_create::<tauri::Wry>,
             commands::campaign_open::<tauri::Wry>,
             commands::campaign_restore_backup,
+            commands::campaign_export::<tauri::Wry>,
+            commands::campaign_import::<tauri::Wry>,
             commands::campaign_close,
             commands::campaign_checkpoint,
             commands::campaign_current,
