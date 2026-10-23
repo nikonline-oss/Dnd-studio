@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { turnOrder } from './turnOrder';
-import { useCampaign, useSnapshot, useSubmitIntent } from '@/shared/game/useGame';
+import { useCampaign, useSnapshotSelect, useSubmitIntent } from '@/shared/game/useGame';
 import { useShownMap } from '@/shared/game/useShownMap';
 import { tokenCssColor, tokenInitial } from '@/shared/game/tokenLook';
-import type { CombatantDto, CombatDto, Snapshot } from '@/shared/ipc/client';
+import type { CharacterDto, CombatantDto, CombatDto } from '@/shared/ipc/client';
 import { uuidv7 } from '@/shared/ipc/uuid';
 import { ErrorText } from '@/shared/ui/ErrorText';
 import { Icon } from '@/shared/ui/Icon';
@@ -16,24 +16,29 @@ import { ConfirmButton, ConfirmDelete, IconButton } from '@/shared/ui/IconButton
  */
 export function InitiativePanel() {
   const { t } = useTranslation();
-  const { data: snapshot } = useSnapshot();
   const { data: campaign } = useCampaign();
   const submit = useSubmitIntent();
   const map = useShownMap();
+  const mapId = map?.id;
+  // Token positions are left out: a token being dragged does not re-render the tracker.
+  const mapTokens = useSnapshotSelect((s) =>
+    s.tokens
+      .filter((tok) => tok.map_id === mapId)
+      .map(({ id, name, layer, character_id }) => ({ id, name, layer, character_id })),
+  );
+  const combat = useSnapshotSelect((s) => s.combats.find((c) => c.map_id === mapId));
+  const combatants = useSnapshotSelect((s) => s.combatants);
+  const characters = useSnapshotSelect((s) => s.characters);
   const isGm = campaign?.role === 'gm' || campaign?.role === 'co_gm';
 
-  if (!map || !snapshot || !campaign) {
+  if (!map || !mapTokens || !combatants || !characters || !campaign) {
     return <p className="initiative-empty muted">{t('initiative.noMap')}</p>;
   }
-  const combat = snapshot.combats.find((c) => c.map_id === map.id);
 
   // Tokens of the map that can fight: not props on the background layer, not already in.
   const newcomers = (present: CombatantDto[]) =>
-    snapshot.tokens.filter(
-      (tok) =>
-        tok.map_id === map.id &&
-        tok.layer !== 'background' &&
-        !present.some((c) => c.token_id === tok.id),
+    mapTokens.filter(
+      (tok) => tok.layer !== 'background' && !present.some((c) => c.token_id === tok.id),
     );
 
   /** Runs intents one after another; the first rejection stops and shows in ErrorText. */
@@ -84,8 +89,8 @@ export function InitiativePanel() {
     );
   }
 
-  const order = turnOrder(snapshot.combatants, combat.id);
-  const owns = (c: CombatantDto) => ownsCombatant(snapshot, c, campaign.user_id);
+  const order = turnOrder(combatants, combat.id);
+  const owns = (c: CombatantDto) => ownsCombatant(characters, c, campaign.user_id);
   const current = order.find((c) => c.id === combat.turn);
   const canPassTurn = isGm || (current !== undefined && owns(current));
   const unrolled = order.filter((c) => c.initiative === null);
@@ -204,10 +209,9 @@ export function InitiativePanel() {
   );
 }
 
-function ownsCombatant(snapshot: Snapshot, c: CombatantDto, userId: string): boolean {
+function ownsCombatant(characters: CharacterDto[], c: CombatantDto, userId: string): boolean {
   return (
-    c.character_id !== null &&
-    snapshot.characters.find((ch) => ch.id === c.character_id)?.owner === userId
+    c.character_id !== null && characters.find((ch) => ch.id === c.character_id)?.owner === userId
   );
 }
 

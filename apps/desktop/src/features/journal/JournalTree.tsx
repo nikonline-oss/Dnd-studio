@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { useCampaign, useSnapshot, useSubmitIntent } from '@/shared/game/useGame';
+import { useCampaign, useSnapshotSelect, useSubmitIntent } from '@/shared/game/useGame';
 import type { JournalEntryMeta } from '@/shared/ipc/client';
 import { uuidv7 } from '@/shared/ipc/uuid';
 import { useSelection } from '@/shared/state/selection';
@@ -28,12 +28,12 @@ export function groupByFolder(entries: JournalEntryMeta[]): [string, JournalEntr
 export function JournalTree() {
   const { t } = useTranslation();
   const { data: campaign } = useCampaign();
-  const { data: snapshot } = useSnapshot();
+  const journal = useSnapshotSelect((s) => s.journal);
   const submit = useSubmitIntent();
   const selectedId = useSelection((s) => s.journalId);
   const openJournal = useSelection((s) => s.openJournal);
   const isGm = campaign?.role === 'gm' || campaign?.role === 'co_gm';
-  const groups = groupByFolder(snapshot?.journal ?? []);
+  const groups = groupByFolder(journal ?? []);
 
   const add = () => {
     const id = uuidv7();
@@ -61,7 +61,7 @@ export function JournalTree() {
     <NavSection
       icon="book"
       title={t('journal.title')}
-      count={snapshot?.journal.length ?? 0}
+      count={journal?.length ?? 0}
       actions={
         isGm && (
           <IconButton

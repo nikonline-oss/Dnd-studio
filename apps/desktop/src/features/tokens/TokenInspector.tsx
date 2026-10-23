@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useCampaign, useSnapshot, useSubmitIntent } from '@/shared/game/useGame';
+import { useCampaign, useSnapshotSelect, useSubmitIntent } from '@/shared/game/useGame';
 import { tokenCssColor, tokenInitial } from '@/shared/game/tokenLook';
 import type { TokenDto, TokenLayer } from '@/shared/ipc/client';
 import { useSelection } from '@/shared/state/selection';
@@ -17,15 +17,15 @@ type Changes = Partial<Pick<TokenDto, 'name' | 'rotation' | 'scale' | 'layer' | 
 /** Inspector for the token selected on the map: GM roles change its properties (§5). */
 export function TokenInspector() {
   const { t } = useTranslation();
-  const { data: snapshot } = useSnapshot();
   const { data: campaign } = useCampaign();
   const tokenId = useSelection((s) => s.tokenId);
   const selectToken = useSelection((s) => s.selectToken);
-  const token = snapshot?.tokens.find((tok) => tok.id === tokenId);
+  const token = useSnapshotSelect((s) => s.tokens.find((tok) => tok.id === tokenId));
+  const characters = useSnapshotSelect((s) => s.characters);
 
-  if (!token || !snapshot) return <p className="inspector-empty muted">{t('inspector.empty')}</p>;
+  if (!token || !characters) return <p className="inspector-empty muted">{t('inspector.empty')}</p>;
   const isGm = campaign?.role === 'gm' || campaign?.role === 'co_gm';
-  const character = snapshot.characters.find((c) => c.id === token.character_id);
+  const character = characters.find((c) => c.id === token.character_id);
 
   return (
     <div className="inspector-stack">

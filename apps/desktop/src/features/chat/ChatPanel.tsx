@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type SyntheticEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useCampaign, useSnapshot, useSubmitIntent } from '@/shared/game/useGame';
+import { useCampaign, useSnapshotSelect, useSubmitIntent } from '@/shared/game/useGame';
 import { commands, unwrap, type ChatMessageDto, type DiceRollDto } from '@/shared/ipc/client';
 import { uuidv7 } from '@/shared/ipc/uuid';
 import { useSelection } from '@/shared/state/selection';
@@ -30,7 +30,6 @@ const PAGE = 50;
 export function ChatPanel() {
   const { t } = useTranslation();
   const { data: campaign } = useCampaign();
-  const { data: snapshot } = useSnapshot();
   const submit = useSubmitIntent();
   const characterId = useSelection((s) => s.characterId);
   const [input, setInput] = useState('');
@@ -39,10 +38,10 @@ export function ChatPanel() {
   const [localError, setLocalError] = useState<string | null>(null);
   const bottom = useRef<HTMLDivElement>(null);
 
-  const recent = snapshot?.chat ?? [];
+  const recent = useSnapshotSelect((s) => s.chat) ?? [];
   const messages = [...older, ...recent];
   const isGm = campaign?.role === 'gm' || campaign?.role === 'co_gm';
-  const character = snapshot?.characters.find((c) => c.id === characterId);
+  const character = useSnapshotSelect((s) => s.characters.find((c) => c.id === characterId));
   // Field references (@str_mod) read the selected character's sheet if the user may use it.
   const rollAs =
     character && (isGm || character.owner === campaign?.user_id) ? character : undefined;

@@ -1,6 +1,6 @@
 import { useMutation } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { useCampaign, useSnapshot, useSubmitIntent } from '@/shared/game/useGame';
+import { useCampaign, useSnapshotSelect, useSubmitIntent } from '@/shared/game/useGame';
 import { ipc } from '@/shared/ipc/client';
 import { uuidv7 } from '@/shared/ipc/uuid';
 import { useSelection } from '@/shared/state/selection';
@@ -16,11 +16,11 @@ const DEFAULT_GRID = { kind: 'square', cell_size: 70, offset_x: 0, offset_y: 0 }
 /** Navigator: maps of the campaign. Every change is an intent; the list updates from events. */
 export function MapList() {
   const { t } = useTranslation();
-  const { data: snapshot } = useSnapshot();
+  const assets = useSnapshotSelect((s) => s.assets);
   const submit = useSubmitIntent();
   const selectedId = useSelection((s) => s.mapId);
   const openMap = useSelection((s) => s.openMap);
-  const maps = snapshot?.maps ?? [];
+  const maps = useSnapshotSelect((s) => s.maps) ?? [];
   const { data: campaign } = useCampaign();
   const isGm = campaign?.role === 'gm' || campaign?.role === 'co_gm';
   const showToast = useToast((s) => s.show);
@@ -95,7 +95,7 @@ export function MapList() {
       {maps.length === 0 && <p className="nav-empty">{t('maps.empty')}</p>}
       <ul className="nav-list">
         {maps.map((map) => {
-          const background = snapshot?.assets.find((a) => a.id === map.background_asset_id);
+          const background = assets?.find((a) => a.id === map.background_asset_id);
           return (
             <li
               key={map.id}

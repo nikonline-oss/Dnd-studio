@@ -1,4 +1,4 @@
-import { useCampaign, useSnapshot } from './useGame';
+import { useCampaign, useSnapshotSelect } from './useGame';
 import { useSelection } from '@/shared/state/selection';
 import type { MapDto } from '@/shared/ipc/client';
 
@@ -7,10 +7,9 @@ import type { MapDto } from '@/shared/ipc/client';
  * map shared with them. Used by the map view and everything that works on "this map".
  */
 export function useShownMap(): MapDto | undefined {
-  const { data: snapshot } = useSnapshot();
+  const maps = useSnapshotSelect((s) => s.maps) ?? [];
   const { data: campaign } = useCampaign();
   const mapId = useSelection((s) => s.mapId);
-  const maps = snapshot?.maps ?? [];
   return (
     maps.find((m) => m.id === mapId) ??
     (campaign?.role === 'player' ? maps.find((m) => m.visible_to_players) : undefined)

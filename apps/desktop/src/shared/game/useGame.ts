@@ -28,6 +28,15 @@ export function useSnapshot(enabled = true) {
   return useQuery({ queryKey: queryKeys.snapshot, queryFn: ipc.getSnapshot, enabled });
 }
 
+/**
+ * A slice of the game state. The component re-renders only when the slice changes: TanStack Query
+ * shares structure between results, and `applyEvent` keeps untouched arrays as they were, so a
+ * token move does not wake the character list or the chat. Prefer this over {@link useSnapshot}.
+ */
+export function useSnapshotSelect<T>(select: (snapshot: Snapshot) => T): T | undefined {
+  return useQuery({ queryKey: queryKeys.snapshot, queryFn: ipc.getSnapshot, select }).data;
+}
+
 /** Subscribes once (in the app shell) to game events and patches the snapshot cache. */
 export function useGameEventsSync() {
   const queryClient = useQueryClient();

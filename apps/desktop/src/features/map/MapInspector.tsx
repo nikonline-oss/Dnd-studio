@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { GridForm } from './GridForm';
-import { useCampaign, useSnapshot } from '@/shared/game/useGame';
+import { useCampaign, useSnapshotSelect } from '@/shared/game/useGame';
 import { assetUrl, type AssetDto, type MapDto } from '@/shared/ipc/client';
 import { useSelection } from '@/shared/state/selection';
 import { Icon } from '@/shared/ui/Icon';
@@ -8,21 +8,25 @@ import { Icon } from '@/shared/ui/Icon';
 /** Inspector panel: properties of the selected map; GM roles edit its grid. */
 export function MapInspector() {
   const { t } = useTranslation();
-  const { data: snapshot } = useSnapshot();
   const { data: campaign } = useCampaign();
   const mapId = useSelection((s) => s.mapId);
-  const map = snapshot?.maps.find((m) => m.id === mapId);
+  const map = useSnapshotSelect((s) => s.maps.find((m) => m.id === mapId));
+  // Counts and lookups, not the token list itself: moving a token changes nothing here.
+  const tokenCount = useSnapshotSelect(
+    (s) => s.tokens.filter((tok) => tok.map_id === mapId).length,
+  );
+  const background = useSnapshotSelect((s) =>
+    s.assets.find((a) => a.id === map?.background_asset_id),
+  );
 
   if (!map) return <p className="inspector-empty muted">{t('inspector.empty')}</p>;
-  const tokenCount = snapshot?.tokens.filter((tok) => tok.map_id === map.id).length ?? 0;
-  const background = snapshot?.assets.find((a) => a.id === map.background_asset_id);
   const isGm = campaign?.role === 'gm' || campaign?.role === 'co_gm';
 
   return (
     <div className="inspector-stack">
       <section className="inspector-section">
         <MapPreview map={map} background={background} />
-        <MapProperties map={map} tokenCount={tokenCount} showGrid={!isGm} />
+        <MapProperties map={map} tokenCount={tokenCount ?? 0} showGrid={!isGm} />
       </section>
       {isGm && (
         <section className="inspector-section">

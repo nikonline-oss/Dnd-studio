@@ -21,7 +21,7 @@ const BOTTOM_TAB_ICONS = { chat: 'send', initiative: 'dice', logs: 'book' } as c
 
 // Pixi is large; it loads with the first map view, not with the app shell.
 const MapView = lazy(() => import('@/features/map/MapView').then((m) => ({ default: m.MapView })));
-import { useSnapshot } from '@/shared/game/useGame';
+import { useSnapshotSelect } from '@/shared/game/useGame';
 import { errorCode, ipc, type CampaignInfo } from '@/shared/ipc/client';
 import { useSettings } from '@/shared/settings/settings';
 import { useSelection } from '@/shared/state/selection';
@@ -36,13 +36,12 @@ import { useToast } from '@/shared/ui/Toast';
 export function AppShell({ campaign }: { campaign: CampaignInfo }) {
   const { t } = useTranslation();
   const preset = useSettings((s) => (campaign.role === 'player' ? 'player' : s.layoutPreset));
-  const { data: snapshot } = useSnapshot();
   const mapId = useSelection((s) => s.mapId);
   const inspect = useSelection((s) => s.inspect);
   const center = useSelection((s) => s.center);
   const journalId = useSelection((s) => s.journalId);
-  const journalTitle = snapshot?.journal.find((e) => e.id === journalId)?.title;
-  const mapName = snapshot?.maps.find((m) => m.id === mapId)?.name;
+  const journalTitle = useSnapshotSelect((s) => s.journal.find((e) => e.id === journalId)?.title);
+  const mapName = useSnapshotSelect((s) => s.maps.find((m) => m.id === mapId)?.name);
   // Breadcrumbs follow the tab in front.
   const crumb = center === 'journal' ? journalTitle : mapName;
   const isGm = preset === 'gm';

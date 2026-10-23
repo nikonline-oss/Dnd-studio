@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { useSnapshot, useSubmitIntent } from '@/shared/game/useGame';
+import { useSnapshotSelect, useSubmitIntent } from '@/shared/game/useGame';
 import { uuidv7 } from '@/shared/ipc/uuid';
 import { useSelection } from '@/shared/state/selection';
 import { ErrorText } from '@/shared/ui/ErrorText';
@@ -9,16 +9,15 @@ import { NavSection } from '@/shared/ui/NavSection';
 /** Tokens of the selected map as a list; clicking one selects it like a click on the map. */
 export function TokenList() {
   const { t } = useTranslation();
-  const { data: snapshot } = useSnapshot();
   const submit = useSubmitIntent();
   const mapId = useSelection((s) => s.mapId);
   const selectToken = useSelection((s) => s.selectToken);
 
-  const map = snapshot?.maps.find((m) => m.id === mapId);
-  if (!mapId || !snapshot || !map) {
+  const map = useSnapshotSelect((s) => s.maps.find((m) => m.id === mapId));
+  const tokens = useSnapshotSelect((s) => s.tokens.filter((tok) => tok.map_id === mapId));
+  if (!mapId || !map || !tokens) {
     return <p className="muted">{t('tokens.noMap')}</p>;
   }
-  const tokens = snapshot.tokens.filter((tok) => tok.map_id === mapId);
 
   return (
     <NavSection

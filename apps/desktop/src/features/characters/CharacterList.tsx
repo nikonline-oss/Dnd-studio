@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { CHARACTER_DRAG_TYPE } from '@/shared/dragTypes';
-import { useCampaign, useSnapshot, useSubmitIntent } from '@/shared/game/useGame';
+import { useCampaign, useSnapshotSelect, useSubmitIntent } from '@/shared/game/useGame';
 import type { CharacterKind } from '@/shared/ipc/client';
 import { uuidv7 } from '@/shared/ipc/uuid';
 import { useSelection } from '@/shared/state/selection';
@@ -12,11 +12,10 @@ import { NavSection } from '@/shared/ui/NavSection';
 export function CharacterList() {
   const { t } = useTranslation();
   const { data: campaign } = useCampaign();
-  const { data: snapshot } = useSnapshot();
   const submit = useSubmitIntent();
   const selectedId = useSelection((s) => (s.inspect === 'character' ? s.characterId : null));
   const selectCharacter = useSelection((s) => s.selectCharacter);
-  const characters = snapshot?.characters ?? [];
+  const characters = useSnapshotSelect((s) => s.characters) ?? [];
   const isGm = campaign?.role === 'gm' || campaign?.role === 'co_gm';
   const canCreate = isGm || campaign?.role === 'player';
 

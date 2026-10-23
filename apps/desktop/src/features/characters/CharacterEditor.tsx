@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useCampaign, useSnapshot, useSubmitIntent } from '@/shared/game/useGame';
+import { useCampaign, useSnapshotSelect, useSubmitIntent } from '@/shared/game/useGame';
 import type { CharacterDto, Intent } from '@/shared/ipc/client';
 import { useSelection } from '@/shared/state/selection';
 import { CodeEditor } from '@/shared/ui/CodeEditor';
@@ -28,9 +28,8 @@ export function sheetProblem(sheet: string): 'syntax' | 'not_object' | 'fraction
 /** Inspector for the selected character: name, owner, raw sheet and status transitions. */
 export function CharacterEditor() {
   const { t } = useTranslation();
-  const { data: snapshot } = useSnapshot();
   const characterId = useSelection((s) => s.characterId);
-  const character = snapshot?.characters.find((c) => c.id === characterId);
+  const character = useSnapshotSelect((s) => s.characters.find((c) => c.id === characterId));
   if (!character) return <p className="inspector-empty muted">{t('inspector.empty')}</p>;
   // Remount on a new version so the draft starts from the current sheet.
   return <Editor key={`${character.id}:${character.version}`} character={character} />;
@@ -39,7 +38,6 @@ export function CharacterEditor() {
 function Editor({ character }: { character: CharacterDto }) {
   const { t } = useTranslation();
   const { data: campaign } = useCampaign();
-  const { data: snapshot } = useSnapshot();
   const submit = useSubmitIntent();
   const [sheet, setSheet] = useState(character.sheet_json);
 
@@ -48,7 +46,7 @@ function Editor({ character }: { character: CharacterDto }) {
   const canEdit =
     isGm || (isOwner && (character.status === 'draft' || character.status === 'active'));
   const problem = sheetProblem(sheet);
-  const users = snapshot?.users ?? [];
+  const users = useSnapshotSelect((s) => s.users) ?? [];
 
   const send = (intent: Intent) => {
     submit.mutate({ intent, expectedVersion: character.version });
