@@ -54,6 +54,7 @@ pub fn router(app: App) -> Router {
         None => limited,
     };
     Router::new()
+        .route("/", get(http::home))
         .route("/api/health", get(http::health))
         .route(
             "/api/sessions",

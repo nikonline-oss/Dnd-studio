@@ -37,6 +37,41 @@ pub async fn health() -> Json<Health> {
     })
 }
 
+/// `GET /`: someone opened the server in a browser. Says it works and where to go instead.
+pub async fn home() -> axum::response::Html<String> {
+    axum::response::Html(HOME_PAGE.replace("{version}", env!("CARGO_PKG_VERSION")))
+}
+
+const HOME_PAGE: &str = r#"<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DndStudio — сервер сессий</title>
+<style>
+  :root { color-scheme: light dark; --bg: #f6f3ee; --fg: #23201c; --muted: #6b645b; --accent: #a8792a; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #16140f; --fg: #ece6dc; --muted: #9b9386; --accent: #e0b25a; } }
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 16px;
+         background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, sans-serif; }
+  main { max-width: 480px; }
+  h1 { margin: 0 0 8px; font-size: 24px; }
+  .ok { color: var(--accent); font-weight: 600; }
+  p { margin: 8px 0; }
+  .muted { color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>DndStudio</h1>
+  <p class="ok">Сервер сессий работает.</p>
+  <p>Подключайтесь из приложения DndStudio: «Сессия → Подключиться к сессии…» — со ссылкой-приглашением и кодом доступа от мастера.</p>
+  <p class="muted">The session server is running. Join from the DndStudio app: Session → Join a session…, with the invite link and access code from your GM.</p>
+  <p class="muted">dnd-session-server {version}</p>
+</main>
+</body>
+</html>
+"#;
+
 /// Answer to `POST /api/sessions`. The secrets are shown once; the server keeps only hashes.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreatedSession {

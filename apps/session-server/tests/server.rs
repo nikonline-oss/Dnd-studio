@@ -804,3 +804,21 @@ async fn silent_connections_are_closed() {
     assert_eq!(ws.closed().await, "timeout");
     h.server.stop().await.unwrap();
 }
+
+#[tokio::test]
+async fn the_root_says_the_server_works() {
+    let h = Harness::default().await;
+    let page = h.http.get(h.url("/")).send().await.unwrap();
+    assert_eq!(page.status(), 200);
+    assert!(
+        page.headers()["content-type"]
+            .to_str()
+            .unwrap()
+            .starts_with("text/html")
+    );
+    let text = page.text().await.unwrap();
+    assert!(text.contains("Сервер сессий работает"));
+    assert!(text.contains(env!("CARGO_PKG_VERSION")));
+    assert!(!text.contains("{version}"));
+    h.server.stop().await.unwrap();
+}
