@@ -4,6 +4,7 @@
 import { emit } from '@tauri-apps/api/event';
 import { mockIPC } from '@tauri-apps/api/mocks';
 import { drawSampleMap } from './sampleMap';
+import { addStress } from './stress';
 import { turnOrder } from '@/features/initiative/turnOrder';
 import { applyEvent } from '@/shared/game/evolve';
 import { uuidv7 } from '@/shared/ipc/uuid';
@@ -99,7 +100,7 @@ function sampleChat(): ChatMessageDto[] {
 }
 
 /** `open: false` starts on the start screen (no campaign open). */
-export async function installMockIpc(role: Role, open = true): Promise<void> {
+export async function installMockIpc(role: Role, open = true, stress = false): Promise<void> {
   const image = await drawSampleMap();
   const files = new Map<string, string>([
     [sha(0xa1), image.tile],
@@ -217,6 +218,7 @@ export async function installMockIpc(role: Role, open = true): Promise<void> {
     combatants: [],
     chat: sampleChat(),
   };
+  if (stress) snapshot = addStress(snapshot, journal);
   const info: CampaignInfo = {
     name: snapshot.campaign.name,
     path: 'C:\\Campaigns\\curse-of-the-lost-mine',

@@ -260,6 +260,7 @@ export class MapScene {
           const texture = Texture.from(bitmap);
           this.tileTextures.push(texture);
           const sprite = new Sprite(texture);
+          sprite.cullable = true;
           sprite.position.set(tile.x * sx, tile.y * sy);
           sprite.scale.set((tile.width * sx) / bitmap.width, (tile.height * sy) / bitmap.height);
           layer.addChild(sprite);

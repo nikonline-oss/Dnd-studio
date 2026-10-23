@@ -1,5 +1,8 @@
-import { Application } from 'pixi.js';
+import { Application, CullerPlugin, extensions } from 'pixi.js';
 import { useEffect, useRef } from 'react';
+
+// Containers marked `cullable` (tokens, map tiles) are not drawn when off screen.
+extensions.add(CullerPlugin);
 
 interface PixiHostProps {
   /** Called once the renderer is ready; the returned function runs before the app is destroyed. */

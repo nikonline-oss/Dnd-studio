@@ -34,11 +34,11 @@ if (root && import.meta.env.DEV && params.get('spike') === 'pixi') {
   });
 } else if (root && import.meta.env.DEV && params.has('mock')) {
   // The app in a plain browser against a mocked Rust side: `?mock=gm`, `?mock=player`, or
-  // `?mock=start` for the start screen.
+  // `?mock=start` for the start screen; add `&stress=1` for a big campaign.
   const mock = params.get('mock');
   const role: Role = mock === 'player' ? 'player' : 'gm';
   void import('./dev/mock-ipc/install').then(async ({ installMockIpc }) => {
-    await installMockIpc(role, mock !== 'start');
+    await installMockIpc(role, mock !== 'start', params.has('stress'));
     renderApp(root);
   });
 } else if (root) {

@@ -27,7 +27,11 @@ interface Sprite {
   root: Container;
   disc: Graphics;
   label: Text;
-  name: Text;
+  /** Name under the token, created on first hover (hundreds of tokens, few hovered). */
+  name: Text | null;
+  /** Diameter the name is laid out for. */
+  radius: number;
+  title: string;
   /** What the sprite was drawn for; redrawn when it changes. */
   look: string;
 }
@@ -109,30 +113,44 @@ export class TokenLayer {
     label.anchor.set(0.5);
     // Text is rasterised at its font size and zoomed with the map: render it sharper.
     label.resolution = 3;
-    const name = new Text({
-      text: '',
-      style: {
-        fill: 0xffffff,
-        fontFamily: 'system-ui, sans-serif',
-        stroke: { color: 0x000000, width: 4, join: 'round' },
-      },
-    });
-    name.anchor.set(0.5, 0);
-    name.resolution = 3;
-    name.visible = false;
-    root.addChild(disc, label, name);
+    root.addChild(disc, label);
+    // Off-screen tokens are skipped by the renderer (the app registers the culler).
+    root.cullable = true;
     root.on('pointerdown', (event: FederatedPointerEvent) => {
       if (event.button !== 0) return;
       event.stopPropagation();
       this.onGrab(id, event);
     });
+    const sprite: Sprite = { root, disc, label, name: null, radius: 0, title: '', look: '' };
     root.on('pointerover', () => {
-      name.visible = true;
+      this.nameOf(sprite).visible = true;
     });
     root.on('pointerout', () => {
-      name.visible = false;
+      if (sprite.name) sprite.name.visible = false;
     });
-    return { root, disc, label, name, look: '' };
+    return sprite;
+  }
+
+  /** The name label, created on demand and kept in step with the token. */
+  private nameOf(sprite: Sprite): Text {
+    if (!sprite.name) {
+      sprite.name = new Text({
+        text: '',
+        style: {
+          fill: 0xffffff,
+          fontFamily: 'system-ui, sans-serif',
+          stroke: { color: 0x000000, width: 4, join: 'round' },
+        },
+      });
+      sprite.name.anchor.set(0.5, 0);
+      sprite.name.resolution = 3;
+      sprite.root.addChild(sprite.name);
+    }
+    const name = sprite.name;
+    name.text = sprite.title;
+    name.style.fontSize = Math.max(10, sprite.radius * 0.45);
+    name.position.set(0, sprite.radius + 4);
+    return name;
   }
 
   private draw(sprite: Sprite, view: TokenView, diameter: number): void {
@@ -159,8 +177,8 @@ export class TokenLayer {
     sprite.root.alpha = view.gmOnly ? 0.55 : 1;
     sprite.label.text = tokenInitial(view.token.name);
     sprite.label.style.fontSize = r;
-    sprite.name.text = view.token.name;
-    sprite.name.style.fontSize = Math.max(10, r * 0.45);
-    sprite.name.position.set(0, r + 4);
+    sprite.radius = r;
+    sprite.title = view.token.name;
+    if (sprite.name) this.nameOf(sprite);
   }
 }
