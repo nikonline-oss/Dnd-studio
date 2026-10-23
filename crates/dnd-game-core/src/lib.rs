@@ -31,6 +31,6 @@ pub use rng::{GameRng, SplitMix64};
 pub use state::GameState;
 pub use users::join;
 pub use visibility::{
-    ForPlayers, PlayersSee, chat_visible_to_players, filter_for_players, players_state,
-    sees_everything, snapshot_for,
+    ForPlayers, PlayersSee, chat_visible_to_players, filter_for_players, may_change_visibility,
+    players_state, sees_everything, snapshot_for,
 };

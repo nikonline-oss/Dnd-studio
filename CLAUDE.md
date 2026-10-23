@@ -191,7 +191,8 @@ status), audit_log (действия GM). Ключи и коды — тольк�
 
 HTTP API сервера:
 `POST /api/sessions` (требует host token, multipart-архив) → `{ session_id, gm_key, access_code, invite_url }`;
-`GET /api/sessions/{id}`; `POST /api/sessions/{id}/stop` (GM); `GET /api/sessions/{id}/export` (GM);
+`GET /api/sessions/{id}`; `POST /api/sessions/{id}/join` (`gm_key` или код доступа + имя → токен участника,
+ADR-0022; токен — `Authorization: Bearer` для WS и ассетов); `POST /api/sessions/{id}/stop` (GM); `GET /api/sessions/{id}/export` (GM);
 `POST /api/sessions/{id}/assets` (GM); `GET /api/sessions/{id}/assets/{sha256}` (участники);
 `GET /api/health`; `WS /ws/sessions/{id}`.
 **Host token** задаёт владелец сервера в конфиге: только с ним можно создавать сессии (защита self-hosted

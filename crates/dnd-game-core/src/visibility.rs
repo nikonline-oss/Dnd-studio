@@ -167,12 +167,12 @@ pub enum ForPlayers {
     Resnapshot,
 }
 
-/// Filters a committed `batch` for players; `before` and `after` are the full states around it.
+/// Whether `batch` might change what players can see. When it cannot (token drags, chat, fog —
+/// the common case), [`filter_for_players`] decides event by event and never looks at `before`,
+/// so the caller need not keep a copy of the state.
 #[must_use]
-pub fn filter_for_players(before: &GameState, after: &GameState, batch: &EventBatch) -> ForPlayers {
-    // These never change what players can see; the common case (token drags, chat) skips the
-    // full scan below.
-    let cheap = batch.events.iter().all(|e| {
+pub fn may_change_visibility(batch: &EventBatch) -> bool {
+    !batch.events.iter().all(|e| {
         matches!(
             e,
             Event::TokenMoved { .. }
@@ -186,14 +186,15 @@ pub fn filter_for_players(before: &GameState, after: &GameState, batch: &EventBa
                 | Event::CombatUpdated { .. }
                 | Event::Redacted
         )
-    });
-    if cheap {
+    })
+}
+
+/// Filters a committed `batch` for players; `before` and `after` are the full states around it.
+#[must_use]
+pub fn filter_for_players(before: &GameState, after: &GameState, batch: &EventBatch) -> ForPlayers {
+    if !may_change_visibility(batch) {
         return ForPlayers::Batch(EventBatch {
-            events: batch
-                .events
-                .iter()
-                .map(|e| cheap_event(after, before, e))
-                .collect(),
+            events: batch.events.iter().map(|e| cheap_event(after, e)).collect(),
             ..batch.clone()
         });
     }
@@ -305,10 +306,9 @@ pub fn filter_for_players(before: &GameState, after: &GameState, batch: &EventBa
 }
 
 /// [`filter_for_players`] for events that cannot change visibility: decided on the spot.
-fn cheap_event(after: &GameState, before: &GameState, event: &Event) -> Event {
+fn cheap_event(after: &GameState, event: &Event) -> Event {
     let token_shown = |id: &TokenId| {
-        let token = after.tokens.get(id).or_else(|| before.tokens.get(id));
-        token.is_some_and(|t| {
+        after.tokens.get(id).is_some_and(|t| {
             t.visible
                 && t.layer != TokenLayer::Gm
                 && after

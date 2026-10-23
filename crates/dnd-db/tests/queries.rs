@@ -438,13 +438,14 @@ fn query_inventory_matches_adr_0008() {
         include_str!("../src/backup.rs"),
         include_str!("../src/campaign.rs"),
         include_str!("../src/connect.rs"),
+        include_str!("../src/server.rs"),
     ];
     let count: usize = sources
         .iter()
         .map(|s| s.matches("sqlx::query").count())
         .sum();
     assert_eq!(
-        count, 42,
+        count, 53,
         "runtime queries changed: add a real-SQLite test and update the table in docs/adr/0008-db-conventions.md"
     );
 }

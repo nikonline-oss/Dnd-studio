@@ -10,6 +10,7 @@ mod codec;
 mod connect;
 mod engine;
 mod error;
+mod server;
 
 pub use archive::{
     ARCHIVE_DB, ARCHIVE_FORMAT, ArchiveLimits, ArchiveManifest, ArchiveStats, read_archive,
@@ -23,3 +24,4 @@ pub use connect::{
 };
 pub use engine::{CampaignEngine, EngineError};
 pub use error::{DbError, DbResult};
+pub use server::{ParticipantRow, ParticipantStatus, ServerDb, SessionRow, SessionState};

@@ -74,6 +74,21 @@ webp = { version = "0.3.1", default-features = false }
 image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "webp"] }
 
 tokio = { version = "1.54.0" }
+
+# session server (CLAUDE.md §3, ADR-0022)
+axum = { version = "0.8.9", features = ["ws", "multipart"] }
+tower-http = { version = "0.7.1", features = ["limit", "trace"] }
+tower_governor = { version = "0.8.0", default-features = false, features = ["axum"] }
+# Secrets: argon2 hashes for GM keys and access codes (CLAUDE.md §6), OS randomness.
+argon2 = "0.6.0"
+getrandom = "0.4.3"
+# Client side of the session server (dnd-net) and server tests; TLS through rustls + ring, as
+# Tauri already uses (no aws-lc build).
+reqwest = { version = "0.13.5", default-features = false, features = ["json", "multipart", "http2"] }
+tokio-tungstenite = "0.30.0"
+# The crypto provider reqwest needs when Tauri's `rustls-no-provider` is unified in (ring, as Tauri).
+rustls = { version = "0.23.46", default-features = false, features = ["ring", "std", "tls12"] }
+futures-util = { version = "0.3.34", default-features = false, features = ["sink", "std"] }
 sqlx = { version = "0.9.0", default-features = false }
 
 # observability
