@@ -9,6 +9,7 @@ import { Icon } from '@/shared/ui/Icon';
 import { ConfirmDelete, IconButton } from '@/shared/ui/IconButton';
 import { InlineEdit } from '@/shared/ui/InlineEdit';
 import { NavSection } from '@/shared/ui/NavSection';
+import { NAV_ROW_HEIGHT, VirtualList } from '@/shared/ui/VirtualList';
 import { useToast } from '@/shared/ui/Toast';
 
 const DEFAULT_GRID = { kind: 'square', cell_size: 70, offset_x: 0, offset_y: 0 } as const;
@@ -93,8 +94,12 @@ export function MapList() {
       }
     >
       {maps.length === 0 && <p className="nav-empty">{t('maps.empty')}</p>}
-      <ul className="nav-list">
-        {maps.map((map) => {
+      <VirtualList
+        items={maps}
+        rowHeight={NAV_ROW_HEIGHT}
+        getKey={(map) => map.id}
+        label={t('maps.title')}
+        renderRow={(map) => {
           const background = assets?.find((a) => a.id === map.background_asset_id);
           return (
             <li
@@ -163,8 +168,8 @@ export function MapList() {
               </span>
             </li>
           );
-        })}
-      </ul>
+        }}
+      />
       <ErrorText error={importMap.error ?? submit.error} />
     </NavSection>
   );

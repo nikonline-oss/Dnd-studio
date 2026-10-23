@@ -5,6 +5,7 @@ import { useSelection } from '@/shared/state/selection';
 import { ErrorText } from '@/shared/ui/ErrorText';
 import { ConfirmDelete, IconButton } from '@/shared/ui/IconButton';
 import { NavSection } from '@/shared/ui/NavSection';
+import { NAV_ROW_HEIGHT, VirtualList } from '@/shared/ui/VirtualList';
 
 /** Tokens of the selected map as a list; clicking one selects it like a click on the map. */
 export function TokenList() {
@@ -52,8 +53,14 @@ export function TokenList() {
       }
     >
       {tokens.length === 0 && <p className="nav-empty">{t('tokens.empty')}</p>}
-      <ul className="nav-list">
-        {tokens.map((token) => (
+      <VirtualList
+        items={tokens}
+        rowHeight={NAV_ROW_HEIGHT}
+        getKey={(token) => token.id}
+        label={t('tokens.title')}
+        // Under the map inspector: a bounded box of its own.
+        className="bounded"
+        renderRow={(token) => (
           <li
             key={token.id}
             className="nav-row"
@@ -80,8 +87,8 @@ export function TokenList() {
               />
             </span>
           </li>
-        ))}
-      </ul>
+        )}
+      />
       <ErrorText error={submit.error} />
     </NavSection>
   );

@@ -7,6 +7,7 @@ import { useSelection } from '@/shared/state/selection';
 import { ErrorText } from '@/shared/ui/ErrorText';
 import { IconButton } from '@/shared/ui/IconButton';
 import { NavSection } from '@/shared/ui/NavSection';
+import { NAV_ROW_HEIGHT, VirtualList } from '@/shared/ui/VirtualList';
 
 /** Navigator: characters with their status. GM roles create PCs and NPCs, players their own PC. */
 export function CharacterList() {
@@ -73,8 +74,12 @@ export function CharacterList() {
       }
     >
       {characters.length === 0 && <p className="nav-empty">{t('characters.empty')}</p>}
-      <ul className="nav-list">
-        {characters.map((c) => (
+      <VirtualList
+        items={characters}
+        rowHeight={NAV_ROW_HEIGHT}
+        getKey={(c) => c.id}
+        label={t('characters.title')}
+        renderRow={(c) => (
           <li
             key={c.id}
             className="nav-row"
@@ -98,8 +103,8 @@ export function CharacterList() {
               {t(`characters.status.${c.status}`)}
             </span>
           </li>
-        ))}
-      </ul>
+        )}
+      />
       <ErrorText error={submit.error} />
     </NavSection>
   );
