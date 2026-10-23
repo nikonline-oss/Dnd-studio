@@ -1,0 +1,103 @@
+{
+  "id": "srd5-spells",
+  "name": {
+    "ru": "Заклинания SRD (образцы)",
+    "en": "SRD spells (samples)"
+  },
+  "entry_type": "spell",
+  "entries": [
+    {
+      "id": "fire-bolt",
+      "name": {
+        "ru": "Огненный снаряд",
+        "en": "Fire Bolt"
+      },
+      "data": {
+        "level": 0,
+        "school": "evocation",
+        "casting_time": "action",
+        "range": "120 ft",
+        "duration": "instantaneous",
+        "damage": "1d10 fire",
+        "summary": {
+          "ru": "Сгусток огня: дальнобойная атака заклинанием.",
+          "en": "A mote of fire: a ranged spell attack."
+        }
+      }
+    },
+    {
+      "id": "light",
+      "name": {
+        "ru": "Свет",
+        "en": "Light"
+      },
+      "data": {
+        "level": 0,
+        "school": "evocation",
+        "casting_time": "action",
+        "range": "touch",
+        "duration": "1 hour",
+        "summary": {
+          "ru": "Предмет светится ярким светом.",
+          "en": "An object sheds bright light."
+        }
+      }
+    },
+    {
+      "id": "cure-wounds",
+      "name": {
+        "ru": "Лечение ран",
+        "en": "Cure Wounds"
+      },
+      "data": {
+        "level": 1,
+        "school": "abjuration",
+        "casting_time": "action",
+        "range": "touch",
+        "duration": "instantaneous",
+        "healing": "2d8 + spellcasting modifier",
+        "summary": {
+          "ru": "Касание восстанавливает хиты.",
+          "en": "A touch restores hit points."
+        }
+      }
+    },
+    {
+      "id": "magic-missile",
+      "name": {
+        "ru": "Волшебная стрела",
+        "en": "Magic Missile"
+      },
+      "data": {
+        "level": 1,
+        "school": "evocation",
+        "casting_time": "action",
+        "range": "120 ft",
+        "duration": "instantaneous",
+        "damage": "3 × (1d4 + 1) force",
+        "summary": {
+          "ru": "Три светящихся дротика всегда попадают.",
+          "en": "Three glowing darts always hit."
+        }
+      }
+    },
+    {
+      "id": "shield",
+      "name": {
+        "ru": "Щит",
+        "en": "Shield"
+      },
+      "data": {
+        "level": 1,
+        "school": "abjuration",
+        "casting_time": "reaction",
+        "range": "self",
+        "duration": "1 round",
+        "summary": {
+          "ru": "Невидимый барьер: +5 к КД до вашего следующего хода.",
+          "en": "An invisible barrier: +5 AC until your next turn."
+        }
+      }
+    }
+  ]
+}

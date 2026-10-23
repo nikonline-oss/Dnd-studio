@@ -1,0 +1,15 @@
+{
+  "format": 1,
+  "id": "srd5",
+  "name": {
+    "ru": "SRD 5.2 (пятая редакция)",
+    "en": "SRD 5.2 (fifth edition)"
+  },
+  "version": "0.1.0",
+  "kind": "system",
+  "authors": ["DndStudio contributors"],
+  "license": "CC-BY-4.0",
+  "attribution": "This work includes material from the System Reference Document 5.2 (\"SRD 5.2\") by Wizards of the Coast LLC, available at https://www.dndbeyond.com/srd. The SRD 5.2 is licensed under the Creative Commons Attribution 4.0 International License, available at https://creativecommons.org/licenses/by/4.0/legalcode.",
+  "app_compat": ">=0.0.1, <0.2.0",
+  "dependencies": {}
+}

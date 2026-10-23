@@ -1,0 +1,303 @@
+{
+  "sheet": {
+    "schema": "sheet/schema.json",
+    "layout": "sheet/layout.json"
+  },
+  "computed": {
+    "prof": "2 + floor((@level - 1) / 4)",
+    "str_mod": "floor((@abilities.str - 10) / 2)",
+    "str_save": "@str_mod + (if @saves.str then @prof else 0)",
+    "dex_mod": "floor((@abilities.dex - 10) / 2)",
+    "dex_save": "@dex_mod + (if @saves.dex then @prof else 0)",
+    "con_mod": "floor((@abilities.con - 10) / 2)",
+    "con_save": "@con_mod + (if @saves.con then @prof else 0)",
+    "int_mod": "floor((@abilities.int - 10) / 2)",
+    "int_save": "@int_mod + (if @saves.int then @prof else 0)",
+    "wis_mod": "floor((@abilities.wis - 10) / 2)",
+    "wis_save": "@wis_mod + (if @saves.wis then @prof else 0)",
+    "cha_mod": "floor((@abilities.cha - 10) / 2)",
+    "cha_save": "@cha_mod + (if @saves.cha then @prof else 0)",
+    "acrobatics": "@dex_mod + (if @skills.acrobatics then @prof else 0)",
+    "animal_handling": "@wis_mod + (if @skills.animal_handling then @prof else 0)",
+    "arcana": "@int_mod + (if @skills.arcana then @prof else 0)",
+    "athletics": "@str_mod + (if @skills.athletics then @prof else 0)",
+    "deception": "@cha_mod + (if @skills.deception then @prof else 0)",
+    "history": "@int_mod + (if @skills.history then @prof else 0)",
+    "insight": "@wis_mod + (if @skills.insight then @prof else 0)",
+    "intimidation": "@cha_mod + (if @skills.intimidation then @prof else 0)",
+    "investigation": "@int_mod + (if @skills.investigation then @prof else 0)",
+    "medicine": "@wis_mod + (if @skills.medicine then @prof else 0)",
+    "nature": "@int_mod + (if @skills.nature then @prof else 0)",
+    "perception": "@wis_mod + (if @skills.perception then @prof else 0)",
+    "performance": "@cha_mod + (if @skills.performance then @prof else 0)",
+    "persuasion": "@cha_mod + (if @skills.persuasion then @prof else 0)",
+    "religion": "@int_mod + (if @skills.religion then @prof else 0)",
+    "sleight_of_hand": "@dex_mod + (if @skills.sleight_of_hand then @prof else 0)",
+    "stealth": "@dex_mod + (if @skills.stealth then @prof else 0)",
+    "survival": "@wis_mod + (if @skills.survival then @prof else 0)",
+    "passive_perception": "10 + @perception"
+  },
+  "initiative": "1d20 + @dex_mod",
+  "resources": [
+    {
+      "id": "hp",
+      "label": {
+        "ru": "Хиты",
+        "en": "Hit points"
+      },
+      "value": "@hp.current",
+      "max": "@hp.max"
+    }
+  ],
+  "health_thresholds": [75, 25, 0],
+  "rolls": [
+    {
+      "id": "str_check",
+      "label": {
+        "ru": "Проверка: Сила",
+        "en": "Strength check"
+      },
+      "dice": "1d20 + @str_mod"
+    },
+    {
+      "id": "str_save",
+      "label": {
+        "ru": "Спасбросок: Сила",
+        "en": "Strength save"
+      },
+      "dice": "1d20 + @str_save"
+    },
+    {
+      "id": "dex_check",
+      "label": {
+        "ru": "Проверка: Ловкость",
+        "en": "Dexterity check"
+      },
+      "dice": "1d20 + @dex_mod"
+    },
+    {
+      "id": "dex_save",
+      "label": {
+        "ru": "Спасбросок: Ловкость",
+        "en": "Dexterity save"
+      },
+      "dice": "1d20 + @dex_save"
+    },
+    {
+      "id": "con_check",
+      "label": {
+        "ru": "Проверка: Телосложение",
+        "en": "Constitution check"
+      },
+      "dice": "1d20 + @con_mod"
+    },
+    {
+      "id": "con_save",
+      "label": {
+        "ru": "Спасбросок: Телосложение",
+        "en": "Constitution save"
+      },
+      "dice": "1d20 + @con_save"
+    },
+    {
+      "id": "int_check",
+      "label": {
+        "ru": "Проверка: Интеллект",
+        "en": "Intelligence check"
+      },
+      "dice": "1d20 + @int_mod"
+    },
+    {
+      "id": "int_save",
+      "label": {
+        "ru": "Спасбросок: Интеллект",
+        "en": "Intelligence save"
+      },
+      "dice": "1d20 + @int_save"
+    },
+    {
+      "id": "wis_check",
+      "label": {
+        "ru": "Проверка: Мудрость",
+        "en": "Wisdom check"
+      },
+      "dice": "1d20 + @wis_mod"
+    },
+    {
+      "id": "wis_save",
+      "label": {
+        "ru": "Спасбросок: Мудрость",
+        "en": "Wisdom save"
+      },
+      "dice": "1d20 + @wis_save"
+    },
+    {
+      "id": "cha_check",
+      "label": {
+        "ru": "Проверка: Харизма",
+        "en": "Charisma check"
+      },
+      "dice": "1d20 + @cha_mod"
+    },
+    {
+      "id": "cha_save",
+      "label": {
+        "ru": "Спасбросок: Харизма",
+        "en": "Charisma save"
+      },
+      "dice": "1d20 + @cha_save"
+    },
+    {
+      "id": "acrobatics",
+      "label": {
+        "ru": "Акробатика",
+        "en": "Acrobatics"
+      },
+      "dice": "1d20 + @acrobatics"
+    },
+    {
+      "id": "animal_handling",
+      "label": {
+        "ru": "Уход за животными",
+        "en": "Animal Handling"
+      },
+      "dice": "1d20 + @animal_handling"
+    },
+    {
+      "id": "arcana",
+      "label": {
+        "ru": "Магия",
+        "en": "Arcana"
+      },
+      "dice": "1d20 + @arcana"
+    },
+    {
+      "id": "athletics",
+      "label": {
+        "ru": "Атлетика",
+        "en": "Athletics"
+      },
+      "dice": "1d20 + @athletics"
+    },
+    {
+      "id": "deception",
+      "label": {
+        "ru": "Обман",
+        "en": "Deception"
+      },
+      "dice": "1d20 + @deception"
+    },
+    {
+      "id": "history",
+      "label": {
+        "ru": "История",
+        "en": "History"
+      },
+      "dice": "1d20 + @history"
+    },
+    {
+      "id": "insight",
+      "label": {
+        "ru": "Проницательность",
+        "en": "Insight"
+      },
+      "dice": "1d20 + @insight"
+    },
+    {
+      "id": "intimidation",
+      "label": {
+        "ru": "Запугивание",
+        "en": "Intimidation"
+      },
+      "dice": "1d20 + @intimidation"
+    },
+    {
+      "id": "investigation",
+      "label": {
+        "ru": "Анализ",
+        "en": "Investigation"
+      },
+      "dice": "1d20 + @investigation"
+    },
+    {
+      "id": "medicine",
+      "label": {
+        "ru": "Медицина",
+        "en": "Medicine"
+      },
+      "dice": "1d20 + @medicine"
+    },
+    {
+      "id": "nature",
+      "label": {
+        "ru": "Природа",
+        "en": "Nature"
+      },
+      "dice": "1d20 + @nature"
+    },
+    {
+      "id": "perception",
+      "label": {
+        "ru": "Внимательность",
+        "en": "Perception"
+      },
+      "dice": "1d20 + @perception"
+    },
+    {
+      "id": "performance",
+      "label": {
+        "ru": "Выступление",
+        "en": "Performance"
+      },
+      "dice": "1d20 + @performance"
+    },
+    {
+      "id": "persuasion",
+      "label": {
+        "ru": "Убеждение",
+        "en": "Persuasion"
+      },
+      "dice": "1d20 + @persuasion"
+    },
+    {
+      "id": "religion",
+      "label": {
+        "ru": "Религия",
+        "en": "Religion"
+      },
+      "dice": "1d20 + @religion"
+    },
+    {
+      "id": "sleight_of_hand",
+      "label": {
+        "ru": "Ловкость рук",
+        "en": "Sleight of Hand"
+      },
+      "dice": "1d20 + @sleight_of_hand"
+    },
+    {
+      "id": "stealth",
+      "label": {
+        "ru": "Скрытность",
+        "en": "Stealth"
+      },
+      "dice": "1d20 + @stealth"
+    },
+    {
+      "id": "survival",
+      "label": {
+        "ru": "Выживание",
+        "en": "Survival"
+      },
+      "dice": "1d20 + @survival"
+    },
+    {
+      "id": "initiative",
+      "label": {
+        "ru": "Инициатива",
+        "en": "Initiative"
+      },
+      "dice": "1d20 + @dex_mod"
+    }
+  ]
+}

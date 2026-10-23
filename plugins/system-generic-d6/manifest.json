@@ -1,0 +1,14 @@
+{
+  "format": 1,
+  "id": "generic-d6",
+  "name": {
+    "ru": "Универсальная система 2d6",
+    "en": "Generic 2d6 system"
+  },
+  "version": "0.1.0",
+  "kind": "system",
+  "authors": ["DndStudio contributors"],
+  "license": "MIT OR Apache-2.0",
+  "app_compat": ">=0.0.1, <0.2.0",
+  "dependencies": {}
+}

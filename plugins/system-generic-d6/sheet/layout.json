@@ -1,0 +1,187 @@
+{
+  "type": "section",
+  "children": [
+    {
+      "type": "field",
+      "path": "concept",
+      "label": {
+        "ru": "Концепция",
+        "en": "Concept"
+      }
+    },
+    {
+      "type": "text",
+      "text": {
+        "ru": "Бросок 2d6 + атрибут: 10+ — полный успех, 7–9 — успех с ценой, 6 и меньше — провал.",
+        "en": "Roll 2d6 + attribute: 10+ full success, 7–9 success at a cost, 6 or less a miss."
+      }
+    },
+    {
+      "type": "grid",
+      "columns": 2,
+      "children": [
+        {
+          "type": "row",
+          "children": [
+            {
+              "type": "field",
+              "path": "attributes.body",
+              "label": {
+                "ru": "Тело",
+                "en": "Body"
+              }
+            },
+            {
+              "type": "roll",
+              "roll": "body",
+              "label": {
+                "ru": "Бросок",
+                "en": "Roll"
+              }
+            }
+          ]
+        },
+        {
+          "type": "row",
+          "children": [
+            {
+              "type": "field",
+              "path": "attributes.agility",
+              "label": {
+                "ru": "Ловкость",
+                "en": "Agility"
+              }
+            },
+            {
+              "type": "roll",
+              "roll": "agility",
+              "label": {
+                "ru": "Бросок",
+                "en": "Roll"
+              }
+            }
+          ]
+        },
+        {
+          "type": "row",
+          "children": [
+            {
+              "type": "field",
+              "path": "attributes.mind",
+              "label": {
+                "ru": "Разум",
+                "en": "Mind"
+              }
+            },
+            {
+              "type": "roll",
+              "roll": "mind",
+              "label": {
+                "ru": "Бросок",
+                "en": "Roll"
+              }
+            }
+          ]
+        },
+        {
+          "type": "row",
+          "children": [
+            {
+              "type": "field",
+              "path": "attributes.spirit",
+              "label": {
+                "ru": "Дух",
+                "en": "Spirit"
+              }
+            },
+            {
+              "type": "roll",
+              "roll": "spirit",
+              "label": {
+                "ru": "Бросок",
+                "en": "Roll"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "children": [
+        {
+          "type": "resource",
+          "resource": "health"
+        },
+        {
+          "type": "field",
+          "path": "harm",
+          "label": {
+            "ru": "Полученный урон",
+            "en": "Harm taken"
+          }
+        },
+        {
+          "type": "computed",
+          "name": "defense",
+          "label": {
+            "ru": "Защита",
+            "en": "Defense"
+          }
+        },
+        {
+          "type": "field",
+          "path": "xp",
+          "label": {
+            "ru": "Опыт",
+            "en": "Experience"
+          }
+        }
+      ]
+    },
+    {
+      "type": "list",
+      "path": "edges",
+      "label": {
+        "ru": "Умения",
+        "en": "Edges"
+      },
+      "item": [
+        {
+          "type": "field",
+          "path": "name",
+          "label": {
+            "ru": "Название",
+            "en": "Name"
+          }
+        },
+        {
+          "type": "field",
+          "path": "attribute",
+          "label": {
+            "ru": "Атрибут",
+            "en": "Attribute"
+          },
+          "widget": "select"
+        },
+        {
+          "type": "field",
+          "path": "bonus",
+          "label": {
+            "ru": "Бонус",
+            "en": "Bonus"
+          }
+        }
+      ]
+    },
+    {
+      "type": "field",
+      "path": "notes",
+      "label": {
+        "ru": "Заметки",
+        "en": "Notes"
+      },
+      "widget": "textarea"
+    }
+  ]
+}

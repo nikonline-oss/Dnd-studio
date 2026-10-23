@@ -1,0 +1,58 @@
+{
+  "sheet": {
+    "schema": "sheet/schema.json",
+    "layout": "sheet/layout.json"
+  },
+  "computed": {
+    "harm_max": "6 + 2 * max(@attributes.body, 0)",
+    "left": "6 + 2 * max(@attributes.body, 0) - @harm",
+    "defense": "7 + @attributes.agility"
+  },
+  "initiative": "2d6 + @attributes.agility",
+  "resources": [
+    {
+      "id": "health",
+      "label": {
+        "ru": "Здоровье",
+        "en": "Health"
+      },
+      "value": "@left",
+      "max": "@harm_max"
+    }
+  ],
+  "health_thresholds": [66, 33, 0],
+  "rolls": [
+    {
+      "id": "body",
+      "label": {
+        "ru": "Тело: 2d6",
+        "en": "Body: 2d6"
+      },
+      "dice": "2d6 + @attributes.body"
+    },
+    {
+      "id": "agility",
+      "label": {
+        "ru": "Ловкость: 2d6",
+        "en": "Agility: 2d6"
+      },
+      "dice": "2d6 + @attributes.agility"
+    },
+    {
+      "id": "mind",
+      "label": {
+        "ru": "Разум: 2d6",
+        "en": "Mind: 2d6"
+      },
+      "dice": "2d6 + @attributes.mind"
+    },
+    {
+      "id": "spirit",
+      "label": {
+        "ru": "Дух: 2d6",
+        "en": "Spirit: 2d6"
+      },
+      "dice": "2d6 + @attributes.spirit"
+    }
+  ]
+}

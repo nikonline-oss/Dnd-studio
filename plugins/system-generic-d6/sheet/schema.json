@@ -1,0 +1,133 @@
+{
+  "type": "object",
+  "properties": {
+    "concept": {
+      "type": "string",
+      "maxLength": 200,
+      "default": "",
+      "title": {
+        "ru": "Концепция",
+        "en": "Concept"
+      }
+    },
+    "attributes": {
+      "type": "object",
+      "title": {
+        "ru": "Атрибуты",
+        "en": "Attributes"
+      },
+      "properties": {
+        "body": {
+          "type": "integer",
+          "minimum": -2,
+          "maximum": 3,
+          "default": 0,
+          "title": {
+            "ru": "Тело",
+            "en": "Body"
+          }
+        },
+        "agility": {
+          "type": "integer",
+          "minimum": -2,
+          "maximum": 3,
+          "default": 0,
+          "title": {
+            "ru": "Ловкость",
+            "en": "Agility"
+          }
+        },
+        "mind": {
+          "type": "integer",
+          "minimum": -2,
+          "maximum": 3,
+          "default": 0,
+          "title": {
+            "ru": "Разум",
+            "en": "Mind"
+          }
+        },
+        "spirit": {
+          "type": "integer",
+          "minimum": -2,
+          "maximum": 3,
+          "default": 0,
+          "title": {
+            "ru": "Дух",
+            "en": "Spirit"
+          }
+        }
+      },
+      "required": ["body", "agility", "mind", "spirit"]
+    },
+    "edges": {
+      "type": "array",
+      "title": {
+        "ru": "Умения",
+        "en": "Edges"
+      },
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "title": {
+              "ru": "Название",
+              "en": "Name"
+            }
+          },
+          "attribute": {
+            "type": "string",
+            "enum": ["body", "agility", "mind", "spirit"],
+            "title": {
+              "ru": "Атрибут",
+              "en": "Attribute"
+            }
+          },
+          "bonus": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3,
+            "default": 1,
+            "title": {
+              "ru": "Бонус",
+              "en": "Bonus"
+            }
+          }
+        }
+      }
+    },
+    "harm": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 12,
+      "default": 0,
+      "title": {
+        "ru": "Урон",
+        "en": "Harm"
+      }
+    },
+    "xp": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 999,
+      "default": 0,
+      "title": {
+        "ru": "Опыт",
+        "en": "Experience"
+      }
+    },
+    "notes": {
+      "type": "string",
+      "maxLength": 20000,
+      "default": "",
+      "title": {
+        "ru": "Заметки",
+        "en": "Notes"
+      }
+    }
+  },
+  "required": ["attributes"]
+}

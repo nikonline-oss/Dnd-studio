@@ -1,0 +1,1146 @@
+{
+  "type": "tabs",
+  "tabs": [
+    {
+      "label": {
+        "ru": "Основное",
+        "en": "Main"
+      },
+      "children": [
+        {
+          "type": "row",
+          "children": [
+            {
+              "type": "field",
+              "path": "level",
+              "label": {
+                "ru": "Уровень",
+                "en": "Level"
+              }
+            },
+            {
+              "type": "field",
+              "path": "class",
+              "label": {
+                "ru": "Класс",
+                "en": "Class"
+              }
+            },
+            {
+              "type": "field",
+              "path": "species",
+              "label": {
+                "ru": "Вид",
+                "en": "Species"
+              }
+            },
+            {
+              "type": "field",
+              "path": "background",
+              "label": {
+                "ru": "Предыстория",
+                "en": "Background"
+              }
+            }
+          ]
+        },
+        {
+          "type": "row",
+          "children": [
+            {
+              "type": "resource",
+              "resource": "hp"
+            },
+            {
+              "type": "field",
+              "path": "hp.current",
+              "label": {
+                "ru": "Текущие хиты",
+                "en": "Current HP"
+              }
+            },
+            {
+              "type": "field",
+              "path": "hp.max",
+              "label": {
+                "ru": "Максимум хитов",
+                "en": "Max HP"
+              }
+            },
+            {
+              "type": "field",
+              "path": "hp.temp",
+              "label": {
+                "ru": "Временные хиты",
+                "en": "Temp HP"
+              }
+            }
+          ]
+        },
+        {
+          "type": "row",
+          "children": [
+            {
+              "type": "field",
+              "path": "ac",
+              "label": {
+                "ru": "КД",
+                "en": "AC"
+              }
+            },
+            {
+              "type": "field",
+              "path": "speed",
+              "label": {
+                "ru": "Скорость",
+                "en": "Speed"
+              }
+            },
+            {
+              "type": "computed",
+              "name": "prof",
+              "label": {
+                "ru": "Бонус мастерства",
+                "en": "Proficiency bonus"
+              }
+            },
+            {
+              "type": "computed",
+              "name": "passive_perception",
+              "label": {
+                "ru": "Пассивная внимательность",
+                "en": "Passive Perception"
+              }
+            },
+            {
+              "type": "roll",
+              "roll": "initiative"
+            }
+          ]
+        },
+        {
+          "type": "section",
+          "label": {
+            "ru": "Характеристики",
+            "en": "Abilities"
+          },
+          "children": [
+            {
+              "type": "grid",
+              "columns": 3,
+              "children": [
+                {
+                  "type": "section",
+                  "label": {
+                    "ru": "Сила",
+                    "en": "Strength"
+                  },
+                  "children": [
+                    {
+                      "type": "field",
+                      "path": "abilities.str",
+                      "label": {
+                        "ru": "СИЛ",
+                        "en": "STR"
+                      }
+                    },
+                    {
+                      "type": "computed",
+                      "name": "str_mod",
+                      "label": {
+                        "ru": "Модификатор",
+                        "en": "Modifier"
+                      }
+                    },
+                    {
+                      "type": "roll",
+                      "roll": "str_check",
+                      "label": {
+                        "ru": "Проверка",
+                        "en": "Check"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "section",
+                  "label": {
+                    "ru": "Ловкость",
+                    "en": "Dexterity"
+                  },
+                  "children": [
+                    {
+                      "type": "field",
+                      "path": "abilities.dex",
+                      "label": {
+                        "ru": "ЛОВ",
+                        "en": "DEX"
+                      }
+                    },
+                    {
+                      "type": "computed",
+                      "name": "dex_mod",
+                      "label": {
+                        "ru": "Модификатор",
+                        "en": "Modifier"
+                      }
+                    },
+                    {
+                      "type": "roll",
+                      "roll": "dex_check",
+                      "label": {
+                        "ru": "Проверка",
+                        "en": "Check"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "section",
+                  "label": {
+                    "ru": "Телосложение",
+                    "en": "Constitution"
+                  },
+                  "children": [
+                    {
+                      "type": "field",
+                      "path": "abilities.con",
+                      "label": {
+                        "ru": "ТЕЛ",
+                        "en": "CON"
+                      }
+                    },
+                    {
+                      "type": "computed",
+                      "name": "con_mod",
+                      "label": {
+                        "ru": "Модификатор",
+                        "en": "Modifier"
+                      }
+                    },
+                    {
+                      "type": "roll",
+                      "roll": "con_check",
+                      "label": {
+                        "ru": "Проверка",
+                        "en": "Check"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "section",
+                  "label": {
+                    "ru": "Интеллект",
+                    "en": "Intelligence"
+                  },
+                  "children": [
+                    {
+                      "type": "field",
+                      "path": "abilities.int",
+                      "label": {
+                        "ru": "ИНТ",
+                        "en": "INT"
+                      }
+                    },
+                    {
+                      "type": "computed",
+                      "name": "int_mod",
+                      "label": {
+                        "ru": "Модификатор",
+                        "en": "Modifier"
+                      }
+                    },
+                    {
+                      "type": "roll",
+                      "roll": "int_check",
+                      "label": {
+                        "ru": "Проверка",
+                        "en": "Check"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "section",
+                  "label": {
+                    "ru": "Мудрость",
+                    "en": "Wisdom"
+                  },
+                  "children": [
+                    {
+                      "type": "field",
+                      "path": "abilities.wis",
+                      "label": {
+                        "ru": "МДР",
+                        "en": "WIS"
+                      }
+                    },
+                    {
+                      "type": "computed",
+                      "name": "wis_mod",
+                      "label": {
+                        "ru": "Модификатор",
+                        "en": "Modifier"
+                      }
+                    },
+                    {
+                      "type": "roll",
+                      "roll": "wis_check",
+                      "label": {
+                        "ru": "Проверка",
+                        "en": "Check"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "section",
+                  "label": {
+                    "ru": "Харизма",
+                    "en": "Charisma"
+                  },
+                  "children": [
+                    {
+                      "type": "field",
+                      "path": "abilities.cha",
+                      "label": {
+                        "ru": "ХАР",
+                        "en": "CHA"
+                      }
+                    },
+                    {
+                      "type": "computed",
+                      "name": "cha_mod",
+                      "label": {
+                        "ru": "Модификатор",
+                        "en": "Modifier"
+                      }
+                    },
+                    {
+                      "type": "roll",
+                      "roll": "cha_check",
+                      "label": {
+                        "ru": "Проверка",
+                        "en": "Check"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "label": {
+        "ru": "Спасброски и навыки",
+        "en": "Saves & skills"
+      },
+      "children": [
+        {
+          "type": "section",
+          "label": {
+            "ru": "Спасброски",
+            "en": "Saving throws"
+          },
+          "children": [
+            {
+              "type": "grid",
+              "columns": 3,
+              "children": [
+                {
+                  "type": "row",
+                  "children": [
+                    {
+                      "type": "field",
+                      "path": "saves.str",
+                      "label": {
+                        "ru": "Сила",
+                        "en": "Strength"
+                      },
+                      "widget": "checkbox"
+                    },
+                    {
+                      "type": "computed",
+                      "name": "str_save",
+                      "label": {
+                        "ru": "Бонус",
+                        "en": "Bonus"
+                      }
+                    },
+                    {
+                      "type": "roll",
+                      "roll": "str_save",
+                      "label": {
+                        "ru": "Бросок",
+                        "en": "Roll"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "row",
+                  "children": [
+                    {
+                      "type": "field",
+                      "path": "saves.dex",
+                      "label": {
+                        "ru": "Ловкость",
+                        "en": "Dexterity"
+                      },
+                      "widget": "checkbox"
+                    },
+                    {
+                      "type": "computed",
+                      "name": "dex_save",
+                      "label": {
+                        "ru": "Бонус",
+                        "en": "Bonus"
+                      }
+                    },
+                    {
+                      "type": "roll",
+                      "roll": "dex_save",
+                      "label": {
+                        "ru": "Бросок",
+                        "en": "Roll"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "row",
+                  "children": [
+                    {
+                      "type": "field",
+                      "path": "saves.con",
+                      "label": {
+                        "ru": "Телосложение",
+                        "en": "Constitution"
+                      },
+                      "widget": "checkbox"
+                    },
+                    {
+                      "type": "computed",
+                      "name": "con_save",
+                      "label": {
+                        "ru": "Бонус",
+                        "en": "Bonus"
+                      }
+                    },
+                    {
+                      "type": "roll",
+                      "roll": "con_save",
+                      "label": {
+                        "ru": "Бросок",
+                        "en": "Roll"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "row",
+                  "children": [
+                    {
+                      "type": "field",
+                      "path": "saves.int",
+                      "label": {
+                        "ru": "Интеллект",
+                        "en": "Intelligence"
+                      },
+                      "widget": "checkbox"
+                    },
+                    {
+                      "type": "computed",
+                      "name": "int_save",
+                      "label": {
+                        "ru": "Бонус",
+                        "en": "Bonus"
+                      }
+                    },
+                    {
+                      "type": "roll",
+                      "roll": "int_save",
+                      "label": {
+                        "ru": "Бросок",
+                        "en": "Roll"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "row",
+                  "children": [
+                    {
+                      "type": "field",
+                      "path": "saves.wis",
+                      "label": {
+                        "ru": "Мудрость",
+                        "en": "Wisdom"
+                      },
+                      "widget": "checkbox"
+                    },
+                    {
+                      "type": "computed",
+                      "name": "wis_save",
+                      "label": {
+                        "ru": "Бонус",
+                        "en": "Bonus"
+                      }
+                    },
+                    {
+                      "type": "roll",
+                      "roll": "wis_save",
+                      "label": {
+                        "ru": "Бросок",
+                        "en": "Roll"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "row",
+                  "children": [
+                    {
+                      "type": "field",
+                      "path": "saves.cha",
+                      "label": {
+                        "ru": "Харизма",
+                        "en": "Charisma"
+                      },
+                      "widget": "checkbox"
+                    },
+                    {
+                      "type": "computed",
+                      "name": "cha_save",
+                      "label": {
+                        "ru": "Бонус",
+                        "en": "Bonus"
+                      }
+                    },
+                    {
+                      "type": "roll",
+                      "roll": "cha_save",
+                      "label": {
+                        "ru": "Бросок",
+                        "en": "Roll"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "section",
+          "label": {
+            "ru": "Навыки",
+            "en": "Skills"
+          },
+          "children": [
+            {
+              "type": "grid",
+              "columns": 2,
+              "children": [
+                {
+                  "type": "row",
+                  "children": [
+                    {
+                      "type": "field",
+                      "path": "skills.acrobatics",
+                      "label": {
+                        "ru": "Акробатика (ЛОВ)",
+                        "en": "Acrobatics (DEX)"
+                      },
+                      "widget": "checkbox"
+                    },
+                    {
+                      "type": "computed",
+                      "name": "acrobatics",
+                      "label": {
+                        "ru": "Бонус",
+                        "en": "Bonus"
+                      }
+                    },
+                    {
+                      "type": "roll",
+                      "roll": "acrobatics",
+                      "label": {
+                        "ru": "Бросок",
+                        "en": "Roll"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "row",
+                  "children": [
+                    {
+                      "type": "field",
+                      "path": "skills.animal_handling",
+                      "label": {
+                        "ru": "Уход за животными (МДР)",
+                        "en": "Animal Handling (WIS)"
+                      },
+                      "widget": "checkbox"
+                    },
+                    {
+                      "type": "computed",
+                      "name": "animal_handling",
+                      "label": {
+                        "ru": "Бонус",
+                        "en": "Bonus"
+                      }
+                    },
+                    {
+                      "type": "roll",
+                      "roll": "animal_handling",
+                      "label": {
+                        "ru": "Бросок",
+                        "en": "Roll"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "row",
+                  "children": [
+                    {
+                      "type": "field",
+                      "path": "skills.arcana",
+                      "label": {
+                        "ru": "Магия (ИНТ)",
+                        "en": "Arcana (INT)"
+                      },
+                      "widget": "checkbox"
+                    },
+                    {
+                      "type": "computed",
+                      "name": "arcana",
+                      "label": {
+                        "ru": "Бонус",
+                        "en": "Bonus"
+                      }
+                    },
+                    {
+                      "type": "roll",
+                      "roll": "arcana",
+                      "label": {
+                        "ru": "Бросок",
+                        "en": "Roll"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "row",
+                  "children": [
+                    {
+                      "type": "field",
+                      "path": "skills.athletics",
+                      "label": {
+                        "ru": "Атлетика (СИЛ)",
+                        "en": "Athletics (STR)"
+                      },
+                      "widget": "checkbox"
+                    },
+                    {
+                      "type": "computed",
+                      "name": "athletics",
+                      "label": {
+                        "ru": "Бонус",
+                        "en": "Bonus"
+                      }
+                    },
+                    {
+                      "type": "roll",
+                      "roll": "athletics",
+                      "label": {
+                        "ru": "Бросок",
+                        "en": "Roll"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "row",
+                  "children": [
+                    {
+                      "type": "field",
+                      "path": "skills.deception",
+                      "label": {
+                        "ru": "Обман (ХАР)",
+                        "en": "Deception (CHA)"
+                      },
+                      "widget": "checkbox"
+                    },
+                    {
+                      "type": "computed",
+                      "name": "deception",
+                      "label": {
+                        "ru": "Бонус",
+                        "en": "Bonus"
+                      }
+                    },
+                    {
+                      "type": "roll",
+                      "roll": "deception",
+                      "label": {
+                        "ru": "Бросок",
+                        "en": "Roll"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "row",
+                  "children": [
+                    {
+                      "type": "field",
+                      "path": "skills.history",
+                      "label": {
+                        "ru": "История (ИНТ)",
+                        "en": "History (INT)"
+                      },
+                      "widget": "checkbox"
+                    },
+                    {
+                      "type": "computed",
+                      "name": "history",
+                      "label": {
+                        "ru": "Бонус",
+                        "en": "Bonus"
+                      }
+                    },
+                    {
+                      "type": "roll",
+                      "roll": "history",
+                      "label": {
+                        "ru": "Бросок",
+                        "en": "Roll"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "row",
+                  "children": [
+                    {
+                      "type": "field",
+                      "path": "skills.insight",
+                      "label": {
+                        "ru": "Проницательность (МДР)",
+                        "en": "Insight (WIS)"
+                      },
+                      "widget": "checkbox"
+                    },
+                    {
+                      "type": "computed",
+                      "name": "insight",
+                      "label": {
+                        "ru": "Бонус",
+                        "en": "Bonus"
+                      }
+                    },
+                    {
+                      "type": "roll",
+                      "roll": "insight",
+                      "label": {
+                        "ru": "Бросок",
+                        "en": "Roll"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "row",
+                  "children": [
+                    {
+                      "type": "field",
+                      "path": "skills.intimidation",
+                      "label": {
+                        "ru": "Запугивание (ХАР)",
+                        "en": "Intimidation (CHA)"
+                      },
+                      "widget": "checkbox"
+                    },
+                    {
+                      "type": "computed",
+                      "name": "intimidation",
+                      "label": {
+                        "ru": "Бонус",
+                        "en": "Bonus"
+                      }
+                    },
+                    {
+                      "type": "roll",
+                      "roll": "intimidation",
+                      "label": {
+                        "ru": "Бросок",
+                        "en": "Roll"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "row",
+                  "children": [
+                    {
+                      "type": "field",
+                      "path": "skills.investigation",
+                      "label": {
+                        "ru": "Анализ (ИНТ)",
+                        "en": "Investigation (INT)"
+                      },
+                      "widget": "checkbox"
+                    },
+                    {
+                      "type": "computed",
+                      "name": "investigation",
+                      "label": {
+                        "ru": "Бонус",
+                        "en": "Bonus"
+                      }
+                    },
+                    {
+                      "type": "roll",
+                      "roll": "investigation",
+                      "label": {
+                        "ru": "Бросок",
+                        "en": "Roll"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "row",
+                  "children": [
+                    {
+                      "type": "field",
+                      "path": "skills.medicine",
+                      "label": {
+                        "ru": "Медицина (МДР)",
+                        "en": "Medicine (WIS)"
+                      },
+                      "widget": "checkbox"
+                    },
+                    {
+                      "type": "computed",
+                      "name": "medicine",
+                      "label": {
+                        "ru": "Бонус",
+                        "en": "Bonus"
+                      }
+                    },
+                    {
+                      "type": "roll",
+                      "roll": "medicine",
+                      "label": {
+                        "ru": "Бросок",
+                        "en": "Roll"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "row",
+                  "children": [
+                    {
+                      "type": "field",
+                      "path": "skills.nature",
+                      "label": {
+                        "ru": "Природа (ИНТ)",
+                        "en": "Nature (INT)"
+                      },
+                      "widget": "checkbox"
+                    },
+                    {
+                      "type": "computed",
+                      "name": "nature",
+                      "label": {
+                        "ru": "Бонус",
+                        "en": "Bonus"
+                      }
+                    },
+                    {
+                      "type": "roll",
+                      "roll": "nature",
+                      "label": {
+                        "ru": "Бросок",
+                        "en": "Roll"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "row",
+                  "children": [
+                    {
+                      "type": "field",
+                      "path": "skills.perception",
+                      "label": {
+                        "ru": "Внимательность (МДР)",
+                        "en": "Perception (WIS)"
+                      },
+                      "widget": "checkbox"
+                    },
+                    {
+                      "type": "computed",
+                      "name": "perception",
+                      "label": {
+                        "ru": "Бонус",
+                        "en": "Bonus"
+                      }
+                    },
+                    {
+                      "type": "roll",
+                      "roll": "perception",
+                      "label": {
+                        "ru": "Бросок",
+                        "en": "Roll"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "row",
+                  "children": [
+                    {
+                      "type": "field",
+                      "path": "skills.performance",
+                      "label": {
+                        "ru": "Выступление (ХАР)",
+                        "en": "Performance (CHA)"
+                      },
+                      "widget": "checkbox"
+                    },
+                    {
+                      "type": "computed",
+                      "name": "performance",
+                      "label": {
+                        "ru": "Бонус",
+                        "en": "Bonus"
+                      }
+                    },
+                    {
+                      "type": "roll",
+                      "roll": "performance",
+                      "label": {
+                        "ru": "Бросок",
+                        "en": "Roll"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "row",
+                  "children": [
+                    {
+                      "type": "field",
+                      "path": "skills.persuasion",
+                      "label": {
+                        "ru": "Убеждение (ХАР)",
+                        "en": "Persuasion (CHA)"
+                      },
+                      "widget": "checkbox"
+                    },
+                    {
+                      "type": "computed",
+                      "name": "persuasion",
+                      "label": {
+                        "ru": "Бонус",
+                        "en": "Bonus"
+                      }
+                    },
+                    {
+                      "type": "roll",
+                      "roll": "persuasion",
+                      "label": {
+                        "ru": "Бросок",
+                        "en": "Roll"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "row",
+                  "children": [
+                    {
+                      "type": "field",
+                      "path": "skills.religion",
+                      "label": {
+                        "ru": "Религия (ИНТ)",
+                        "en": "Religion (INT)"
+                      },
+                      "widget": "checkbox"
+                    },
+                    {
+                      "type": "computed",
+                      "name": "religion",
+                      "label": {
+                        "ru": "Бонус",
+                        "en": "Bonus"
+                      }
+                    },
+                    {
+                      "type": "roll",
+                      "roll": "religion",
+                      "label": {
+                        "ru": "Бросок",
+                        "en": "Roll"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "row",
+                  "children": [
+                    {
+                      "type": "field",
+                      "path": "skills.sleight_of_hand",
+                      "label": {
+                        "ru": "Ловкость рук (ЛОВ)",
+                        "en": "Sleight of Hand (DEX)"
+                      },
+                      "widget": "checkbox"
+                    },
+                    {
+                      "type": "computed",
+                      "name": "sleight_of_hand",
+                      "label": {
+                        "ru": "Бонус",
+                        "en": "Bonus"
+                      }
+                    },
+                    {
+                      "type": "roll",
+                      "roll": "sleight_of_hand",
+                      "label": {
+                        "ru": "Бросок",
+                        "en": "Roll"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "row",
+                  "children": [
+                    {
+                      "type": "field",
+                      "path": "skills.stealth",
+                      "label": {
+                        "ru": "Скрытность (ЛОВ)",
+                        "en": "Stealth (DEX)"
+                      },
+                      "widget": "checkbox"
+                    },
+                    {
+                      "type": "computed",
+                      "name": "stealth",
+                      "label": {
+                        "ru": "Бонус",
+                        "en": "Bonus"
+                      }
+                    },
+                    {
+                      "type": "roll",
+                      "roll": "stealth",
+                      "label": {
+                        "ru": "Бросок",
+                        "en": "Roll"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "row",
+                  "children": [
+                    {
+                      "type": "field",
+                      "path": "skills.survival",
+                      "label": {
+                        "ru": "Выживание (МДР)",
+                        "en": "Survival (WIS)"
+                      },
+                      "widget": "checkbox"
+                    },
+                    {
+                      "type": "computed",
+                      "name": "survival",
+                      "label": {
+                        "ru": "Бонус",
+                        "en": "Bonus"
+                      }
+                    },
+                    {
+                      "type": "roll",
+                      "roll": "survival",
+                      "label": {
+                        "ru": "Бросок",
+                        "en": "Roll"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "label": {
+        "ru": "Атаки и заметки",
+        "en": "Attacks & notes"
+      },
+      "children": [
+        {
+          "type": "list",
+          "path": "attacks",
+          "label": {
+            "ru": "Атаки",
+            "en": "Attacks"
+          },
+          "item": [
+            {
+              "type": "field",
+              "path": "name",
+              "label": {
+                "ru": "Название",
+                "en": "Name"
+              }
+            },
+            {
+              "type": "field",
+              "path": "bonus",
+              "label": {
+                "ru": "Бонус атаки",
+                "en": "Attack bonus"
+              }
+            },
+            {
+              "type": "field",
+              "path": "damage",
+              "label": {
+                "ru": "Урон",
+                "en": "Damage"
+              }
+            }
+          ]
+        },
+        {
+          "type": "field",
+          "path": "notes",
+          "label": {
+            "ru": "Заметки",
+            "en": "Notes"
+          },
+          "widget": "textarea"
+        }
+      ]
+    }
+  ]
+}
