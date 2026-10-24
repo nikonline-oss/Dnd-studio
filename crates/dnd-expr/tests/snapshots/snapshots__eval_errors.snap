@@ -1,0 +1,12 @@
+---
+source: crates/dnd-expr/tests/snapshots.rs
+expression: "report(&[\"@str / (@str - 15)\", \"@dex + 1\", \"@str + true\",\n\"if @str then 1 else 2\", \"@str > 10 && @str\", \"(@str / 2) % 2\",\n\"9223372036854775807 + @str\", \"floor(@str / 2) + round(@str / 2)\",], |s|\nExpr::parse(s)?.eval(&sheet),)"
+---
+"@str / (@str - 15)" => division_by_zero @ 5: division by zero at position 5
+"@dex + 1" => unknown_reference @ 0: unknown field @dex at position 0
+"@str + true" => type_mismatch @ 5: type mismatch at position 5: expected number, found boolean
+"if @str then 1 else 2" => type_mismatch @ 3: type mismatch at position 3: expected boolean, found number
+"@str > 10 && @str" => type_mismatch @ 10: type mismatch at position 10: expected boolean, found number
+"(@str / 2) % 2" => integer_required @ 11: `%` at position 11 needs integer operands
+"9223372036854775807 + @str" => overflow @ 20: arithmetic overflow at position 20
+"floor(@str / 2) + round(@str / 2)" => ok: 15

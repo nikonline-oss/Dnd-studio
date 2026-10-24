@@ -50,6 +50,9 @@ let roll = expr.roll(&fields, &mut rng)?; // fields: impl FieldLookup, rng: impl
 - `Roll { expression, terms: [TermRoll { sign, subtotal, term }], total }`; для костей — каждое
   значение и флаг `kept`. `subtotal` — значение терма до применения знака.
 - Поля разрешаются до первого броска: ошибка поля не расходует RNG.
+- `ExprFields(ctx)` адаптирует любой `dnd_expr::Context` к `FieldLookup` — например, вычисляемые поля
+  листа поверх самого листа: `ExprFields(computed.with_sheet(&sheet))`. Нецелое значение →
+  `LookupError::NotAnInteger`.
 - `DiceRng { fn next_u64 }` — свой трейт (game-core адаптирует свой `GameRng`); `uniform` —
   несмещённая выборка отбраковкой (после 128 подряд отбракованных значений — `RngExhausted`, защита
   от сломанного источника). `SplitMix64` — детерминированный ГПСЧ для тестов и сидов.
