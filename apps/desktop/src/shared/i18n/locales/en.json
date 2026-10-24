@@ -362,5 +362,17 @@
     "saved": "My sessions",
     "reconnect": "Connect",
     "forget": "Forget the session"
+  },
+  "sheet": {
+    "yes": "Yes",
+    "no": "No",
+    "empty": "—",
+    "noRows": "No rows yet",
+    "row": "{{label}}, row {{n}}",
+    "addRow": "Add to “{{label}}”",
+    "removeRow": "Remove row {{n}} from “{{label}}”",
+    "roll": "Roll: {{label}}",
+    "unsupported": "Unsupported sheet element: {{type}}",
+    "missing": "Not found: {{id}}"
   }
 }
