@@ -5,6 +5,7 @@
 
 use std::collections::BTreeMap;
 
+pub use dnd_protocol::{Label, LocalizedText, PluginKind, ResourceDef, RollDef};
 use semver::{Version, VersionReq};
 use serde::{Deserialize, Serialize};
 
@@ -13,61 +14,6 @@ pub const PLUGIN_FORMAT: u32 = 1;
 
 /// Default qualitative health thresholds, in percent (CLAUDE.md §5).
 pub const DEFAULT_HEALTH_THRESHOLDS: [u8; 3] = [75, 25, 0];
-
-/// A user-visible text: one string for every language, or per language.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum Label {
-    Text(String),
-    Localized(LocalizedText),
-}
-
-/// At least one of the languages is present.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct LocalizedText {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub ru: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub en: Option<String>,
-}
-
-impl Label {
-    /// The text for `lang` (`"ru"`, `"en"`), falling back to English, then Russian.
-    pub fn get(&self, lang: &str) -> &str {
-        match self {
-            Self::Text(text) => text,
-            Self::Localized(l) => {
-                let wanted = match lang {
-                    "ru" => l.ru.as_deref(),
-                    "en" => l.en.as_deref(),
-                    _ => None,
-                };
-                wanted.or(l.en.as_deref()).or(l.ru.as_deref()).unwrap_or("")
-            }
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum PluginKind {
-    /// Rules of the game: exactly one per campaign (ADR-0005).
-    System,
-    Content,
-    Theme,
-    Ui,
-}
-
-impl PluginKind {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::System => "system",
-            Self::Content => "content",
-            Self::Theme => "theme",
-            Self::Ui => "ui",
-        }
-    }
-}
 
 /// `manifest.json`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -119,23 +65,6 @@ fn default_health_thresholds() -> Vec<u8> {
 pub struct SheetRef {
     pub schema: String,
     pub layout: String,
-}
-
-/// A generalized hit-point-like resource. `value` and `max` are expressions.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ResourceDef {
-    pub id: String,
-    pub label: Label,
-    pub value: String,
-    pub max: String,
-}
-
-/// A roll macro shown on the sheet.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RollDef {
-    pub id: String,
-    pub label: Label,
-    pub dice: String,
 }
 
 /// A node of the declarative sheet layout.

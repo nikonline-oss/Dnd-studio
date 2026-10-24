@@ -1330,8 +1330,11 @@ name = "dnd-game-core"
 version = "0.0.1"
 dependencies = [
  "dnd-dice",
+ "dnd-expr",
+ "dnd-plugin",
  "dnd-protocol",
  "proptest",
+ "serde_json",
  "uuid",
 ]
 
@@ -1361,6 +1364,7 @@ dependencies = [
 name = "dnd-plugin"
 version = "0.0.1"
 dependencies = [
+ "dnd-protocol",
  "jsonschema",
  "semver",
  "serde",
@@ -4955,6 +4959,7 @@ checksum = "38f9a30cbcbb7011f1da7d73483983bf838af123883e45f2b36ed76328df9c50"
 dependencies = [
  "paste",
  "rustc_version",
+ "serde_json",
  "specta-macros",
  "uuid",
 ]

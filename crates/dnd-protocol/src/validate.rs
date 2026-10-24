@@ -103,7 +103,10 @@ impl Intent {
             | Self::EndCombat { .. }
             | Self::CreateJournalFolder { .. }
             | Self::RenameJournalFolder { .. }
-            | Self::DeleteJournalFolder { .. } => Vec::new(),
+            | Self::DeleteJournalFolder { .. }
+            | Self::InstallPlugin { .. }
+            | Self::UninstallPlugin { .. }
+            | Self::SetSystemPlugin { .. } => Vec::new(),
             Self::RegisterAsset { asset } => vec![("size_bytes", asset.size_bytes)],
             Self::ApplyFog { op, .. } => match &op.shape {
                 FogShape::Rect {
@@ -163,8 +166,28 @@ impl Intent {
             | Self::EndCombat { .. }
             | Self::RenameJournalFolder { .. }
             | Self::MoveJournalFolder { .. }
-            | Self::DeleteJournalFolder { .. } => None,
+            | Self::DeleteJournalFolder { .. }
+            | Self::InstallPlugin { .. }
+            | Self::UninstallPlugin { .. }
+            | Self::SetSystemPlugin { .. } => None,
         }
+    }
+}
+
+/// Plugin ids: `[a-z0-9][a-z0-9.-]*`, at most 64 characters (docs/plugin-format.md).
+pub fn plugin_id(id: &str) -> Result<(), RejectReason> {
+    let ok = id.len() <= 64
+        && id
+            .bytes()
+            .next()
+            .is_some_and(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
+        && id
+            .bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || matches!(b, b'.' | b'-'));
+    if ok {
+        Ok(())
+    } else {
+        Err(RejectReason::invalid("id"))
     }
 }
 
@@ -180,6 +203,19 @@ impl IntentEnvelope {
         }
         if let Some(id) = self.intent.created_id() {
             uuid_v7(&id, "id")?;
+        }
+        match &self.intent {
+            Intent::InstallPlugin { plugin } => {
+                plugin_id(&plugin.id)?;
+                let size = serde_json::to_vec(plugin).map_or(usize::MAX, |b| b.len());
+                if size > crate::plugin::MAX_PLUGIN_BYTES {
+                    return Err(RejectReason::invalid("plugin"));
+                }
+            }
+            Intent::UninstallPlugin { id } | Intent::SetSystemPlugin { id: Some(id) } => {
+                plugin_id(id)?;
+            }
+            _ => {}
         }
         Ok(())
     }

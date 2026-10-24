@@ -1,0 +1,125 @@
+//! Installed plugins as game state (ADR-0023). Plugins live inside the campaign: the package is
+//! kept by its SHA-256, and a system plugin's rules travel with the state, so the session server
+//! and every client apply the same rules.
+
+use std::collections::BTreeMap;
+
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+
+/// Largest installed plugin description (rules, schema and layout as JSON), in bytes.
+pub const MAX_PLUGIN_BYTES: usize = 512 * 1024;
+
+/// A user-visible text: one string for every language, or per language.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub enum Label {
+    Text(String),
+    Localized(LocalizedText),
+}
+
+/// At least one of the languages is present.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct LocalizedText {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ru: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub en: Option<String>,
+}
+
+impl Label {
+    /// The text for `lang` (`"ru"`, `"en"`), falling back to English, then Russian.
+    #[must_use]
+    pub fn get(&self, lang: &str) -> &str {
+        match self {
+            Self::Text(text) => text,
+            Self::Localized(l) => {
+                let wanted = match lang {
+                    "ru" => l.ru.as_deref(),
+                    "en" => l.en.as_deref(),
+                    _ => None,
+                };
+                wanted.or(l.en.as_deref()).or(l.ru.as_deref()).unwrap_or("")
+            }
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub enum PluginKind {
+    /// Rules of the game: exactly one per campaign (ADR-0005).
+    System,
+    Content,
+    Theme,
+    Ui,
+}
+
+impl PluginKind {
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::System => "system",
+            Self::Content => "content",
+            Self::Theme => "theme",
+            Self::Ui => "ui",
+        }
+    }
+}
+
+/// A generalized hit-point-like resource. `value` and `max` are expressions.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct ResourceDef {
+    pub id: String,
+    pub label: Label,
+    pub value: String,
+    pub max: String,
+}
+
+/// A roll macro shown on the sheet.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct RollDef {
+    pub id: String,
+    pub label: Label,
+    pub dice: String,
+}
+
+/// A plugin installed in the campaign.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct PluginDto {
+    pub id: String,
+    /// Semver, as in the manifest.
+    pub version: String,
+    pub kind: PluginKind,
+    pub name: Label,
+    pub license: String,
+    pub attribution: Option<String>,
+    /// Lowercase hex SHA-256 of the `.dndplugin` file (kept in the campaign's `plugins/`).
+    pub archive_sha256: String,
+    /// Present exactly for `kind: system`.
+    pub system: Option<SystemRulesDto>,
+}
+
+/// The rules of a system plugin, self-contained (no package paths).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct SystemRulesDto {
+    /// Sheet data schema (JSON Schema subset, see `sheet_schema`).
+    pub sheet_schema: Value,
+    /// Root layout node (rendered by the clients; the core only stores it).
+    pub sheet_layout: Value,
+    /// Name → expression; results are integers.
+    pub computed: BTreeMap<String, String>,
+    /// Dice expression for initiative.
+    pub initiative: String,
+    pub resources: Vec<ResourceDef>,
+    /// Strictly descending percents: Healthy / Wounded / Critical / Dead boundaries.
+    pub health_thresholds: Vec<u8>,
+    pub rolls: Vec<RollDef>,
+}

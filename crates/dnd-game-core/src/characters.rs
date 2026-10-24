@@ -32,6 +32,7 @@ pub(crate) fn apply(
                 return Err(RejectReason::NotFound);
             }
             validate_sheet_json(sheet_json)?;
+            let sheet_json = crate::plugins::normalize_sheet(state, sheet_json)?;
             // The GM's own characters skip review; players start with a draft.
             let status = if actor.role.is_game_master() {
                 CharacterStatus::Active
@@ -45,7 +46,7 @@ pub(crate) fn apply(
                     name: valid_name(name, "name")?,
                     owner: *owner,
                     status,
-                    sheet_json: sheet_json.clone(),
+                    sheet_json,
                     version: Version::INITIAL,
                 },
             }])
@@ -63,7 +64,7 @@ pub(crate) fn apply(
             }
             if let Some(sheet) = sheet_json {
                 validate_sheet_json(sheet)?;
-                c.sheet_json.clone_from(sheet);
+                c.sheet_json = crate::plugins::normalize_sheet(state, sheet)?;
             }
             Ok(())
         }),

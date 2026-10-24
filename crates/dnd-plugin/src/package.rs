@@ -237,6 +237,11 @@ fn extract(bytes: &[u8], limits: PackageLimits) -> PluginResult<Files> {
     Ok(files)
 }
 
+/// Whether a package may contain this name (see [`classify`]).
+pub(crate) fn is_package_name(name: &str) -> bool {
+    classify(name).is_some()
+}
+
 /// The only names a package may contain.
 fn classify(name: &str) -> Option<Entry> {
     match name {

@@ -445,7 +445,7 @@ fn query_inventory_matches_adr_0008() {
         .map(|s| s.matches("sqlx::query").count())
         .sum();
     assert_eq!(
-        count, 53,
+        count, 56,
         "runtime queries changed: add a real-SQLite test and update the table in docs/adr/0008-db-conventions.md"
     );
 }
@@ -608,6 +608,80 @@ async fn joined_users_are_projected_and_redacted_events_refused() {
     assert!(refused.is_err());
     let (state, last) = db.load_state().await.unwrap();
     assert_eq!((state.users.len(), last), (2, Seq(2)));
+}
+
+/// Plugins (ADR-0023): installed with their rules, replaced on reinstall, chosen as the system,
+/// uninstalled; everything survives a reload.
+#[tokio::test]
+async fn plugins_and_the_system_are_projected_and_loaded() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = new_campaign(&dir).await;
+    let mut plugin = PluginDto {
+        id: "srd5".into(),
+        version: "0.1.0".into(),
+        kind: PluginKind::System,
+        name: Label::Text("SRD".into()),
+        license: "CC-BY-4.0".into(),
+        attribution: Some("SRD 5.2".into()),
+        archive_sha256: "a".repeat(64),
+        system: Some(SystemRulesDto {
+            sheet_schema: serde_json::json!({ "type": "object", "properties": {} }),
+            sheet_layout: serde_json::json!({ "type": "section", "children": [] }),
+            computed: std::collections::BTreeMap::new(),
+            initiative: "1d20".into(),
+            resources: Vec::new(),
+            health_thresholds: vec![75, 25, 0],
+            rolls: Vec::new(),
+        }),
+    };
+    let theme = PluginDto {
+        id: "dark".into(),
+        kind: PluginKind::Theme,
+        system: None,
+        ..plugin.clone()
+    };
+    db.project(&[record(
+        1,
+        None,
+        vec![
+            Event::PluginInstalled {
+                plugin: Box::new(plugin.clone()),
+            },
+            Event::PluginInstalled {
+                plugin: Box::new(theme),
+            },
+            Event::SystemPluginSet {
+                id: Some("srd5".into()),
+            },
+        ],
+    )])
+    .await
+    .unwrap();
+    plugin.version = "0.2.0".into();
+    db.project(&[record(
+        4,
+        None,
+        vec![
+            Event::PluginInstalled {
+                plugin: Box::new(plugin.clone()),
+            },
+            Event::PluginUninstalled { id: "dark".into() },
+        ],
+    )])
+    .await
+    .unwrap();
+    let (state, _) = db.load_state().await.unwrap();
+    assert_eq!(
+        state.plugins.values().cloned().collect::<Vec<_>>(),
+        [plugin]
+    );
+    assert_eq!(state.system_plugin.as_deref(), Some("srd5"));
+
+    db.project(&[record(6, None, vec![Event::SystemPluginSet { id: None }])])
+        .await
+        .unwrap();
+    let (state, _) = db.load_state().await.unwrap();
+    assert_eq!(state.system_plugin, None);
 }
 
 /// Journal projection: insert keeps `created_at`, updates move `updated_at`, delete removes.

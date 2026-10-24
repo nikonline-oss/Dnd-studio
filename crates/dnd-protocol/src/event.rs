@@ -12,6 +12,7 @@ use crate::model::{
     AssetDto, CampaignMeta, CharacterDto, ChatMessageDto, CombatDto, CombatantDto, FogOp,
     JournalEntryDto, JournalFolderDto, MapDto, TokenDto, UserDto,
 };
+use crate::plugin::PluginDto;
 
 /// A fact about a state change.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -125,6 +126,18 @@ pub enum Event {
     /// session server when someone joins, not by an intent (ADR-0022).
     UserJoined {
         user: UserDto,
+    },
+
+    /// A plugin is installed (or replaced) in the campaign (ADR-0023).
+    PluginInstalled {
+        plugin: Box<PluginDto>,
+    },
+    PluginUninstalled {
+        id: String,
+    },
+    /// The campaign's rules changed.
+    SystemPluginSet {
+        id: Option<String>,
     },
 
     /// Stands in for an event the recipient may not see, so sequence numbers stay contiguous

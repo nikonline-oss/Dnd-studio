@@ -12,8 +12,12 @@ publish.workspace = true
 [dependencies]
 dnd-protocol.workspace = true
 dnd-dice.workspace = true
+dnd-expr.workspace = true
+serde_json.workspace = true
 
 [dev-dependencies]
+# Builds the bundled system plugins for tests (dev only; the core itself never reads packages).
+dnd-plugin.workspace = true
 dnd-protocol = { workspace = true, features = ["arbitrary"] }
 proptest.workspace = true
 uuid.workspace = true

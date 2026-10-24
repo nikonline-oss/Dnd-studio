@@ -224,13 +224,11 @@ pub fn filter_for_players(before: &GameState, after: &GameState, batch: &EventBa
     let shown = |now_has: bool, now_sees: bool, was_sees: bool| {
         if now_has { now_sees } else { was_sees }
     };
-    let events =
-        batch
-            .events
-            .iter()
-            .map(|event| {
-                let visible =
-                    match event {
+    let events = batch
+        .events
+        .iter()
+        .map(|event| {
+            let visible = match event {
                         Event::MapCreated { map } | Event::MapUpdated { map } => shown(
                             after.maps.contains_key(&map.id),
                             now.maps.contains(&map.id),
@@ -290,15 +288,19 @@ pub fn filter_for_players(before: &GameState, after: &GameState, batch: &EventBa
                         | Event::CharacterCreated { .. }
                         | Event::CharacterUpdated { .. }
                         | Event::UserJoined { .. }
+                        // Rules are the same for everyone.
+                        | Event::PluginInstalled { .. }
+                        | Event::PluginUninstalled { .. }
+                        | Event::SystemPluginSet { .. }
                         | Event::Redacted => true,
                     };
-                if visible {
-                    event.clone()
-                } else {
-                    Event::Redacted
-                }
-            })
-            .collect();
+            if visible {
+                event.clone()
+            } else {
+                Event::Redacted
+            }
+        })
+        .collect();
     ForPlayers::Batch(EventBatch {
         events,
         ..batch.clone()

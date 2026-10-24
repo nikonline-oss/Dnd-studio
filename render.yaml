@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: dnd-session-server
+    runtime: docker
+    plan: free
+    dockerfilePath: ./apps/session-server/Dockerfile
+    dockerContext: .
+    envVars:
+      - key: DND_HOST_TOKEN
+        sync: false
+      - key: DND_DATA_DIR
+        value: /data # Будет эфемерным
+      - key: DND_BIND
+        value: 0.0.0.0:10000
+      - key: PORT
+        value: 10000

@@ -96,6 +96,15 @@ pub fn evolve(state: &mut GameState, event: &Event) {
         Event::AssetRegistered { asset } => {
             state.assets.insert(asset.id, asset.as_ref().clone());
         }
+        Event::PluginInstalled { plugin } => {
+            state
+                .plugins
+                .insert(plugin.id.clone(), plugin.as_ref().clone());
+        }
+        Event::PluginUninstalled { id } => {
+            state.plugins.remove(id);
+        }
+        Event::SystemPluginSet { id } => state.system_plugin.clone_from(id),
         Event::UserJoined { user } => {
             state.users.insert(user.id, user.clone());
         }

@@ -7,6 +7,7 @@ use crate::model::{
     AssetDto, CampaignMeta, CharacterDto, ChatMessageDto, CombatDto, CombatantDto, FogDto,
     JournalEntryMeta, JournalFolderDto, MapDto, TokenDto, UserDto,
 };
+use crate::plugin::PluginDto;
 
 /// The visible state as of event `seq`.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -31,4 +32,8 @@ pub struct Snapshot {
     pub combatants: Vec<CombatantDto>,
     /// The last `CHAT_SNAPSHOT_LEN` chat messages, oldest first.
     pub chat: Vec<ChatMessageDto>,
+    /// Plugins installed in the campaign (ADR-0023).
+    pub plugins: Vec<PluginDto>,
+    /// Id of the campaign's system plugin.
+    pub system_plugin: Option<String>,
 }

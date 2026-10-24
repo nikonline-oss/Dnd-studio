@@ -262,6 +262,12 @@ pub fn apply(
         | Intent::MoveJournalFolder { .. }
         | Intent::DeleteJournalFolder { .. } => crate::journal::apply(state, intent, actor)
             .unwrap_or(Err(RejectReason::invalid("intent"))),
+
+        Intent::InstallPlugin { .. }
+        | Intent::UninstallPlugin { .. }
+        | Intent::SetSystemPlugin { .. } => {
+            crate::plugins::apply(state, intent).unwrap_or(Err(RejectReason::invalid("intent")))
+        }
     }
 }
 
@@ -295,7 +301,10 @@ fn current_version(state: &GameState, intent: &Intent) -> Result<Version, Reject
         | Intent::ResetFog { .. }
         | Intent::StartCombat { .. }
         | Intent::AddCombatant { .. }
-        | Intent::CreateJournalFolder { .. } => None,
+        | Intent::CreateJournalFolder { .. }
+        | Intent::InstallPlugin { .. }
+        | Intent::UninstallPlugin { .. }
+        | Intent::SetSystemPlugin { .. } => None,
         Intent::RenameJournalFolder { id, .. }
         | Intent::MoveJournalFolder { id, .. }
         | Intent::DeleteJournalFolder { id } => state.journal_folders.get(id).map(|f| f.version),

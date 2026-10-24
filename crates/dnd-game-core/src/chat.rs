@@ -2,14 +2,14 @@
 //! rolls and system messages posted by the core. Chat history is not part of `GameState`: no rule
 //! depends on it, and it grows without bound.
 
-use dnd_dice::{DiceRng, Expr, FieldLookup, LookupError, Sign, TermDetail};
+use dnd_dice::{DiceRng, Expr, Sign, TermDetail};
 use dnd_protocol::{
     ChatKind, ChatMessageDto, ChatMessageId, ChatVisibility, DiceRollDto, DiceTermDto, DieDto,
-    Event, Intent, MAX_CHAT_LEN, RejectReason, SheetFieldError, SystemMessage, sheet_field,
-    uuid_v7_from_random,
+    Event, Intent, MAX_CHAT_LEN, RejectReason, SystemMessage, uuid_v7_from_random,
 };
 
 use crate::permissions::Actor;
+use crate::plugins::CharacterFields;
 use crate::rng::GameRng;
 use crate::state::GameState;
 
@@ -19,19 +19,6 @@ pub(crate) struct DiceRngAdapter<'a>(pub(crate) &'a mut dyn GameRng);
 impl DiceRng for DiceRngAdapter<'_> {
     fn next_u64(&mut self) -> u64 {
         self.0.next_u64()
-    }
-}
-
-/// `@path` references resolve against a character sheet (integers only, ADR-0016).
-pub(crate) struct SheetFields<'a>(pub(crate) Option<&'a str>);
-
-impl FieldLookup for SheetFields<'_> {
-    fn lookup(&self, path: &str) -> Result<i64, LookupError> {
-        let sheet = self.0.ok_or(LookupError::Unknown)?;
-        sheet_field(sheet, path).map_err(|e| match e {
-            SheetFieldError::Unknown => LookupError::Unknown,
-            SheetFieldError::NotAnInteger => LookupError::NotAnInteger,
-        })
     }
 }
 
@@ -83,7 +70,10 @@ pub(crate) fn apply(
             };
             let expr = Expr::parse(expression).map_err(|_| RejectReason::invalid("expression"))?;
             let roll = expr
-                .roll(&SheetFields(sheet), &mut DiceRngAdapter(rng))
+                .roll(
+                    &CharacterFields::new(state, sheet),
+                    &mut DiceRngAdapter(rng),
+                )
                 .map_err(|_| RejectReason::invalid("expression"))?;
             Ok(vec![posted(ChatMessageDto {
                 id: *id,

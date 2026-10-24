@@ -5,7 +5,8 @@ use std::collections::BTreeMap;
 use dnd_protocol::{
     AssetDto, AssetId, CampaignMeta, CharacterDto, CharacterId, CombatDto, CombatId, CombatantDto,
     CombatantId, FogDto, JournalEntryDto, JournalEntryId, JournalEntryMeta, JournalFolderDto,
-    JournalFolderId, MapDto, MapId, Seq, Snapshot, TokenDto, TokenId, UserDto, UserId, Version,
+    JournalFolderId, MapDto, MapId, PluginDto, Seq, Snapshot, SystemRulesDto, TokenDto, TokenId,
+    UserDto, UserId, Version,
 };
 
 /// The authoritative state the core reasons about. Ordered maps keep iteration (and therefore
@@ -27,6 +28,10 @@ pub struct GameState {
     /// Combats (at most one per map) and their combatants (ADR-0020).
     pub combats: BTreeMap<CombatId, CombatDto>,
     pub combatants: BTreeMap<CombatantId, CombatantDto>,
+    /// Plugins installed in the campaign, by id (ADR-0023).
+    pub plugins: BTreeMap<String, PluginDto>,
+    /// The campaign's system plugin; its rules govern sheets and rolls.
+    pub system_plugin: Option<String>,
 }
 
 impl GameState {
@@ -49,7 +54,18 @@ impl GameState {
             fog: BTreeMap::new(),
             combats: BTreeMap::new(),
             combatants: BTreeMap::new(),
+            plugins: BTreeMap::new(),
+            system_plugin: None,
         }
+    }
+
+    /// The rules of the campaign's system plugin, if it has one.
+    #[must_use]
+    pub fn rules(&self) -> Option<&SystemRulesDto> {
+        self.system_plugin
+            .as_ref()
+            .and_then(|id| self.plugins.get(id))
+            .and_then(|p| p.system.as_ref())
     }
 
     /// Rebuilds state from a snapshot. Journal texts are not part of a snapshot (fetched per
@@ -89,6 +105,12 @@ impl GameState {
             fog: snapshot.fog.into_iter().map(|f| (f.map_id, f)).collect(),
             combats: snapshot.combats.into_iter().map(|c| (c.id, c)).collect(),
             combatants: snapshot.combatants.into_iter().map(|c| (c.id, c)).collect(),
+            plugins: snapshot
+                .plugins
+                .into_iter()
+                .map(|p| (p.id.clone(), p))
+                .collect(),
+            system_plugin: snapshot.system_plugin,
         }
     }
 
@@ -110,6 +132,8 @@ impl GameState {
             combatants: self.combatants.values().cloned().collect(),
             // Chat history is kept by the server layer, not by the core.
             chat: Vec::new(),
+            plugins: self.plugins.values().cloned().collect(),
+            system_plugin: self.system_plugin.clone(),
         }
     }
 

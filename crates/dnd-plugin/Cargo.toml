@@ -9,6 +9,7 @@ repository.workspace = true
 publish.workspace = true
 
 [dependencies]
+dnd-protocol.workspace = true
 jsonschema.workspace = true
 semver.workspace = true
 serde.workspace = true

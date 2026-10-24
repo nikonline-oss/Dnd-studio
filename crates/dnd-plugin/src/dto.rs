@@ -1,45 +1,11 @@
-//! What the game core receives about an installed plugin (wave 2 moves these into
-//! `dnd-protocol`). Plugins are stored inside the campaign, addressed by the package's SHA-256;
-//! a system plugin's rules become game state, so the session server gets them with the campaign.
+//! What the game core receives about an installed plugin (the types live in `dnd-protocol`).
+//! Plugins are stored inside the campaign, addressed by the package's SHA-256; a system plugin's
+//! rules become game state, so the session server gets them with the campaign.
 
-use std::collections::BTreeMap;
-
-use serde::{Deserialize, Serialize};
+pub use dnd_protocol::{PluginDto as InstalledPluginDto, SystemRulesDto};
 use serde_json::Value;
 
-use crate::model::{Label, PluginKind, ResourceDef, RollDef};
 use crate::package::{PluginPackage, SystemPackage};
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct InstalledPluginDto {
-    pub id: String,
-    /// Semver, as in the manifest.
-    pub version: String,
-    pub kind: PluginKind,
-    pub name: Label,
-    pub license: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub attribution: Option<String>,
-    /// Lowercase hex SHA-256 of the `.dndplugin` file.
-    pub archive_sha256: String,
-    /// Present exactly for `kind: system`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub system: Option<SystemRulesDto>,
-}
-
-/// The rules of a system plugin, self-contained (no package paths).
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct SystemRulesDto {
-    /// Sheet data schema (JSON Schema subset, docs/plugin-format.md).
-    pub sheet_schema: Value,
-    /// Root layout node.
-    pub sheet_layout: Value,
-    pub computed: BTreeMap<String, String>,
-    pub initiative: String,
-    pub resources: Vec<ResourceDef>,
-    pub health_thresholds: Vec<u8>,
-    pub rolls: Vec<RollDef>,
-}
 
 impl PluginPackage {
     pub fn to_dto(&self) -> InstalledPluginDto {

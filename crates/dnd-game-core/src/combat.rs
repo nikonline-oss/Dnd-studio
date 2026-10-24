@@ -11,8 +11,9 @@ use dnd_protocol::{
 };
 
 use crate::apply::{bump, valid_name};
-use crate::chat::{DiceRngAdapter, SheetFields, message_id, posted, roll_dto, sender_name};
+use crate::chat::{DiceRngAdapter, message_id, posted, roll_dto, sender_name};
 use crate::permissions::Actor;
+use crate::plugins::CharacterFields;
 use crate::rng::GameRng;
 use crate::state::GameState;
 
@@ -188,10 +189,16 @@ fn roll(
         .character_id
         .and_then(|c| state.characters.get(&c))
         .map(|c| c.sheet_json.as_str());
-    let expression = initiative_expression(sheet);
+    // The system's formula (ADR-0023), or the built-in one for campaigns without a system.
+    let expression = state
+        .rules()
+        .map_or_else(|| initiative_expression(sheet), |r| r.initiative.as_str());
     let expr = Expr::parse(expression).map_err(|_| RejectReason::invalid("expression"))?;
     let roll = expr
-        .roll(&SheetFields(sheet), &mut DiceRngAdapter(rng))
+        .roll(
+            &CharacterFields::new(state, sheet),
+            &mut DiceRngAdapter(rng),
+        )
         .map_err(|_| RejectReason::invalid("expression"))?;
     // A combatant the players cannot see rolls where they cannot see it either.
     let hidden = combatant

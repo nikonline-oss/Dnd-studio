@@ -7,8 +7,8 @@ use dnd_protocol::{
     AssetDto, AssetId, AssetTileDto, CampaignMeta, CharacterDto, CharacterId, ChatKind,
     ChatMessageDto, ChatMessageId, CombatDto, CombatId, CombatantDto, CombatantId, DiceRollDto,
     Event, EventBatch, FogDto, FogOp, Grid, GridKind, IntentId, JournalEntryDto, JournalEntryId,
-    JournalFolderDto, JournalFolderId, MapDto, MapId, PayloadHash, Role, Seq, SystemMessage,
-    TokenDto, TokenId, TokenLayer, UserDto, UserId, Version,
+    JournalFolderDto, JournalFolderId, MapDto, MapId, PayloadHash, PluginDto, Role, Seq,
+    SystemMessage, TokenDto, TokenId, TokenLayer, UserDto, UserId, Version,
 };
 use serde::{Deserialize, Serialize};
 use sqlx::sqlite::SqliteRow;
@@ -30,6 +30,8 @@ const META_NAME: &str = "campaign.name";
 const META_DESCRIPTION: &str = "campaign.description";
 const META_VERSION: &str = "campaign.version";
 const META_LOCAL_USER: &str = "local.user_id";
+/// The campaign's system plugin (ADR-0023); empty for none.
+const META_SYSTEM_PLUGIN: &str = "campaign.system_plugin";
 
 /// The user that owns the campaign on this machine (the GM in local play).
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -484,6 +486,16 @@ impl CampaignDb {
             };
             state.journal_folders.insert(folder.id, folder);
         }
+        for row in sqlx::query("SELECT dto FROM installed_plugins ORDER BY id")
+            .fetch_all(&self.pool)
+            .await?
+        {
+            let plugin: PluginDto = serde_json::from_str(&row.try_get::<String, _>("dto")?)?;
+            state.plugins.insert(plugin.id.clone(), plugin);
+        }
+        state.system_plugin = get_meta(&self.pool, META_SYSTEM_PLUGIN)
+            .await?
+            .filter(|id| !id.is_empty());
         for row in sqlx::query(
             "SELECT id, usage, sha256, mime, size_bytes, original_name, width, height, \n             display_sha256, thumbnail_sha256, tiles, version FROM assets ORDER BY id",
         )
@@ -654,6 +666,28 @@ async fn project_event(conn: &mut SqliteConnection, event: &Event, at_ms: i64) -
             Ok(())
         }
         Event::ChatMessagePosted { message } => insert_chat_message(conn, message, at_ms).await,
+        Event::PluginInstalled { plugin } => {
+            sqlx::query(
+                "INSERT INTO installed_plugins (id, version, active, installed_at, dto)                  VALUES (?, ?, 1, ?, ?)                  ON CONFLICT (id) DO UPDATE SET version = excluded.version, dto = excluded.dto,                      active = 1, row_version = row_version + 1",
+            )
+            .bind(&plugin.id)
+            .bind(&plugin.version)
+            .bind(at_ms)
+            .bind(serde_json::to_string(plugin.as_ref())?)
+            .execute(&mut *conn)
+            .await?;
+            Ok(())
+        }
+        Event::PluginUninstalled { id } => {
+            sqlx::query("DELETE FROM installed_plugins WHERE id = ?")
+                .bind(id)
+                .execute(conn)
+                .await?;
+            Ok(())
+        }
+        Event::SystemPluginSet { id } => {
+            set_meta(conn, META_SYSTEM_PLUGIN, id.as_deref().unwrap_or_default()).await
+        }
         Event::UserJoined { user } => {
             sqlx::query(
                 "INSERT INTO users (id, name, role, created_at) VALUES (?, ?, ?, ?)                  ON CONFLICT (id) DO UPDATE SET name = excluded.name, role = excluded.role,                      version = version + 1",

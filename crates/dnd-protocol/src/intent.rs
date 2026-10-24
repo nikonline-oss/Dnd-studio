@@ -7,6 +7,7 @@ use crate::ids::{
     JournalFolderId, MapId, TokenId, UserId, Version,
 };
 use crate::model::{AssetDto, CharacterKind, FogOp, Grid, JournalVisibility, TokenLayer};
+use crate::plugin::PluginDto;
 
 /// An intent together with its correlation id and the version it was based on (ADR-0003).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -248,6 +249,20 @@ pub enum Intent {
         hidden: bool,
         character_id: Option<CharacterId>,
     },
+
+    /// GM / Co-GM: installs (or replaces) a plugin in the campaign (ADR-0023). The client reads
+    /// the package; the core checks the rules again.
+    InstallPlugin {
+        plugin: Box<PluginDto>,
+    },
+    /// GM / Co-GM. The campaign's system plugin cannot be uninstalled.
+    UninstallPlugin {
+        id: String,
+    },
+    /// GM / Co-GM: the campaign's rules (`None`: no system, free-form sheets).
+    SetSystemPlugin {
+        id: Option<String>,
+    },
 }
 
 /// What kind of version handling an intent needs.
@@ -301,6 +316,9 @@ impl Intent {
             Self::RegisterAsset { .. } => "register_asset",
             Self::SendMessage { .. } => "send_message",
             Self::RollDice { .. } => "roll_dice",
+            Self::InstallPlugin { .. } => "install_plugin",
+            Self::UninstallPlugin { .. } => "uninstall_plugin",
+            Self::SetSystemPlugin { .. } => "set_system_plugin",
         }
     }
 
@@ -319,7 +337,12 @@ impl Intent {
             | Self::StartCombat { .. }
             | Self::AddCombatant { .. }
             | Self::CreateJournalFolder { .. } => VersionPolicy::Create,
-            Self::MoveToken { .. } | Self::ResetFog { .. } => VersionPolicy::LastWriteWins,
+            // Plugins are configuration the GM owns: the last choice wins.
+            Self::MoveToken { .. }
+            | Self::ResetFog { .. }
+            | Self::InstallPlugin { .. }
+            | Self::UninstallPlugin { .. }
+            | Self::SetSystemPlugin { .. } => VersionPolicy::LastWriteWins,
             Self::UpdateCampaignMeta { .. }
             | Self::UpdateMap { .. }
             | Self::DeleteMap { .. }

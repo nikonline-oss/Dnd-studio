@@ -109,7 +109,7 @@ fn dto_for_the_core() {
 
     let content = content_package().read().unwrap().to_dto();
     let json = serde_json::to_value(&content).unwrap();
-    assert!(json.get("system").is_none());
+    assert_eq!(json["system"], serde_json::Value::Null);
 }
 
 #[test]

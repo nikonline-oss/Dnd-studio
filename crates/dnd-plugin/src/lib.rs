@@ -11,6 +11,7 @@ mod dto;
 mod error;
 mod meta;
 mod model;
+mod pack;
 mod package;
 mod sheet;
 
@@ -22,11 +23,12 @@ pub use model::{
     LocalizedText, Manifest, PLUGIN_FORMAT, PluginKind, ResourceDef, RollDef, SheetRef,
     SystemRules, Widget,
 };
+pub use pack::pack_directory;
 pub use package::{
     AssetFormat, MANIFEST_FILE, PackageAsset, PackageLimits, PluginPackage, SYSTEM_FILE,
     SystemPackage, hex_sha256, read_package, read_package_file,
 };
-pub use sheet::{MAX_LAYOUT_DEPTH, MAX_SCHEMA_DEPTH, check_data};
+pub use sheet::{MAX_LAYOUT_DEPTH, MAX_SCHEMA_DEPTH, apply_defaults, check_data, check_schema};
 
 /// Re-exported so callers name versions with the same types the manifest uses.
 pub use semver;
