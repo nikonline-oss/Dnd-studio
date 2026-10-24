@@ -1,0 +1,196 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "dndstudio declarative sheet layout",
+  "$ref": "#/$defs/node",
+  "$defs": {
+    "node": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "enum": [
+            "tabs",
+            "section",
+            "row",
+            "grid",
+            "field",
+            "computed",
+            "roll",
+            "resource",
+            "list",
+            "text"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "type": { "const": "tabs" } } },
+          "then": { "$ref": "#/$defs/tabs" }
+        },
+        {
+          "if": { "properties": { "type": { "const": "section" } } },
+          "then": { "$ref": "#/$defs/section" }
+        },
+        {
+          "if": { "properties": { "type": { "const": "row" } } },
+          "then": { "$ref": "#/$defs/row" }
+        },
+        {
+          "if": { "properties": { "type": { "const": "grid" } } },
+          "then": { "$ref": "#/$defs/grid" }
+        },
+        {
+          "if": { "properties": { "type": { "const": "field" } } },
+          "then": { "$ref": "#/$defs/field" }
+        },
+        {
+          "if": { "properties": { "type": { "const": "computed" } } },
+          "then": { "$ref": "#/$defs/computed" }
+        },
+        {
+          "if": { "properties": { "type": { "const": "roll" } } },
+          "then": { "$ref": "#/$defs/roll" }
+        },
+        {
+          "if": { "properties": { "type": { "const": "resource" } } },
+          "then": { "$ref": "#/$defs/resource" }
+        },
+        {
+          "if": { "properties": { "type": { "const": "list" } } },
+          "then": { "$ref": "#/$defs/list" }
+        },
+        {
+          "if": { "properties": { "type": { "const": "text" } } },
+          "then": { "$ref": "#/$defs/text" }
+        }
+      ]
+    },
+    "children": { "type": "array", "maxItems": 256, "items": { "$ref": "#/$defs/node" } },
+    "tabs": {
+      "additionalProperties": false,
+      "required": ["tabs"],
+      "properties": {
+        "type": true,
+        "tabs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["label", "children"],
+            "properties": {
+              "label": { "$ref": "#/$defs/label" },
+              "children": { "$ref": "#/$defs/children" }
+            }
+          }
+        }
+      }
+    },
+    "section": {
+      "additionalProperties": false,
+      "required": ["children"],
+      "properties": {
+        "type": true,
+        "label": { "$ref": "#/$defs/label" },
+        "children": { "$ref": "#/$defs/children" }
+      }
+    },
+    "row": {
+      "additionalProperties": false,
+      "required": ["children"],
+      "properties": { "type": true, "children": { "$ref": "#/$defs/children" } }
+    },
+    "grid": {
+      "additionalProperties": false,
+      "required": ["columns", "children"],
+      "properties": {
+        "type": true,
+        "columns": { "type": "integer", "minimum": 1, "maximum": 12 },
+        "children": { "$ref": "#/$defs/children" }
+      }
+    },
+    "field": {
+      "additionalProperties": false,
+      "required": ["path", "label"],
+      "properties": {
+        "type": true,
+        "path": { "$ref": "#/$defs/path" },
+        "label": { "$ref": "#/$defs/label" },
+        "widget": { "enum": ["number", "text", "checkbox", "select", "textarea"] }
+      }
+    },
+    "computed": {
+      "additionalProperties": false,
+      "required": ["name", "label"],
+      "properties": {
+        "type": true,
+        "name": { "$ref": "#/$defs/ident" },
+        "label": { "$ref": "#/$defs/label" }
+      }
+    },
+    "roll": {
+      "additionalProperties": false,
+      "required": ["roll"],
+      "properties": {
+        "type": true,
+        "roll": { "$ref": "#/$defs/ident" },
+        "label": { "$ref": "#/$defs/label" }
+      }
+    },
+    "resource": {
+      "additionalProperties": false,
+      "required": ["resource"],
+      "properties": { "type": true, "resource": { "$ref": "#/$defs/ident" } }
+    },
+    "list": {
+      "additionalProperties": false,
+      "required": ["path", "label", "item"],
+      "properties": {
+        "type": true,
+        "path": { "$ref": "#/$defs/path" },
+        "label": { "$ref": "#/$defs/label" },
+        "item": { "$ref": "#/$defs/children" }
+      }
+    },
+    "text": {
+      "additionalProperties": false,
+      "required": ["text"],
+      "properties": { "type": true, "text": { "$ref": "#/$defs/long_label" } }
+    },
+    "ident": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$", "maxLength": 64 },
+    "path": {
+      "type": "string",
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*$",
+      "maxLength": 256
+    },
+    "label": {
+      "oneOf": [
+        { "type": "string", "minLength": 1, "maxLength": 200 },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "properties": {
+            "ru": { "type": "string", "minLength": 1, "maxLength": 200 },
+            "en": { "type": "string", "minLength": 1, "maxLength": 200 }
+          }
+        }
+      ]
+    },
+    "long_label": {
+      "oneOf": [
+        { "type": "string", "minLength": 1, "maxLength": 4000 },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "properties": {
+            "ru": { "type": "string", "minLength": 1, "maxLength": 4000 },
+            "en": { "type": "string", "minLength": 1, "maxLength": 4000 }
+          }
+        }
+      ]
+    }
+  }
+}
