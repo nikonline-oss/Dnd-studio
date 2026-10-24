@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "The JSON Schema subset allowed for sheet data (the game core checks it itself)",
+  "$ref": "#/$defs/node",
+  "$defs": {
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": { "enum": ["object", "integer", "string", "boolean", "array"] },
+        "title": { "$ref": "#/$defs/label" },
+        "default": true,
+        "properties": {
+          "type": "object",
+          "maxProperties": 256,
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+            "maxLength": 64
+          },
+          "additionalProperties": { "$ref": "#/$defs/node" }
+        },
+        "required": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string" }
+        },
+        "minimum": { "$ref": "#/$defs/safe_int" },
+        "maximum": { "$ref": "#/$defs/safe_int" },
+        "maxLength": { "type": "integer", "minimum": 0, "maximum": 65536 },
+        "enum": { "type": "array", "minItems": 1, "maxItems": 256, "uniqueItems": true },
+        "items": { "$ref": "#/$defs/node" },
+        "maxItems": { "type": "integer", "minimum": 0, "maximum": 1000 }
+      }
+    },
+    "safe_int": { "type": "integer", "minimum": -9007199254740991, "maximum": 9007199254740991 },
+    "label": {
+      "oneOf": [
+        { "type": "string", "minLength": 1, "maxLength": 200 },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "properties": {
+            "ru": { "type": "string", "minLength": 1, "maxLength": 200 },
+            "en": { "type": "string", "minLength": 1, "maxLength": 200 }
+          }
+        }
+      ]
+    }
+  }
+}
