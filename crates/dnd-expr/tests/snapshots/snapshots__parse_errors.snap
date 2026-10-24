@@ -1,0 +1,28 @@
+---
+source: crates/dnd-expr/tests/snapshots.rs
+expression: "report(&[\"\", \"1 +\", \"(1 + 2\", \"1 2\", \"1 = 2\", \"1 & 2\", \"1 < 2 < 3\",\n\"1 == 2 != 3\", \"@\", \"@1a\", \"@a.\", \"str + 1\", \"sqrt(4)\", \"min()\",\n\"floor(1, 2)\", \"min(1,)\", \"if true then 1\", \"if true 1 else 2\", \"if then\",\n\"1d6\", \"99999999999999999999\", \"abs(1\", \"1 + * 2\", \"#\",], |s|\nExpr::parse(s).map(|_| Value::Bool(true)),)"
+---
+"" => empty @ -: expression is empty
+"1 +" => syntax @ 3: syntax error at position 3: expected number, @field, `(`, function call, `if`, `true` or `false`
+"(1 + 2" => syntax @ 6: syntax error at position 6: expected `)`
+"1 2" => syntax @ 2: syntax error at position 2: expected operator or end of expression
+"1 = 2" => syntax @ 2: syntax error at position 2: expected operator or end of expression
+"1 & 2" => syntax @ 2: syntax error at position 2: expected operator or end of expression
+"1 < 2 < 3" => chained_comparison @ 6: comparisons cannot be chained (position 6); use parentheses and `&&`
+"1 == 2 != 3" => chained_comparison @ 7: comparisons cannot be chained (position 7); use parentheses and `&&`
+"@" => syntax @ 1: syntax error at position 1: expected field name
+"@1a" => syntax @ 1: syntax error at position 1: expected field name
+"@a." => syntax @ 2: syntax error at position 2: expected operator or end of expression
+"str + 1" => unknown_name @ 0: unknown name `str` at position 0; fields are written as `@str`
+"sqrt(4)" => unknown_function @ 0: unknown function `sqrt` at position 0; available: min, max, floor, ceil, round, abs
+"min()" => wrong_arity @ 0: `min` at position 0 takes 1 or more argument(s), got 0
+"floor(1, 2)" => wrong_arity @ 0: `floor` at position 0 takes 1 argument(s), got 2
+"min(1,)" => syntax @ 6: syntax error at position 6: expected number, @field, `(`, function call, `if`, `true` or `false`
+"if true then 1" => syntax @ 14: syntax error at position 14: expected `else`
+"if true 1 else 2" => syntax @ 8: syntax error at position 8: expected `then`
+"if then" => syntax @ 3: syntax error at position 3: expected an expression, found `then`
+"1d6" => syntax @ 1: syntax error at position 1: expected operator or end of expression
+"99999999999999999999" => integer_out_of_range @ 0: integer at position 0 is out of range
+"abs(1" => syntax @ 5: syntax error at position 5: expected `,` or `)`
+"1 + * 2" => syntax @ 4: syntax error at position 4: expected number, @field, `(`, function call, `if`, `true` or `false`
+"#" => syntax @ 0: syntax error at position 0: expected number, @field, `(`, function call, `if`, `true` or `false`

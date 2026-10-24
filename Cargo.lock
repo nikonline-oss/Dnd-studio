@@ -1278,6 +1278,7 @@ dependencies = [
 name = "dnd-dice"
 version = "0.0.1"
 dependencies = [
+ "dnd-expr",
  "insta",
  "proptest",
  "serde",
@@ -1289,6 +1290,14 @@ dependencies = [
 [[package]]
 name = "dnd-expr"
 version = "0.0.1"
+dependencies = [
+ "insta",
+ "proptest",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "winnow 1.0.4",
+]
 
 [[package]]
 name = "dnd-game-core"

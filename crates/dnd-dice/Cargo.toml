@@ -10,6 +10,7 @@ publish.workspace = true
 
 # Boundary (CLAUDE.md §4): may depend only on dnd-expr. No I/O; randomness is injected.
 [dependencies]
+dnd-expr.workspace = true
 serde.workspace = true
 thiserror.workspace = true
 winnow.workspace = true

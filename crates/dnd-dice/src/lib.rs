@@ -34,7 +34,7 @@ pub mod limits {
 
 pub use ast::{Dice, Expr, Modifier, Sides, Sign, SignedTerm, Term};
 pub use error::DiceError;
-pub use fields::{FieldLookup, LookupError, NoFields};
+pub use fields::{ExprFields, FieldLookup, LookupError, NoFields};
 pub use rng::{DiceRng, SplitMix64, uniform};
 pub use roll::{Die, Roll, TermDetail, TermRoll, roll};
 
