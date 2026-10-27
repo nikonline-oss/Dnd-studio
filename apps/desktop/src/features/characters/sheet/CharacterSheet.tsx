@@ -8,14 +8,18 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type CSSProperties,
   type KeyboardEvent,
 } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Icon } from '@/shared/ui/Icon';
 import {
   clampText,
   defaultValue,
+  formatComputed,
   getPath,
   parseInteger,
+  resolveDice,
   resolveLabel,
   schemaAt,
   setPath,
@@ -58,6 +62,7 @@ interface Actions {
 }
 
 interface Values {
+  data: SheetData;
   computed: Record<string, number>;
   rolls: SheetRoll[];
   resources: SheetResource[];
@@ -66,7 +71,7 @@ interface Values {
 // Two contexts: fields subscribe only to the stable one, so new computed values (which arrive after
 // every edit) re-render the few nodes that show them, not every input.
 const ActionsContext = createContext<Actions | null>(null);
-const ValuesContext = createContext<Values>({ computed: {}, rolls: [], resources: [] });
+const ValuesContext = createContext<Values>({ data: {}, computed: {}, rolls: [], resources: [] });
 
 function useActions(): Actions {
   const actions = useContext(ActionsContext);
@@ -108,7 +113,7 @@ export function CharacterSheet({
   const roots = Array.isArray(layout) ? layout : [layout];
   return (
     <ActionsContext value={{ lang, t, canEdit, schema, emit, roll }}>
-      <ValuesContext value={{ computed, rolls, resources }}>
+      <ValuesContext value={{ data, computed, rolls, resources }}>
         <div className={canEdit ? 'sheet' : 'sheet sheet-readonly'}>
           <Nodes nodes={roots} scope={data} base={[]} />
         </div>
@@ -154,10 +159,8 @@ function NodeView({ node, scope, base }: ScopeProps & { node: SheetNode }) {
     case 'grid': {
       const columns = Number.isInteger(node.columns) ? Math.min(Math.max(node.columns, 1), 12) : 1;
       return (
-        <div
-          className="sheet-grid"
-          style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
-        >
+        // At most `columns`; fewer on a narrow panel (styles.css).
+        <div className="sheet-grid" style={{ '--sheet-cols': columns } as CSSProperties}>
           <Nodes nodes={node.children} scope={scope} base={base} />
         </div>
       );
@@ -173,7 +176,7 @@ function NodeView({ node, scope, base }: ScopeProps & { node: SheetNode }) {
       );
     }
     case 'computed':
-      return <Computed name={node.name} label={node.label} />;
+      return <Computed name={node.name} label={node.label} format={node.format} />;
     case 'roll':
       return <RollButton rollId={node.roll} label={node.label} />;
     case 'resource':
@@ -355,8 +358,18 @@ function TextualField({
   schema: JsonSchema | undefined;
   onCommit: (value: string | number) => void;
 }) {
+  const { t } = useActions();
+  // The label names the input only, not the −/+ buttons next to it.
+  const inputId = useId();
   const [draft, setDraft] = useState<string | null>(null);
   const current = typeof value === 'string' || typeof value === 'number' ? String(value) : '';
+
+  /** −/+ next to a number: the stored value (or 0) moved by one, clamped by the schema. */
+  const step = (delta: number) => {
+    setDraft(null);
+    const n = parseInteger(String((typeof value === 'number' ? value : 0) + delta), schema);
+    if (n !== null && n !== value) onCommit(n);
+  };
 
   const commit = () => {
     if (draft === null) return;
@@ -375,6 +388,7 @@ function TextualField({
     if (e.key === 'Enter' && (widget !== 'textarea' || e.ctrlKey || e.metaKey)) commit();
   };
   const common = {
+    id: inputId,
     value: draft ?? current,
     onChange: (e: { target: { value: string } }) => {
       setDraft(e.target.value);
@@ -384,21 +398,49 @@ function TextualField({
   };
 
   return (
-    <label className={`sheet-field sheet-field-${widget}`}>
-      <span className="sheet-field-label">{label}</span>
+    <div className={`sheet-field sheet-field-${widget}`}>
+      <label className="sheet-field-label" htmlFor={inputId}>
+        {label}
+      </label>
       {widget === 'textarea' ? (
         <textarea {...common} maxLength={schema?.maxLength} rows={4} />
       ) : widget === 'number' ? (
-        <input
-          {...common}
-          type="text"
-          inputMode="numeric"
-          aria-invalid={draft !== null && parseInteger(draft, schema) === null}
-        />
+        <span className="sheet-number">
+          <button
+            type="button"
+            className="sheet-step"
+            tabIndex={-1}
+            aria-label={t('sheet.decrease', { label })}
+            title={t('sheet.decrease', { label })}
+            onClick={() => {
+              step(-1);
+            }}
+          >
+            −
+          </button>
+          <input
+            {...common}
+            type="text"
+            inputMode="numeric"
+            aria-invalid={draft !== null && parseInteger(draft, schema) === null}
+          />
+          <button
+            type="button"
+            className="sheet-step"
+            tabIndex={-1}
+            aria-label={t('sheet.increase', { label })}
+            title={t('sheet.increase', { label })}
+            onClick={() => {
+              step(1);
+            }}
+          >
+            +
+          </button>
+        </span>
       ) : (
         <input {...common} type="text" maxLength={schema?.maxLength} />
       )}
-    </label>
+    </div>
   );
 }
 
@@ -458,7 +500,15 @@ function List({ node, value, path }: { node: ListNode; value: unknown; path: str
   );
 }
 
-function Computed({ name, label }: { name: string; label: Label }) {
+function Computed({
+  name,
+  label,
+  format,
+}: {
+  name: string;
+  label: Label;
+  format: 'plain' | 'signed' | undefined;
+}) {
   const { lang, t } = useActions();
   const { computed } = useContext(ValuesContext);
   const value = computed[name];
@@ -467,7 +517,7 @@ function Computed({ name, label }: { name: string; label: Label }) {
     <div className="sheet-computed">
       <span className="sheet-field-label">{text}</span>
       <output className="sheet-computed-value" aria-label={text}>
-        {value ?? t('sheet.empty')}
+        {value === undefined ? t('sheet.empty') : formatComputed(value, format)}
       </output>
     </div>
   );
@@ -475,7 +525,7 @@ function Computed({ name, label }: { name: string; label: Label }) {
 
 function RollButton({ rollId, label }: { rollId: string; label: Label | undefined }) {
   const { lang, t, roll } = useActions();
-  const { rolls } = useContext(ValuesContext);
+  const { rolls, computed, data } = useContext(ValuesContext);
   const known = rolls.find((r) => r.id === rollId);
   const own = resolveLabel(known?.label, lang) || rollId;
   // The layout may show a short caption ("Roll"); the accessible name stays specific.
@@ -491,8 +541,9 @@ function RollButton({ rollId, label }: { rollId: string; label: Label | undefine
         roll(rollId);
       }}
     >
-      <span>{text}</span>
-      {known && <span className="sheet-roll-dice">{known.dice}</span>}
+      <Icon name="dice" size={14} />
+      <span className="sheet-roll-text">{text}</span>
+      {known && <span className="sheet-roll-dice">{resolveDice(known.dice, computed, data)}</span>}
     </button>
   );
 }

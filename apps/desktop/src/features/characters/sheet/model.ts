@@ -36,6 +36,8 @@ export interface ComputedNode {
   type: 'computed';
   name: string;
   label: Label;
+  /** `signed`: shown with its sign (bonuses, modifiers). */
+  format?: 'plain' | 'signed';
 }
 export interface RollNode {
   type: 'roll';
@@ -230,4 +232,34 @@ export function defaultValue(schema: JsonSchema | undefined): unknown {
       return out;
     }
   }
+}
+
+/** A computed value as the sheet shows it; `signed` adds the sign (`+3`, `−1`, `+0`). */
+export function formatComputed(value: number, format: 'plain' | 'signed' | undefined): string {
+  if (format !== 'signed') return String(value);
+  return value < 0 ? `−${Math.abs(value)}` : `+${value}`;
+}
+
+/**
+ * A roll formula with its field references replaced by the character's numbers, so roll buttons
+ * tell apart at a glance: `1d20 + @dex_save` → `1d20+5`. References it cannot resolve stay.
+ */
+export function resolveDice(
+  dice: string,
+  computed: Record<string, number>,
+  data: SheetData,
+): string {
+  const resolved = dice.replace(/@([A-Za-z_][\w.]*)/g, (ref, path: string) => {
+    const value = computed[path] ?? getPath(data, path);
+    return typeof value === 'number' ? String(value) : ref;
+  });
+  return (
+    resolved
+      .replace(/\s+/g, '')
+      // A negative number after a sign: "+-1" → "-1", "--1" → "+1".
+      .replace(/([+-])-/g, (_, sign: string) => (sign === '+' ? '-' : '+'))
+      // Adding nothing: "1d20+0" → "1d20" (but not "+0d6").
+      .replace(/[+-]0(?![\dd])/g, '')
+      .replace(/-/g, '−')
+  );
 }

@@ -234,7 +234,7 @@
 | `row`      | `children`                           | в строку                              |
 | `grid`     | `columns` (1–12), `children`         | сетка                                 |
 | `field`    | `path`, `label`, `widget?`           | редактируемое поле                    |
-| `computed` | `name`, `label`                      | вычисляемое значение из `system.json` |
+| `computed` | `name`, `label`, `format?`           | вычисляемое значение из `system.json` |
 | `roll`     | `roll`, `label?`                     | кнопка броска из `rolls`              |
 | `resource` | `resource`                           | ресурс (значение / максимум)          |
 | `list`     | `path`, `label`, `item: [узлы]`      | список объектов                       |
@@ -248,6 +248,8 @@
   `textarea` или `select`; `boolean` → `checkbox` (по умолчанию). `select` — только у полей с `enum`.
 - `list.path` — массив, `items` которого — объект.
 - `computed.name`, `roll.roll`, `resource.resource` — существуют в `system.json`.
+- `computed.format`: `plain` (по умолчанию) или `signed` — со знаком (`+3`, `−1`), для бонусов и
+  модификаторов.
 
 ```json
 {

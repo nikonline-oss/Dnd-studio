@@ -54,10 +54,13 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
   const inspect = useSelection((s) => s.inspect);
   const center = useSelection((s) => s.center);
   const journalId = useSelection((s) => s.journalId);
+  const active = useSelection((s) => s.active);
+  const sheetId = active?.kind === 'character' ? active.id : null;
+  const sheetName = useSnapshotSelect((s) => s.characters.find((c) => c.id === sheetId)?.name);
   const journalTitle = useSnapshotSelect((s) => s.journal.find((e) => e.id === journalId)?.title);
   const mapName = useSnapshotSelect((s) => s.maps.find((m) => m.id === mapId)?.name);
   // Breadcrumbs follow the tab in front.
-  const crumb = center === 'journal' ? journalTitle : mapName;
+  const crumb = center === 'journal' ? journalTitle : center === 'character' ? sheetName : mapName;
   const isGm = preset === 'gm';
   // Logs are a GM/maintenance tool; the player preset keeps only chat (§5).
   const bottomTabs = isGm
@@ -195,6 +198,10 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
                   {center === 'journal' ? (
                     <ErrorBoundary name={t('journal.title')}>
                       <JournalEditor />
+                    </ErrorBoundary>
+                  ) : center === 'character' && sheetId !== null ? (
+                    <ErrorBoundary name={t('characters.title')}>
+                      <CharacterEditor key={sheetId} characterId={sheetId} />
                     </ErrorBoundary>
                   ) : (
                     <ErrorBoundary name={t('panels.map')}>

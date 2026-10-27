@@ -102,7 +102,8 @@
               "label": {
                 "ru": "Бонус мастерства",
                 "en": "Proficiency bonus"
-              }
+              },
+              "format": "signed"
             },
             {
               "type": "computed",
@@ -150,7 +151,8 @@
                       "label": {
                         "ru": "Модификатор",
                         "en": "Modifier"
-                      }
+                      },
+                      "format": "signed"
                     },
                     {
                       "type": "roll",
@@ -183,7 +185,8 @@
                       "label": {
                         "ru": "Модификатор",
                         "en": "Modifier"
-                      }
+                      },
+                      "format": "signed"
                     },
                     {
                       "type": "roll",
@@ -216,7 +219,8 @@
                       "label": {
                         "ru": "Модификатор",
                         "en": "Modifier"
-                      }
+                      },
+                      "format": "signed"
                     },
                     {
                       "type": "roll",
@@ -249,7 +253,8 @@
                       "label": {
                         "ru": "Модификатор",
                         "en": "Modifier"
-                      }
+                      },
+                      "format": "signed"
                     },
                     {
                       "type": "roll",
@@ -282,7 +287,8 @@
                       "label": {
                         "ru": "Модификатор",
                         "en": "Modifier"
-                      }
+                      },
+                      "format": "signed"
                     },
                     {
                       "type": "roll",
@@ -315,7 +321,8 @@
                       "label": {
                         "ru": "Модификатор",
                         "en": "Modifier"
-                      }
+                      },
+                      "format": "signed"
                     },
                     {
                       "type": "roll",
@@ -368,7 +375,8 @@
                       "label": {
                         "ru": "Бонус",
                         "en": "Bonus"
-                      }
+                      },
+                      "format": "signed"
                     },
                     {
                       "type": "roll",
@@ -398,7 +406,8 @@
                       "label": {
                         "ru": "Бонус",
                         "en": "Bonus"
-                      }
+                      },
+                      "format": "signed"
                     },
                     {
                       "type": "roll",
@@ -428,7 +437,8 @@
                       "label": {
                         "ru": "Бонус",
                         "en": "Bonus"
-                      }
+                      },
+                      "format": "signed"
                     },
                     {
                       "type": "roll",
@@ -458,7 +468,8 @@
                       "label": {
                         "ru": "Бонус",
                         "en": "Bonus"
-                      }
+                      },
+                      "format": "signed"
                     },
                     {
                       "type": "roll",
@@ -488,7 +499,8 @@
                       "label": {
                         "ru": "Бонус",
                         "en": "Bonus"
-                      }
+                      },
+                      "format": "signed"
                     },
                     {
                       "type": "roll",
@@ -518,7 +530,8 @@
                       "label": {
                         "ru": "Бонус",
                         "en": "Bonus"
-                      }
+                      },
+                      "format": "signed"
                     },
                     {
                       "type": "roll",
@@ -563,7 +576,8 @@
                       "label": {
                         "ru": "Бонус",
                         "en": "Bonus"
-                      }
+                      },
+                      "format": "signed"
                     },
                     {
                       "type": "roll",
@@ -593,7 +607,8 @@
                       "label": {
                         "ru": "Бонус",
                         "en": "Bonus"
-                      }
+                      },
+                      "format": "signed"
                     },
                     {
                       "type": "roll",
@@ -623,7 +638,8 @@
                       "label": {
                         "ru": "Бонус",
                         "en": "Bonus"
-                      }
+                      },
+                      "format": "signed"
                     },
                     {
                       "type": "roll",
@@ -653,7 +669,8 @@
                       "label": {
                         "ru": "Бонус",
                         "en": "Bonus"
-                      }
+                      },
+                      "format": "signed"
                     },
                     {
                       "type": "roll",
@@ -683,7 +700,8 @@
                       "label": {
                         "ru": "Бонус",
                         "en": "Bonus"
-                      }
+                      },
+                      "format": "signed"
                     },
                     {
                       "type": "roll",
@@ -713,7 +731,8 @@
                       "label": {
                         "ru": "Бонус",
                         "en": "Bonus"
-                      }
+                      },
+                      "format": "signed"
                     },
                     {
                       "type": "roll",
@@ -743,7 +762,8 @@
                       "label": {
                         "ru": "Бонус",
                         "en": "Bonus"
-                      }
+                      },
+                      "format": "signed"
                     },
                     {
                       "type": "roll",
@@ -773,7 +793,8 @@
                       "label": {
                         "ru": "Бонус",
                         "en": "Bonus"
-                      }
+                      },
+                      "format": "signed"
                     },
                     {
                       "type": "roll",
@@ -803,7 +824,8 @@
                       "label": {
                         "ru": "Бонус",
                         "en": "Bonus"
-                      }
+                      },
+                      "format": "signed"
                     },
                     {
                       "type": "roll",
@@ -833,7 +855,8 @@
                       "label": {
                         "ru": "Бонус",
                         "en": "Bonus"
-                      }
+                      },
+                      "format": "signed"
                     },
                     {
                       "type": "roll",
@@ -863,7 +886,8 @@
                       "label": {
                         "ru": "Бонус",
                         "en": "Bonus"
-                      }
+                      },
+                      "format": "signed"
                     },
                     {
                       "type": "roll",
@@ -893,7 +917,8 @@
                       "label": {
                         "ru": "Бонус",
                         "en": "Bonus"
-                      }
+                      },
+                      "format": "signed"
                     },
                     {
                       "type": "roll",
@@ -923,7 +948,8 @@
                       "label": {
                         "ru": "Бонус",
                         "en": "Bonus"
-                      }
+                      },
+                      "format": "signed"
                     },
                     {
                       "type": "roll",
@@ -953,7 +979,8 @@
                       "label": {
                         "ru": "Бонус",
                         "en": "Bonus"
-                      }
+                      },
+                      "format": "signed"
                     },
                     {
                       "type": "roll",
@@ -983,7 +1010,8 @@
                       "label": {
                         "ru": "Бонус",
                         "en": "Bonus"
-                      }
+                      },
+                      "format": "signed"
                     },
                     {
                       "type": "roll",
@@ -1013,7 +1041,8 @@
                       "label": {
                         "ru": "Бонус",
                         "en": "Bonus"
-                      }
+                      },
+                      "format": "signed"
                     },
                     {
                       "type": "roll",
@@ -1043,7 +1072,8 @@
                       "label": {
                         "ru": "Бонус",
                         "en": "Bonus"
-                      }
+                      },
+                      "format": "signed"
                     },
                     {
                       "type": "roll",
@@ -1073,7 +1103,8 @@
                       "label": {
                         "ru": "Бонус",
                         "en": "Bonus"
-                      }
+                      },
+                      "format": "signed"
                     },
                     {
                       "type": "roll",

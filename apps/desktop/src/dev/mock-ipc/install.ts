@@ -4,6 +4,7 @@
 import { emit } from '@tauri-apps/api/event';
 import { mockIPC } from '@tauri-apps/api/mocks';
 import { drawSampleMap } from './sampleMap';
+import { SRD_PLUGIN, SRD_SHEET, srdSheetView } from './srd';
 import { addStress } from './stress';
 import { turnOrder } from '@/features/initiative/turnOrder';
 import { applyEvent } from '@/shared/game/evolve';
@@ -190,7 +191,7 @@ export async function installMockIpc(
         name: 'Mira',
         owner: PLAYER,
         status: 'pending_approval',
-        sheet_json: '{"hp":{"max":24,"value":24},"str_mod":3}',
+        sheet_json: JSON.stringify(SRD_SHEET),
         version: 1,
       },
       {
@@ -199,7 +200,11 @@ export async function installMockIpc(
         name: 'Restless Knight',
         owner: null,
         status: 'active',
-        sheet_json: '{"hp":{"max":45,"value":45}}',
+        sheet_json: JSON.stringify({
+          ...SRD_SHEET,
+          class: 'Fighter',
+          hp: { current: 45, max: 45, temp: 0 },
+        }),
         version: 1,
       },
     ],
@@ -211,8 +216,8 @@ export async function installMockIpc(
       { id: LORE, parent: null, name: 'Lore', sort_order: 0, version: 1 },
       { id: GM_NOTES, parent: null, name: 'GM notes', sort_order: 1, version: 1 },
     ],
-    plugins: [],
-    system_plugin: null,
+    plugins: [SRD_PLUGIN],
+    system_plugin: SRD_PLUGIN.id,
     journal: journal.map((e) => ({
       id: e.id,
       folder_id: e.folder_id,
@@ -635,11 +640,11 @@ export async function installMockIpc(
           remote = null;
           open = false;
           return null;
-        // Plugins (ADR-0023): nothing bundled in the browser mock, no system rules.
+        // Plugins (ADR-0023): the SRD rules, evaluated by a stand-in for the core.
         case 'plugin_bundled':
           return [];
         case 'sheet_view':
-          return null;
+          return srdSheetView(String(payload.sheetJson));
         case 'asset_import_map':
           // The real command opens a native file dialog; here it behaves as if cancelled.
           return null;

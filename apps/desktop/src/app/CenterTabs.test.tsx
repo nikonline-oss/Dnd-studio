@@ -94,6 +94,23 @@ describe('CenterTabs', () => {
     });
   });
 
+  it('keeps the plain map tab next to journal tabs until a map is opened', async () => {
+    // A player opens a journal entry: the map must stay one click away.
+    useSelection.getState().openJournal('j1');
+    renderTabs([]);
+    expect(await screen.findByRole('tab', { name: /Notes/ })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    const mapTab = screen.getByRole('tab', { name: 'Map' });
+    await userEvent.click(mapTab);
+    expect(mapTab).toHaveAttribute('aria-selected', 'true');
+    expect(useSelection.getState().center).toBe('map');
+    expect(useSelection.getState().tabs).toEqual([{ kind: 'journal', id: 'j1' }]);
+    await userEvent.click(screen.getByRole('tab', { name: /Notes/ }));
+    expect(useSelection.getState().center).toBe('journal');
+  });
+
   it('shows a plain map tab when nothing is open', async () => {
     renderTabs([]);
     expect(await screen.findByRole('tab', { name: 'Map' })).toHaveAttribute(

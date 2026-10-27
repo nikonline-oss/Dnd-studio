@@ -126,7 +126,8 @@
       "properties": {
         "type": true,
         "name": { "$ref": "#/$defs/ident" },
-        "label": { "$ref": "#/$defs/label" }
+        "label": { "$ref": "#/$defs/label" },
+        "format": { "enum": ["plain", "signed"] }
       }
     },
     "roll": {

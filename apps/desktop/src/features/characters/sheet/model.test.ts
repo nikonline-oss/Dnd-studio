@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   clampText,
   defaultValue,
+  formatComputed,
   getPath,
   parseInteger,
+  resolveDice,
   resolveLabel,
   schemaAt,
   setPath,
@@ -127,5 +129,30 @@ describe('schema helpers', () => {
       }),
     ).toEqual({ n: 2, m: -1, size: 's', flag: true, tags: [] });
     expect(defaultValue(undefined)).toEqual({});
+  });
+});
+
+describe('formatComputed', () => {
+  it('adds the sign only when asked', () => {
+    expect(formatComputed(3, 'signed')).toBe('+3');
+    expect(formatComputed(0, 'signed')).toBe('+0');
+    expect(formatComputed(-1, 'signed')).toBe('−1');
+    expect(formatComputed(-1, undefined)).toBe('-1');
+    expect(formatComputed(12, 'plain')).toBe('12');
+  });
+});
+
+describe('resolveDice', () => {
+  const computed = { dex_save: 5, str_save: -1, int_save: 0 };
+  it('puts the character’s numbers into the formula', () => {
+    expect(resolveDice('1d20 + @dex_save', computed, {})).toBe('1d20+5');
+    expect(resolveDice('1d20 + @str_save', computed, {})).toBe('1d20−1');
+    expect(resolveDice('1d20 + @int_save', computed, {})).toBe('1d20');
+    expect(resolveDice('@pool d6', {}, { pool: 4 })).toBe('4d6');
+    expect(resolveDice('1d20 - @str_save', computed, {})).toBe('1d20+1');
+  });
+  it('keeps what it cannot resolve and zeros that matter', () => {
+    expect(resolveDice('1d20 + @missing', computed, {})).toBe('1d20+@missing');
+    expect(resolveDice('1d10 + 0d6', {}, {})).toBe('1d10+0d6');
   });
 });

@@ -2,7 +2,7 @@ import { create } from 'zustand';
 
 /** What a center tab shows. */
 export interface TabRef {
-  kind: 'map' | 'journal';
+  kind: 'map' | 'journal' | 'character';
   id: string;
 }
 
@@ -23,12 +23,16 @@ interface SelectionState {
   /** What the inspector shows. */
   inspect: 'map' | 'character' | 'token';
   /** What the center area shows (follows the active tab). */
-  center: 'map' | 'journal';
+  center: TabRef['kind'];
   /** Opens a map in a tab (or brings its tab to the front). */
   openMap: (mapId: string) => void;
   /** Opens a journal entry in a tab (or brings its tab to the front). */
   openJournal: (journalId: string) => void;
+  /** Opens a character sheet in a tab (more room than the inspector). */
+  openCharacter: (characterId: string) => void;
   activate: (tab: TabRef) => void;
+  /** Brings the map view to the front without a map tab (the default map; players have no navigator). */
+  showMap: () => void;
   /** Closes a tab; the neighbour on the right (else left) comes to the front. */
   closeTab: (tab: TabRef) => void;
   /** Closes tabs whose entity no longer exists (deleted locally or by someone else). */
@@ -96,6 +100,9 @@ export const useSelection = create<SelectionState>()((set) => {
     openJournal: (journalId) => {
       open({ kind: 'journal', id: journalId });
     },
+    openCharacter: (characterId) => {
+      open({ kind: 'character', id: characterId });
+    },
     activate: (tab) => {
       set((s) =>
         s.tabs.some((t) => same(t, tab))
@@ -105,6 +112,9 @@ export const useSelection = create<SelectionState>()((set) => {
             }
           : s,
       );
+    },
+    showMap: () => {
+      set((s) => ({ ...derive(s.tabs, null, s.mapId), inspect: 'map' }));
     },
     closeTab: (tab) => {
       set((s) => {

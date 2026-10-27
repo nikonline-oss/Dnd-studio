@@ -391,7 +391,10 @@
     "removeRow": "Remove row {{n}} from “{{label}}”",
     "roll": "Roll: {{label}}",
     "unsupported": "Unsupported sheet element: {{type}}",
-    "missing": "Not found: {{id}}"
+    "missing": "Not found: {{id}}",
+    "decrease": "Decrease {{label}}",
+    "increase": "Increase {{label}}",
+    "openTab": "Open the sheet in a tab"
   },
   "plugins": {
     "title": "Plugins",

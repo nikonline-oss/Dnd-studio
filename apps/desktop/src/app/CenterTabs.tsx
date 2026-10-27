@@ -4,8 +4,10 @@ import { useSnapshotSelect } from '@/shared/game/useGame';
 import { useSelection, type TabRef } from '@/shared/state/selection';
 import { Icon } from '@/shared/ui/Icon';
 
+const TAB_ICONS = { map: 'map', journal: 'book', character: 'user' } as const;
+
 /**
- * Tab bar of the center area: maps and journal entries opened from the navigator. A tab stays
+ * Tab bar of the center area: maps, journal entries and character sheets opened from the navigator. A tab stays
  * open until closed (× or middle click) or until its map/entry is deleted.
  */
 export function CenterTabs() {
@@ -13,39 +15,56 @@ export function CenterTabs() {
   // Names only: a tab title does not change when a token moves.
   const maps = useSnapshotSelect((s) => s.maps.map((m) => ({ id: m.id, name: m.name })));
   const entries = useSnapshotSelect((s) => s.journal.map((e) => ({ id: e.id, title: e.title })));
+  const characters = useSnapshotSelect((s) =>
+    s.characters.map((c) => ({ id: c.id, name: c.name })),
+  );
   const tabs = useSelection((s) => s.tabs);
   const active = useSelection((s) => s.active);
   const activate = useSelection((s) => s.activate);
+  const showMap = useSelection((s) => s.showMap);
   const closeTab = useSelection((s) => s.closeTab);
   const pruneTabs = useSelection((s) => s.pruneTabs);
 
   // Deleted here or by someone else: the tab goes away with the entity.
   useEffect(() => {
-    if (!maps || !entries) return;
+    if (!maps || !entries || !characters) return;
     pruneTabs((tab) =>
-      tab.kind === 'map' ? maps.some((m) => m.id === tab.id) : entries.some((e) => e.id === tab.id),
+      tab.kind === 'map'
+        ? maps.some((m) => m.id === tab.id)
+        : tab.kind === 'journal'
+          ? entries.some((e) => e.id === tab.id)
+          : characters.some((c) => c.id === tab.id),
     );
-  }, [maps, entries, pruneTabs]);
+  }, [maps, entries, characters, pruneTabs]);
 
   const title = (tab: TabRef) =>
     tab.kind === 'map'
       ? (maps?.find((m) => m.id === tab.id)?.name ?? t('panels.map'))
-      : (entries?.find((e) => e.id === tab.id)?.title ?? t('journal.title'));
+      : tab.kind === 'journal'
+        ? (entries?.find((e) => e.id === tab.id)?.title ?? t('journal.title'))
+        : (characters?.find((c) => c.id === tab.id)?.name ?? t('characters.title'));
 
-  if (tabs.length === 0) {
-    // Nothing opened yet (and the player preset has no navigator): the map view on its own.
-    return (
-      <div role="tablist" className="tabs">
-        <span role="tab" aria-selected="true" className="tab">
-          <Icon name="map" />
-          {t('panels.map')}
-        </span>
-      </div>
-    );
-  }
+  // No map opened in a tab (always so for players, who have no navigator): the map view keeps a
+  // tab of its own, so opening a journal entry does not hide the map.
+  const defaultMapTab = !tabs.some((tab) => tab.kind === 'map');
 
   return (
     <div role="tablist" className="tabs">
+      {defaultMapTab && (
+        <span
+          role="tab"
+          tabIndex={active === null ? 0 : -1}
+          aria-selected={active === null}
+          className="tab"
+          onClick={showMap}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') showMap();
+          }}
+        >
+          <Icon name="map" />
+          {t('panels.map')}
+        </span>
+      )}
       {tabs.map((tab) => {
         const selected = active?.kind === tab.kind && active.id === tab.id;
         const name = title(tab);
@@ -68,7 +87,7 @@ export function CenterTabs() {
               if (e.key === 'Delete') closeTab(tab);
             }}
           >
-            <Icon name={tab.kind === 'map' ? 'map' : 'book'} />
+            <Icon name={TAB_ICONS[tab.kind]} />
             <span className="tab-title">{name}</span>
             <button
               type="button"

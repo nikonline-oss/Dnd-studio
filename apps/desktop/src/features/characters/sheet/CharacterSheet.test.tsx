@@ -25,6 +25,16 @@ afterEach(async () => {
 });
 
 describe('CharacterSheet', () => {
+  it('steps numbers with −/+ within the schema and shows rolls with the character’s numbers', async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderSheet(d20Sheet);
+    await user.click(screen.getByRole('button', { name: 'Increase Strength' }));
+    expect(lastChange(onChange)).toMatchObject({ abilities: { str: 9 } });
+    // Initiative: 1d20 + @dex_mod with DEX 14.
+    const initiative = screen.getByRole('button', { name: 'Roll: Initiative' });
+    expect(initiative).toHaveTextContent('1d20+2');
+  });
+
   it('renders every node type of the d20 sheet', async () => {
     const user = userEvent.setup();
     renderSheet(d20Sheet);

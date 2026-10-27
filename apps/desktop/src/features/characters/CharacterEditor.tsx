@@ -5,6 +5,7 @@ import type { CharacterDto, Intent } from '@/shared/ipc/client';
 import { useSelection } from '@/shared/state/selection';
 import { CodeEditor } from '@/shared/ui/CodeEditor';
 import { ErrorText } from '@/shared/ui/ErrorText';
+import { Icon } from '@/shared/ui/Icon';
 import { InlineEdit } from '@/shared/ui/InlineEdit';
 import { SystemSheet } from './SystemSheet';
 
@@ -27,20 +28,23 @@ export function sheetProblem(sheet: string): 'syntax' | 'not_object' | 'fraction
 }
 
 /**
- * Inspector for the selected character: name, owner, sheet and status transitions. With a system
- * plugin the sheet is the plugin's layout (ADR-0023); the raw JSON stays available to GM roles.
+ * A character: name, owner, sheet and status transitions — in the inspector (the selected one) or
+ * in a center tab of its own (`characterId`), where the sheet has room. With a system plugin the
+ * sheet is the plugin's layout (ADR-0023); the raw JSON stays available to GM roles.
  */
-export function CharacterEditor() {
+export function CharacterEditor({ characterId }: { characterId?: string } = {}) {
   const { t } = useTranslation();
-  const characterId = useSelection((s) => s.characterId);
-  const character = useSnapshotSelect((s) => s.characters.find((c) => c.id === characterId));
+  const selectedId = useSelection((s) => s.characterId);
+  const id = characterId ?? selectedId;
+  const character = useSnapshotSelect((s) => s.characters.find((c) => c.id === id));
   if (!character) return <p className="inspector-empty muted">{t('inspector.empty')}</p>;
   // Keyed by character only: a system sheet keeps its tab and focus across saved edits.
-  return <Editor key={character.id} character={character} />;
+  return <Editor key={character.id} character={character} inTab={characterId !== undefined} />;
 }
 
-function Editor({ character }: { character: CharacterDto }) {
+function Editor({ character, inTab }: { character: CharacterDto; inTab: boolean }) {
   const { t } = useTranslation();
+  const openCharacter = useSelection((s) => s.openCharacter);
   const { data: campaign } = useCampaign();
   const submit = useSubmitIntent();
 
@@ -81,7 +85,22 @@ function Editor({ character }: { character: CharacterDto }) {
   ];
 
   return (
-    <section className="character-editor" aria-label={t('characters.editor')}>
+    <section
+      className={inTab ? 'character-editor character-editor-tab' : 'character-editor'}
+      aria-label={t('characters.editor')}
+    >
+      {!inTab && (
+        <button
+          type="button"
+          className="character-open-tab"
+          onClick={() => {
+            openCharacter(character.id);
+          }}
+        >
+          <Icon name="fit" size={14} />
+          {t('sheet.openTab')}
+        </button>
+      )}
       <dl className="properties">
         <dt>{t('inspector.name')}</dt>
         <dd>

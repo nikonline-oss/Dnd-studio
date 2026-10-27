@@ -401,7 +401,10 @@
     "removeRow": "Удалить строку {{n}} из «{{label}}»",
     "roll": "Бросок: {{label}}",
     "unsupported": "Неподдерживаемый элемент листа: {{type}}",
-    "missing": "Не найдено: {{id}}"
+    "missing": "Не найдено: {{id}}",
+    "decrease": "Уменьшить: {{label}}",
+    "increase": "Увеличить: {{label}}",
+    "openTab": "Открыть лист во вкладке"
   },
   "plugins": {
     "title": "Плагины",
