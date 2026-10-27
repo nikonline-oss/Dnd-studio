@@ -12,12 +12,15 @@ interface Props {
 
 /**
  * CodeMirror 6 wrapped as a controlled component. The editor is created once; external value
- * changes (e.g. a new version from the server) replace the document only when it differs.
+ * changes (e.g. a new version from the server) replace the document only when it differs, and do
+ * not call `onChange`: echoing them back would save someone else's text as the user's own.
  */
 export function CodeEditor({ value, onChange, label, language }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
   const onChangeRef = useRef(onChange);
+  /** Set while `value` is written into the editor (`dispatch` runs the listener synchronously). */
+  const applyingValue = useRef(false);
 
   useEffect(() => {
     onChangeRef.current = onChange;
@@ -34,7 +37,9 @@ export function CodeEditor({ value, onChange, label, language }: Props) {
         EditorView.lineWrapping,
         EditorView.contentAttributes.of({ 'aria-label': label }),
         EditorView.updateListener.of((update) => {
-          if (update.docChanged) onChangeRef.current(update.state.doc.toString());
+          if (update.docChanged && !applyingValue.current) {
+            onChangeRef.current(update.state.doc.toString());
+          }
         }),
       ],
     });
@@ -50,7 +55,12 @@ export function CodeEditor({ value, onChange, label, language }: Props) {
   useEffect(() => {
     const editor = view.current;
     if (editor && editor.state.doc.toString() !== value) {
-      editor.dispatch({ changes: { from: 0, to: editor.state.doc.length, insert: value } });
+      applyingValue.current = true;
+      try {
+        editor.dispatch({ changes: { from: 0, to: editor.state.doc.length, insert: value } });
+      } finally {
+        applyingValue.current = false;
+      }
     }
   }, [value]);
 
