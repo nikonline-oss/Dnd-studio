@@ -1,4 +1,5 @@
-//! Campaign archive (CLAUDE.md §6): a ZIP with `campaign.sqlite`, `assets/` and `manifest.json`.
+//! Campaign archive (CLAUDE.md §6): a ZIP with `campaign.sqlite`, `assets/` (with the campaign's
+//! plugin packages in `assets/plugins/`, ADR-0023) and `manifest.json`.
 //! Used for export/import and for uploading a campaign to the session server.
 //!
 //! Reading is defensive: the archive comes from a user's file or over the network (CLAUDE.md §9).
@@ -108,6 +109,12 @@ fn write_to(
     stats.add(io::copy(&mut File::open(db_copy)?, &mut zip)?);
 
     let mut files = asset_files(assets_dir, "assets", is_served_name)?;
+    // Plugin packages: the campaign's rules came from them (ADR-0023).
+    files.extend(asset_files(
+        &assets_dir.join("plugins"),
+        "assets/plugins",
+        is_plugin_name,
+    )?);
     if include_originals {
         files.extend(asset_files(
             &assets_dir.join("originals"),
@@ -184,7 +191,10 @@ fn extract(
         let mut file = zip.by_index(i).map_err(zip_error)?;
         let name = file.name().map_err(zip_error)?.into_owned();
         if file.is_dir() {
-            if matches!(name.as_str(), "assets/" | "assets/originals/") {
+            if matches!(
+                name.as_str(),
+                "assets/" | "assets/originals/" | "assets/plugins/"
+            ) {
                 continue;
             }
             return Err(invalid(format!("unexpected folder {name:?}")));
@@ -217,7 +227,7 @@ fn extract(
                 manifest = Some(parsed);
             }
             Entry::Database => std::fs::write(target.join(ARCHIVE_DB), &bytes)?,
-            Entry::Served(sha) | Entry::Original(sha) => {
+            Entry::Served(sha) | Entry::Original(sha) | Entry::Plugin(sha) => {
                 if hex_sha256(&bytes) != sha {
                     return Err(invalid(format!("{name:?} does not match its hash")));
                 }
@@ -244,6 +254,8 @@ enum Entry {
     Served(String),
     /// `assets/originals/<sha256>.<png|jpg|jpeg|webp>`
     Original(String),
+    /// `assets/plugins/<sha256>.dndplugin`
+    Plugin(String),
 }
 
 /// The only names an archive may contain. Matching whole names (not sanitizing paths) means no
@@ -254,6 +266,9 @@ fn classify(name: &str) -> Option<Entry> {
         ARCHIVE_DB => return Some(Entry::Database),
         _ => {}
     }
+    if let Some(file) = name.strip_prefix("assets/plugins/") {
+        return is_plugin_name(file).then(|| Entry::Plugin(file[..64].to_owned()));
+    }
     if let Some(file) = name.strip_prefix("assets/originals/") {
         return is_original_name(file).then(|| Entry::Original(file[..64].to_owned()));
     }
@@ -263,6 +278,10 @@ fn classify(name: &str) -> Option<Entry> {
 
 fn is_served_name(file: &str) -> bool {
     file.strip_suffix(".webp").is_some_and(is_sha256_hex)
+}
+
+fn is_plugin_name(file: &str) -> bool {
+    file.strip_suffix(".dndplugin").is_some_and(is_sha256_hex)
 }
 
 fn is_original_name(file: &str) -> bool {

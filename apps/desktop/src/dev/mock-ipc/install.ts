@@ -211,6 +211,8 @@ export async function installMockIpc(
       { id: LORE, parent: null, name: 'Lore', sort_order: 0, version: 1 },
       { id: GM_NOTES, parent: null, name: 'GM notes', sort_order: 1, version: 1 },
     ],
+    plugins: [],
+    system_plugin: null,
     journal: journal.map((e) => ({
       id: e.id,
       folder_id: e.folder_id,

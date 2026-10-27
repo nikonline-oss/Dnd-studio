@@ -112,6 +112,17 @@ export function applyEvent(snapshot: Snapshot, event: Event): Snapshot {
       };
     case 'user_joined':
       return { ...snapshot, users: upsert(snapshot.users, event.user) };
+    case 'plugin_installed':
+      return {
+        ...snapshot,
+        plugins: [...snapshot.plugins.filter((p) => p.id !== event.plugin.id), event.plugin].sort(
+          (a, b) => a.id.localeCompare(b.id),
+        ),
+      };
+    case 'plugin_uninstalled':
+      return { ...snapshot, plugins: snapshot.plugins.filter((p) => p.id !== event.id) };
+    case 'system_plugin_set':
+      return { ...snapshot, system_plugin: event.id };
     case 'redacted':
       // Something the server hides from this recipient: only its sequence number counts.
       return snapshot;

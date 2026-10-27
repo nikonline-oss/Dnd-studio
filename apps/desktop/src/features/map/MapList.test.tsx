@@ -58,6 +58,8 @@ const snapshot: Snapshot = {
   users: [],
   journal: [],
   journal_folders: [],
+  plugins: [],
+  system_plugin: null,
   assets: [asset],
   fog: [],
   combats: [],

@@ -44,6 +44,8 @@ const empty: Snapshot = {
   users: [],
   journal: [],
   journal_folders: [],
+  plugins: [],
+  system_plugin: null,
   assets: [],
   fog: [],
   combats: [],
@@ -222,5 +224,29 @@ describe('applyEvent: session events (ADR-0022)', () => {
     expect(s?.seq).toBe(3);
     expect(s?.maps).toHaveLength(1);
     expect(applyEvent(empty, { kind: 'redacted' })).toBe(empty);
+  });
+});
+
+describe('applyEvent: plugins (ADR-0023)', () => {
+  const plugin = (id: string, version = '0.1.0') => ({
+    id,
+    version,
+    kind: 'content' as const,
+    name: { ru: 'Плагин', en: 'Plugin' },
+    license: 'MIT',
+    attribution: null,
+    archive_sha256: 'a'.repeat(64),
+    system: null,
+  });
+
+  it('installs, replaces, chooses the system and uninstalls', () => {
+    let s = applyEvent(empty, { kind: 'plugin_installed', plugin: plugin('srd5') });
+    s = applyEvent(s, { kind: 'plugin_installed', plugin: plugin('dark') });
+    s = applyEvent(s, { kind: 'plugin_installed', plugin: plugin('srd5', '0.2.0') });
+    expect(s.plugins.map((p) => `${p.id}@${p.version}`)).toEqual(['dark@0.1.0', 'srd5@0.2.0']);
+    s = applyEvent(s, { kind: 'system_plugin_set', id: 'srd5' });
+    expect(s.system_plugin).toBe('srd5');
+    s = applyEvent(s, { kind: 'plugin_uninstalled', id: 'dark' });
+    expect(s.plugins.map((p) => p.id)).toEqual(['srd5']);
   });
 });

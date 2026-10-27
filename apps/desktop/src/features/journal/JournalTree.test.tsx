@@ -58,6 +58,8 @@ function setup(role: Role = 'gm') {
     users: [],
     journal: ENTRIES,
     journal_folders: FOLDERS,
+    plugins: [],
+    system_plugin: null,
     assets: [],
     fog: [],
     combats: [],

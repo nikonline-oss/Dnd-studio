@@ -103,6 +103,13 @@ async fn export_and_import_round_trip() {
         original,
     )
     .unwrap();
+    let package = b"dndplugin bytes".as_slice();
+    std::fs::create_dir_all(source.join("assets/plugins")).unwrap();
+    std::fs::write(
+        source.join(format!("assets/plugins/{}.dndplugin", sha(package))),
+        package,
+    )
+    .unwrap();
     // Stray files in the assets folder are not exported.
     std::fs::write(source.join("assets/notes.txt"), b"x").unwrap();
 
@@ -124,7 +131,7 @@ async fn export_and_import_round_trip() {
             include_originals,
         )
         .unwrap();
-        assert_eq!(written.files, if include_originals { 4 } else { 3 });
+        assert_eq!(written.files, if include_originals { 5 } else { 4 });
 
         let target = dir.path().join(format!("imported-{include_originals}"));
         let (read_manifest, stats) =
@@ -139,6 +146,11 @@ async fn export_and_import_round_trip() {
             include_originals
         );
         assert!(!target.join("assets/notes.txt").exists());
+        assert!(
+            target
+                .join(format!("assets/plugins/{}.dndplugin", sha(package)))
+                .exists()
+        );
 
         let (imported, _) = CampaignDb::open(&target.join("campaign.sqlite"), 2)
             .await

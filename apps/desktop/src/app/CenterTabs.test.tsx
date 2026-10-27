@@ -39,6 +39,8 @@ function renderTabs(maps: MapDto[]) {
       },
     ],
     journal_folders: [],
+    plugins: [],
+    system_plugin: null,
     assets: [],
     fog: [],
     combats: [],

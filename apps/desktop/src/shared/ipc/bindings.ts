@@ -345,6 +345,10 @@ export type Event = { kind: "campaign_meta_updated"; campaign: CampaignMeta } | 
  *  session server when someone joins, not by an intent (ADR-0022).
  */
 { kind: "user_joined"; user: UserDto } | 
+/**  A plugin is installed (or replaced) in the campaign (ADR-0023). */
+{ kind: "plugin_installed"; plugin: PluginDto } | { kind: "plugin_uninstalled"; id: string } | 
+/**  The campaign's rules changed. */
+{ kind: "system_plugin_set"; id: string | null } | 
 /**
  *  Stands in for an event the recipient may not see, so sequence numbers stay contiguous
  *  (ADR-0022). Never stored; applying it changes nothing.
@@ -507,7 +511,16 @@ asset: AssetDto } |
  *  Everyone except spectators. `hidden` (seen by GM roles only) is for GM and Co-GM. Field
  *  references (`@str_mod`) read the sheet of `character_id`, which a player must own.
  */
-{ kind: "roll_dice"; id: ChatMessageId; expression: string; hidden: boolean; character_id: CharacterId | null };
+{ kind: "roll_dice"; id: ChatMessageId; expression: string; hidden: boolean; character_id: CharacterId | null } | 
+/**
+ *  GM / Co-GM: installs (or replaces) a plugin in the campaign (ADR-0023). The client reads
+ *  the package; the core checks the rules again.
+ */
+{ kind: "install_plugin"; plugin: PluginDto } | 
+/**  GM / Co-GM. The campaign's system plugin cannot be uninstalled. */
+{ kind: "uninstall_plugin"; id: string } | 
+/**  GM / Co-GM: the campaign's rules (`None`: no system, free-form sheets). */
+{ kind: "set_system_plugin"; id: string | null };
 
 /**  An intent together with its correlation id and the version it was based on (ADR-0003). */
 export type IntentEnvelope = {
@@ -604,6 +617,15 @@ export type JournalVisibility =
 /**  Everyone in the campaign. */
 "players";
 
+/**  A user-visible text: one string for every language, or per language. */
+export type Label = string | LocalizedText;
+
+/**  At least one of the languages is present. */
+export type LocalizedText = {
+	ru?: string | null,
+	en?: string | null,
+};
+
 export type LogLevel = "trace" | "debug" | "info" | "warn" | "error";
 
 /**  One log line for the panel. */
@@ -640,6 +662,25 @@ export type MapImported = {
 	source_width: number,
 	source_height: number,
 };
+
+/**  A plugin installed in the campaign. */
+export type PluginDto = {
+	id: string,
+	/**  Semver, as in the manifest. */
+	version: string,
+	kind: PluginKind,
+	name: Label,
+	license: string,
+	attribution: string | null,
+	/**  Lowercase hex SHA-256 of the `.dndplugin` file (kept in the campaign's `plugins/`). */
+	archive_sha256: string,
+	/**  Present exactly for `kind: system`. */
+	system: SystemRulesDto | null,
+};
+
+export type PluginKind = 
+/**  Rules of the game: exactly one per campaign (ADR-0005). */
+"system" | "content" | "theme" | "ui";
 
 /**  Why an intent or message was rejected. The `code` tag is stable and safe to match on in clients. */
 export type RejectReason = 
@@ -707,8 +748,23 @@ export type RemoteStatus = { state: "connecting" } | { state: "online" } | { sta
 /**  The connection to the session server changed. */
 export type RemoteStatusChanged = RemoteStatus;
 
+/**  A generalized hit-point-like resource. `value` and `max` are expressions. */
+export type ResourceDef = {
+	id: string,
+	label: Label,
+	value: string,
+	max: string,
+};
+
 /**  Role of a participant (CLAUDE.md §5). */
 export type Role = "gm" | "co_gm" | "player" | "spectator";
+
+/**  A roll macro shown on the sheet. */
+export type RollDef = {
+	id: string,
+	label: Label,
+	dice: string,
+};
 
 /**
  *  Position of an event in the campaign/session event log.
@@ -759,10 +815,30 @@ export type Snapshot = {
 	combatants: CombatantDto[],
 	/**  The last `CHAT_SNAPSHOT_LEN` chat messages, oldest first. */
 	chat: ChatMessageDto[],
+	/**  Plugins installed in the campaign (ADR-0023). */
+	plugins: PluginDto[],
+	/**  Id of the campaign's system plugin. */
+	system_plugin: string | null,
 };
 
 /**  Messages the core posts; the UI localizes them by `code`. */
 export type SystemMessage = { code: "character_submitted"; name: string } | { code: "character_approved"; name: string } | { code: "character_returned"; name: string };
+
+/**  The rules of a system plugin, self-contained (no package paths). */
+export type SystemRulesDto = {
+	/**  Sheet data schema (JSON Schema subset, see `sheet_schema`). */
+	sheet_schema: unknown,
+	/**  Root layout node (rendered by the clients; the core only stores it). */
+	sheet_layout: unknown,
+	/**  Name → expression; results are integers. */
+	computed: { [key in string]: string },
+	/**  Dice expression for initiative. */
+	initiative: string,
+	resources: ResourceDef[],
+	/**  Strictly descending percents: Healthy / Wounded / Critical / Dead boundaries. */
+	health_thresholds: number[],
+	rolls: RollDef[],
+};
 
 /**  A token on a map. */
 export type TokenDto = {

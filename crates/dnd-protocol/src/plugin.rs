@@ -23,9 +23,9 @@ pub enum Label {
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct LocalizedText {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub ru: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub en: Option<String>,
 }
 
@@ -111,8 +111,10 @@ pub struct PluginDto {
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct SystemRulesDto {
     /// Sheet data schema (JSON Schema subset, see `sheet_schema`).
+    #[cfg_attr(feature = "specta", specta(type = specta_typescript::Unknown))]
     pub sheet_schema: Value,
     /// Root layout node (rendered by the clients; the core only stores it).
+    #[cfg_attr(feature = "specta", specta(type = specta_typescript::Unknown))]
     pub sheet_layout: Value,
     /// Name → expression; results are integers.
     pub computed: BTreeMap<String, String>,
