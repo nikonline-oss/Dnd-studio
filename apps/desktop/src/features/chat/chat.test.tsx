@@ -92,6 +92,7 @@ function renderChat(role: Role, chat: ChatMessageDto[] = []) {
     boards: [],
     board_nodes: [],
     board_edges: [],
+    zones: [],
     assets: [],
     fog: [],
     combats: [],

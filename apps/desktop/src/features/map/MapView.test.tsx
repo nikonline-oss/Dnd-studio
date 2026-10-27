@@ -20,6 +20,8 @@ import type {
   Role,
   Snapshot,
   TokenDto,
+  ZoneDto,
+  ZoneShape,
 } from '@/shared/ipc/client';
 import { useSelection } from '@/shared/state/selection';
 
@@ -35,6 +37,8 @@ const scene = vi.hoisted(() => ({
   onFog: null as ((kind: FogOpKind, shapes: FogShape[]) => void) | null,
   onMove: null as ((move: TokenMove) => void) | null,
   onSelect: null as ((id: string | null) => void) | null,
+  onZone: null as ((shape: ZoneShape) => void) | null,
+  zones: [] as ZoneDto[][],
   tokens: [] as TokenView[],
   /** canvasToMap returns the canvas point as is (scale 1, no pan). */
   fit: vi.fn(),
@@ -51,8 +55,10 @@ vi.mock('./MapScene', () => ({
       onFog: (kind: FogOpKind, shapes: FogShape[]) => void,
       onMove: (move: TokenMove) => void,
       onSelect: (id: string | null) => void,
+      onZone: (shape: ZoneShape) => void,
     ) {
       scene.onSelect = onSelect;
+      scene.onZone = onZone;
       scene.loadError = onLoadError;
       scene.onFog = onFog;
       scene.onMove = onMove;
@@ -73,6 +79,9 @@ vi.mock('./MapScene', () => ({
     }
     setTool(tool: FogTool | null) {
       scene.tools.push(tool);
+    }
+    setZones(zones: ZoneDto[]) {
+      scene.zones.push(zones);
     }
     fit = scene.fit;
     destroy = scene.destroy;
@@ -152,6 +161,7 @@ function setup(
     boards: [],
     board_nodes: [],
     board_edges: [],
+    zones: [],
     assets: [asset],
     fog,
     combats: [],
@@ -181,6 +191,7 @@ beforeEach(() => {
   scene.onFog = null;
   scene.onMove = null;
   scene.tokens = [];
+  scene.zones = [];
   scene.rendererError = null;
   scene.fit.mockClear();
   scene.destroy.mockClear();
@@ -270,6 +281,52 @@ describe('MapView fog (ADR-0019)', () => {
     });
     expect(screen.queryByRole('toolbar', { name: 'Fog' })).not.toBeInTheDocument();
     expect(scene.tools.every((tool) => tool === null)).toBe(true);
+  });
+
+  it('draws zones for the GM; players never get them on the scene', async () => {
+    useSelection.setState({ mapId: id(1) });
+    const altar: ZoneDto = {
+      id: id(70),
+      map_id: id(1),
+      name: 'Altar',
+      shape: { type: 'rect', x: 0, y: 0, width: 160, height: 160 },
+      version: 1,
+    };
+    const sent = setup(<MapView />, [map(1)], 'gm', [], { zones: [altar] });
+    await userEvent.click(await screen.findByRole('radio', { name: 'Draw a zone' }));
+    expect(scene.tools.at(-1)).toMatchObject({ shape: 'zone' });
+    await waitFor(() => {
+      expect(scene.zones.at(-1)).toEqual([altar]);
+    });
+    const shape: ZoneShape = { type: 'rect', x: 16, y: 32, width: 320, height: 160 };
+    scene.onZone?.(shape);
+    await waitFor(() => {
+      expect(sent[0]?.intent).toMatchObject({
+        kind: 'create_zone',
+        map_id: id(1),
+        name: 'Zone 2',
+        shape,
+      });
+    });
+  });
+
+  it('players never get zones on the scene', async () => {
+    useSelection.setState({ mapId: id(1) });
+    setup(<MapView />, [map(1, { visible_to_players: true })], 'player', [], {
+      zones: [
+        {
+          id: id(70),
+          map_id: id(1),
+          name: 'Altar',
+          shape: { type: 'rect', x: 0, y: 0, width: 160, height: 160 },
+          version: 1,
+        },
+      ],
+    });
+    await waitFor(() => {
+      expect(scene.zones.length).toBeGreaterThan(0);
+    });
+    expect(scene.zones.every((z) => z.length === 0)).toBe(true);
   });
 
   it('selects tools and sends each drawn shape as an apply_fog intent, in order', async () => {

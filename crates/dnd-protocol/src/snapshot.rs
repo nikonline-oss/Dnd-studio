@@ -9,6 +9,7 @@ use crate::model::{
     JournalEntryMeta, JournalFolderDto, MapDto, TokenDto, UserDto,
 };
 use crate::plugin::PluginDto;
+use crate::zone::ZoneDto;
 
 /// The visible state as of event `seq`.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -41,4 +42,6 @@ pub struct Snapshot {
     pub boards: Vec<BoardDto>,
     pub board_nodes: Vec<BoardNodeDto>,
     pub board_edges: Vec<BoardEdgeDto>,
+    /// Zones on maps (GM roles only; empty for players).
+    pub zones: Vec<ZoneDto>,
 }

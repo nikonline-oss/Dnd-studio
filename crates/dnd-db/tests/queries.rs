@@ -445,7 +445,7 @@ fn query_inventory_matches_adr_0008() {
         .map(|s| s.matches("sqlx::query").count())
         .sum();
     assert_eq!(
-        count, 66,
+        count, 69,
         "runtime queries changed: add a real-SQLite test and update the table in docs/adr/0008-db-conventions.md"
     );
 }
@@ -1446,4 +1446,76 @@ async fn boards_are_projected_loaded_and_cascade() {
         .await
         .is_err()
     );
+}
+
+/// Zones (ADR-0024): stored as their DTO, updated, loaded, and gone with their map.
+#[tokio::test]
+async fn zones_are_projected_loaded_and_go_with_their_map() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = new_campaign(&dir).await;
+    let map = map(0, "Crypt", 1);
+    let zone = ZoneDto {
+        id: ZoneId(v7(0x900)),
+        map_id: map.id,
+        name: "Altar".into(),
+        shape: ZoneShape::Polygon {
+            points: vec![0, 0, 160, 0, 80, 160],
+        },
+        version: Version(1),
+    };
+    db.project(&[record(
+        1,
+        Some(0x91),
+        vec![
+            Event::MapCreated { map: map.clone() },
+            Event::ZoneCreated { zone: zone.clone() },
+        ],
+    )])
+    .await
+    .unwrap();
+    let moved = ZoneDto {
+        name: "Old altar".into(),
+        shape: ZoneShape::Rect {
+            x: 16,
+            y: 32,
+            width: 160,
+            height: 320,
+        },
+        version: Version(2),
+        ..zone.clone()
+    };
+    db.project(&[record(
+        3,
+        Some(0x92),
+        vec![Event::ZoneUpdated {
+            zone: moved.clone(),
+        }],
+    )])
+    .await
+    .unwrap();
+    let (state, _) = db.load_state().await.unwrap();
+    assert_eq!(
+        state.zones.values().cloned().collect::<Vec<_>>(),
+        vec![moved]
+    );
+
+    db.project(&[record(
+        4,
+        Some(0x93),
+        vec![Event::ZoneDeleted { id: zone.id }],
+    )])
+    .await
+    .unwrap();
+    assert!(db.load_state().await.unwrap().0.zones.is_empty());
+    db.project(&[record(
+        5,
+        Some(0x94),
+        vec![
+            Event::ZoneCreated { zone: zone.clone() },
+            Event::MapDeleted { id: map.id },
+        ],
+    )])
+    .await
+    .unwrap();
+    assert!(db.load_state().await.unwrap().0.zones.is_empty());
 }

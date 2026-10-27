@@ -6,10 +6,15 @@ import { MapScene, type TokenMove } from './MapScene';
 import { snapToGrid, tokenPosition } from './tokenMath';
 import { tokenViews } from './tokenViews';
 import { CHARACTER_DRAG_TYPE } from '@/shared/dragTypes';
-import { useCampaign, useSnapshot, useSubmitIntent } from '@/shared/game/useGame';
+import {
+  useCampaign,
+  useSnapshot,
+  useSnapshotSelect,
+  useSubmitIntent,
+} from '@/shared/game/useGame';
 import { useShownMap } from '@/shared/game/useShownMap';
 import { useSelection } from '@/shared/state/selection';
-import { logFrontend, type FogOpKind, type FogShape } from '@/shared/ipc/client';
+import { logFrontend, type FogOpKind, type FogShape, type ZoneShape } from '@/shared/ipc/client';
 import { uuidv7 } from '@/shared/ipc/uuid';
 import { PixiHost } from '@/shared/pixi/PixiHost';
 import { ErrorText } from '@/shared/ui/ErrorText';
@@ -42,6 +47,27 @@ export function MapView() {
   useEffect(() => {
     scene?.setTool(isGm ? sceneTool(tool) : null);
   }, [scene, tool, isGm]);
+
+  // Zones are the GM's (ADR-0024); players never receive any.
+  const zones = useSnapshotSelect((s) => s.zones.filter((z) => z.map_id === map?.id));
+  useEffect(() => {
+    scene?.setZones(isGm ? (zones ?? []) : []);
+  }, [scene, zones, isGm]);
+  const sendZone = useRef<(shape: ZoneShape) => void>(() => undefined);
+  useEffect(() => {
+    sendZone.current = (shape) => {
+      if (!map) return;
+      submit.mutate({
+        intent: {
+          kind: 'create_zone',
+          id: uuidv7(),
+          map_id: map.id,
+          name: `${t('zones.newName')} ${(zones?.length ?? 0) + 1}`,
+          shape,
+        },
+      });
+    };
+  });
 
   const shownMapId = map?.id;
   useEffect(() => {
@@ -96,6 +122,9 @@ export function MapView() {
       },
       (tokenId) => {
         useSelection.getState().selectToken(tokenId);
+      },
+      (shape) => {
+        sendZone.current(shape);
       },
     );
     setScene(created);

@@ -1,4 +1,4 @@
-// Boards in the browser mock (ADR-0024): a rough stand-in for the core, enough to look at the
+// Boards and zones in the browser mock (ADR-0024): a rough stand-in for the core, enough to look at the
 // canvas. Dev only, never shipped.
 import type {
   BoardDto,
@@ -119,6 +119,34 @@ export function boardEvents(snapshot: Snapshot, intent: Intent): Event[] | null 
     }
     case 'delete_board_edge':
       return [{ kind: 'board_edge_deleted', id: intent.id }];
+    case 'create_zone':
+      return [
+        {
+          kind: 'zone_created',
+          zone: {
+            id: intent.id,
+            map_id: intent.map_id,
+            name: intent.name,
+            shape: intent.shape,
+            version: 1,
+          },
+        },
+      ];
+    case 'update_zone': {
+      const zone = snapshot.zones.find((z) => z.id === intent.id);
+      if (!zone) return [];
+      return [
+        {
+          kind: 'zone_updated',
+          zone: bump(zone, {
+            ...(intent.name === null ? {} : { name: intent.name }),
+            ...(intent.shape === null ? {} : { shape: intent.shape }),
+          }),
+        },
+      ];
+    }
+    case 'delete_zone':
+      return [{ kind: 'zone_deleted', id: intent.id }];
     default:
       return null;
   }
@@ -127,7 +155,7 @@ export function boardEvents(snapshot: Snapshot, intent: Intent): Event[] | null 
 /** A sample board: an investigation with a hidden secret. */
 export function sampleBoard(
   id: (n: number) => string,
-): Pick<Snapshot, 'boards' | 'board_nodes' | 'board_edges'> {
+): Pick<Snapshot, 'boards' | 'board_nodes' | 'board_edges' | 'zones'> {
   const board = id(70);
   const node = (
     n: number,
@@ -155,6 +183,7 @@ export function sampleBoard(
       node(72, '**Cult of the Drowned**\n\nMeets under the crypt.', 360, 40, 'players'),
       node(73, '**Secret passage**\n\nBehind the altar, opened by a hidden lever.', 200, 240, 'gm'),
     ],
+    zones: [],
     board_edges: [
       {
         id: id(74),

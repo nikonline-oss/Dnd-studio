@@ -37,6 +37,7 @@ export function FogToolbar({ state, onChange, onReset, hasFog, disabled }: Props
     ['pan', 'hand', t('fog.pan')],
     ['rect', 'square', t('fog.rect')],
     ['brush', 'brush', t('fog.brush')],
+    ['zone', 'zone', t('zones.draw')],
   ];
   const kinds: [FogOpKind, IconName, string][] = [
     ['reveal', 'eye', t('fog.reveal')],
@@ -66,7 +67,7 @@ export function FogToolbar({ state, onChange, onReset, hasFog, disabled }: Props
           </button>
         ))}
       </div>
-      {state.shape !== 'pan' && (
+      {state.shape !== 'pan' && state.shape !== 'zone' && (
         <div className="segmented" role="radiogroup" aria-label={t('fog.mode')}>
           {kinds.map(([kind, icon, label]) => (
             <button

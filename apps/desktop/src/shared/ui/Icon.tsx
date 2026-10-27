@@ -40,6 +40,7 @@ const PATHS = {
   board: 'M3 4h7v5H3zM14 4h7v5h-7zM8.5 15h7v5h-7zM6.5 9l4 6M17.5 9l-4 6',
   link: 'M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1',
   note: 'M5 4h14v12l-4 4H5zM15 20v-4h4M8 9h8M8 13h5',
+  zone: 'M4 4h3M10 4h4M17 4h3v3M20 10v4M20 17v3h-3M14 20h-4M7 20H4v-3M4 14v-4M4 7V4',
 } as const;
 
 export type IconName = keyof typeof PATHS;

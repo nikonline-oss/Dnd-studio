@@ -289,6 +289,8 @@ export type Event = { kind: "campaign_meta_updated"; campaign: CampaignMeta } | 
 { kind: "board_node_moved"; id: BoardNodeId; x: number; y: number } | 
 /**  Its edges were deleted by earlier events of the batch. */
 { kind: "board_node_deleted"; id: BoardNodeId } | { kind: "board_edge_created"; edge: BoardEdgeDto } | { kind: "board_edge_updated"; edge: BoardEdgeDto } | { kind: "board_edge_deleted"; id: BoardEdgeId } | 
+/**  A zone on a map (ADR-0024); GM roles only. */
+{ kind: "zone_created"; zone: ZoneDto } | { kind: "zone_updated"; zone: ZoneDto } | { kind: "zone_deleted"; id: ZoneId } | 
 /**
  *  Stands in for an event the recipient may not see, so sequence numbers stay contiguous
  *  (ADR-0022). Never stored; applying it changes nothing.
@@ -447,7 +449,9 @@ asset: AssetDto } |
 /**  Last-write-wins, like a token move (ADR-0003). */
 { kind: "move_board_node"; id: BoardNodeId; x: number; y: number } | 
 /**  Deletes the node with its edges. */
-{ kind: "delete_board_node"; id: BoardNodeId } | { kind: "create_board_edge"; id: BoardEdgeId; board_id: BoardId; from: BoardNodeId; to: BoardNodeId; label: string; directed: boolean; visibility: BoardVisibility } | { kind: "update_board_edge"; id: BoardEdgeId; label: string | null; directed: boolean | null; visibility: BoardVisibility | null } | { kind: "delete_board_edge"; id: BoardEdgeId };
+{ kind: "delete_board_node"; id: BoardNodeId } | { kind: "create_board_edge"; id: BoardEdgeId; board_id: BoardId; from: BoardNodeId; to: BoardNodeId; label: string; directed: boolean; visibility: BoardVisibility } | { kind: "update_board_edge"; id: BoardEdgeId; label: string | null; directed: boolean | null; visibility: BoardVisibility | null } | { kind: "delete_board_edge"; id: BoardEdgeId } | 
+/**  GM / Co-GM: a named area on a map for triggers (ADR-0024). */
+{ kind: "create_zone"; id: ZoneId; map_id: MapId; name: string; shape: ZoneShape } | { kind: "update_zone"; id: ZoneId; name: string | null; shape: ZoneShape | null } | { kind: "delete_zone"; id: ZoneId };
 
 /**  An intent together with its correlation id and the version it was based on (ADR-0003). */
 export type IntentEnvelope = {
@@ -673,6 +677,8 @@ export type Snapshot = {
 	boards: BoardDto[],
 	board_nodes: BoardNodeDto[],
 	board_edges: BoardEdgeDto[],
+	/**  Zones on maps (GM roles only; empty for players). */
+	zones: ZoneDto[],
 };
 
 /**  Messages the core posts; the UI localizes them by `code`. */
@@ -740,3 +746,22 @@ export type UserId = string;
  *  Exported to TypeScript as `number`: versions never approach 2^53 (ADR-0007).
  */
 export type Version = number;
+
+/**  A named zone on a map. */
+export type ZoneDto = {
+	id: ZoneId,
+	map_id: MapId,
+	name: string,
+	shape: ZoneShape,
+	version: Version,
+};
+
+/**  A named area on a map that triggers watch (ADR-0024). */
+export type ZoneId = string;
+
+/**  The area of a zone, in Units16 (ADR-0016). */
+export type ZoneShape = 
+/**  Axis-aligned rectangle with its top-left corner at (`x`, `y`). */
+{ type: "rect"; x: number; y: number; width: number; height: number } | 
+/**  A closed polygon: flat `[x0, y0, x1, y1, …]`, 3..=[`MAX_ZONE_POINTS`] points. */
+{ type: "polygon"; points: number[] };

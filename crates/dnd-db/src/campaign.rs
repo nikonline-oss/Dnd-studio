@@ -9,7 +9,7 @@ use dnd_protocol::{
     CombatantDto, CombatantId, DiceRollDto, Event, EventBatch, FogDto, FogOp, Grid, GridKind,
     IntentId, JournalEntryDto, JournalEntryId, JournalFolderDto, JournalFolderId, MapDto, MapId,
     PayloadHash, PluginDto, Role, Seq, SystemMessage, TokenDto, TokenId, TokenLayer, UserDto,
-    UserId, Version,
+    UserId, Version, ZoneDto,
 };
 use serde::{Deserialize, Serialize};
 use sqlx::sqlite::SqliteRow;
@@ -508,6 +508,13 @@ impl CampaignDb {
             let edge: BoardEdgeDto = serde_json::from_str(&row.try_get::<String, _>("dto")?)?;
             state.board_edges.insert(edge.id, edge);
         }
+        for row in sqlx::query("SELECT dto FROM zones ORDER BY id")
+            .fetch_all(&self.pool)
+            .await?
+        {
+            let zone: ZoneDto = serde_json::from_str(&row.try_get::<String, _>("dto")?)?;
+            state.zones.insert(zone.id, zone);
+        }
         for row in sqlx::query("SELECT dto FROM installed_plugins ORDER BY id")
             .fetch_all(&self.pool)
             .await?
@@ -792,6 +799,25 @@ async fn project_event(conn: &mut SqliteConnection, event: &Event, at_ms: i64) -
         }
         Event::BoardEdgeDeleted { id } => {
             sqlx::query("DELETE FROM board_edges WHERE id = ?")
+                .bind(id.to_string())
+                .execute(conn)
+                .await?;
+            Ok(())
+        }
+        Event::ZoneCreated { zone } | Event::ZoneUpdated { zone } => {
+            sqlx::query(
+                "INSERT INTO zones (id, map_id, dto, version) VALUES (?, ?, ?, ?)                  ON CONFLICT (id) DO UPDATE SET dto = excluded.dto, version = excluded.version",
+            )
+            .bind(zone.id.to_string())
+            .bind(zone.map_id.to_string())
+            .bind(serde_json::to_string(zone)?)
+            .bind(zone.version.0)
+            .execute(conn)
+            .await?;
+            Ok(())
+        }
+        Event::ZoneDeleted { id } => {
+            sqlx::query("DELETE FROM zones WHERE id = ?")
                 .bind(id.to_string())
                 .execute(conn)
                 .await?;

@@ -16,6 +16,7 @@ pub fn evolve(state: &mut GameState, event: &Event) {
             state.maps.remove(id);
             state.tokens.retain(|_, t| t.map_id != *id);
             state.fog.remove(id);
+            state.zones.retain(|_, z| z.map_id != *id);
             // The map's combat goes with it (FK cascade in the database).
             let ended: Vec<_> = state
                 .combats
@@ -134,6 +135,12 @@ pub fn evolve(state: &mut GameState, event: &Event) {
         }
         Event::BoardEdgeDeleted { id } => {
             state.board_edges.remove(id);
+        }
+        Event::ZoneCreated { zone } | Event::ZoneUpdated { zone } => {
+            state.zones.insert(zone.id, zone.clone());
+        }
+        Event::ZoneDeleted { id } => {
+            state.zones.remove(id);
         }
         Event::UserJoined { user } => {
             state.users.insert(user.id, user.clone());

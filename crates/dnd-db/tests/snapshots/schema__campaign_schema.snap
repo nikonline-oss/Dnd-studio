@@ -24,6 +24,7 @@ CREATE TABLE pending_ops ( id INTEGER PRIMARY KEY AUTOINCREMENT, intent TEXT NOT
 CREATE TABLE "tokens" ( id TEXT PRIMARY KEY NOT NULL, map_id TEXT NOT NULL REFERENCES maps (id) ON DELETE CASCADE, character_id TEXT REFERENCES characters (id) ON DELETE SET NULL, asset_id TEXT REFERENCES assets (id) ON DELETE SET NULL, name TEXT NOT NULL DEFAULT '', x INTEGER NOT NULL CHECK (x >= 0), y INTEGER NOT NULL CHECK (y >= 0), rotation REAL NOT NULL DEFAULT 0, scale REAL NOT NULL DEFAULT 1 CHECK (scale > 0), layer TEXT NOT NULL CHECK (layer IN ('background', 'tokens', 'gm')), visible INTEGER NOT NULL CHECK (visible IN (0, 1)), version INTEGER NOT NULL DEFAULT 1 ) STRICT;
 CREATE TABLE users ( id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL, role TEXT NOT NULL CHECK (role IN ('gm', 'co_gm', 'player', 'spectator')), created_at INTEGER NOT NULL, version INTEGER NOT NULL DEFAULT 1 ) STRICT;
 CREATE TABLE worlds ( id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', sort_order INTEGER NOT NULL DEFAULT 0, version INTEGER NOT NULL DEFAULT 1 ) STRICT;
+CREATE TABLE zones ( id TEXT PRIMARY KEY NOT NULL, map_id TEXT NOT NULL REFERENCES maps (id) ON DELETE CASCADE, dto TEXT NOT NULL CHECK (json_valid(dto)), version INTEGER NOT NULL DEFAULT 1 ) STRICT;
 CREATE INDEX board_edges_board_id ON board_edges (board_id);
 CREATE INDEX board_edges_from_id ON board_edges (from_id);
 CREATE INDEX board_edges_to_id ON board_edges (to_id);
@@ -49,6 +50,7 @@ CREATE INDEX maps_world_id ON maps (world_id);
 CREATE INDEX tokens_asset_id ON tokens (asset_id);
 CREATE INDEX tokens_character_id ON tokens (character_id);
 CREATE INDEX tokens_map_id ON tokens (map_id);
+CREATE INDEX zones_map_id ON zones (map_id);
 CREATE TRIGGER chat_messages_no_delete BEFORE DELETE ON chat_messages BEGIN SELECT RAISE(ABORT, 'chat_messages is append-only'); END;
 CREATE TRIGGER chat_messages_no_update BEFORE UPDATE ON chat_messages WHEN NOT ( OLD.sender_user_id IS NOT NULL AND NEW.sender_user_id IS NULL AND NEW.id IS OLD.id AND NEW.kind IS OLD.kind AND NEW.body IS OLD.body AND NEW.whisper_to IS OLD.whisper_to AND NEW.created_at IS OLD.created_at AND NEW.sender_name IS OLD.sender_name AND NEW.visibility IS OLD.visibility ) BEGIN SELECT RAISE(ABORT, 'chat_messages is append-only'); END;
 CREATE TRIGGER dice_rolls_no_update BEFORE UPDATE ON dice_rolls WHEN NOT ( OLD.user_id IS NOT NULL AND NEW.user_id IS NULL AND NEW.id IS OLD.id AND NEW.expression IS OLD.expression AND NEW.result IS OLD.result AND NEW.total IS OLD.total AND NEW.chat_message_id IS OLD.chat_message_id AND NEW.created_at IS OLD.created_at AND NEW.user_name IS OLD.user_name ) BEGIN SELECT RAISE(ABORT, 'dice_rolls is append-only'); END;

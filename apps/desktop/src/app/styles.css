@@ -2510,3 +2510,9 @@ input[type='checkbox'] {
   background: var(--color-surface);
   border-radius: var(--radius);
 }
+
+.zone-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}

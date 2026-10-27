@@ -456,5 +456,13 @@
     "image": "Picture",
     "noteText": "Note text",
     "unavailable": "Unavailable"
+  },
+  "zones": {
+    "draw": "Draw a zone",
+    "newName": "Zone",
+    "title": "Zones",
+    "empty": "No zones. Draw one with the map tool — only GMs see zones.",
+    "rename": "Rename zone",
+    "delete": "Delete zone"
   }
 }

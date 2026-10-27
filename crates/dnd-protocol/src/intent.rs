@@ -5,10 +5,11 @@ use serde::{Deserialize, Serialize};
 use crate::board::{BoardNodeContent, BoardVisibility};
 use crate::ids::{
     AssetId, BoardEdgeId, BoardId, BoardNodeId, CharacterId, ChatMessageId, CombatId, CombatantId,
-    IntentId, JournalEntryId, JournalFolderId, MapId, TokenId, UserId, Version,
+    IntentId, JournalEntryId, JournalFolderId, MapId, TokenId, UserId, Version, ZoneId,
 };
 use crate::model::{AssetDto, CharacterKind, FogOp, Grid, JournalVisibility, TokenLayer};
 use crate::plugin::PluginDto;
+use crate::zone::ZoneShape;
 
 /// An intent together with its correlation id and the version it was based on (ADR-0003).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -332,6 +333,22 @@ pub enum Intent {
     DeleteBoardEdge {
         id: BoardEdgeId,
     },
+
+    /// GM / Co-GM: a named area on a map for triggers (ADR-0024).
+    CreateZone {
+        id: ZoneId,
+        map_id: MapId,
+        name: String,
+        shape: ZoneShape,
+    },
+    UpdateZone {
+        id: ZoneId,
+        name: Option<String>,
+        shape: Option<ZoneShape>,
+    },
+    DeleteZone {
+        id: ZoneId,
+    },
 }
 
 /// What kind of version handling an intent needs.
@@ -398,6 +415,9 @@ impl Intent {
             Self::CreateBoardEdge { .. } => "create_board_edge",
             Self::UpdateBoardEdge { .. } => "update_board_edge",
             Self::DeleteBoardEdge { .. } => "delete_board_edge",
+            Self::CreateZone { .. } => "create_zone",
+            Self::UpdateZone { .. } => "update_zone",
+            Self::DeleteZone { .. } => "delete_zone",
         }
     }
 
@@ -418,7 +438,8 @@ impl Intent {
             | Self::CreateJournalFolder { .. }
             | Self::CreateBoard { .. }
             | Self::CreateBoardNode { .. }
-            | Self::CreateBoardEdge { .. } => VersionPolicy::Create,
+            | Self::CreateBoardEdge { .. }
+            | Self::CreateZone { .. } => VersionPolicy::Create,
             // Plugins are configuration the GM owns: the last choice wins.
             Self::MoveToken { .. }
             | Self::MoveBoardNode { .. }
@@ -453,7 +474,9 @@ impl Intent {
             | Self::UpdateBoardNode { .. }
             | Self::DeleteBoardNode { .. }
             | Self::UpdateBoardEdge { .. }
-            | Self::DeleteBoardEdge { .. } => VersionPolicy::Checked,
+            | Self::DeleteBoardEdge { .. }
+            | Self::UpdateZone { .. }
+            | Self::DeleteZone { .. } => VersionPolicy::Checked,
         }
     }
 

@@ -303,6 +303,9 @@ fn current_version(state: &GameState, intent: &Intent) -> Option<Version> {
         Intent::UpdateBoardEdge { id, .. } | Intent::DeleteBoardEdge { id } => {
             state.board_edges.get(id).map(|e| e.version)
         }
+        Intent::UpdateZone { id, .. } | Intent::DeleteZone { id } => {
+            state.zones.get(id).map(|z| z.version)
+        }
         other => other
             .character_id()
             .and_then(|id| state.characters.get(&id).map(|c| c.version)),

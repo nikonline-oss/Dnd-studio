@@ -63,6 +63,7 @@ function setup(role: Role = 'gm') {
     boards: [],
     board_nodes: [],
     board_edges: [],
+    zones: [],
     assets: [],
     fog: [],
     combats: [],

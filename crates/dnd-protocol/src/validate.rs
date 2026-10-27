@@ -90,6 +90,10 @@ impl Intent {
                 .chain(height.map(|h| ("height", h)))
                 .collect(),
             Self::MoveBoardNode { x, y, .. } => vec![("x", *x), ("y", *y)],
+            Self::CreateZone { shape, .. }
+            | Self::UpdateZone {
+                shape: Some(shape), ..
+            } => zone_integers(shape),
             Self::UpdateCampaignMeta { .. }
             | Self::UpdateMap { .. }
             | Self::DeleteMap { .. }
@@ -126,7 +130,9 @@ impl Intent {
             | Self::DeleteBoardNode { .. }
             | Self::CreateBoardEdge { .. }
             | Self::UpdateBoardEdge { .. }
-            | Self::DeleteBoardEdge { .. } => Vec::new(),
+            | Self::DeleteBoardEdge { .. }
+            | Self::UpdateZone { shape: None, .. }
+            | Self::DeleteZone { .. } => Vec::new(),
             Self::RegisterAsset { asset } => vec![("size_bytes", asset.size_bytes)],
             Self::ApplyFog { op, .. } => match &op.shape {
                 FogShape::Rect {
@@ -166,6 +172,7 @@ impl Intent {
             Self::CreateBoard { id, .. } => Some(id.0),
             Self::CreateBoardNode { id, .. } => Some(id.0),
             Self::CreateBoardEdge { id, .. } => Some(id.0),
+            Self::CreateZone { id, .. } => Some(id.0),
             Self::UpdateCampaignMeta { .. }
             | Self::UpdateMap { .. }
             | Self::DeleteMap { .. }
@@ -199,7 +206,28 @@ impl Intent {
             | Self::MoveBoardNode { .. }
             | Self::DeleteBoardNode { .. }
             | Self::UpdateBoardEdge { .. }
-            | Self::DeleteBoardEdge { .. } => None,
+            | Self::DeleteBoardEdge { .. }
+            | Self::UpdateZone { .. }
+            | Self::DeleteZone { .. } => None,
+        }
+    }
+}
+
+fn zone_integers(shape: &crate::zone::ZoneShape) -> Vec<(&'static str, i64)> {
+    match shape {
+        crate::zone::ZoneShape::Rect {
+            x,
+            y,
+            width,
+            height,
+        } => vec![
+            ("shape.x", *x),
+            ("shape.y", *y),
+            ("shape.width", *width),
+            ("shape.height", *height),
+        ],
+        crate::zone::ZoneShape::Polygon { points } => {
+            points.iter().map(|p| ("shape.points", *p)).collect()
         }
     }
 }

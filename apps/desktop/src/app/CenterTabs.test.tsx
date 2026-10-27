@@ -44,6 +44,7 @@ function renderTabs(maps: MapDto[]) {
     boards: [],
     board_nodes: [],
     board_edges: [],
+    zones: [],
     assets: [],
     fog: [],
     combats: [],

@@ -15,6 +15,7 @@ pub mod plugin;
 pub mod sheet_schema;
 mod snapshot;
 pub mod validate;
+pub mod zone;
 
 #[cfg(feature = "arbitrary")]
 pub mod arbitrary;
@@ -28,7 +29,7 @@ pub use event::{Event, EventBatch};
 pub use ids::{
     AssetId, BoardEdgeId, BoardId, BoardNodeId, CharacterId, ChatMessageId, CombatId, CombatantId,
     FogOpId, IntentId, JournalEntryId, JournalFolderId, MapId, MessageId, Role, Seq, SessionId,
-    TokenId, UserId, Version, uuid_v7_from_random,
+    TokenId, UserId, Version, ZoneId, uuid_v7_from_random,
 };
 pub use intent::{Intent, IntentEnvelope, IntentOutcome, PayloadHash, VersionPolicy};
 pub use message::{Acceptance, ClientMessage, Envelope, Rejection, ServerMessage};
@@ -53,6 +54,7 @@ pub use uuid::Uuid;
 pub use validate::{
     MAX_SAFE_INTEGER, SheetFieldError, is_js_safe, is_uuid_v7, sheet_field, validate_sheet_json,
 };
+pub use zone::{MAX_ZONE_POINTS, MAX_ZONES_PER_MAP, ZoneDto, ZoneShape};
 
 /// Protocol version. Peers with a different version are refused with
 /// [`RejectReason::ProtocolMismatch`].

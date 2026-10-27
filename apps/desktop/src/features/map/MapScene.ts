@@ -15,6 +15,7 @@ import { drawShape, FogLayer } from './FogLayer';
 import { BrushStroke, brushRadius16, rectFromDrag } from './fogShapes';
 import { gridPattern } from './gridPattern';
 import { TokenLayer, type TokenView } from './TokenLayer';
+import { ZoneLayer } from './ZoneLayer';
 import { snapToGrid, Throttle, tokenPosition } from './tokenMath';
 import {
   clampCamera,
@@ -26,7 +27,16 @@ import {
   type Point,
   type Size,
 } from './viewport';
-import type { AssetDto, FogDto, FogOpKind, FogShape, Grid, MapDto } from '@/shared/ipc/client';
+import type {
+  AssetDto,
+  FogDto,
+  FogOpKind,
+  FogShape,
+  Grid,
+  MapDto,
+  ZoneDto,
+  ZoneShape,
+} from '@/shared/ipc/client';
 import { assetUrl } from '@/shared/ipc/client';
 
 /** Shown under a map without a background image, so its bounds stay visible. */
@@ -38,6 +48,7 @@ const GRID_TEXTURE_PX = 256;
 const REVEAL_PREVIEW = 0xe3aa45;
 const HIDE_PREVIEW = 0x0b0a10;
 const PREVIEW_ALPHA = 0.45;
+const ZONE_PREVIEW = 0x9b7bff;
 /** A press that moves less than this (CSS px) is a click, not a drag. */
 const CLICK_SLOP_PX = 4;
 /** Token moves while dragging: ~12 Hz (ADR-0003 asks for 10–15 Hz). */
@@ -51,16 +62,16 @@ export interface TokenMove {
   final: boolean;
 }
 
-/** The GM's active fog tool; `null` = the left button pans. */
+/** The GM's active tool (fog, or drawing a zone); `null` = the left button pans. */
 export interface FogTool {
-  shape: 'rect' | 'brush';
+  shape: 'rect' | 'brush' | 'zone';
   kind: FogOpKind;
   /** Brush radius in map units. */
   radius: number;
 }
 
 type Drawing =
-  | { tool: 'rect'; kind: FogOpKind; from: Point; to: Point }
+  | { tool: 'rect'; kind: FogOpKind; from: Point; to: Point; zone: boolean }
   | { tool: 'brush'; kind: FogOpKind; stroke: BrushStroke };
 
 async function loadBitmap(sha256: string): Promise<ImageBitmap> {
@@ -76,6 +87,8 @@ export class MapScene {
   private readonly fog: FogLayer;
   /** Tool preview, drawn in Units16 (scaled down to map units). */
   private readonly preview = new Graphics();
+  /** Zones, shown to GM roles only (ADR-0024). */
+  private readonly zones = new ZoneLayer();
   private camera: Camera = { x: 0, y: 0, zoom: 1 };
   private mapSize: Size | null = null;
   private mapId: string | null = null;
@@ -116,6 +129,8 @@ export class MapScene {
     private readonly onMoveToken: (move: TokenMove) => void = () => undefined,
     /** A token was clicked (`null`: the empty map was clicked). */
     private readonly onSelectToken: (id: string | null) => void = () => undefined,
+    /** A zone was drawn (GM roles, ADR-0024). */
+    private readonly onZone: (shape: ZoneShape) => void = () => undefined,
   ) {
     this.fog = new FogLayer(app);
     this.tokens = new TokenLayer(this.onGrabToken);
@@ -130,6 +145,7 @@ export class MapScene {
       this.gridLayer,
       this.tokens.view,
       this.fog.view,
+      this.zones.view,
       this.preview,
     );
     app.stage.addChild(this.world);
@@ -187,6 +203,11 @@ export class MapScene {
     if (this.grid) this.tokens.show(views, this.grid, this.tool === null);
   }
 
+  /** The zones of the shown map (empty for players, who never get any). */
+  setZones(zones: ZoneDto[]): void {
+    this.zones.show(zones);
+  }
+
   /** Converts a point of the canvas (CSS pixels) to map units. */
   canvasToMap(x: number, y: number): Point {
     return this.world.toLocal({ x, y });
@@ -225,6 +246,7 @@ export class MapScene {
     this.moves.cancel();
     this.tokens.destroy();
     this.fog.destroy();
+    this.zones.destroy();
     this.world.destroy({ children: true });
     this.releaseBackground();
     this.gridTexture?.destroy(true);
@@ -367,7 +389,12 @@ export class MapScene {
     this.preview.clear();
     const drawing = this.drawing;
     if (!drawing || !this.mapSize) return;
-    const color = drawing.kind === 'reveal' ? REVEAL_PREVIEW : HIDE_PREVIEW;
+    const color =
+      drawing.tool === 'rect' && drawing.zone
+        ? ZONE_PREVIEW
+        : drawing.kind === 'reveal'
+          ? REVEAL_PREVIEW
+          : HIDE_PREVIEW;
     for (const shape of this.drawingShapes(drawing, this.mapSize)) {
       drawShape(this.preview, shape, color, PREVIEW_ALPHA);
     }
@@ -409,8 +436,9 @@ export class MapScene {
     // left button pans too (tokens will claim left drags on themselves, step 7).
     if (event.button === 0 && this.tool && this.mapSize) {
       const at = this.world.toLocal(event.global);
-      if (this.tool.shape === 'rect') {
-        this.drawing = { tool: 'rect', kind: this.tool.kind, from: at, to: at };
+      if (this.tool.shape === 'rect' || this.tool.shape === 'zone') {
+        const zone = this.tool.shape === 'zone';
+        this.drawing = { tool: 'rect', kind: this.tool.kind, from: at, to: at, zone };
       } else {
         const stroke = new BrushStroke(brushRadius16(this.tool.radius), this.mapSize);
         stroke.add(at);
@@ -484,7 +512,12 @@ export class MapScene {
     if (drawing && this.mapSize) {
       this.cancelDrawing();
       const shapes = this.drawingShapes(drawing, this.mapSize);
-      if (shapes.length > 0) this.onFog(drawing.kind, shapes);
+      const [rect] = shapes;
+      if (drawing.tool === 'rect' && drawing.zone) {
+        if (rect?.type === 'rect' && rect.width > 0 && rect.height > 0) this.onZone(rect);
+      } else if (shapes.length > 0) {
+        this.onFog(drawing.kind, shapes);
+      }
     }
     if (this.dragFrom) {
       const start = this.panStart;

@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { GridForm } from './GridForm';
+import { ZoneList } from './ZoneList';
 import { useCampaign, useSnapshotSelect } from '@/shared/game/useGame';
 import { assetUrl, type AssetDto, type MapDto } from '@/shared/ipc/client';
 import { useSelection } from '@/shared/state/selection';
@@ -37,6 +38,7 @@ export function MapInspector() {
           <GridForm key={`${map.id}:${map.version}`} map={map} />
         </section>
       )}
+      {isGm && <ZoneList mapId={map.id} />}
     </div>
   );
 }

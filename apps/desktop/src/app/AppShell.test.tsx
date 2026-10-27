@@ -22,6 +22,7 @@ const snapshot: Snapshot = {
   boards: [],
   board_nodes: [],
   board_edges: [],
+  zones: [],
   assets: [],
   fog: [],
   combats: [],

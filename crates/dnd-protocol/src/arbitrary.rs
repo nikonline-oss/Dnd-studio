@@ -13,13 +13,14 @@ use crate::board::{
 use crate::event::{Event, EventBatch};
 use crate::ids::{
     BoardEdgeId, BoardId, BoardNodeId, CharacterId, CombatId, CombatantId, FogOpId, IntentId,
-    JournalFolderId, MapId, Role, Seq, TokenId, UserId, Version,
+    JournalFolderId, MapId, Role, Seq, TokenId, UserId, Version, ZoneId,
 };
 use crate::intent::{Intent, IntentEnvelope};
 use crate::model::{
     CampaignMeta, CharacterKind, CombatDto, CombatantDto, FogOp, FogOpKind, FogShape, Grid,
     GridKind, JournalFolderDto, MapDto, TokenDto, TokenLayer, UserDto,
 };
+use crate::zone::{ZoneDto, ZoneShape};
 
 /// Number of distinct map ids produced by [`map_id`].
 pub const MAP_POOL: u128 = 3;
@@ -150,6 +151,39 @@ pub fn board_edge_dto() -> impl Strategy<Value = BoardEdgeDto> {
                 version,
             },
         )
+}
+
+pub fn zone_id() -> impl Strategy<Value = ZoneId> {
+    (0x5_3000u128..0x5_3004).prop_map(|n| ZoneId(v7(n)))
+}
+
+pub fn zone_shape() -> impl Strategy<Value = ZoneShape> {
+    prop_oneof![
+        (position(), position(), 16i64..20_000, 16i64..20_000).prop_map(|(x, y, width, height)| {
+            ZoneShape::Rect {
+                x,
+                y,
+                width,
+                height,
+            }
+        }),
+        proptest::collection::vec(position(), 6..12).prop_map(|mut points| {
+            points.truncate(points.len() / 2 * 2);
+            ZoneShape::Polygon { points }
+        }),
+    ]
+}
+
+pub fn zone_dto() -> impl Strategy<Value = ZoneDto> {
+    (zone_id(), map_id(), name(), zone_shape(), version()).prop_map(
+        |(id, map_id, name, shape, version)| ZoneDto {
+            id,
+            map_id,
+            name,
+            shape,
+            version,
+        },
+    )
 }
 
 pub fn map_id() -> impl Strategy<Value = MapId> {
@@ -478,6 +512,21 @@ pub fn intent() -> impl Strategy<Value = Intent> {
                 visibility
             }),
         board_edge_id().prop_map(|id| Intent::DeleteBoardEdge { id }),
+        (zone_id(), map_id(), name(), zone_shape()).prop_map(|(id, map_id, name, shape)| {
+            Intent::CreateZone {
+                id,
+                map_id,
+                name,
+                shape,
+            }
+        }),
+        (
+            zone_id(),
+            proptest::option::of(name()),
+            proptest::option::of(zone_shape())
+        )
+            .prop_map(|(id, name, shape)| Intent::UpdateZone { id, name, shape }),
+        zone_id().prop_map(|id| Intent::DeleteZone { id }),
         (
             token_id(),
             map_id(),
@@ -667,6 +716,9 @@ pub fn event() -> impl Strategy<Value = Event> {
         board_edge_dto().prop_map(|edge| Event::BoardEdgeCreated { edge }),
         board_edge_dto().prop_map(|edge| Event::BoardEdgeUpdated { edge }),
         board_edge_id().prop_map(|id| Event::BoardEdgeDeleted { id }),
+        zone_dto().prop_map(|zone| Event::ZoneCreated { zone }),
+        zone_dto().prop_map(|zone| Event::ZoneUpdated { zone }),
+        zone_id().prop_map(|id| Event::ZoneDeleted { id }),
         Just(Event::Redacted),
     ]
 }

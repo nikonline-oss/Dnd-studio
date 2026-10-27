@@ -23,6 +23,7 @@ mod rng;
 mod state;
 mod users;
 mod visibility;
+mod zones;
 
 pub use apply::{MAX_DESCRIPTION_LEN, MAX_NAME_LEN, RuleError, apply};
 pub use combat::{initiative_expression, turn_order, turn_order_cmp};

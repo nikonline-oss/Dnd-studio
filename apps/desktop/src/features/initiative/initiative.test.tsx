@@ -81,6 +81,7 @@ function setup(role: Role, combat: CombatDto | null, combatants: CombatantDto[] 
     boards: [],
     board_nodes: [],
     board_edges: [],
+    zones: [],
     assets: [],
     fog: [],
     combats: combat ? [combat] : [],

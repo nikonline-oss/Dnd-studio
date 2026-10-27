@@ -281,6 +281,10 @@ pub fn apply(
         | Intent::DeleteBoardEdge { .. } => {
             crate::boards::apply(state, intent).unwrap_or(Err(RejectReason::invalid("intent")))
         }
+
+        Intent::CreateZone { .. } | Intent::UpdateZone { .. } | Intent::DeleteZone { .. } => {
+            crate::zones::apply(state, intent).unwrap_or(Err(RejectReason::invalid("intent")))
+        }
     }
 }
 
@@ -320,7 +324,11 @@ fn current_version(state: &GameState, intent: &Intent) -> Result<Version, Reject
         | Intent::SetSystemPlugin { .. }
         | Intent::CreateBoard { .. }
         | Intent::CreateBoardNode { .. }
-        | Intent::CreateBoardEdge { .. } => None,
+        | Intent::CreateBoardEdge { .. }
+        | Intent::CreateZone { .. } => None,
+        Intent::UpdateZone { id, .. } | Intent::DeleteZone { id } => {
+            state.zones.get(id).map(|z| z.version)
+        }
         Intent::MoveBoardNode { .. } => None,
         Intent::UpdateBoard { id, .. } | Intent::DeleteBoard { id } => {
             state.boards.get(id).map(|b| b.version)
@@ -425,6 +433,7 @@ fn id_in_use(state: &GameState, id: dnd_protocol::Uuid) -> bool {
         || state
             .board_edges
             .contains_key(&dnd_protocol::BoardEdgeId(id))
+        || state.zones.contains_key(&dnd_protocol::ZoneId(id))
 }
 
 /// Next version, rejected once it would leave the JS-safe range (ADR-0015).

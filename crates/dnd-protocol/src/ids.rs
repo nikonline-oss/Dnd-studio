@@ -87,6 +87,10 @@ define_id!(
     BoardEdgeId
 );
 define_id!(
+    /// A named area on a map that triggers watch (ADR-0024).
+    ZoneId
+);
+define_id!(
     /// Client-chosen identifier of an intent, used to correlate `Rejected`/`Events`.
     IntentId
 );

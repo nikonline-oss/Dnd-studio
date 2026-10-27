@@ -27,6 +27,7 @@ export function applyEvent(snapshot: Snapshot, event: Event): Snapshot {
         maps: snapshot.maps.filter((m) => m.id !== event.id),
         tokens: snapshot.tokens.filter((t) => t.map_id !== event.id),
         fog: snapshot.fog.filter((f) => f.map_id !== event.id),
+        zones: snapshot.zones.filter((z) => z.map_id !== event.id),
         // The map's combat goes with it.
         ...endCombats(
           snapshot,
@@ -155,6 +156,11 @@ export function applyEvent(snapshot: Snapshot, event: Event): Snapshot {
       return { ...snapshot, board_edges: upsert(snapshot.board_edges, event.edge) };
     case 'board_edge_deleted':
       return { ...snapshot, board_edges: snapshot.board_edges.filter((e) => e.id !== event.id) };
+    case 'zone_created':
+    case 'zone_updated':
+      return { ...snapshot, zones: upsert(snapshot.zones, event.zone) };
+    case 'zone_deleted':
+      return { ...snapshot, zones: snapshot.zones.filter((z) => z.id !== event.id) };
     case 'redacted':
       // Something the server hides from this recipient: only its sequence number counts.
       return snapshot;
