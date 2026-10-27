@@ -204,6 +204,73 @@ export type AssetUsage =
 /**  Token or portrait: one WebP, at most 2048 px per side. */
 "token";
 
+/**  A board: one center tab of elements. */
+export type BoardDto = {
+	id: BoardId,
+	name: string,
+	/**  Order in the board list (ascending). */
+	sort_order: number,
+	/**  Players see the board (and its elements open to players). */
+	visible_to_players: boolean,
+	version: Version,
+};
+
+/**  A connection between two nodes of the same board. */
+export type BoardEdgeDto = {
+	id: BoardEdgeId,
+	board_id: BoardId,
+	from: BoardNodeId,
+	to: BoardNodeId,
+	/**  Caption on the line; may be empty. */
+	label: string,
+	/**  Drawn with an arrow towards `to`. */
+	directed: boolean,
+	/**  Players see it only when it and both its nodes are open to them. */
+	visibility: BoardVisibility,
+	version: Version,
+};
+
+/**  A connection between two board nodes. */
+export type BoardEdgeId = string;
+
+/**  A board (ADR-0024). */
+export type BoardId = string;
+
+/**  What a link node opens. */
+export type BoardLink = { kind: "map"; id: MapId } | { kind: "journal"; id: JournalEntryId } | { kind: "character"; id: CharacterId };
+
+/**  What a node shows. */
+export type BoardNodeContent = 
+/**  A card with Markdown text (at most [`MAX_NOTE_LEN`] characters). */
+{ type: "note"; markdown: string } | 
+/**  A card that opens a map, a journal entry or a character sheet. */
+{ type: "link"; target: BoardLink } | 
+/**  A picture from the campaign's assets. */
+{ type: "image"; asset_id: AssetId };
+
+/**  An element of a board. Position and size in Units16 (ADR-0016), the top-left corner. */
+export type BoardNodeDto = {
+	id: BoardNodeId,
+	board_id: BoardId,
+	content: BoardNodeContent,
+	x: number,
+	y: number,
+	width: number,
+	height: number,
+	visibility: BoardVisibility,
+	version: Version,
+};
+
+/**  An element (card) of a board. */
+export type BoardNodeId = string;
+
+/**  Who sees a board element. */
+export type BoardVisibility = 
+/**  GM roles only (the default for new elements). */
+"gm" | 
+/**  Everyone who sees the board. */
+"players";
+
 /**  A plugin shipped with the app. */
 export type BundledPlugin = {
 	id: string,
@@ -374,6 +441,16 @@ export type Event = { kind: "campaign_meta_updated"; campaign: CampaignMeta } | 
 { kind: "plugin_installed"; plugin: PluginDto } | { kind: "plugin_uninstalled"; id: string } | 
 /**  The campaign's rules changed. */
 { kind: "system_plugin_set"; id: string | null } | 
+/**  A board appeared (ADR-0024). */
+{ kind: "board_created"; board: BoardDto } | 
+/**  Renamed, shown to or hidden from players. */
+{ kind: "board_updated"; board: BoardDto } | 
+/**  Its nodes and edges were deleted by earlier events of the batch. */
+{ kind: "board_deleted"; id: BoardId } | { kind: "board_node_created"; node: BoardNodeDto } | { kind: "board_node_updated"; node: BoardNodeDto } | 
+/**  Last-write-wins position; does not bump the version. */
+{ kind: "board_node_moved"; id: BoardNodeId; x: number; y: number } | 
+/**  Its edges were deleted by earlier events of the batch. */
+{ kind: "board_node_deleted"; id: BoardNodeId } | { kind: "board_edge_created"; edge: BoardEdgeDto } | { kind: "board_edge_updated"; edge: BoardEdgeDto } | { kind: "board_edge_deleted"; id: BoardEdgeId } | 
 /**
  *  Stands in for an event the recipient may not see, so sequence numbers stay contiguous
  *  (ADR-0022). Never stored; applying it changes nothing.
@@ -545,7 +622,15 @@ asset: AssetDto } |
 /**  GM / Co-GM. The campaign's system plugin cannot be uninstalled. */
 { kind: "uninstall_plugin"; id: string } | 
 /**  GM / Co-GM: the campaign's rules (`None`: no system, free-form sheets). */
-{ kind: "set_system_plugin"; id: string | null };
+{ kind: "set_system_plugin"; id: string | null } | 
+/**  GM / Co-GM: a new board (ADR-0024), hidden from players until shown. */
+{ kind: "create_board"; id: BoardId; name: string } | { kind: "update_board"; id: BoardId; name: string | null; visible_to_players: boolean | null } | 
+/**  Deletes the board with its nodes and edges. */
+{ kind: "delete_board"; id: BoardId } | { kind: "create_board_node"; id: BoardNodeId; board_id: BoardId; content: BoardNodeContent; x: number; y: number; width: number; height: number; visibility: BoardVisibility } | { kind: "update_board_node"; id: BoardNodeId; content: BoardNodeContent | null; width: number | null; height: number | null; visibility: BoardVisibility | null } | 
+/**  Last-write-wins, like a token move (ADR-0003). */
+{ kind: "move_board_node"; id: BoardNodeId; x: number; y: number } | 
+/**  Deletes the node with its edges. */
+{ kind: "delete_board_node"; id: BoardNodeId } | { kind: "create_board_edge"; id: BoardEdgeId; board_id: BoardId; from: BoardNodeId; to: BoardNodeId; label: string; directed: boolean; visibility: BoardVisibility } | { kind: "update_board_edge"; id: BoardEdgeId; label: string | null; directed: boolean | null; visibility: BoardVisibility | null } | { kind: "delete_board_edge"; id: BoardEdgeId };
 
 /**  An intent together with its correlation id and the version it was based on (ADR-0003). */
 export type IntentEnvelope = {
@@ -856,6 +941,10 @@ export type Snapshot = {
 	plugins: PluginDto[],
 	/**  Id of the campaign's system plugin. */
 	system_plugin: string | null,
+	/**  Boards with their nodes and edges (ADR-0024). */
+	boards: BoardDto[],
+	board_nodes: BoardNodeDto[],
+	board_edges: BoardEdgeDto[],
 };
 
 /**  Messages the core posts; the UI localizes them by `code`. */

@@ -445,7 +445,7 @@ fn query_inventory_matches_adr_0008() {
         .map(|s| s.matches("sqlx::query").count())
         .sum();
     assert_eq!(
-        count, 56,
+        count, 66,
         "runtime queries changed: add a real-SQLite test and update the table in docs/adr/0008-db-conventions.md"
     );
 }
@@ -1305,5 +1305,145 @@ async fn journal_folders_are_projected_loaded_and_cascade() {
     assert_eq!(
         state.journal.keys().copied().collect::<Vec<_>>(),
         vec![root.id]
+    );
+}
+
+/// Boards (ADR-0024): boards, nodes and edges are stored as their DTOs, moved in place, loaded
+/// back, and deleting a node or a board cascades.
+#[tokio::test]
+async fn boards_are_projected_loaded_and_cascade() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = new_campaign(&dir).await;
+    let board = BoardDto {
+        id: BoardId(v7(0x800)),
+        name: "Plot".into(),
+        sort_order: 0,
+        visible_to_players: false,
+        version: Version(1),
+    };
+    let node = |n: u128, text: &str| BoardNodeDto {
+        id: BoardNodeId(v7(0x810 + n)),
+        board_id: board.id,
+        content: BoardNodeContent::Note {
+            markdown: text.into(),
+        },
+        x: 0,
+        y: 0,
+        width: 3200,
+        height: 1600,
+        visibility: BoardVisibility::Gm,
+        version: Version(1),
+    };
+    let (a, b, c) = (node(0, "Mayor"), node(1, "Cult"), node(2, "Crypt"));
+    let edge = |n: u128, from: &BoardNodeDto, to: &BoardNodeDto| BoardEdgeDto {
+        id: BoardEdgeId(v7(0x820 + n)),
+        board_id: board.id,
+        from: from.id,
+        to: to.id,
+        label: "knows".into(),
+        directed: true,
+        visibility: BoardVisibility::Players,
+        version: Version(1),
+    };
+    let (ab, bc) = (edge(0, &a, &b), edge(1, &b, &c));
+    let mut events = vec![Event::BoardCreated {
+        board: board.clone(),
+    }];
+    events.extend([&a, &b, &c].map(|n| Event::BoardNodeCreated { node: n.clone() }));
+    events.extend([&ab, &bc].map(|e| Event::BoardEdgeCreated { edge: e.clone() }));
+    db.project(&[record(1, Some(0x81), events)]).await.unwrap();
+
+    let shown = BoardDto {
+        name: "Main plot".into(),
+        visible_to_players: true,
+        version: Version(2),
+        ..board.clone()
+    };
+    let opened = BoardNodeDto {
+        visibility: BoardVisibility::Players,
+        version: Version(2),
+        ..a.clone()
+    };
+    let relabelled = BoardEdgeDto {
+        label: "fears".into(),
+        version: Version(2),
+        ..ab.clone()
+    };
+    db.project(&[record(
+        10,
+        Some(0x82),
+        vec![
+            Event::BoardUpdated {
+                board: shown.clone(),
+            },
+            Event::BoardNodeUpdated {
+                node: opened.clone(),
+            },
+            Event::BoardNodeMoved {
+                id: opened.id,
+                x: -480,
+                y: 960,
+            },
+            Event::BoardEdgeUpdated {
+                edge: relabelled.clone(),
+            },
+        ],
+    )])
+    .await
+    .unwrap();
+    let (state, _) = db.load_state().await.unwrap();
+    assert_eq!(state.boards[&board.id], shown);
+    assert_eq!(
+        state.board_nodes[&a.id],
+        BoardNodeDto {
+            x: -480,
+            y: 960,
+            ..opened
+        }
+    );
+    assert_eq!(state.board_edges[&ab.id], relabelled);
+
+    // Deleting a node takes its edges; deleting an edge, a board and its rest.
+    db.project(&[record(
+        20,
+        Some(0x83),
+        vec![
+            Event::BoardNodeDeleted { id: c.id },
+            Event::BoardEdgeDeleted { id: ab.id },
+        ],
+    )])
+    .await
+    .unwrap();
+    let (state, _) = db.load_state().await.unwrap();
+    assert_eq!(state.board_nodes.len(), 2);
+    assert!(state.board_edges.is_empty());
+    db.project(&[record(
+        30,
+        Some(0x84),
+        vec![Event::BoardDeleted { id: board.id }],
+    )])
+    .await
+    .unwrap();
+    let (state, _) = db.load_state().await.unwrap();
+    assert!(state.boards.is_empty() && state.board_nodes.is_empty());
+
+    // An edge cannot point at a missing node.
+    db.project(&[record(
+        40,
+        Some(0x85),
+        vec![Event::BoardCreated {
+            board: board.clone(),
+        }],
+    )])
+    .await
+    .unwrap();
+    assert!(
+        db.project(&[record(
+            41,
+            Some(0x86),
+            vec![Event::BoardEdgeCreated { edge: bc }]
+        )])
+        .await
+        .is_err()
     );
 }

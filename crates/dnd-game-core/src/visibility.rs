@@ -7,6 +7,8 @@
 //! - journal entries open to players, and the folders on their way to the root (ADR-0021);
 //! - assets used by a visible map or token;
 //! - chat messages not hidden for GM roles;
+//! - boards shown to players, their nodes open to players, and edges open to players between two
+//!   visible nodes (ADR-0024); pictures on visible nodes;
 //! - characters, users and campaign metadata as they are.
 //!
 //! A batch reaches players with hidden events replaced by [`Event::Redacted`], so sequence numbers
@@ -17,9 +19,9 @@
 use std::collections::BTreeSet;
 
 use dnd_protocol::{
-    AssetId, ChatMessageDto, ChatVisibility, CombatId, CombatantId, Event, EventBatch,
-    JournalEntryId, JournalFolderId, JournalVisibility, MapId, Role, Seq, Snapshot, TokenId,
-    TokenLayer,
+    AssetId, BoardEdgeId, BoardId, BoardNodeContent, BoardNodeId, BoardVisibility, ChatMessageDto,
+    ChatVisibility, CombatId, CombatantId, Event, EventBatch, JournalEntryId, JournalFolderId,
+    JournalVisibility, MapId, Role, Seq, Snapshot, TokenId, TokenLayer,
 };
 
 use crate::state::GameState;
@@ -46,6 +48,9 @@ pub struct PlayersSee {
     pub assets: BTreeSet<AssetId>,
     pub combats: BTreeSet<CombatId>,
     pub combatants: BTreeSet<CombatantId>,
+    pub boards: BTreeSet<BoardId>,
+    pub board_nodes: BTreeSet<BoardNodeId>,
+    pub board_edges: BTreeSet<BoardEdgeId>,
 }
 
 impl PlayersSee {
@@ -80,6 +85,28 @@ impl PlayersSee {
                 next = state.journal_folders.get(&id).and_then(|f| f.parent);
             }
         }
+        let boards: BTreeSet<_> = state
+            .boards
+            .values()
+            .filter(|b| b.visible_to_players)
+            .map(|b| b.id)
+            .collect();
+        let board_nodes: BTreeSet<_> = state
+            .board_nodes
+            .values()
+            .filter(|n| n.visibility == BoardVisibility::Players && boards.contains(&n.board_id))
+            .map(|n| n.id)
+            .collect();
+        let board_edges = state
+            .board_edges
+            .values()
+            .filter(|e| {
+                e.visibility == BoardVisibility::Players
+                    && board_nodes.contains(&e.from)
+                    && board_nodes.contains(&e.to)
+            })
+            .map(|e| e.id)
+            .collect();
         let assets = state
             .maps
             .values()
@@ -91,6 +118,16 @@ impl PlayersSee {
                     .values()
                     .filter(|t| tokens.contains(&t.id))
                     .filter_map(|t| t.asset_id),
+            )
+            .chain(
+                state
+                    .board_nodes
+                    .values()
+                    .filter(|n| board_nodes.contains(&n.id))
+                    .filter_map(|n| match n.content {
+                        BoardNodeContent::Image { asset_id } => Some(asset_id),
+                        _ => None,
+                    }),
             )
             .collect();
         let combats: BTreeSet<_> = state
@@ -115,6 +152,9 @@ impl PlayersSee {
             assets,
             combats,
             combatants,
+            boards,
+            board_nodes,
+            board_edges,
         }
     }
 }
@@ -133,6 +173,11 @@ pub fn players_state(state: &GameState) -> GameState {
     view.fog.retain(|id, _| see.maps.contains(id));
     view.combats.retain(|id, _| see.combats.contains(id));
     view.combatants.retain(|id, _| see.combatants.contains(id));
+    view.boards.retain(|id, _| see.boards.contains(id));
+    view.board_nodes
+        .retain(|id, _| see.board_nodes.contains(id));
+    view.board_edges
+        .retain(|id, _| see.board_edges.contains(id));
     view
 }
 
@@ -176,6 +221,7 @@ pub fn may_change_visibility(batch: &EventBatch) -> bool {
         matches!(
             e,
             Event::TokenMoved { .. }
+                | Event::BoardNodeMoved { .. }
                 | Event::ChatMessagePosted { .. }
                 | Event::FogApplied { .. }
                 | Event::FogReset { .. }
@@ -215,6 +261,12 @@ pub fn filter_for_players(before: &GameState, after: &GameState, batch: &EventBa
         before.combats.contains_key(id) && after.combats.contains_key(id)
     }) || flipped(&was.combatants, &now.combatants, |id| {
         before.combatants.contains_key(id) && after.combatants.contains_key(id)
+    }) || flipped(&was.boards, &now.boards, |id| {
+        before.boards.contains_key(id) && after.boards.contains_key(id)
+    }) || flipped(&was.board_nodes, &now.board_nodes, |id| {
+        before.board_nodes.contains_key(id) && after.board_nodes.contains_key(id)
+    }) || flipped(&was.board_edges, &now.board_edges, |id| {
+        before.board_edges.contains_key(id) && after.board_edges.contains_key(id)
     }) {
         return ForPlayers::Resnapshot;
     }
@@ -283,6 +335,33 @@ pub fn filter_for_players(before: &GameState, after: &GameState, batch: &EventBa
                             was.combatants.contains(&combatant.id),
                         ),
                         Event::CombatantRemoved { id } => was.combatants.contains(id),
+                        Event::BoardCreated { board } | Event::BoardUpdated { board } => shown(
+                            after.boards.contains_key(&board.id),
+                            now.boards.contains(&board.id),
+                            was.boards.contains(&board.id),
+                        ),
+                        Event::BoardDeleted { id } => was.boards.contains(id),
+                        Event::BoardNodeCreated { node } | Event::BoardNodeUpdated { node } => {
+                            shown(
+                                after.board_nodes.contains_key(&node.id),
+                                now.board_nodes.contains(&node.id),
+                                was.board_nodes.contains(&node.id),
+                            )
+                        }
+                        Event::BoardNodeMoved { id, .. } => shown(
+                            after.board_nodes.contains_key(id),
+                            now.board_nodes.contains(id),
+                            was.board_nodes.contains(id),
+                        ),
+                        Event::BoardNodeDeleted { id } => was.board_nodes.contains(id),
+                        Event::BoardEdgeCreated { edge } | Event::BoardEdgeUpdated { edge } => {
+                            shown(
+                                after.board_edges.contains_key(&edge.id),
+                                now.board_edges.contains(&edge.id),
+                                was.board_edges.contains(&edge.id),
+                            )
+                        }
+                        Event::BoardEdgeDeleted { id } => was.board_edges.contains(id),
                         Event::ChatMessagePosted { message } => chat_visible_to_players(message),
                         Event::CampaignMetaUpdated { .. }
                         | Event::CharacterCreated { .. }
@@ -322,6 +401,13 @@ fn cheap_event(after: &GameState, event: &Event) -> Event {
     let map_shown = |id: &MapId| after.maps.get(id).is_some_and(|m| m.visible_to_players);
     let visible = match event {
         Event::TokenMoved { id, .. } => token_shown(id),
+        Event::BoardNodeMoved { id, .. } => after.board_nodes.get(id).is_some_and(|n| {
+            n.visibility == BoardVisibility::Players
+                && after
+                    .boards
+                    .get(&n.board_id)
+                    .is_some_and(|b| b.visible_to_players)
+        }),
         Event::ChatMessagePosted { message } => chat_visible_to_players(message),
         Event::FogApplied { map_id, .. } | Event::FogReset { map_id, .. } => map_shown(map_id),
         Event::CombatUpdated { combat } => map_shown(&combat.map_id),

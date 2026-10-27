@@ -268,6 +268,19 @@ pub fn apply(
         | Intent::SetSystemPlugin { .. } => {
             crate::plugins::apply(state, intent).unwrap_or(Err(RejectReason::invalid("intent")))
         }
+
+        Intent::CreateBoard { .. }
+        | Intent::UpdateBoard { .. }
+        | Intent::DeleteBoard { .. }
+        | Intent::CreateBoardNode { .. }
+        | Intent::UpdateBoardNode { .. }
+        | Intent::MoveBoardNode { .. }
+        | Intent::DeleteBoardNode { .. }
+        | Intent::CreateBoardEdge { .. }
+        | Intent::UpdateBoardEdge { .. }
+        | Intent::DeleteBoardEdge { .. } => {
+            crate::boards::apply(state, intent).unwrap_or(Err(RejectReason::invalid("intent")))
+        }
     }
 }
 
@@ -304,7 +317,20 @@ fn current_version(state: &GameState, intent: &Intent) -> Result<Version, Reject
         | Intent::CreateJournalFolder { .. }
         | Intent::InstallPlugin { .. }
         | Intent::UninstallPlugin { .. }
-        | Intent::SetSystemPlugin { .. } => None,
+        | Intent::SetSystemPlugin { .. }
+        | Intent::CreateBoard { .. }
+        | Intent::CreateBoardNode { .. }
+        | Intent::CreateBoardEdge { .. } => None,
+        Intent::MoveBoardNode { .. } => None,
+        Intent::UpdateBoard { id, .. } | Intent::DeleteBoard { id } => {
+            state.boards.get(id).map(|b| b.version)
+        }
+        Intent::UpdateBoardNode { id, .. } | Intent::DeleteBoardNode { id } => {
+            state.board_nodes.get(id).map(|n| n.version)
+        }
+        Intent::UpdateBoardEdge { id, .. } | Intent::DeleteBoardEdge { id } => {
+            state.board_edges.get(id).map(|e| e.version)
+        }
         Intent::RenameJournalFolder { id, .. }
         | Intent::MoveJournalFolder { id, .. }
         | Intent::DeleteJournalFolder { id } => state.journal_folders.get(id).map(|f| f.version),
@@ -392,6 +418,13 @@ fn id_in_use(state: &GameState, id: dnd_protocol::Uuid) -> bool {
         || state
             .combatants
             .contains_key(&dnd_protocol::CombatantId(id))
+        || state.boards.contains_key(&dnd_protocol::BoardId(id))
+        || state
+            .board_nodes
+            .contains_key(&dnd_protocol::BoardNodeId(id))
+        || state
+            .board_edges
+            .contains_key(&dnd_protocol::BoardEdgeId(id))
 }
 
 /// Next version, rejected once it would leave the JS-safe range (ADR-0015).

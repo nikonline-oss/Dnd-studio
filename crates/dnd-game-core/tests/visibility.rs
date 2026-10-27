@@ -294,6 +294,15 @@ fn current_version(state: &GameState, intent: &Intent) -> Option<Version> {
         Intent::RenameJournalFolder { id, .. }
         | Intent::MoveJournalFolder { id, .. }
         | Intent::DeleteJournalFolder { id } => state.journal_folders.get(id).map(|f| f.version),
+        Intent::UpdateBoard { id, .. } | Intent::DeleteBoard { id } => {
+            state.boards.get(id).map(|b| b.version)
+        }
+        Intent::UpdateBoardNode { id, .. } | Intent::DeleteBoardNode { id } => {
+            state.board_nodes.get(id).map(|n| n.version)
+        }
+        Intent::UpdateBoardEdge { id, .. } | Intent::DeleteBoardEdge { id } => {
+            state.board_edges.get(id).map(|e| e.version)
+        }
         other => other
             .character_id()
             .and_then(|id| state.characters.get(&id).map(|c| c.version)),

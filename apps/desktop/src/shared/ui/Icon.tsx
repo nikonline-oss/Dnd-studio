@@ -37,6 +37,9 @@ const PATHS = {
     'M3 6.5A1.5 1.5 0 0 1 4.5 5H9l2 2.5h8.5A1.5 1.5 0 0 1 21 9v8.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5zM12 10.5v6M9 13.5h6',
   filePlus: 'M6 3h8l4 4v14H6zM14 3v4h4M12 11v6M9 14h6',
   collapse: 'M5 5h14v14H5zM9 12h6',
+  board: 'M3 4h7v5H3zM14 4h7v5h-7zM8.5 15h7v5h-7zM6.5 9l4 6M17.5 9l-4 6',
+  link: 'M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1',
+  note: 'M5 4h14v12l-4 4H5zM15 20v-4h4M8 9h8M8 13h5',
 } as const;
 
 export type IconName = keyof typeof PATHS;

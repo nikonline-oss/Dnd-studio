@@ -123,6 +123,38 @@ export function applyEvent(snapshot: Snapshot, event: Event): Snapshot {
       return { ...snapshot, plugins: snapshot.plugins.filter((p) => p.id !== event.id) };
     case 'system_plugin_set':
       return { ...snapshot, system_plugin: event.id };
+    case 'board_created':
+    case 'board_updated':
+      return { ...snapshot, boards: upsert(snapshot.boards, event.board) };
+    case 'board_deleted':
+      // Its nodes and edges were deleted by earlier events; drop leftovers as the core does.
+      return {
+        ...snapshot,
+        boards: snapshot.boards.filter((b) => b.id !== event.id),
+        board_nodes: snapshot.board_nodes.filter((n) => n.board_id !== event.id),
+        board_edges: snapshot.board_edges.filter((e) => e.board_id !== event.id),
+      };
+    case 'board_node_created':
+    case 'board_node_updated':
+      return { ...snapshot, board_nodes: upsert(snapshot.board_nodes, event.node) };
+    case 'board_node_moved':
+      return {
+        ...snapshot,
+        board_nodes: snapshot.board_nodes.map((n) =>
+          n.id === event.id ? { ...n, x: event.x, y: event.y } : n,
+        ),
+      };
+    case 'board_node_deleted':
+      return {
+        ...snapshot,
+        board_nodes: snapshot.board_nodes.filter((n) => n.id !== event.id),
+        board_edges: snapshot.board_edges.filter((e) => e.from !== event.id && e.to !== event.id),
+      };
+    case 'board_edge_created':
+    case 'board_edge_updated':
+      return { ...snapshot, board_edges: upsert(snapshot.board_edges, event.edge) };
+    case 'board_edge_deleted':
+      return { ...snapshot, board_edges: snapshot.board_edges.filter((e) => e.id !== event.id) };
     case 'redacted':
       // Something the server hides from this recipient: only its sequence number counts.
       return snapshot;

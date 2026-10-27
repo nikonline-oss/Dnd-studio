@@ -46,6 +46,9 @@ function setup(role: Role = 'gm') {
     chat: [],
     plugins: [plugin('srd5', 'system', 'SRD 5.2'), plugin('dark', 'theme', 'Dark')],
     system_plugin: 'srd5',
+    boards: [],
+    board_nodes: [],
+    board_edges: [],
   };
   const info: CampaignInfo = { name: 'C', path: '/c', user_id: 'u1', role };
   const sent: IntentEnvelope[] = [];

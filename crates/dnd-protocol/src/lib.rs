@@ -4,6 +4,7 @@
 //! Tauri, so the same types serve the desktop app, the session server and a future web client.
 //! See `docs/protocol.md`.
 
+pub mod board;
 pub mod error;
 pub mod event;
 pub mod ids;
@@ -18,12 +19,16 @@ pub mod validate;
 #[cfg(feature = "arbitrary")]
 pub mod arbitrary;
 
+pub use board::{
+    BoardDto, BoardEdgeDto, BoardLink, BoardNodeContent, BoardNodeDto, BoardVisibility,
+    MAX_BOARD_COORD, MAX_BOARD_EDGES, MAX_BOARD_NODES, MAX_NODE_SIZE, MAX_NOTE_LEN, MIN_NODE_SIZE,
+};
 pub use error::RejectReason;
 pub use event::{Event, EventBatch};
 pub use ids::{
-    AssetId, CharacterId, ChatMessageId, CombatId, CombatantId, FogOpId, IntentId, JournalEntryId,
-    JournalFolderId, MapId, MessageId, Role, Seq, SessionId, TokenId, UserId, Version,
-    uuid_v7_from_random,
+    AssetId, BoardEdgeId, BoardId, BoardNodeId, CharacterId, ChatMessageId, CombatId, CombatantId,
+    FogOpId, IntentId, JournalEntryId, JournalFolderId, MapId, MessageId, Role, Seq, SessionId,
+    TokenId, UserId, Version, uuid_v7_from_random,
 };
 pub use intent::{Intent, IntentEnvelope, IntentOutcome, PayloadHash, VersionPolicy};
 pub use message::{Acceptance, ClientMessage, Envelope, Rejection, ServerMessage};
@@ -51,7 +56,7 @@ pub use validate::{
 
 /// Protocol version. Peers with a different version are refused with
 /// [`RejectReason::ProtocolMismatch`].
-pub const PROTOCOL_VERSION: u32 = 4;
+pub const PROTOCOL_VERSION: u32 = 5;
 
 /// Registers every protocol type that is exported to TypeScript.
 #[cfg(feature = "specta")]

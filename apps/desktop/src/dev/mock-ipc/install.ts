@@ -4,6 +4,7 @@
 import { emit } from '@tauri-apps/api/event';
 import { mockIPC } from '@tauri-apps/api/mocks';
 import { drawSampleMap } from './sampleMap';
+import { boardEvents, sampleBoard } from './boards';
 import { SRD_PLUGIN, SRD_SHEET, srdSheetView } from './srd';
 import { addStress } from './stress';
 import { turnOrder } from '@/features/initiative/turnOrder';
@@ -218,6 +219,7 @@ export async function installMockIpc(
     ],
     plugins: [SRD_PLUGIN],
     system_plugin: SRD_PLUGIN.id,
+    ...sampleBoard(id),
     journal: journal.map((e) => ({
       id: e.id,
       folder_id: e.folder_id,
@@ -283,6 +285,8 @@ export async function installMockIpc(
   };
 
   const submit = async ({ intent, intent_id }: IntentEnvelope): Promise<IntentOutcome> => {
+    const boards = boardEvents(snapshot, intent);
+    if (boards) return commit(boards, intent_id);
     switch (intent.kind) {
       case 'create_map':
         return commit(

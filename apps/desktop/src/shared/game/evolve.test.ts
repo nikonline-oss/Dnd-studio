@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { applyBatch, applyEvent } from './evolve';
 import type {
+  BoardDto,
+  BoardEdgeDto,
+  BoardNodeDto,
   CombatantDto,
   CombatDto,
   FogOp,
@@ -46,6 +49,9 @@ const empty: Snapshot = {
   journal_folders: [],
   plugins: [],
   system_plugin: null,
+  boards: [],
+  board_nodes: [],
+  board_edges: [],
   assets: [],
   fog: [],
   combats: [],
@@ -248,5 +254,52 @@ describe('applyEvent: plugins (ADR-0023)', () => {
     expect(s.system_plugin).toBe('srd5');
     s = applyEvent(s, { kind: 'plugin_uninstalled', id: 'dark' });
     expect(s.plugins.map((p) => p.id)).toEqual(['srd5']);
+  });
+});
+
+describe('applyEvent: boards (mirrors the core, ADR-0024)', () => {
+  const board: BoardDto = {
+    id: 'b1',
+    name: 'Plot',
+    sort_order: 0,
+    visible_to_players: false,
+    version: 1,
+  };
+  const node = (id: string): BoardNodeDto => ({
+    id,
+    board_id: 'b1',
+    content: { type: 'note', markdown: id },
+    x: 0,
+    y: 0,
+    width: 3200,
+    height: 1600,
+    visibility: 'gm',
+    version: 1,
+  });
+  const edge: BoardEdgeDto = {
+    id: 'e1',
+    board_id: 'b1',
+    from: 'n1',
+    to: 'n2',
+    label: '',
+    directed: false,
+    visibility: 'players',
+    version: 1,
+  };
+  let s = applyEvent(empty, { kind: 'board_created', board });
+  s = applyEvent(s, { kind: 'board_node_created', node: node('n1') });
+  s = applyEvent(s, { kind: 'board_node_created', node: node('n2') });
+  s = applyEvent(s, { kind: 'board_edge_created', edge });
+  const full = s;
+
+  it('moves nodes without touching their version', () => {
+    const moved = applyEvent(full, { kind: 'board_node_moved', id: 'n1', x: 32, y: -48 });
+    expect(moved.board_nodes[0]).toMatchObject({ x: 32, y: -48, version: 1 });
+  });
+
+  it('a deleted node takes its edges; a deleted board takes everything', () => {
+    expect(applyEvent(full, { kind: 'board_node_deleted', id: 'n2' }).board_edges).toEqual([]);
+    const gone = applyEvent(full, { kind: 'board_deleted', id: 'b1' });
+    expect([gone.boards, gone.board_nodes, gone.board_edges]).toEqual([[], [], []]);
   });
 });

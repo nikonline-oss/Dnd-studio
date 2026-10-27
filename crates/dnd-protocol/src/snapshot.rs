@@ -2,6 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::board::{BoardDto, BoardEdgeDto, BoardNodeDto};
 use crate::ids::Seq;
 use crate::model::{
     AssetDto, CampaignMeta, CharacterDto, ChatMessageDto, CombatDto, CombatantDto, FogDto,
@@ -36,4 +37,8 @@ pub struct Snapshot {
     pub plugins: Vec<PluginDto>,
     /// Id of the campaign's system plugin.
     pub system_plugin: Option<String>,
+    /// Boards with their nodes and edges (ADR-0024).
+    pub boards: Vec<BoardDto>,
+    pub board_nodes: Vec<BoardNodeDto>,
+    pub board_edges: Vec<BoardEdgeDto>,
 }

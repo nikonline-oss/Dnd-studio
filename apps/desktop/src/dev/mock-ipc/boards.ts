@@ -1,0 +1,181 @@
+// Boards in the browser mock (ADR-0024): a rough stand-in for the core, enough to look at the
+// canvas. Dev only, never shipped.
+import type {
+  BoardDto,
+  BoardEdgeDto,
+  BoardNodeDto,
+  Event,
+  Intent,
+  Snapshot,
+} from '@/shared/ipc/client';
+
+/** Events for a board intent, `null` for any other intent. */
+export function boardEvents(snapshot: Snapshot, intent: Intent): Event[] | null {
+  const bump = <T extends { version: number }>(item: T, patch: Partial<T>): T => ({
+    ...item,
+    ...patch,
+    version: item.version + 1,
+  });
+  switch (intent.kind) {
+    case 'create_board': {
+      const board: BoardDto = {
+        id: intent.id,
+        name: intent.name,
+        sort_order: snapshot.boards.length,
+        visible_to_players: false,
+        version: 1,
+      };
+      return [{ kind: 'board_created', board }];
+    }
+    case 'update_board': {
+      const board = snapshot.boards.find((b) => b.id === intent.id);
+      if (!board) return [];
+      return [
+        {
+          kind: 'board_updated',
+          board: bump(board, {
+            ...(intent.name === null ? {} : { name: intent.name }),
+            ...(intent.visible_to_players === null
+              ? {}
+              : { visible_to_players: intent.visible_to_players }),
+          }),
+        },
+      ];
+    }
+    case 'delete_board':
+      return [
+        ...snapshot.board_edges
+          .filter((e) => e.board_id === intent.id)
+          .map((e): Event => ({ kind: 'board_edge_deleted', id: e.id })),
+        ...snapshot.board_nodes
+          .filter((n) => n.board_id === intent.id)
+          .map((n): Event => ({ kind: 'board_node_deleted', id: n.id })),
+        { kind: 'board_deleted', id: intent.id },
+      ];
+    case 'create_board_node': {
+      const node: BoardNodeDto = {
+        id: intent.id,
+        board_id: intent.board_id,
+        content: intent.content,
+        x: intent.x,
+        y: intent.y,
+        width: intent.width,
+        height: intent.height,
+        visibility: intent.visibility,
+        version: 1,
+      };
+      return [{ kind: 'board_node_created', node }];
+    }
+    case 'update_board_node': {
+      const node = snapshot.board_nodes.find((n) => n.id === intent.id);
+      if (!node) return [];
+      return [
+        {
+          kind: 'board_node_updated',
+          node: bump(node, {
+            ...(intent.content === null ? {} : { content: intent.content }),
+            ...(intent.width === null ? {} : { width: intent.width }),
+            ...(intent.height === null ? {} : { height: intent.height }),
+            ...(intent.visibility === null ? {} : { visibility: intent.visibility }),
+          }),
+        },
+      ];
+    }
+    case 'move_board_node':
+      return [{ kind: 'board_node_moved', id: intent.id, x: intent.x, y: intent.y }];
+    case 'delete_board_node':
+      return [
+        ...snapshot.board_edges
+          .filter((e) => e.from === intent.id || e.to === intent.id)
+          .map((e): Event => ({ kind: 'board_edge_deleted', id: e.id })),
+        { kind: 'board_node_deleted', id: intent.id },
+      ];
+    case 'create_board_edge': {
+      const edge: BoardEdgeDto = {
+        id: intent.id,
+        board_id: intent.board_id,
+        from: intent.from,
+        to: intent.to,
+        label: intent.label,
+        directed: intent.directed,
+        visibility: intent.visibility,
+        version: 1,
+      };
+      return [{ kind: 'board_edge_created', edge }];
+    }
+    case 'update_board_edge': {
+      const edge = snapshot.board_edges.find((e) => e.id === intent.id);
+      if (!edge) return [];
+      return [
+        {
+          kind: 'board_edge_updated',
+          edge: bump(edge, {
+            ...(intent.label === null ? {} : { label: intent.label }),
+            ...(intent.directed === null ? {} : { directed: intent.directed }),
+            ...(intent.visibility === null ? {} : { visibility: intent.visibility }),
+          }),
+        },
+      ];
+    }
+    case 'delete_board_edge':
+      return [{ kind: 'board_edge_deleted', id: intent.id }];
+    default:
+      return null;
+  }
+}
+
+/** A sample board: an investigation with a hidden secret. */
+export function sampleBoard(
+  id: (n: number) => string,
+): Pick<Snapshot, 'boards' | 'board_nodes' | 'board_edges'> {
+  const board = id(70);
+  const node = (
+    n: number,
+    markdown: string,
+    x: number,
+    y: number,
+    visibility: BoardNodeDto['visibility'],
+  ): BoardNodeDto => ({
+    id: id(n),
+    board_id: board,
+    content: { type: 'note', markdown },
+    x: x * 16,
+    y: y * 16,
+    width: 220 * 16,
+    height: 110 * 16,
+    visibility,
+    version: 1,
+  });
+  return {
+    boards: [
+      { id: board, name: 'Investigation', sort_order: 0, visible_to_players: true, version: 1 },
+    ],
+    board_nodes: [
+      node(71, '**The missing mayor**\n\nLast seen at the old chapel.', 40, 40, 'players'),
+      node(72, '**Cult of the Drowned**\n\nMeets under the crypt.', 360, 40, 'players'),
+      node(73, '**Secret passage**\n\nBehind the altar, opened by a hidden lever.', 200, 240, 'gm'),
+    ],
+    board_edges: [
+      {
+        id: id(74),
+        board_id: board,
+        from: id(71),
+        to: id(72),
+        label: 'kidnapped by?',
+        directed: true,
+        visibility: 'players',
+        version: 1,
+      },
+      {
+        id: id(75),
+        board_id: board,
+        from: id(72),
+        to: id(73),
+        label: 'uses',
+        directed: true,
+        visibility: 'gm',
+        version: 1,
+      },
+    ],
+  };
+}

@@ -75,6 +75,18 @@ define_id!(
     CombatantId
 );
 define_id!(
+    /// A board (ADR-0024).
+    BoardId
+);
+define_id!(
+    /// An element (card) of a board.
+    BoardNodeId
+);
+define_id!(
+    /// A connection between two board nodes.
+    BoardEdgeId
+);
+define_id!(
     /// Client-chosen identifier of an intent, used to correlate `Rejected`/`Events`.
     IntentId
 );

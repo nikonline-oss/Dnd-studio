@@ -9,6 +9,7 @@
 
 mod apply;
 mod assets;
+mod boards;
 mod characters;
 mod chat;
 mod combat;

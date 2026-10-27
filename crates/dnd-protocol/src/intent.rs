@@ -2,9 +2,10 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::board::{BoardNodeContent, BoardVisibility};
 use crate::ids::{
-    AssetId, CharacterId, ChatMessageId, CombatId, CombatantId, IntentId, JournalEntryId,
-    JournalFolderId, MapId, TokenId, UserId, Version,
+    AssetId, BoardEdgeId, BoardId, BoardNodeId, CharacterId, ChatMessageId, CombatId, CombatantId,
+    IntentId, JournalEntryId, JournalFolderId, MapId, TokenId, UserId, Version,
 };
 use crate::model::{AssetDto, CharacterKind, FogOp, Grid, JournalVisibility, TokenLayer};
 use crate::plugin::PluginDto;
@@ -263,6 +264,74 @@ pub enum Intent {
     SetSystemPlugin {
         id: Option<String>,
     },
+
+    /// GM / Co-GM: a new board (ADR-0024), hidden from players until shown.
+    CreateBoard {
+        id: BoardId,
+        name: String,
+    },
+    UpdateBoard {
+        id: BoardId,
+        name: Option<String>,
+        visible_to_players: Option<bool>,
+    },
+    /// Deletes the board with its nodes and edges.
+    DeleteBoard {
+        id: BoardId,
+    },
+    CreateBoardNode {
+        id: BoardNodeId,
+        board_id: BoardId,
+        content: BoardNodeContent,
+        #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
+        x: i64,
+        #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
+        y: i64,
+        #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
+        width: i64,
+        #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
+        height: i64,
+        visibility: BoardVisibility,
+    },
+    UpdateBoardNode {
+        id: BoardNodeId,
+        content: Option<BoardNodeContent>,
+        #[cfg_attr(feature = "specta", specta(type = Option<specta_typescript::Number>))]
+        width: Option<i64>,
+        #[cfg_attr(feature = "specta", specta(type = Option<specta_typescript::Number>))]
+        height: Option<i64>,
+        visibility: Option<BoardVisibility>,
+    },
+    /// Last-write-wins, like a token move (ADR-0003).
+    MoveBoardNode {
+        id: BoardNodeId,
+        #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
+        x: i64,
+        #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
+        y: i64,
+    },
+    /// Deletes the node with its edges.
+    DeleteBoardNode {
+        id: BoardNodeId,
+    },
+    CreateBoardEdge {
+        id: BoardEdgeId,
+        board_id: BoardId,
+        from: BoardNodeId,
+        to: BoardNodeId,
+        label: String,
+        directed: bool,
+        visibility: BoardVisibility,
+    },
+    UpdateBoardEdge {
+        id: BoardEdgeId,
+        label: Option<String>,
+        directed: Option<bool>,
+        visibility: Option<BoardVisibility>,
+    },
+    DeleteBoardEdge {
+        id: BoardEdgeId,
+    },
 }
 
 /// What kind of version handling an intent needs.
@@ -319,6 +388,16 @@ impl Intent {
             Self::InstallPlugin { .. } => "install_plugin",
             Self::UninstallPlugin { .. } => "uninstall_plugin",
             Self::SetSystemPlugin { .. } => "set_system_plugin",
+            Self::CreateBoard { .. } => "create_board",
+            Self::UpdateBoard { .. } => "update_board",
+            Self::DeleteBoard { .. } => "delete_board",
+            Self::CreateBoardNode { .. } => "create_board_node",
+            Self::UpdateBoardNode { .. } => "update_board_node",
+            Self::MoveBoardNode { .. } => "move_board_node",
+            Self::DeleteBoardNode { .. } => "delete_board_node",
+            Self::CreateBoardEdge { .. } => "create_board_edge",
+            Self::UpdateBoardEdge { .. } => "update_board_edge",
+            Self::DeleteBoardEdge { .. } => "delete_board_edge",
         }
     }
 
@@ -336,9 +415,13 @@ impl Intent {
             | Self::ApplyFog { .. }
             | Self::StartCombat { .. }
             | Self::AddCombatant { .. }
-            | Self::CreateJournalFolder { .. } => VersionPolicy::Create,
+            | Self::CreateJournalFolder { .. }
+            | Self::CreateBoard { .. }
+            | Self::CreateBoardNode { .. }
+            | Self::CreateBoardEdge { .. } => VersionPolicy::Create,
             // Plugins are configuration the GM owns: the last choice wins.
             Self::MoveToken { .. }
+            | Self::MoveBoardNode { .. }
             | Self::ResetFog { .. }
             | Self::InstallPlugin { .. }
             | Self::UninstallPlugin { .. }
@@ -364,7 +447,13 @@ impl Intent {
             | Self::EndCombat { .. }
             | Self::RenameJournalFolder { .. }
             | Self::MoveJournalFolder { .. }
-            | Self::DeleteJournalFolder { .. } => VersionPolicy::Checked,
+            | Self::DeleteJournalFolder { .. }
+            | Self::UpdateBoard { .. }
+            | Self::DeleteBoard { .. }
+            | Self::UpdateBoardNode { .. }
+            | Self::DeleteBoardNode { .. }
+            | Self::UpdateBoardEdge { .. }
+            | Self::DeleteBoardEdge { .. } => VersionPolicy::Checked,
         }
     }
 

@@ -5,8 +5,10 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::board::{BoardDto, BoardEdgeDto, BoardNodeDto};
 use crate::ids::{
-    CombatId, CombatantId, IntentId, JournalEntryId, JournalFolderId, MapId, Seq, TokenId,
+    BoardEdgeId, BoardId, BoardNodeId, CombatId, CombatantId, IntentId, JournalEntryId,
+    JournalFolderId, MapId, Seq, TokenId,
 };
 use crate::model::{
     AssetDto, CampaignMeta, CharacterDto, ChatMessageDto, CombatDto, CombatantDto, FogOp,
@@ -138,6 +140,46 @@ pub enum Event {
     /// The campaign's rules changed.
     SystemPluginSet {
         id: Option<String>,
+    },
+
+    /// A board appeared (ADR-0024).
+    BoardCreated {
+        board: BoardDto,
+    },
+    /// Renamed, shown to or hidden from players.
+    BoardUpdated {
+        board: BoardDto,
+    },
+    /// Its nodes and edges were deleted by earlier events of the batch.
+    BoardDeleted {
+        id: BoardId,
+    },
+    BoardNodeCreated {
+        node: BoardNodeDto,
+    },
+    BoardNodeUpdated {
+        node: BoardNodeDto,
+    },
+    /// Last-write-wins position; does not bump the version.
+    BoardNodeMoved {
+        id: BoardNodeId,
+        #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
+        x: i64,
+        #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
+        y: i64,
+    },
+    /// Its edges were deleted by earlier events of the batch.
+    BoardNodeDeleted {
+        id: BoardNodeId,
+    },
+    BoardEdgeCreated {
+        edge: BoardEdgeDto,
+    },
+    BoardEdgeUpdated {
+        edge: BoardEdgeDto,
+    },
+    BoardEdgeDeleted {
+        id: BoardEdgeId,
     },
 
     /// Stands in for an event the recipient may not see, so sequence numbers stay contiguous

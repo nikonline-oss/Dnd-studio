@@ -105,6 +105,36 @@ pub fn evolve(state: &mut GameState, event: &Event) {
             state.plugins.remove(id);
         }
         Event::SystemPluginSet { id } => state.system_plugin.clone_from(id),
+        Event::BoardCreated { board } | Event::BoardUpdated { board } => {
+            state.boards.insert(board.id, board.clone());
+        }
+        Event::BoardDeleted { id } => {
+            // Its nodes and edges went first; dropping leftovers keeps replicas consistent.
+            state.boards.remove(id);
+            state.board_nodes.retain(|_, n| n.board_id != *id);
+            state.board_edges.retain(|_, e| e.board_id != *id);
+        }
+        Event::BoardNodeCreated { node } | Event::BoardNodeUpdated { node } => {
+            state.board_nodes.insert(node.id, node.clone());
+        }
+        Event::BoardNodeMoved { id, x, y } => {
+            if let Some(node) = state.board_nodes.get_mut(id) {
+                node.x = *x;
+                node.y = *y;
+            }
+        }
+        Event::BoardNodeDeleted { id } => {
+            state.board_nodes.remove(id);
+            state
+                .board_edges
+                .retain(|_, e| e.from != *id && e.to != *id);
+        }
+        Event::BoardEdgeCreated { edge } | Event::BoardEdgeUpdated { edge } => {
+            state.board_edges.insert(edge.id, edge.clone());
+        }
+        Event::BoardEdgeDeleted { id } => {
+            state.board_edges.remove(id);
+        }
         Event::UserJoined { user } => {
             state.users.insert(user.id, user.clone());
         }

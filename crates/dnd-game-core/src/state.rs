@@ -3,10 +3,11 @@
 use std::collections::BTreeMap;
 
 use dnd_protocol::{
-    AssetDto, AssetId, CampaignMeta, CharacterDto, CharacterId, CombatDto, CombatId, CombatantDto,
-    CombatantId, FogDto, JournalEntryDto, JournalEntryId, JournalEntryMeta, JournalFolderDto,
-    JournalFolderId, MapDto, MapId, PluginDto, Seq, Snapshot, SystemRulesDto, TokenDto, TokenId,
-    UserDto, UserId, Version,
+    AssetDto, AssetId, BoardDto, BoardEdgeDto, BoardEdgeId, BoardId, BoardNodeDto, BoardNodeId,
+    CampaignMeta, CharacterDto, CharacterId, CombatDto, CombatId, CombatantDto, CombatantId,
+    FogDto, JournalEntryDto, JournalEntryId, JournalEntryMeta, JournalFolderDto, JournalFolderId,
+    MapDto, MapId, PluginDto, Seq, Snapshot, SystemRulesDto, TokenDto, TokenId, UserDto, UserId,
+    Version,
 };
 
 /// The authoritative state the core reasons about. Ordered maps keep iteration (and therefore
@@ -32,6 +33,10 @@ pub struct GameState {
     pub plugins: BTreeMap<String, PluginDto>,
     /// The campaign's system plugin; its rules govern sheets and rolls.
     pub system_plugin: Option<String>,
+    /// Boards with their nodes and edges (ADR-0024).
+    pub boards: BTreeMap<BoardId, BoardDto>,
+    pub board_nodes: BTreeMap<BoardNodeId, BoardNodeDto>,
+    pub board_edges: BTreeMap<BoardEdgeId, BoardEdgeDto>,
 }
 
 impl GameState {
@@ -56,6 +61,9 @@ impl GameState {
             combatants: BTreeMap::new(),
             plugins: BTreeMap::new(),
             system_plugin: None,
+            boards: BTreeMap::new(),
+            board_nodes: BTreeMap::new(),
+            board_edges: BTreeMap::new(),
         }
     }
 
@@ -111,6 +119,17 @@ impl GameState {
                 .map(|p| (p.id.clone(), p))
                 .collect(),
             system_plugin: snapshot.system_plugin,
+            boards: snapshot.boards.into_iter().map(|b| (b.id, b)).collect(),
+            board_nodes: snapshot
+                .board_nodes
+                .into_iter()
+                .map(|n| (n.id, n))
+                .collect(),
+            board_edges: snapshot
+                .board_edges
+                .into_iter()
+                .map(|e| (e.id, e))
+                .collect(),
         }
     }
 
@@ -134,6 +153,9 @@ impl GameState {
             chat: Vec::new(),
             plugins: self.plugins.values().cloned().collect(),
             system_plugin: self.system_plugin.clone(),
+            boards: self.boards.values().cloned().collect(),
+            board_nodes: self.board_nodes.values().cloned().collect(),
+            board_edges: self.board_edges.values().cloned().collect(),
         }
     }
 

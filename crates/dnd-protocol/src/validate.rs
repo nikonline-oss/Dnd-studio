@@ -77,6 +77,19 @@ impl Intent {
             Self::SetInitiative { initiative, .. } => {
                 initiative.map(|i| ("initiative", i)).into_iter().collect()
             }
+            Self::CreateBoardNode {
+                x,
+                y,
+                width,
+                height,
+                ..
+            } => vec![("x", *x), ("y", *y), ("width", *width), ("height", *height)],
+            Self::UpdateBoardNode { width, height, .. } => width
+                .map(|w| ("width", w))
+                .into_iter()
+                .chain(height.map(|h| ("height", h)))
+                .collect(),
+            Self::MoveBoardNode { x, y, .. } => vec![("x", *x), ("y", *y)],
             Self::UpdateCampaignMeta { .. }
             | Self::UpdateMap { .. }
             | Self::DeleteMap { .. }
@@ -106,7 +119,14 @@ impl Intent {
             | Self::DeleteJournalFolder { .. }
             | Self::InstallPlugin { .. }
             | Self::UninstallPlugin { .. }
-            | Self::SetSystemPlugin { .. } => Vec::new(),
+            | Self::SetSystemPlugin { .. }
+            | Self::CreateBoard { .. }
+            | Self::UpdateBoard { .. }
+            | Self::DeleteBoard { .. }
+            | Self::DeleteBoardNode { .. }
+            | Self::CreateBoardEdge { .. }
+            | Self::UpdateBoardEdge { .. }
+            | Self::DeleteBoardEdge { .. } => Vec::new(),
             Self::RegisterAsset { asset } => vec![("size_bytes", asset.size_bytes)],
             Self::ApplyFog { op, .. } => match &op.shape {
                 FogShape::Rect {
@@ -143,6 +163,9 @@ impl Intent {
             Self::StartCombat { id, .. } => Some(id.0),
             Self::AddCombatant { id, .. } => Some(id.0),
             Self::CreateJournalFolder { id, .. } => Some(id.0),
+            Self::CreateBoard { id, .. } => Some(id.0),
+            Self::CreateBoardNode { id, .. } => Some(id.0),
+            Self::CreateBoardEdge { id, .. } => Some(id.0),
             Self::UpdateCampaignMeta { .. }
             | Self::UpdateMap { .. }
             | Self::DeleteMap { .. }
@@ -169,7 +192,14 @@ impl Intent {
             | Self::DeleteJournalFolder { .. }
             | Self::InstallPlugin { .. }
             | Self::UninstallPlugin { .. }
-            | Self::SetSystemPlugin { .. } => None,
+            | Self::SetSystemPlugin { .. }
+            | Self::UpdateBoard { .. }
+            | Self::DeleteBoard { .. }
+            | Self::UpdateBoardNode { .. }
+            | Self::MoveBoardNode { .. }
+            | Self::DeleteBoardNode { .. }
+            | Self::UpdateBoardEdge { .. }
+            | Self::DeleteBoardEdge { .. } => None,
         }
     }
 }

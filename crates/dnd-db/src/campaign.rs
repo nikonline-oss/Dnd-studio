@@ -4,11 +4,12 @@ use std::path::{Path, PathBuf};
 
 use dnd_game_core::GameState;
 use dnd_protocol::{
-    AssetDto, AssetId, AssetTileDto, CampaignMeta, CharacterDto, CharacterId, ChatKind,
-    ChatMessageDto, ChatMessageId, CombatDto, CombatId, CombatantDto, CombatantId, DiceRollDto,
-    Event, EventBatch, FogDto, FogOp, Grid, GridKind, IntentId, JournalEntryDto, JournalEntryId,
-    JournalFolderDto, JournalFolderId, MapDto, MapId, PayloadHash, PluginDto, Role, Seq,
-    SystemMessage, TokenDto, TokenId, TokenLayer, UserDto, UserId, Version,
+    AssetDto, AssetId, AssetTileDto, BoardDto, BoardEdgeDto, BoardNodeDto, CampaignMeta,
+    CharacterDto, CharacterId, ChatKind, ChatMessageDto, ChatMessageId, CombatDto, CombatId,
+    CombatantDto, CombatantId, DiceRollDto, Event, EventBatch, FogDto, FogOp, Grid, GridKind,
+    IntentId, JournalEntryDto, JournalEntryId, JournalFolderDto, JournalFolderId, MapDto, MapId,
+    PayloadHash, PluginDto, Role, Seq, SystemMessage, TokenDto, TokenId, TokenLayer, UserDto,
+    UserId, Version,
 };
 use serde::{Deserialize, Serialize};
 use sqlx::sqlite::SqliteRow;
@@ -486,6 +487,27 @@ impl CampaignDb {
             };
             state.journal_folders.insert(folder.id, folder);
         }
+        for row in sqlx::query("SELECT dto FROM boards ORDER BY id")
+            .fetch_all(&self.pool)
+            .await?
+        {
+            let board: BoardDto = serde_json::from_str(&row.try_get::<String, _>("dto")?)?;
+            state.boards.insert(board.id, board);
+        }
+        for row in sqlx::query("SELECT dto FROM board_nodes ORDER BY id")
+            .fetch_all(&self.pool)
+            .await?
+        {
+            let node: BoardNodeDto = serde_json::from_str(&row.try_get::<String, _>("dto")?)?;
+            state.board_nodes.insert(node.id, node);
+        }
+        for row in sqlx::query("SELECT dto FROM board_edges ORDER BY id")
+            .fetch_all(&self.pool)
+            .await?
+        {
+            let edge: BoardEdgeDto = serde_json::from_str(&row.try_get::<String, _>("dto")?)?;
+            state.board_edges.insert(edge.id, edge);
+        }
         for row in sqlx::query("SELECT dto FROM installed_plugins ORDER BY id")
             .fetch_all(&self.pool)
             .await?
@@ -569,6 +591,19 @@ impl CampaignDb {
         tx.commit().await?;
         Ok(())
     }
+}
+
+async fn upsert_board_node(conn: &mut SqliteConnection, node: &BoardNodeDto) -> DbResult<()> {
+    sqlx::query(
+        "INSERT INTO board_nodes (id, board_id, dto, version) VALUES (?, ?, ?, ?)          ON CONFLICT (id) DO UPDATE SET dto = excluded.dto, version = excluded.version",
+    )
+    .bind(node.id.to_string())
+    .bind(node.board_id.to_string())
+    .bind(serde_json::to_string(node)?)
+    .bind(node.version.0)
+    .execute(conn)
+    .await?;
+    Ok(())
 }
 
 async fn project_event(conn: &mut SqliteConnection, event: &Event, at_ms: i64) -> DbResult<()> {
@@ -698,6 +733,68 @@ async fn project_event(conn: &mut SqliteConnection, event: &Event, at_ms: i64) -
             .bind(at_ms)
             .execute(conn)
             .await?;
+            Ok(())
+        }
+        Event::BoardCreated { board } | Event::BoardUpdated { board } => {
+            sqlx::query(
+                "INSERT INTO boards (id, sort_order, dto, version) VALUES (?, ?, ?, ?)                  ON CONFLICT (id) DO UPDATE SET sort_order = excluded.sort_order,                      dto = excluded.dto, version = excluded.version",
+            )
+            .bind(board.id.to_string())
+            .bind(board.sort_order)
+            .bind(serde_json::to_string(board)?)
+            .bind(board.version.0)
+            .execute(conn)
+            .await?;
+            Ok(())
+        }
+        Event::BoardDeleted { id } => {
+            // Nodes and edges go with it (ON DELETE CASCADE); the core deletes them first anyway.
+            sqlx::query("DELETE FROM boards WHERE id = ?")
+                .bind(id.to_string())
+                .execute(conn)
+                .await?;
+            Ok(())
+        }
+        Event::BoardNodeCreated { node } | Event::BoardNodeUpdated { node } => {
+            upsert_board_node(conn, node).await
+        }
+        Event::BoardNodeMoved { id, x, y } => {
+            sqlx::query(
+                "UPDATE board_nodes SET dto = json_set(dto, '$.x', ?, '$.y', ?) WHERE id = ?",
+            )
+            .bind(x)
+            .bind(y)
+            .bind(id.to_string())
+            .execute(conn)
+            .await?;
+            Ok(())
+        }
+        Event::BoardNodeDeleted { id } => {
+            sqlx::query("DELETE FROM board_nodes WHERE id = ?")
+                .bind(id.to_string())
+                .execute(conn)
+                .await?;
+            Ok(())
+        }
+        Event::BoardEdgeCreated { edge } | Event::BoardEdgeUpdated { edge } => {
+            sqlx::query(
+                "INSERT INTO board_edges (id, board_id, from_id, to_id, dto, version)                  VALUES (?, ?, ?, ?, ?, ?)                  ON CONFLICT (id) DO UPDATE SET dto = excluded.dto, version = excluded.version",
+            )
+            .bind(edge.id.to_string())
+            .bind(edge.board_id.to_string())
+            .bind(edge.from.to_string())
+            .bind(edge.to.to_string())
+            .bind(serde_json::to_string(edge)?)
+            .bind(edge.version.0)
+            .execute(conn)
+            .await?;
+            Ok(())
+        }
+        Event::BoardEdgeDeleted { id } => {
+            sqlx::query("DELETE FROM board_edges WHERE id = ?")
+                .bind(id.to_string())
+                .execute(conn)
+                .await?;
             Ok(())
         }
         // Only recipients see placeholders; the authority never commits one.

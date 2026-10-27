@@ -7,10 +7,13 @@ use proptest::prelude::*;
 use proptest::sample::select;
 use uuid::{Builder, Uuid};
 
+use crate::board::{
+    BoardDto, BoardEdgeDto, BoardLink, BoardNodeContent, BoardNodeDto, BoardVisibility,
+};
 use crate::event::{Event, EventBatch};
 use crate::ids::{
-    CharacterId, CombatId, CombatantId, FogOpId, IntentId, JournalFolderId, MapId, Role, Seq,
-    TokenId, UserId, Version,
+    BoardEdgeId, BoardId, BoardNodeId, CharacterId, CombatId, CombatantId, FogOpId, IntentId,
+    JournalFolderId, MapId, Role, Seq, TokenId, UserId, Version,
 };
 use crate::intent::{Intent, IntentEnvelope};
 use crate::model::{
@@ -48,6 +51,105 @@ pub fn pooled_token_id(n: u128) -> TokenId {
 #[must_use]
 pub fn pooled_character_id(n: u128) -> CharacterId {
     CharacterId(v7(0x3000 + n))
+}
+
+pub fn board_id() -> impl Strategy<Value = BoardId> {
+    (0x5_0000u128..0x5_0003).prop_map(|n| BoardId(v7(n)))
+}
+
+pub fn board_node_id() -> impl Strategy<Value = BoardNodeId> {
+    (0x5_1000u128..0x5_1006).prop_map(|n| BoardNodeId(v7(n)))
+}
+
+pub fn board_edge_id() -> impl Strategy<Value = BoardEdgeId> {
+    (0x5_2000u128..0x5_2004).prop_map(|n| BoardEdgeId(v7(n)))
+}
+
+pub fn board_visibility() -> impl Strategy<Value = BoardVisibility> {
+    prop_oneof![Just(BoardVisibility::Gm), Just(BoardVisibility::Players)]
+}
+
+pub fn board_coord() -> impl Strategy<Value = i64> {
+    -100_000i64..100_000
+}
+
+pub fn board_size() -> impl Strategy<Value = i64> {
+    256i64..20_000
+}
+
+pub fn board_node_content() -> impl Strategy<Value = BoardNodeContent> {
+    prop_oneof![
+        "[a-z #*]{0,40}".prop_map(|markdown| BoardNodeContent::Note { markdown }),
+        map_id().prop_map(|id| BoardNodeContent::Link {
+            target: BoardLink::Map { id }
+        }),
+        character_id().prop_map(|id| BoardNodeContent::Link {
+            target: BoardLink::Character { id }
+        }),
+    ]
+}
+
+pub fn board_dto() -> impl Strategy<Value = BoardDto> {
+    (board_id(), name(), 0i64..20, any::<bool>(), version()).prop_map(
+        |(id, name, sort_order, visible_to_players, version)| BoardDto {
+            id,
+            name,
+            sort_order,
+            visible_to_players,
+            version,
+        },
+    )
+}
+
+pub fn board_node_dto() -> impl Strategy<Value = BoardNodeDto> {
+    (
+        board_node_id(),
+        board_id(),
+        board_node_content(),
+        (board_coord(), board_coord(), board_size(), board_size()),
+        board_visibility(),
+        version(),
+    )
+        .prop_map(
+            |(id, board_id, content, (x, y, width, height), visibility, version)| BoardNodeDto {
+                id,
+                board_id,
+                content,
+                x,
+                y,
+                width,
+                height,
+                visibility,
+                version,
+            },
+        )
+}
+
+pub fn board_edge_dto() -> impl Strategy<Value = BoardEdgeDto> {
+    (
+        (
+            board_edge_id(),
+            board_id(),
+            board_node_id(),
+            board_node_id(),
+        ),
+        name(),
+        any::<bool>(),
+        board_visibility(),
+        version(),
+    )
+        .prop_map(
+            |((id, board_id, from, to), label, directed, visibility, version)| BoardEdgeDto {
+                id,
+                board_id,
+                from,
+                to,
+                label,
+                directed,
+                visibility,
+                version,
+            },
+        )
 }
 
 pub fn map_id() -> impl Strategy<Value = MapId> {
@@ -294,6 +396,88 @@ pub fn intent() -> impl Strategy<Value = Intent> {
                 sort_order
             }),
         journal_folder_id().prop_map(|id| Intent::DeleteJournalFolder { id }),
+        (board_id(), name()).prop_map(|(id, name)| Intent::CreateBoard { id, name }),
+        (
+            board_id(),
+            proptest::option::of(name()),
+            proptest::option::of(any::<bool>())
+        )
+            .prop_map(|(id, name, visible_to_players)| Intent::UpdateBoard {
+                id,
+                name,
+                visible_to_players
+            }),
+        board_id().prop_map(|id| Intent::DeleteBoard { id }),
+        (
+            (board_node_id(), board_id()),
+            board_node_content(),
+            (board_coord(), board_coord(), board_size(), board_size()),
+            board_visibility()
+        )
+            .prop_map(
+                |((id, board_id), content, (x, y, width, height), visibility)| {
+                    Intent::CreateBoardNode {
+                        id,
+                        board_id,
+                        content,
+                        x,
+                        y,
+                        width,
+                        height,
+                        visibility,
+                    }
+                }
+            ),
+        (
+            board_node_id(),
+            proptest::option::of(board_node_content()),
+            proptest::option::of(board_size()),
+            proptest::option::of(board_visibility())
+        )
+            .prop_map(|(id, content, width, visibility)| Intent::UpdateBoardNode {
+                id,
+                content,
+                width,
+                height: width,
+                visibility
+            }),
+        (board_node_id(), board_coord(), board_coord())
+            .prop_map(|(id, x, y)| Intent::MoveBoardNode { id, x, y }),
+        board_node_id().prop_map(|id| Intent::DeleteBoardNode { id }),
+        (
+            (
+                board_edge_id(),
+                board_id(),
+                board_node_id(),
+                board_node_id()
+            ),
+            name(),
+            any::<bool>(),
+            board_visibility()
+        )
+            .prop_map(|((id, board_id, from, to), label, directed, visibility)| {
+                Intent::CreateBoardEdge {
+                    id,
+                    board_id,
+                    from,
+                    to,
+                    label,
+                    directed,
+                    visibility,
+                }
+            }),
+        (
+            board_edge_id(),
+            proptest::option::of(name()),
+            proptest::option::of(board_visibility())
+        )
+            .prop_map(|(id, label, visibility)| Intent::UpdateBoardEdge {
+                id,
+                label,
+                directed: None,
+                visibility
+            }),
+        board_edge_id().prop_map(|id| Intent::DeleteBoardEdge { id }),
         (
             token_id(),
             map_id(),
@@ -472,6 +656,17 @@ pub fn event() -> impl Strategy<Value = Event> {
             .prop_map(|(id, name, role)| Event::UserJoined {
                 user: UserDto { id, name, role }
             }),
+        board_dto().prop_map(|board| Event::BoardCreated { board }),
+        board_dto().prop_map(|board| Event::BoardUpdated { board }),
+        board_id().prop_map(|id| Event::BoardDeleted { id }),
+        board_node_dto().prop_map(|node| Event::BoardNodeCreated { node }),
+        board_node_dto().prop_map(|node| Event::BoardNodeUpdated { node }),
+        (board_node_id(), board_coord(), board_coord())
+            .prop_map(|(id, x, y)| Event::BoardNodeMoved { id, x, y }),
+        board_node_id().prop_map(|id| Event::BoardNodeDeleted { id }),
+        board_edge_dto().prop_map(|edge| Event::BoardEdgeCreated { edge }),
+        board_edge_dto().prop_map(|edge| Event::BoardEdgeUpdated { edge }),
+        board_edge_id().prop_map(|id| Event::BoardEdgeDeleted { id }),
         Just(Event::Redacted),
     ]
 }
