@@ -1,5 +1,8 @@
 import { Application, CullerPlugin, extensions } from 'pixi.js';
 import { useEffect, useRef } from 'react';
+// The app's CSP has no 'unsafe-eval', and without this Pixi refuses to start its renderer in the
+// built app (the dev server does not apply the CSP). It swaps generated code for prebuilt functions.
+import 'pixi.js/unsafe-eval';
 
 // Containers marked `cullable` (tokens, map tiles) are not drawn when off screen.
 extensions.add(CullerPlugin);
@@ -38,6 +41,8 @@ export function PixiHost({ onReady, onError, background }: PixiHostProps) {
       .init({
         resizeTo: host,
         preference: 'webgl',
+        // Software and blocklisted GPUs (old drivers, VMs) still get a renderer.
+        failIfMajorPerformanceCaveat: false,
         antialias: false,
         autoDensity: true,
         resolution: window.devicePixelRatio,
