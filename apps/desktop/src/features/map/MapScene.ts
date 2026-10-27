@@ -477,7 +477,7 @@ export class MapScene {
       this.tokens.dragTo(drag.id, final.x / 16, final.y / 16);
       this.onMoveToken({ id: drag.id, ...final, final: true });
       this.tokenDrag = null;
-      this.tokens.release();
+      this.tokens.release(final);
       return;
     }
     const drawing = this.drawing;

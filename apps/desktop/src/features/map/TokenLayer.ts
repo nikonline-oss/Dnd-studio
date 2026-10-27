@@ -1,6 +1,7 @@
 // Tokens on the canvas (ADR-0017: Pixi is driven imperatively, React never renders a token).
 // One container per token, updated in place; positions come in Units16 (ADR-0016).
 import { Container, Graphics, Text, type FederatedPointerEvent } from 'pixi.js';
+import { Landings } from './landings';
 import { tokenDiameter } from './tokenMath';
 import { tokenColor, tokenInitial } from '@/shared/game/tokenLook';
 import type { Grid, TokenDto } from '@/shared/ipc/client';
@@ -44,6 +45,8 @@ export class TokenLayer {
   private readonly sprites = new Map<string, Sprite>();
   /** The token being dragged keeps its local position until dropped. */
   private dragging: string | null = null;
+  /** A dropped token stays where it was dropped until the events catch up. */
+  private readonly landings = new Landings();
 
   constructor(private readonly onGrab: TokenGrab) {
     this.view.sortableChildren = true;
@@ -71,12 +74,15 @@ export class TokenLayer {
       sprite.root.angle = token.rotation;
       sprite.root.eventMode = interactive && view.movable ? 'static' : 'none';
       sprite.root.cursor = 'grab';
-      if (this.dragging !== token.id) sprite.root.position.set(token.x / 16, token.y / 16);
+      if (this.dragging !== token.id && !this.landings.holds(token.id, token.x, token.y)) {
+        sprite.root.position.set(token.x / 16, token.y / 16);
+      }
     });
     for (const [id, sprite] of this.sprites) {
       if (seen.has(id)) continue;
       sprite.root.destroy({ children: true });
       this.sprites.delete(id);
+      this.landings.forget(id);
       if (this.dragging === id) this.dragging = null;
     }
   }
@@ -91,10 +97,15 @@ export class TokenLayer {
     sprite.root.cursor = 'grabbing';
   }
 
-  /** The drag ended; the next `show` places the token where the events say. */
-  release(): void {
-    const sprite = this.dragging ? this.sprites.get(this.dragging) : undefined;
+  /**
+   * The drag ended. Dropped at `landed` (Units16): the token stays there until the events bring
+   * that position; cancelled: the next `show` places it where the events say.
+   */
+  release(landed?: { x: number; y: number }): void {
+    const id = this.dragging;
+    const sprite = id ? this.sprites.get(id) : undefined;
     if (sprite) sprite.root.cursor = 'grab';
+    if (id && landed) this.landings.land(id, landed.x, landed.y);
     this.dragging = null;
   }
 
