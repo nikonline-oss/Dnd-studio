@@ -217,3 +217,39 @@ impl FieldLookup for CharacterFields {
         node.as_i64().ok_or(DiceLookupError::NotAnInteger)
     }
 }
+
+/// What a sheet shows besides its data: the system's computed fields and resources, for a sheet
+/// as it is being edited. Fields or resources that cannot be evaluated (a half-filled draft) are
+/// left out rather than failing the whole view.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct SheetValues {
+    pub computed: BTreeMap<String, i64>,
+    /// `(id, value, max)` of each resource.
+    pub resources: Vec<(String, i64, i64)>,
+}
+
+/// [`SheetValues`] of `sheet_json` under the campaign's system; `None` without a system.
+#[must_use]
+pub fn sheet_values(state: &GameState, sheet_json: &str) -> Option<SheetValues> {
+    let rules = state.rules()?;
+    let data: Value = serde_json::from_str(sheet_json).unwrap_or(Value::Object(Map::new()));
+    let sheet = sheet_schema::apply_defaults(&rules.sheet_schema, &data);
+    let context = SheetContext(&sheet);
+    let computed = Computed::resolve(&rules.computed, &context).ok();
+    let mut values = SheetValues::default();
+    if let Some(computed) = &computed {
+        values.computed = computed.values().clone();
+        let scope = computed.with_sheet(&context);
+        let eval = |source: &str| {
+            Expr::parse(source)
+                .and_then(|e| e.eval_integer(&scope))
+                .ok()
+        };
+        for resource in &rules.resources {
+            if let (Some(value), Some(max)) = (eval(&resource.value), eval(&resource.max)) {
+                values.resources.push((resource.id.clone(), value, max));
+            }
+        }
+    }
+    Some(values)
+}

@@ -614,3 +614,81 @@ async fn exported_campaign_imports_with_the_same_state() {
     assert_eq!(err.code, "invalid_archive");
     assert_eq!(std::fs::read_dir(&parent).unwrap().count(), 2);
 }
+
+/// ADR-0023: a bundled system plugin is installed into the campaign (package kept by its hash),
+/// chosen as the system, fills new sheets, gives the sheet view its computed fields, and travels
+/// with the campaign through export and import.
+#[tokio::test]
+async fn bundled_system_plugin_governs_the_campaign() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut server = LocalServer::create(dir.path(), "Rules").await.unwrap();
+    let package = dnd_desktop_lib::bundled::package("srd5").unwrap();
+    let (outcome, batch) = dnd_desktop_lib::plugins::install(&mut server, package)
+        .await
+        .unwrap();
+    assert!(matches!(outcome, IntentOutcome::Accepted { .. }));
+    assert!(batch.is_some());
+    let sha = server.state().plugins["srd5"].archive_sha256.clone();
+    assert!(
+        server
+            .folder()
+            .join(format!("assets/plugins/{sha}.dndplugin"))
+            .exists()
+    );
+
+    server
+        .submit(&envelope(
+            Intent::SetSystemPlugin {
+                id: Some("srd5".into()),
+            },
+            None,
+        ))
+        .await
+        .unwrap();
+    let id = CharacterId::new_v7();
+    let (outcome, _) = server
+        .submit(&envelope(
+            Intent::CreateCharacter {
+                id,
+                character_kind: CharacterKind::Npc,
+                name: "Aria".into(),
+                owner: None,
+                sheet_json: r#"{"abilities": {"str": 16}}"#.into(),
+            },
+            None,
+        ))
+        .await
+        .unwrap();
+    assert!(matches!(outcome, IntentOutcome::Accepted { .. }));
+    let sheet = server.state().characters[&id].sheet_json.clone();
+    let view = dnd_desktop_lib::plugins::sheet_view(server.state(), &sheet).unwrap();
+    assert_eq!(view.computed["str_mod"], 3.0);
+    assert_eq!(view.computed["dex_mod"], 0.0);
+    assert_eq!(view.resources[0].id, "hp");
+
+    // A second install of the same package keeps one file.
+    dnd_desktop_lib::plugins::install(&mut server, package)
+        .await
+        .unwrap();
+    assert_eq!(
+        std::fs::read_dir(server.folder().join("assets/plugins"))
+            .unwrap()
+            .count(),
+        1
+    );
+
+    let archive = dir.path().join("rules.zip");
+    server.export(&archive, true).await.unwrap();
+    let parent = dir.path().join("imported");
+    std::fs::create_dir_all(&parent).unwrap();
+    let folder = dnd_desktop_lib::import(&archive, &parent).await.unwrap();
+    let imported = LocalServer::open(&folder).await.unwrap();
+    assert_eq!(imported.state().system_plugin.as_deref(), Some("srd5"));
+    assert!(
+        folder
+            .join(format!("assets/plugins/{sha}.dndplugin"))
+            .exists()
+    );
+    imported.close().await.unwrap();
+    server.close().await.unwrap();
+}

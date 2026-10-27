@@ -202,6 +202,8 @@ ADR-0022; токен — `Authorization: Bearer` для WS и ассетов); `
 
 `.dndplugin` = ZIP: `manifest.json` (id, name, version semver, kind, authors, license, app_compat semver range,
 dependencies), ассеты, схемы листов (JSON Schema + layout), компендии, шаблоны кампаний, темы, типы связей.
+Формат — `docs/plugin-format.md`; плагины хранятся внутри кампании, правила системного плагина — часть
+состояния игры, ядро перепроверяет их само (ADR-0023).
 - Лист персонажа: JSON Schema данных + декларативный layout из предустановленных React-компонентов + слоты.
   Вычисляемые поля и кнопки бросков — через `dnd-expr`/`dnd-dice`.
 - Установка: drag-and-drop, из файла, из каталога. Разрешение зависимостей; несовместимые деактивируются

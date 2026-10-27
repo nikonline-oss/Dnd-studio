@@ -184,6 +184,12 @@ impl LocalServer {
         }
     }
 
+    /// The authoritative game state.
+    #[must_use]
+    pub fn state(&self) -> &dnd_game_core::GameState {
+        self.engine.state()
+    }
+
     #[must_use]
     pub fn folder(&self) -> &Path {
         &self.folder

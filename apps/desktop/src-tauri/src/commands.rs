@@ -92,11 +92,25 @@ pub async fn campaign_create<R: Runtime>(
     app: AppHandle<R>,
     state: State<'_, AppState>,
     name: String,
+    system: Option<String>,
 ) -> Result<Option<CampaignInfo>, IpcError> {
     let Some(parent) = pick_folder(&app).await else {
         return Ok(None);
     };
-    let server = LocalServer::create(&parent, &name).await?;
+    let mut server = LocalServer::create(&parent, &name).await?;
+    if let Some(system) = system {
+        // A new campaign with a bundled rule system (ADR-0023): installed and chosen before the
+        // UI ever sees the campaign, so no events need to reach it.
+        let package = crate::bundled::package(&system)
+            .ok_or_else(|| IpcError::user("not_found", format!("no bundled plugin {system}")))?;
+        crate::plugins::install(&mut server, package).await?;
+        let envelope = IntentEnvelope {
+            intent_id: dnd_protocol::IntentId::new_v7(),
+            expected_version: None,
+            intent: dnd_protocol::Intent::SetSystemPlugin { id: Some(system) },
+        };
+        server.submit(&envelope).await?;
+    }
     replace_open(&state, server).await.map(Some)
 }
 
@@ -503,4 +517,95 @@ pub fn init_dirs<R: Runtime>(app: &AppHandle<R>, state: &AppState) -> Result<(),
         asset_cache: cache.join("remote-assets"),
     });
     Ok(())
+}
+
+// ---------- Plugins (ADR-0023) ----------
+
+/// The plugins shipped with the app.
+#[tauri::command]
+#[specta::specta]
+pub fn plugin_bundled() -> Vec<crate::plugins::BundledPlugin> {
+    crate::plugins::bundled()
+}
+
+/// Installs a bundled plugin into the open campaign.
+#[tauri::command]
+#[specta::specta]
+pub async fn plugin_install_bundled<R: Runtime>(
+    app: AppHandle<R>,
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<IntentOutcome, IpcError> {
+    let package = crate::bundled::package(&id)
+        .ok_or_else(|| IpcError::user("not_found", format!("no bundled plugin {id}")))?;
+    install_package(&app, &state, package).await
+}
+
+/// Asks for a `.dndplugin` file and installs it into the open campaign. `None` if cancelled.
+#[tauri::command]
+#[specta::specta]
+pub async fn plugin_install_file<R: Runtime>(
+    app: AppHandle<R>,
+    state: State<'_, AppState>,
+) -> Result<Option<IntentOutcome>, IpcError> {
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    app.dialog()
+        .file()
+        .add_filter("DndStudio plugin", &["dndplugin"])
+        .pick_file(move |file| {
+            let _ = tx.send(file.and_then(|f| f.into_path().ok()));
+        });
+    let Some(path) = rx.await.ok().flatten() else {
+        return Ok(None);
+    };
+    let limit = dnd_plugin::PackageLimits::default().max_package_bytes;
+    if std::fs::metadata(&path)?.len() > limit {
+        return Err(IpcError::user(
+            "too_large",
+            "the plugin package is too large",
+        ));
+    }
+    let bytes = std::fs::read(&path)?;
+    install_package(&app, &state, &bytes).await.map(Some)
+}
+
+async fn install_package<R: Runtime>(
+    app: &AppHandle<R>,
+    state: &AppState,
+    package: &[u8],
+) -> Result<IntentOutcome, IpcError> {
+    // Packages travel with the campaign file; uploading them to a running session: stage 4.
+    if state.remote.lock().await.is_some() {
+        return Err(IpcError::user(
+            "not_in_remote_session",
+            "plugins are installed in the local campaign",
+        ));
+    }
+    let mut guard = state.server.lock().await;
+    let server = guard.as_mut().ok_or_else(IpcError::no_campaign)?;
+    let (outcome, batch) = crate::plugins::install(server, package).await?;
+    if let Some(batch) = batch
+        && let Err(e) = GameEventsEmitted(batch).emit(app)
+    {
+        tracing::error!(error = %e, "failed to emit game events");
+    }
+    Ok(outcome)
+}
+
+/// What a sheet shows besides its data (computed fields, resources) under the campaign's system;
+/// `None` without one. Evaluated by the core's rules, locally or on the session's state.
+#[tauri::command]
+#[specta::specta]
+pub async fn sheet_view(
+    state: State<'_, AppState>,
+    sheet_json: String,
+) -> Result<Option<crate::plugins::SheetView>, IpcError> {
+    if let Some(remote) = state.remote.lock().await.as_ref() {
+        return Ok(remote
+            .with_state(|s| crate::plugins::sheet_view(s, &sheet_json))
+            .flatten());
+    }
+    let guard = state.server.lock().await;
+    let server = guard.as_ref().ok_or_else(IpcError::no_campaign)?;
+    Ok(crate::plugins::sheet_view(server.state(), &sheet_json))
 }

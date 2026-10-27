@@ -17,6 +17,7 @@ describe('CampaignScreen', () => {
   it('offers restoring from a backup when the campaign is corrupted', async () => {
     const calls: string[] = [];
     mockIPC((cmd) => {
+      if (cmd === 'plugin_bundled') return [];
       calls.push(cmd);
       if (cmd === 'campaign_open') {
         const error: IpcError = {
@@ -49,6 +50,7 @@ describe('CampaignScreen', () => {
 
   it('a cancelled dialog changes nothing', async () => {
     mockIPC((cmd) => {
+      if (cmd === 'plugin_bundled') return [];
       if (cmd === 'campaign_open') return null;
       throw new Error(`unexpected command ${cmd}`);
     });
@@ -66,6 +68,7 @@ describe('CampaignScreen', () => {
   it('imports an archive and opens it; a broken archive is explained', async () => {
     let broken = true;
     mockIPC((cmd) => {
+      if (cmd === 'plugin_bundled') return [];
       if (cmd !== 'campaign_import') throw new Error(`unexpected command ${cmd}`);
       if (broken) {
         const error: IpcError = { kind: 'user', code: 'invalid_archive', message: 'bad' };
@@ -81,7 +84,7 @@ describe('CampaignScreen', () => {
       </QueryClientProvider>,
     );
     await userEvent.click(screen.getByRole('button', { name: 'Import campaign…' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('Not a DndStudio campaign archive');
+    expect(await screen.findByRole('alert')).toHaveTextContent('not a DndStudio campaign archive');
 
     broken = false;
     await userEvent.click(screen.getByRole('button', { name: 'Import campaign…' }));

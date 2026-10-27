@@ -27,7 +27,9 @@ pub use apply::{MAX_DESCRIPTION_LEN, MAX_NAME_LEN, RuleError, apply};
 pub use combat::{initiative_expression, turn_order, turn_order_cmp};
 pub use evolve::{evolve, evolve_all};
 pub use permissions::{Actor, authorize};
-pub use plugins::{CharacterFields, SheetContext, check_plugin, default_sheet};
+pub use plugins::{
+    CharacterFields, SheetContext, SheetValues, check_plugin, default_sheet, sheet_values,
+};
 pub use recent::{IntentWindow, Recall, RecentIntents};
 pub use rng::{GameRng, SplitMix64};
 pub use state::GameState;

@@ -11,6 +11,7 @@ import { CharacterList } from '@/features/characters/CharacterList';
 import { ChatPanel } from '@/features/chat/ChatPanel';
 import { JournalEditor } from '@/features/journal/JournalEditor';
 import { JournalTree } from '@/features/journal/JournalTree';
+import { PluginsView } from '@/features/plugins/PluginsView';
 import { InitiativePanel } from '@/features/initiative/InitiativePanel';
 import { LogPanel } from '@/features/logs/LogPanel';
 import { MapInspector } from '@/features/map/MapInspector';
@@ -32,9 +33,14 @@ const BOTTOM_TAB_ICONS = { chat: 'send', initiative: 'dice', logs: 'book' } as c
 const MapView = lazy(() => import('@/features/map/MapView').then((m) => ({ default: m.MapView })));
 
 /** Side panel views per preset; players get no map list (§5: the map is chosen for them). */
-const GM_VIEWS: SideView[] = ['maps', 'characters', 'journal'];
+const GM_VIEWS: SideView[] = ['maps', 'characters', 'journal', 'plugins'];
 const PLAYER_VIEWS: SideView[] = ['characters', 'journal'];
-const VIEW_ICONS = { maps: 'map', characters: 'users', journal: 'book' } as const;
+const VIEW_ICONS = {
+  maps: 'map',
+  characters: 'users',
+  journal: 'book',
+  plugins: 'puzzle',
+} as const;
 
 /**
  * IDE layout (CLAUDE.md §11): menu + breadcrumbs, Activity Bar with one side view at a time (as in
@@ -102,7 +108,7 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
         e.preventDefault();
         checkpoint();
       }
-      // Ctrl+B: collapse or expand the side panel; Alt+1..3: its views (as in VS Code).
+      // Ctrl+B: collapse or expand the side panel; Alt+1..4: its views (as in VS Code).
       if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'b') {
         e.preventDefault();
         toggleSide();
@@ -165,6 +171,10 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
             ) : sideView === 'characters' ? (
               <ErrorBoundary name={t('characters.title')}>
                 <CharacterList />
+              </ErrorBoundary>
+            ) : sideView === 'plugins' ? (
+              <ErrorBoundary name={t('plugins.title')}>
+                <PluginsView />
               </ErrorBoundary>
             ) : (
               <ErrorBoundary name={t('journal.title')}>

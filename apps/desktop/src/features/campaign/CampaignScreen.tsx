@@ -1,20 +1,25 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type SyntheticEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { queryKeys } from '@/shared/game/useGame';
 import { useCampaignActions } from '@/shared/game/useCampaignActions';
 import { useDialogs } from '@/shared/state/dialogs';
 import { errorCode, ipc } from '@/shared/ipc/client';
+import { labelText } from '@/shared/i18n/label';
 import { ErrorText } from '@/shared/ui/ErrorText';
 import { Icon } from '@/shared/ui/Icon';
 
 /** Start screen: create a new campaign or open an existing one. */
 export function CampaignScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
   const { create, open, importArchive } = useCampaignActions();
   const showDialog = useDialogs((s) => s.show);
   const [name, setName] = useState('');
+  const [system, setSystem] = useState('srd5');
+  const bundled = useQuery({ queryKey: ['pluginBundled'], queryFn: ipc.pluginBundled });
+  const systems = (bundled.data ?? []).filter((p) => p.kind === 'system');
+  const lang = i18n.resolvedLanguage ?? i18n.language;
 
   // Offered when opening failed because the file is damaged (CLAUDE.md §10).
   const restore = useMutation({
@@ -29,7 +34,7 @@ export function CampaignScreen() {
 
   const submit = (e: SyntheticEvent) => {
     e.preventDefault();
-    create.mutate(name);
+    create.mutate({ name, system: system === '' ? null : system });
   };
 
   return (
@@ -53,6 +58,22 @@ export function CampaignScreen() {
               placeholder={t('campaign.namePlaceholder')}
               maxLength={200}
             />
+          </label>
+          <label>
+            {t('campaign.system')}
+            <select
+              value={system}
+              onChange={(e) => {
+                setSystem(e.target.value);
+              }}
+            >
+              {systems.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {labelText(p.name, lang)}
+                </option>
+              ))}
+              <option value="">{t('campaign.noSystem')}</option>
+            </select>
           </label>
           <button
             type="submit"

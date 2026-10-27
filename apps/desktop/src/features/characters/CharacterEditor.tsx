@@ -6,6 +6,7 @@ import { useSelection } from '@/shared/state/selection';
 import { CodeEditor } from '@/shared/ui/CodeEditor';
 import { ErrorText } from '@/shared/ui/ErrorText';
 import { InlineEdit } from '@/shared/ui/InlineEdit';
+import { SystemSheet } from './SystemSheet';
 
 /** Checks what the core checks (ADR-0016) to give feedback before sending. */
 export function sheetProblem(sheet: string): 'syntax' | 'not_object' | 'fraction' | null {
@@ -25,28 +26,32 @@ export function sheetProblem(sheet: string): 'syntax' | 'not_object' | 'fraction
   return integersOnly(value) ? null : 'fraction';
 }
 
-/** Inspector for the selected character: name, owner, raw sheet and status transitions. */
+/**
+ * Inspector for the selected character: name, owner, sheet and status transitions. With a system
+ * plugin the sheet is the plugin's layout (ADR-0023); the raw JSON stays available to GM roles.
+ */
 export function CharacterEditor() {
   const { t } = useTranslation();
   const characterId = useSelection((s) => s.characterId);
   const character = useSnapshotSelect((s) => s.characters.find((c) => c.id === characterId));
   if (!character) return <p className="inspector-empty muted">{t('inspector.empty')}</p>;
-  // Remount on a new version so the draft starts from the current sheet.
-  return <Editor key={`${character.id}:${character.version}`} character={character} />;
+  // Keyed by character only: a system sheet keeps its tab and focus across saved edits.
+  return <Editor key={character.id} character={character} />;
 }
 
 function Editor({ character }: { character: CharacterDto }) {
   const { t } = useTranslation();
   const { data: campaign } = useCampaign();
   const submit = useSubmitIntent();
-  const [sheet, setSheet] = useState(character.sheet_json);
 
   const isGm = campaign?.role === 'gm' || campaign?.role === 'co_gm';
   const isOwner = character.owner !== null && character.owner === campaign?.user_id;
   const canEdit =
     isGm || (isOwner && (character.status === 'draft' || character.status === 'active'));
-  const problem = sheetProblem(sheet);
   const users = useSnapshotSelect((s) => s.users) ?? [];
+  const rules = useSnapshotSelect(
+    (s) => s.plugins.find((p) => p.id === s.system_plugin)?.system ?? null,
+  );
 
   const send = (intent: Intent) => {
     submit.mutate({ intent, expectedVersion: character.version });
@@ -123,26 +128,21 @@ function Editor({ character }: { character: CharacterDto }) {
         </dd>
       </dl>
 
-      <label className="sheet-label">{t('characters.sheet')}</label>
-      <CodeEditor value={sheet} onChange={setSheet} label={t('characters.sheet')} language="json" />
-      {problem && (
-        <p role="alert" className="error-text">
-          {t(`characters.sheetProblem.${problem}`)}
-        </p>
+      {rules ? (
+        <>
+          <SystemSheet character={character} rules={rules} canEdit={canEdit} />
+          {isGm && (
+            <details className="raw-sheet">
+              <summary>{t('characters.rawSheet')}</summary>
+              <RawSheet key={character.version} character={character} canEdit={canEdit} />
+            </details>
+          )}
+        </>
+      ) : (
+        <RawSheet key={character.version} character={character} canEdit={canEdit} />
       )}
 
       <div className="inline actions">
-        {canEdit && (
-          <button
-            type="button"
-            disabled={problem !== null || sheet === character.sheet_json || submit.isPending}
-            onClick={() => {
-              send({ kind: 'update_character', id: character.id, name: null, sheet_json: sheet });
-            }}
-          >
-            {t('characters.saveSheet')}
-          </button>
-        )}
         {transitions
           .filter((tr) => tr.allowed)
           .map((tr) => (
@@ -160,5 +160,47 @@ function Editor({ character }: { character: CharacterDto }) {
       </div>
       <ErrorText error={submit.error} />
     </section>
+  );
+}
+
+/** The sheet as JSON (campaigns without a system, and GM roles under one). Keyed by version by the
+ * caller, so the draft starts again from the saved sheet. */
+function RawSheet({ character, canEdit }: { character: CharacterDto; canEdit: boolean }) {
+  const { t } = useTranslation();
+  const submit = useSubmitIntent();
+  const [sheet, setSheet] = useState(character.sheet_json);
+  const problem = sheetProblem(sheet);
+  return (
+    <>
+      <label className="sheet-label">{t('characters.sheet')}</label>
+      <CodeEditor value={sheet} onChange={setSheet} label={t('characters.sheet')} language="json" />
+      {problem && (
+        <p role="alert" className="error-text">
+          {t(`characters.sheetProblem.${problem}`)}
+        </p>
+      )}
+      {canEdit && (
+        <div className="inline actions">
+          <button
+            type="button"
+            disabled={problem !== null || sheet === character.sheet_json || submit.isPending}
+            onClick={() => {
+              submit.mutate({
+                intent: {
+                  kind: 'update_character',
+                  id: character.id,
+                  name: null,
+                  sheet_json: sheet,
+                },
+                expectedVersion: character.version,
+              });
+            }}
+          >
+            {t('characters.saveSheet')}
+          </button>
+        </div>
+      )}
+      <ErrorText error={submit.error} />
+    </>
   );
 }

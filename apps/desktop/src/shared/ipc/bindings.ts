@@ -12,13 +12,13 @@ export const commands = {
 	 *  Asks the user for a parent folder (native dialog, run from Rust so the webview never supplies
 	 *  paths) and creates the campaign there. `None` if the dialog was cancelled.
 	 */
-	campaignCreate: (name: string) => typedError<{
+	campaignCreate: (name: string, system: string | null) => typedError<{
 	name: string,
 	/**  The campaign folder. */
 	path: string,
 	user_id: UserId,
 	role: Role,
-} | null, IpcError>(__TAURI_INVOKE("campaign_create", { name })),
+} | null, IpcError>(__TAURI_INVOKE("campaign_create", { name, system })),
 	/**
 	 *  Asks the user for a campaign folder and opens it. `None` if the dialog was cancelled.
 	 *  A corrupted file yields a `Recoverable` `campaign_corrupt` error; the UI then offers
@@ -111,6 +111,22 @@ export const commands = {
 	hosted: boolean,
 	status: RemoteStatus,
 } | null, IpcError>(__TAURI_INVOKE("remote_current")),
+	/**  The plugins shipped with the app. */
+	pluginBundled: () => __TAURI_INVOKE<BundledPlugin[]>("plugin_bundled"),
+	/**  Installs a bundled plugin into the open campaign. */
+	pluginInstallBundled: (id: string) => typedError<IntentOutcome, IpcError>(__TAURI_INVOKE("plugin_install_bundled", { id })),
+	/**  Asks for a `.dndplugin` file and installs it into the open campaign. `None` if cancelled. */
+	pluginInstallFile: () => typedError<{ status: "accepted"; 
+/**  Sequence number of the last event produced. */
+seq: Seq } | { status: "rejected"; reason: RejectReason } | null, IpcError>(__TAURI_INVOKE("plugin_install_file")),
+	/**
+	 *  What a sheet shows besides its data (computed fields, resources) under the campaign's system;
+	 *  `None` without one. Evaluated by the core's rules, locally or on the session's state.
+	 */
+	sheetView: (sheetJson: string) => typedError<{
+	computed: { [key in string]: number | null },
+	resources: ResourceValue[],
+} | null, IpcError>(__TAURI_INVOKE("sheet_view", { sheetJson })),
 	/**  Recent log records for the log panel (live ones arrive as [`LogRecord`] events). */
 	logsRecent: () => __TAURI_INVOKE<LogRecord[]>("logs_recent"),
 	/**  Lets the UI write to the application log (e.g. a crashed feature in an error boundary). */
@@ -187,6 +203,15 @@ export type AssetUsage =
 "map" | 
 /**  Token or portrait: one WebP, at most 2048 px per side. */
 "token";
+
+/**  A plugin shipped with the app. */
+export type BundledPlugin = {
+	id: string,
+	name: Label,
+	version: string,
+	kind: PluginKind,
+	license: string,
+};
 
 /**  What the UI needs to know about the open campaign. */
 export type CampaignInfo = {
@@ -756,6 +781,12 @@ export type ResourceDef = {
 	max: string,
 };
 
+export type ResourceValue = {
+	id: string,
+	value: number | null,
+	max: number | null,
+};
+
 /**  Role of a participant (CLAUDE.md §5). */
 export type Role = "gm" | "co_gm" | "player" | "spectator";
 
@@ -793,6 +824,12 @@ export type ServerMessage = { type: "events"; payload: EventBatch } |
 
 /**  A session on the session server. */
 export type SessionId = string;
+
+/**  What a sheet shows besides its data (numbers as JSON numbers for the UI). */
+export type SheetView = {
+	computed: { [key in string]: number | null },
+	resources: ResourceValue[],
+};
 
 /**  The visible state as of event `seq`. */
 export type Snapshot = {

@@ -2107,3 +2107,65 @@ input[type='checkbox'] {
   color: var(--color-text-muted);
   font-size: 12px;
 }
+
+/* ---------- Plugins (ADR-0023) ---------- */
+
+.plugin-list {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0 var(--space-1);
+  list-style: none;
+}
+
+.plugin-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius);
+}
+
+.plugin-row[aria-current='true'] {
+  background: var(--color-accent-soft);
+  box-shadow: inset 2px 0 0 var(--color-accent);
+}
+
+.plugin-name {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 2px;
+}
+
+.plugin-name .muted {
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plugin-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.badge[data-trust='unsigned'] {
+  color: var(--color-warning, #b8860b);
+}
+
+.plugin-bundled h3 {
+  margin: var(--space-2) var(--space-3) var(--space-1);
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.raw-sheet {
+  margin-top: var(--space-2);
+}
+
+.raw-sheet summary {
+  cursor: pointer;
+  color: var(--color-text-muted);
+}

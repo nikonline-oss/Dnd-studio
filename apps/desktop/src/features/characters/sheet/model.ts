@@ -2,7 +2,8 @@
 // Schema subset describing the sheet data, and pure helpers the renderer is built on.
 
 /** Plugin text: one string for every language, or one per language. */
-export type Label = string | { ru?: string; en?: string };
+/** As in the plugin format; a missing language may also come as `null` from the protocol. */
+export type Label = string | { ru?: string | null; en?: string | null };
 
 export type Widget = 'number' | 'text' | 'checkbox' | 'select' | 'textarea';
 

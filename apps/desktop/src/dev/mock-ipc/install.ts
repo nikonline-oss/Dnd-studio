@@ -635,6 +635,11 @@ export async function installMockIpc(
           remote = null;
           open = false;
           return null;
+        // Plugins (ADR-0023): nothing bundled in the browser mock, no system rules.
+        case 'plugin_bundled':
+          return [];
+        case 'sheet_view':
+          return null;
         case 'asset_import_map':
           // The real command opens a native file dialog; here it behaves as if cancelled.
           return null;

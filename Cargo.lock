@@ -1275,6 +1275,7 @@ dependencies = [
  "dnd-db",
  "dnd-game-core",
  "dnd-net",
+ "dnd-plugin",
  "dnd-protocol",
  "dnd-session-server",
  "image",

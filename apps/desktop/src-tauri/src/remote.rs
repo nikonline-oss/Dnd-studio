@@ -529,6 +529,14 @@ impl RemoteSession {
             .map_or(RemoteStatus::Connecting, |s| s.clone())
     }
 
+    /// Runs `f` on the latest state (`None` until the first snapshot has arrived).
+    pub fn with_state<T>(&self, f: impl FnOnce(&GameState) -> T) -> Option<T> {
+        self.view
+            .lock()
+            .ok()
+            .and_then(|v| v.as_ref().map(|v| f(&v.state)))
+    }
+
     /// The latest state, or an error until the first snapshot has arrived.
     pub fn snapshot(&self) -> Result<Snapshot, IpcError> {
         self.view

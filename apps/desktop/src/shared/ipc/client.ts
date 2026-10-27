@@ -48,7 +48,8 @@ export class IntentRejected extends Error {
 
 export const ipc = {
   appInfo: () => commands.appInfo(),
-  campaignCreate: (name: string) => unwrap(commands.campaignCreate(name)),
+  campaignCreate: ({ name, system }: { name: string; system: string | null }) =>
+    unwrap(commands.campaignCreate(name, system)),
   campaignOpen: () => unwrap(commands.campaignOpen()),
   campaignRestoreBackup: () => unwrap(commands.campaignRestoreBackup()),
   campaignClose: () => unwrap(commands.campaignClose()),
@@ -63,6 +64,10 @@ export const ipc = {
   remoteForget: (server: string, sessionId: string) =>
     unwrap(commands.remoteForget(server, sessionId)),
   remoteStop: () => unwrap(commands.remoteStop()),
+  pluginBundled: () => commands.pluginBundled(),
+  pluginInstallBundled: (id: string) => unwrap(commands.pluginInstallBundled(id)),
+  pluginInstallFile: () => unwrap(commands.pluginInstallFile()),
+  sheetView: (sheetJson: string) => unwrap(commands.sheetView(sheetJson)),
   campaignCheckpoint: () => unwrap(commands.campaignCheckpoint()),
   campaignCurrent: () => unwrap(commands.campaignCurrent()),
   getSnapshot: () => unwrap(commands.getSnapshot()),

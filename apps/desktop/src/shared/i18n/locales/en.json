@@ -18,7 +18,9 @@
     "corruptHint": "The damaged file will be kept as campaign.sqlite.corrupt.",
     "import": "Import campaign…",
     "export": "Export campaign…",
-    "exported": "Campaign saved to an archive"
+    "exported": "Campaign saved to an archive",
+    "system": "Rule system",
+    "noSystem": "No system (free-form sheet)"
   },
   "maps": {
     "title": "Maps",
@@ -85,7 +87,7 @@
     "asset_dimensions": "The image is too large to open",
     "asset_decode": "The image file is damaged",
     "import_failed": "Could not import the image",
-    "invalid_archive": "Not a DndStudio campaign archive, or it is damaged",
+    "invalid_archive": "The file is damaged, or not a DndStudio campaign archive or plugin package",
     "no_host_token": "Enter this server's host token",
     "server_unreachable": "The server cannot be reached",
     "invalid_address": "Not a server address or invite link",
@@ -99,7 +101,21 @@
     "connecting": "Waiting for the server",
     "keychain_unavailable": "The system password store is unavailable",
     "not_in_remote_session": "Not connected to a server",
-    "protocol_error": "The server answered something unexpected"
+    "protocol_error": "The server answered something unexpected",
+    "too_large": "The package is too large",
+    "unexpected_file": "The package contains unexpected files",
+    "unsafe_entry": "The package contains unsafe files",
+    "missing_file": "The package is missing files",
+    "hash_mismatch": "A file in the package does not match its hash",
+    "invalid_asset": "An image in the package is damaged",
+    "unsupported_format": "This plugin format is not supported by this version",
+    "invalid_manifest": "The plugin's manifest.json has an error",
+    "invalid_document": "The plugin's rule files have an error",
+    "unsupported_schema": "The plugin's sheet schema is not supported",
+    "invalid_layout": "The plugin's sheet layout has an error",
+    "incompatible_app": "The plugin does not fit this version of the app",
+    "missing_dependency": "A plugin this one depends on is not installed",
+    "dependency_version_mismatch": "An unsuitable version of a dependency is installed"
   },
   "menu": {
     "label": "Main menu",
@@ -259,7 +275,8 @@
       "syntax": "Not valid JSON",
       "not_object": "The sheet must be a JSON object",
       "fraction": "Numbers must be whole and within ±2^53−1"
-    }
+    },
+    "rawSheet": "Sheet as JSON"
   },
   "journal": {
     "title": "Journal",
@@ -334,7 +351,8 @@
     "characters": "Characters",
     "journal": "Journal",
     "badge_one": "{{count}} waiting for approval",
-    "badge_other": "{{count}} waiting for approval"
+    "badge_other": "{{count}} waiting for approval",
+    "plugins": "Plugins"
   },
   "session": {
     "host": "Invite players…",
@@ -374,5 +392,26 @@
     "roll": "Roll: {{label}}",
     "unsupported": "Unsupported sheet element: {{type}}",
     "missing": "Not found: {{id}}"
+  },
+  "plugins": {
+    "title": "Plugins",
+    "empty": "No plugins installed",
+    "installFile": "Install from file…",
+    "bundled": "Bundled",
+    "install": "Install",
+    "installed": "Installed",
+    "system": "Campaign system",
+    "makeSystem": "Make it the system",
+    "uninstall": "Uninstall",
+    "unsigned": "Unsigned",
+    "unsignedHint": "A local plugin without a catalog signature: install only from sources you trust.",
+    "kinds": {
+      "system": "System",
+      "content": "Content",
+      "theme": "Theme",
+      "ui": "Interface"
+    },
+    "license": "License",
+    "remote": "Plugins are installed into the local campaign."
   }
 }
