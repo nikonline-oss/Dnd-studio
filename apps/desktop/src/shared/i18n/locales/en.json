@@ -307,6 +307,7 @@
     "confirmDeleteEntry": "Delete the entry “{{title}}”?",
     "confirmDeleteEmptyFolder": "Delete the empty folder “{{name}}”?",
     "confirmDeleteFolder": "Delete the folder “{{name}}” with everything in it? Entries: {{entries}}, subfolders: {{folders}}.",
+    "insertLink": "Link…",
     "insertPicture": "Picture…"
   },
   "chat": {

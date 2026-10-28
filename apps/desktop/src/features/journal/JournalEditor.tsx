@@ -3,11 +3,11 @@ import { useTranslation } from 'react-i18next';
 import { useCampaign, useJournalEntry, useSubmitIntent } from '@/shared/game/useGame';
 import { IntentRejected, type JournalEntryDto } from '@/shared/ipc/client';
 import { useSelection } from '@/shared/state/selection';
-import { CodeEditor } from '@/shared/ui/CodeEditor';
+import { CodeEditor, type CodeEditorHandle } from '@/shared/ui/CodeEditor';
 import { ElementPicker } from '@/shared/ui/ElementPicker';
 import { ErrorText } from '@/shared/ui/ErrorText';
 import { InlineEdit } from '@/shared/ui/InlineEdit';
-import { Markdown } from '@/shared/ui/Markdown';
+import { linkMarkdown, Markdown } from '@/shared/ui/Markdown';
 
 /** UI-draft debounce (CLAUDE.md §10): the text is sent 2 s after the last keystroke. */
 export const DRAFT_DEBOUNCE_MS = 2000;
@@ -31,7 +31,9 @@ function Editor({ entry }: { entry: JournalEntryDto }) {
   const [draft, setDraft] = useState<string | null>(null);
   const [conflict, setConflict] = useState(false);
   const [preview, setPreview] = useState(false);
-  const [picking, setPicking] = useState(false);
+  /** Which picker is open: a picture or a link to insert at the cursor. */
+  const [picking, setPicking] = useState<'picture' | 'link' | null>(null);
+  const editor = useRef<CodeEditorHandle>(null);
 
   const isGm = campaign?.role === 'gm' || campaign?.role === 'co_gm';
   const canEditText =
@@ -126,14 +128,24 @@ function Editor({ entry }: { entry: JournalEntryDto }) {
           )}
         </h2>
         {canEditText && !preview && (
-          <button
-            type="button"
-            onClick={() => {
-              setPicking(true);
-            }}
-          >
-            {t('journal.insertPicture')}
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={() => {
+                setPicking('link');
+              }}
+            >
+              {t('journal.insertLink')}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setPicking('picture');
+              }}
+            >
+              {t('journal.insertPicture')}
+            </button>
+          </>
         )}
         <button
           type="button"
@@ -145,19 +157,31 @@ function Editor({ entry }: { entry: JournalEntryDto }) {
           {preview ? t('journal.edit') : t('journal.preview')}
         </button>
       </header>
-      {picking && (
+      {picking === 'picture' && (
         <ElementPicker
           title={t('journal.insertPicture')}
           kinds={['asset']}
           onClose={() => {
-            setPicking(false);
+            setPicking(null);
           }}
           onPick={({ id, name }) => {
-            // Appended to the draft: saved with the text after the usual debounce.
+            // Typed in at the cursor: saved with the text after the usual debounce.
             const alt = name.replace(/\.[a-z0-9]+$/i, '').replace(/[[\]]/g, '');
-            setDraft(
-              `${text}${text.endsWith('\n') || text === '' ? '' : '\n\n'}![${alt}](asset:${id})\n`,
-            );
+            editor.current?.insert(`![${alt}](asset:${id})`);
+          }}
+        />
+      )}
+      {picking === 'link' && (
+        <ElementPicker
+          title={t('journal.insertLink')}
+          kinds={['journal', 'map', 'character', 'board']}
+          onClose={() => {
+            setPicking(null);
+          }}
+          onPick={({ kind, id, name }) => {
+            if (kind === 'journal' || kind === 'map' || kind === 'character' || kind === 'board') {
+              editor.current?.insert(linkMarkdown(kind, id, name));
+            }
           }}
         />
       )}
@@ -228,6 +252,7 @@ function Editor({ entry }: { entry: JournalEntryDto }) {
         <Markdown source={text} />
       ) : (
         <CodeEditor
+          ref={editor}
           value={text}
           onChange={setDraft}
           label={t('journal.text')}

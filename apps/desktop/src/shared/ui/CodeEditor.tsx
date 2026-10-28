@@ -1,7 +1,7 @@
 import { json } from '@codemirror/lang-json';
 import { markdown } from '@codemirror/lang-markdown';
 import { EditorView, basicSetup } from 'codemirror';
-import { useEffect, useRef } from 'react';
+import { useEffect, useImperativeHandle, useRef, type Ref } from 'react';
 
 /** The app's colours (custom properties reach into the shadow root), light and dark alike. */
 const theme = EditorView.theme({
@@ -20,11 +20,18 @@ const theme = EditorView.theme({
   '&.cm-focused': { outline: 'none' },
 });
 
+/** What a parent may do with the editor. */
+export interface CodeEditorHandle {
+  /** Replaces the selection (or inserts at the cursor) with `text`, as if typed. */
+  insert: (text: string) => void;
+}
+
 interface Props {
   value: string;
   onChange: (value: string) => void;
   label: string;
   language: 'json' | 'markdown';
+  ref?: Ref<CodeEditorHandle>;
 }
 
 /**
@@ -32,12 +39,21 @@ interface Props {
  * changes (e.g. a new version from the server) replace the document only when it differs, and do
  * not call `onChange`: echoing them back would save someone else's text as the user's own.
  */
-export function CodeEditor({ value, onChange, label, language }: Props) {
+export function CodeEditor({ value, onChange, label, language, ref }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
   const onChangeRef = useRef(onChange);
   /** Set while `value` is written into the editor (`dispatch` runs the listener synchronously). */
   const applyingValue = useRef(false);
+
+  useImperativeHandle(ref, () => ({
+    insert: (text) => {
+      const editor = view.current;
+      if (!editor) return;
+      editor.dispatch(editor.state.replaceSelection(text));
+      editor.focus();
+    },
+  }));
 
   useEffect(() => {
     onChangeRef.current = onChange;

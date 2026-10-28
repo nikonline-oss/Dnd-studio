@@ -311,6 +311,7 @@
     "confirmDeleteEntry": "Удалить запись «{{title}}»?",
     "confirmDeleteEmptyFolder": "Удалить пустую папку «{{name}}»?",
     "confirmDeleteFolder": "Удалить папку «{{name}}» со всем содержимым? Записей: {{entries}}, вложенных папок: {{folders}}.",
+    "insertLink": "Ссылка…",
     "insertPicture": "Картинка…"
   },
   "chat": {
