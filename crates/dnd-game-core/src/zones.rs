@@ -8,6 +8,7 @@ use dnd_protocol::{
 
 use crate::apply::{bump, valid_name};
 use crate::state::GameState;
+use crate::zone_union;
 
 /// Events for a zone intent; `None` if `intent` is not about zones.
 pub(crate) fn apply(
@@ -107,7 +108,8 @@ pub(crate) fn apply(
 }
 
 /// A rectangle with a positive size or a polygon of 3..=64 corners, all on the map; or a union of
-/// up to 32 of them (nested unions are flattened).
+/// up to 32 of them (nested unions are flattened, touching or overlapping axis-aligned parts
+/// joined into one outline).
 fn valid_shape(map: &MapDto, shape: &ZoneShape) -> Result<ZoneShape, RejectReason> {
     if let ZoneShape::Union { .. } = shape {
         let parts = shape.parts();
@@ -118,7 +120,7 @@ fn valid_shape(map: &MapDto, shape: &ZoneShape) -> Result<ZoneShape, RejectReaso
             .iter()
             .map(|p| valid_shape(map, p))
             .collect::<Result<Vec<_>, _>>()?;
-        return Ok(ZoneShape::of_parts(parts));
+        return Ok(ZoneShape::of_parts(zone_union::merge(parts)));
     }
     let invalid = || RejectReason::invalid("shape");
     let width = map.width.saturating_mul(UNITS16_PER_UNIT);

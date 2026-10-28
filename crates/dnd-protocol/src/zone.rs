@@ -38,8 +38,8 @@ pub const MAX_ZONES_PER_MAP: usize = 200;
 pub const MAX_ZONE_PARTS: usize = 32;
 
 impl ZoneShape {
-    /// Whether the point (`x`, `y`) lies inside (borders included for rectangles; even-odd rule for
-    /// polygons). Integer coordinates; products fit in `i128`.
+    /// Whether the point (`x`, `y`) lies inside, borders included (even-odd rule for polygons).
+    /// Integer coordinates; products fit in `i128`.
     #[must_use]
     pub fn contains(&self, x: i64, y: i64) -> bool {
         match self {
@@ -60,6 +60,17 @@ impl ZoneShape {
                     .map(|&[x, y]| (i128::from(x), i128::from(y)))
                     .collect();
                 let (px, py) = (i128::from(x), i128::from(y));
+                // On an edge: inside, as on a rectangle's border.
+                let on_edge = corners.iter().zip(corners.iter().cycle().skip(1)).any(
+                    |(&(ax, ay), &(bx, by))| {
+                        (bx - ax) * (py - ay) == (by - ay) * (px - ax)
+                            && (ax.min(bx)..=ax.max(bx)).contains(&px)
+                            && (ay.min(by)..=ay.max(by)).contains(&py)
+                    },
+                );
+                if on_edge {
+                    return true;
+                }
                 let mut inside = false;
                 let mut j = corners.len().wrapping_sub(1);
                 for (i, &(xi, yi)) in corners.iter().enumerate() {
@@ -139,5 +150,10 @@ mod tests {
         };
         assert!(l.contains(25, 25) && l.contains(75, 75));
         assert!(!l.contains(75, 25) && !l.contains(150, 75) && !l.contains(-1, 50));
+        // Borders are inside, as with rectangles.
+        assert!(
+            l.contains(100, 75) && l.contains(75, 50) && l.contains(0, 0) && l.contains(50, 25)
+        );
+        assert!(!l.contains(101, 75));
     }
 }
