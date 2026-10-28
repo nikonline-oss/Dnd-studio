@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { mockIPC } from '@tauri-apps/api/mocks';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { BoardList } from './BoardList';
@@ -113,6 +113,23 @@ describe('BoardView', () => {
       expect(sent[0]).toMatchObject({
         expected_version: 1,
         intent: { kind: 'update_board_node', id: id(3), visibility: 'players' },
+      });
+    });
+  });
+
+  it('GM roles resize a card by its corner', async () => {
+    const sent = setup('gm');
+    const card = (await screen.findByText('Secret passage')).closest('.board-card') as HTMLElement;
+    const corner = card.querySelector('.board-card-resize') as HTMLElement;
+    const canvas = screen.getByRole('application', { name: 'Board canvas' });
+    fireEvent.pointerDown(corner, { button: 0, clientX: 200, clientY: 100 });
+    fireEvent.pointerMove(canvas, { clientX: 300, clientY: 150 });
+    fireEvent.pointerUp(canvas, { clientX: 300, clientY: 150 });
+    await waitFor(() => {
+      expect(sent[0]).toMatchObject({
+        expected_version: 1,
+        // 200×100 px + 100×50 px, in Units16.
+        intent: { kind: 'update_board_node', id: id(3), width: 300 * 16, height: 150 * 16 },
       });
     });
   });

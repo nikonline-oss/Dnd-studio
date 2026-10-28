@@ -466,7 +466,8 @@
     "unavailable": "Unavailable",
     "dragHandle": "Drag to move",
     "pickLink": "Link to…",
-    "pickImage": "Picture"
+    "pickImage": "Picture",
+    "resize": "Drag to resize"
   },
   "zones": {
     "draw": "Draw a zone",

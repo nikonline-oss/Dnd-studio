@@ -24,6 +24,8 @@ const DRAG_THRESHOLD = 4;
 /** How long a dropped card keeps its local position while the move comes back (ms). */
 const LANDING_MS = 3000;
 const MIN_ZOOM = 0.2;
+/** Smallest card a GM can resize to (CSS px; the core allows 16). */
+const MIN_CARD = 48;
 const MAX_ZOOM = 2.5;
 
 type Selected = { kind: 'node'; id: string } | { kind: 'edge'; id: string } | null;
@@ -53,6 +55,8 @@ export function BoardView({ boardId }: { boardId: string }) {
   const [editing, setEditing] = useState<string | null>(null);
   /** Cards dragged or just dropped here: shown at the local position (px). */
   const [local, setLocal] = useState<Record<string, { x: number; y: number }>>({});
+  /** Cards being resized or just resized here: shown at the local size (px). */
+  const [sizes, setSizes] = useState<Record<string, { w: number; h: number }>>({});
   const canvas = useRef<HTMLDivElement>(null);
   const gesture = useRef<
     | { kind: 'pan'; from: { x: number; y: number }; moved: boolean }
@@ -61,6 +65,13 @@ export function BoardView({ boardId }: { boardId: string }) {
         id: string;
         from: { x: number; y: number };
         start: { x: number; y: number };
+        moved: boolean;
+      }
+    | {
+        kind: 'resize';
+        id: string;
+        from: { x: number; y: number };
+        start: { w: number; h: number };
         moved: boolean;
       }
     | null
@@ -84,6 +95,8 @@ export function BoardView({ boardId }: { boardId: string }) {
   }
 
   const position = (node: BoardNodeDto) => local[node.id] ?? { x: node.x / U, y: node.y / U };
+  const sizeOf = (node: BoardNodeDto) =>
+    sizes[node.id] ?? { w: node.width / U, h: node.height / U };
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const selectedNode = selected?.kind === 'node' ? byId.get(selected.id) : undefined;
   const selectedEdge =
@@ -161,6 +174,19 @@ export function BoardView({ boardId }: { boardId: string }) {
     };
   };
 
+  const onResizeDown = (node: BoardNodeDto, e: PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    canvas.current?.setPointerCapture(e.pointerId);
+    gesture.current = {
+      kind: 'resize',
+      id: node.id,
+      from: { x: e.clientX, y: e.clientY },
+      start: sizeOf(node),
+      moved: false,
+    };
+  };
+
   const onMove = (e: PointerEvent<HTMLDivElement>) => {
     const g = gesture.current;
     if (!g) return;
@@ -171,6 +197,14 @@ export function BoardView({ boardId }: { boardId: string }) {
     if (g.kind === 'pan') {
       g.from = { x: e.clientX, y: e.clientY };
       setView((v) => ({ ...v, x: v.x + dx, y: v.y + dy }));
+    } else if (g.kind === 'resize') {
+      setSizes((s) => ({
+        ...s,
+        [g.id]: {
+          w: Math.max(MIN_CARD, g.start.w + dx / view.zoom),
+          h: Math.max(MIN_CARD, g.start.h + dy / view.zoom),
+        },
+      }));
     } else if (isGm) {
       setLocal((l) => ({
         ...l,
@@ -188,6 +222,26 @@ export function BoardView({ boardId }: { boardId: string }) {
         setSelected(null);
         setConnecting(false);
       }
+      return;
+    }
+    if (g.kind === 'resize') {
+      const size = sizes[g.id];
+      const node = nodes.find((n) => n.id === g.id);
+      if (!g.moved || !size || !node) return;
+      submit.mutate({
+        intent: {
+          kind: 'update_board_node',
+          id: g.id,
+          content: null,
+          width: Math.round(size.w * U),
+          height: Math.round(size.h * U),
+          visibility: null,
+        },
+        expectedVersion: node.version,
+      });
+      window.setTimeout(() => {
+        setSizes((s) => without(s, g.id));
+      }, LANDING_MS);
       return;
     }
     if (!g.moved || !isGm) {
@@ -317,9 +371,9 @@ export function BoardView({ boardId }: { boardId: string }) {
               const from = byId.get(edge.from);
               const to = byId.get(edge.to);
               if (!from || !to) return null;
-              const a = center(position(from), from);
-              const b = center(position(to), to);
-              const end = clipToCard(a, b, to);
+              const a = center(position(from), sizeOf(from));
+              const b = center(position(to), sizeOf(to));
+              const end = clipToCard(a, b, sizeOf(to));
               const isSelected = selected?.kind === 'edge' && selected.id === edge.id;
               return (
                 <g
@@ -359,12 +413,18 @@ export function BoardView({ boardId }: { boardId: string }) {
 
           {nodes.map((node) => {
             const at = position(node);
+            const size = sizeOf(node);
             return (
               <BoardCard
                 key={node.id}
                 node={node}
                 x={at.x}
                 y={at.y}
+                width={size.w}
+                height={size.h}
+                onResizeDown={(e) => {
+                  onResizeDown(node, e);
+                }}
                 selected={selected?.kind === 'node' && selected.id === node.id}
                 isGm={isGm}
                 editing={editing === node.id}
@@ -507,15 +567,19 @@ function without<T>(record: Record<string, T>, key: string): Record<string, T> {
   return Object.fromEntries(Object.entries(record).filter(([k]) => k !== key));
 }
 
-const center = (at: { x: number; y: number }, node: BoardNodeDto) => ({
-  x: at.x + node.width / U / 2,
-  y: at.y + node.height / U / 2,
+const center = (at: { x: number; y: number }, size: { w: number; h: number }) => ({
+  x: at.x + size.w / 2,
+  y: at.y + size.h / 2,
 });
 
 /** Where the line from `a` towards the centre of `to` enters its card, so arrows stay visible. */
-function clipToCard(a: { x: number; y: number }, b: { x: number; y: number }, to: BoardNodeDto) {
-  const hw = to.width / U / 2;
-  const hh = to.height / U / 2;
+function clipToCard(
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+  to: { w: number; h: number },
+) {
+  const hw = to.w / 2;
+  const hh = to.h / 2;
   const dx = a.x - b.x;
   const dy = a.y - b.y;
   if (dx === 0 && dy === 0) return b;
@@ -527,16 +591,22 @@ function BoardCard({
   node,
   x,
   y,
+  width,
+  height,
   selected,
   isGm,
   editing,
   onPointerDown,
+  onResizeDown,
   onEdit,
   onSave,
 }: {
   node: BoardNodeDto;
   x: number;
   y: number;
+  width: number;
+  height: number;
+  onResizeDown: (e: PointerEvent<HTMLDivElement>) => void;
   selected: boolean;
   isGm: boolean;
   editing: boolean;
@@ -553,7 +623,7 @@ function BoardCard({
       data-hidden={node.visibility === 'gm'}
       role="group"
       aria-label={cardTitle(node, t)}
-      style={{ left: x, top: y, width: node.width / U, height: node.height / U }}
+      style={{ left: x, top: y, width, height }}
       onPointerDown={onPointerDown}
       onDoubleClick={onEdit}
     >
@@ -578,6 +648,14 @@ function BoardCard({
         <LinkCard target={content.target} />
       ) : (
         <ImageCard assetId={content.asset_id} />
+      )}
+      {isGm && (
+        <div
+          className="board-card-resize"
+          title={t('boards.resize')}
+          aria-hidden="true"
+          onPointerDown={onResizeDown}
+        />
       )}
     </div>
   );
