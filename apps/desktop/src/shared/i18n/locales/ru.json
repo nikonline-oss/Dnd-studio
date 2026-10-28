@@ -684,7 +684,9 @@
     "renameFolder": "Переименовать «{{name}}»",
     "deleteFolder": "Удалить «{{name}}»",
     "confirmDeleteFolder": "Удалить папку «{{name}}» и подпапки? Файлы ({{count}} шт.) будут перемещены в корень библиотеки.",
-    "moveAsset": "Папка файла «{{name}}»"
+    "confirmDeleteFolderDetails": "Будет удалено подпапок: {{folders}}.",
+    "moveAsset": "Папка файла «{{name}}»",
+    "empty": "В этой библиотеке пока нет файлов."
   },
   "compendia": {
     "title": "Компендии",

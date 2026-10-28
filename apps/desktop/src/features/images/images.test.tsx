@@ -83,7 +83,7 @@ describe('Image library', () => {
     await waitFor(() => {
       expect(calls).toContain('asset_import_images');
     });
-    await userEvent.click(screen.getByRole('option', { name: /Great hall/ }));
+    await userEvent.click(screen.getByRole('treeitem', { name: /Great hall/ }));
     await userEvent.click(screen.getByRole('button', { name: 'Onto the open board' }));
     await waitFor(() => {
       expect(sent[0]?.intent).toMatchObject({

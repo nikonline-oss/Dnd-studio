@@ -10,7 +10,7 @@ import { ErrorText } from '@/shared/ui/ErrorText';
 import { IconButton } from '@/shared/ui/IconButton';
 import { NavSection } from '@/shared/ui/NavSection';
 import { useToast } from '@/shared/ui/Toast';
-import { LibraryFolderNav } from './LibraryFolderNav';
+import { LibraryExplorer } from './LibraryExplorer';
 
 /** How a picture is written into a journal text (ADR-0024). */
 export function pictureMarkdown(asset: AssetDto): string {
@@ -33,16 +33,9 @@ export function ImageLibrary() {
   const submit = useSubmitIntent();
   const remote = useRemote();
   const showToast = useToast((s) => s.show);
-  const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<string | null>(null);
-  const [folder, setFolder] = useState<string | null>(null);
   const importImages = useMutation({ mutationFn: ipc.assetImportImages });
 
-  const q = query.trim().toLowerCase();
-  const shown = imageAssets
-    .filter((a) => (a.folder_id ?? null) === folder)
-    .filter((a) => !q || (a.original_name ?? '').toLowerCase().includes(q))
-    .sort((a, b) => (a.original_name ?? '').localeCompare(b.original_name ?? ''));
   const picture = assets.find((a) => a.id === selected);
   const boardId = active?.kind === 'board' ? active.id : null;
 
@@ -65,36 +58,19 @@ export function ImageLibrary() {
         )
       }
     >
-      <input
-        type="search"
-        className="image-search"
-        aria-label={t('picker.search')}
-        placeholder={t('picker.search')}
-        value={query}
-        onChange={(e) => {
-          setQuery(e.target.value);
-        }}
+      <LibraryExplorer
+        library="images"
+        assets={imageAssets}
+        selected={selected}
+        onSelect={setSelected}
       />
-      <LibraryFolderNav library="images" selected={folder} onSelect={setFolder} />
-      {imageAssets.length === 0 && <p className="nav-empty">{t('images.empty')}</p>}
-      <ul className="image-grid" role="listbox" aria-label={t('images.title')}>
-        {shown.map((asset) => (
-          <li
-            key={asset.id}
-            role="option"
-            aria-selected={asset.id === selected}
-            title={asset.original_name ?? undefined}
-            onClick={() => {
-              setSelected(asset.id);
-            }}
-          >
-            <img src={assetUrl(asset.thumbnail_sha256)} alt={asset.original_name ?? ''} />
-            <span>{asset.original_name ?? asset.sha256.slice(0, 8)}</span>
-          </li>
-        ))}
-      </ul>
       {picture && (
         <div className="image-actions">
+          <img
+            className="image-selection-preview"
+            src={assetUrl(picture.thumbnail_sha256)}
+            alt={picture.original_name ?? ''}
+          />
           <select
             aria-label={t('library.moveAsset', {
               name: picture.original_name ?? picture.sha256.slice(0, 8),

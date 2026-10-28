@@ -674,7 +674,9 @@
     "renameFolder": "Rename “{{name}}”",
     "deleteFolder": "Delete “{{name}}”",
     "confirmDeleteFolder": "Delete folder “{{name}}” and its subfolders? Its {{count}} files will move to the library root.",
-    "moveAsset": "Folder for “{{name}}”"
+    "confirmDeleteFolderDetails": "Subfolders removed: {{folders}}.",
+    "moveAsset": "Folder for “{{name}}”",
+    "empty": "This library is empty."
   },
   "compendia": {
     "title": "Compendia",
