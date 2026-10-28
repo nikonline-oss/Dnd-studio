@@ -584,6 +584,10 @@
     "save": "Save",
     "revert": "Discard changes",
     "runFor": "For token",
-    "run": "Run"
+    "run": "Run",
+    "fromTemplate": "From a plugin template…",
+    "templates": "Templates",
+    "noTemplates": "The installed plugins have no trigger templates.",
+    "createFromTemplate": "Create trigger"
   }
 }

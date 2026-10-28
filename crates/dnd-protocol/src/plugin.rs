@@ -106,6 +106,54 @@ pub struct RollDef {
     pub dice: String,
 }
 
+/// What a template parameter asks for (the GM fills it in when creating the trigger).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub enum TemplateParamKind {
+    Zone,
+    BoardNode,
+    Board,
+    Map,
+    Journal,
+    Token,
+    /// A roll of the system.
+    Roll,
+    /// A resource of the system.
+    Resource,
+    /// A condition of the system.
+    Condition,
+    Number,
+    Text,
+}
+
+/// One blank of a trigger template.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct TemplateParam {
+    pub id: String,
+    pub label: Label,
+    pub kind: TemplateParamKind,
+}
+
+/// A ready-made trigger a plugin ships (`triggers/<name>.json`, ADR-0024): a trigger definition
+/// whose strings may contain `{{param}}` blanks. Data only; the trigger made from it is checked
+/// by the core like any other.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct TriggerTemplateDto {
+    pub id: String,
+    pub name: Label,
+    pub description: Option<Label>,
+    pub params: Vec<TemplateParam>,
+    /// A `TriggerDef` with blanks (so not typed until they are filled).
+    #[cfg_attr(feature = "specta", specta(type = specta_typescript::Unknown))]
+    pub definition: Value,
+}
+
+/// Most trigger templates in one plugin.
+pub const MAX_TRIGGER_TEMPLATES: usize = 64;
+
 /// A plugin installed in the campaign.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
@@ -121,6 +169,9 @@ pub struct PluginDto {
     pub archive_sha256: String,
     /// Present exactly for `kind: system`.
     pub system: Option<SystemRulesDto>,
+    /// Trigger templates (ADR-0024); plugins installed before they existed have none.
+    #[serde(default)]
+    pub trigger_templates: Vec<TriggerTemplateDto>,
 }
 
 /// The rules of a system plugin, self-contained (no package paths).

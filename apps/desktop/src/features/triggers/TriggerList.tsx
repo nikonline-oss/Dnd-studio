@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { TemplateDialog } from './TemplateDialog';
 import { useSnapshotSelect, useSubmitIntent } from '@/shared/game/useGame';
 import type { TriggerDto } from '@/shared/ipc/client';
 import { uuidv7 } from '@/shared/ipc/uuid';
@@ -15,6 +17,7 @@ export function TriggerList() {
   const triggers = useSnapshotSelect((s) => s.triggers) ?? [];
   const active = useSelection((s) => s.active);
   const openTrigger = useSelection((s) => s.openTrigger);
+  const [fromTemplate, setFromTemplate] = useState(false);
   const sorted = [...triggers].sort((a, b) => a.definition.name.localeCompare(b.definition.name));
 
   const toggle = (trigger: TriggerDto) => {
@@ -34,41 +37,50 @@ export function TriggerList() {
       title={t('triggers.title')}
       count={triggers.length}
       actions={
-        <IconButton
-          icon="plus"
-          label={t('triggers.add')}
-          disabled={submit.isPending}
-          onClick={() => {
-            const id = uuidv7();
-            submit.mutate(
-              {
-                intent: {
-                  kind: 'create_trigger',
-                  id,
-                  definition: {
-                    name: `${t('triggers.newName')} ${triggers.length + 1}`,
-                    enabled: false,
-                    once: false,
-                    event: { type: 'manual' },
-                    tokens: [],
-                    condition: null,
-                    steps: [
-                      {
-                        when: null,
-                        action: { type: 'chat', text: t('triggers.newText'), gm_only: true },
-                      },
-                    ],
+        <>
+          <IconButton
+            icon="puzzle"
+            label={t('triggers.fromTemplate')}
+            onClick={() => {
+              setFromTemplate(true);
+            }}
+          />
+          <IconButton
+            icon="plus"
+            label={t('triggers.add')}
+            disabled={submit.isPending}
+            onClick={() => {
+              const id = uuidv7();
+              submit.mutate(
+                {
+                  intent: {
+                    kind: 'create_trigger',
+                    id,
+                    definition: {
+                      name: `${t('triggers.newName')} ${triggers.length + 1}`,
+                      enabled: false,
+                      once: false,
+                      event: { type: 'manual' },
+                      tokens: [],
+                      condition: null,
+                      steps: [
+                        {
+                          when: null,
+                          action: { type: 'chat', text: t('triggers.newText'), gm_only: true },
+                        },
+                      ],
+                    },
                   },
                 },
-              },
-              {
-                onSuccess: () => {
-                  openTrigger(id);
+                {
+                  onSuccess: () => {
+                    openTrigger(id);
+                  },
                 },
-              },
-            );
-          }}
-        />
+              );
+            }}
+          />
+        </>
       }
     >
       {triggers.length === 0 && <p className="nav-empty">{t('triggers.empty')}</p>}
@@ -126,6 +138,13 @@ export function TriggerList() {
         ))}
       </ul>
       <ErrorText error={submit.error} />
+      {fromTemplate && (
+        <TemplateDialog
+          onClose={() => {
+            setFromTemplate(false);
+          }}
+        />
+      )}
     </NavSection>
   );
 }

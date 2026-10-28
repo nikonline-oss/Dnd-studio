@@ -3,10 +3,12 @@ import { mockIPC } from '@tauri-apps/api/mocks';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it } from 'vitest';
+import { fillTemplate } from './TemplateDialog';
 import { TriggerEditor } from './TriggerEditor';
 import { TriggerList } from './TriggerList';
 import type {
   CampaignInfo,
+  PluginDto,
   IntentEnvelope,
   Snapshot,
   TriggerDto,
@@ -39,7 +41,7 @@ const manual: TriggerDto = {
   version: 3,
 };
 
-function setup(triggers: TriggerDto[] = [manual]) {
+function setup(triggers: TriggerDto[] = [manual], plugins: PluginDto[] = []) {
   const snapshot: Snapshot = {
     seq: 1,
     campaign: { name: 'C', description: '', version: 1 },
@@ -49,7 +51,7 @@ function setup(triggers: TriggerDto[] = [manual]) {
     users: [],
     journal: [],
     journal_folders: [],
-    plugins: [],
+    plugins,
     system_plugin: null,
     boards: [],
     board_nodes: [],
@@ -130,6 +132,67 @@ describe('Triggers', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Run' }));
     await waitFor(() => {
       expect(sent[0]?.intent).toEqual({ kind: 'fire_trigger', id: manual.id, token: null });
+    });
+  });
+});
+
+describe('Trigger templates', () => {
+  it('fill every blank, inside strings too', () => {
+    expect(
+      fillTemplate(
+        { zone: '{{zone}}', condition: '@total >= {{dc}}', steps: [{ text: '{{zone}}!' }], n: 1 },
+        { zone: 'z1', dc: '13' },
+      ),
+    ).toEqual({ zone: 'z1', condition: '@total >= 13', steps: [{ text: 'z1!' }], n: 1 });
+  });
+
+  it('create a trigger from a plugin template', async () => {
+    const plugin: PluginDto = {
+      id: 'srd5',
+      version: '0.1.0',
+      kind: 'content',
+      name: 'SRD',
+      license: 'MIT',
+      attribution: null,
+      archive_sha256: 'a'.repeat(64),
+      system: null,
+      trigger_templates: [
+        {
+          id: 'hidden_find',
+          name: 'Hidden find',
+          description: null,
+          params: [
+            { id: 'zone', label: 'Zone', kind: 'zone' },
+            { id: 'dc', label: 'DC', kind: 'number' },
+          ],
+          definition: {
+            name: 'Find',
+            enabled: true,
+            once: true,
+            event: { type: 'roll_in_zone', zone: '{{zone}}', rolls: [] },
+            tokens: [],
+            condition: '@total >= {{dc}}',
+            steps: [{ when: null, action: { type: 'chat', text: 'Found!', gm_only: false } }],
+          },
+        },
+      ],
+    };
+    const sent = setup([], [plugin]);
+    await userEvent.click(await screen.findByRole('button', { name: 'From a plugin template…' }));
+    const dialog = screen.getByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('option', { name: /Hidden find/ }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Pick: Zone' }));
+    await userEvent.dblClick(screen.getByRole('option', { name: /Altar/ }));
+    await userEvent.type(within(dialog).getByLabelText('DC'), '13');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Create trigger' }));
+    await waitFor(() => {
+      expect(sent[0]?.intent).toMatchObject({
+        kind: 'create_trigger',
+        definition: {
+          event: { type: 'roll_in_zone', zone: altar.id },
+          condition: '@total >= 13',
+        },
+      });
     });
   });
 });

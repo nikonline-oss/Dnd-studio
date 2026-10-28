@@ -625,6 +625,7 @@ async fn plugins_and_the_system_are_projected_and_loaded() {
         license: "CC-BY-4.0".into(),
         attribution: Some("SRD 5.2".into()),
         archive_sha256: "a".repeat(64),
+        trigger_templates: Vec::new(),
         system: Some(SystemRulesDto {
             sheet_schema: serde_json::json!({ "type": "object", "properties": {} }),
             sheet_layout: serde_json::json!({ "type": "section", "children": [] }),

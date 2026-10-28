@@ -2864,3 +2864,17 @@ input[type='checkbox'] {
 .mono {
   font-family: var(--font-mono);
 }
+
+.template-list {
+  max-height: 220px;
+}
+
+.template-list [role='option'] {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+}
+
+.template-params {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}

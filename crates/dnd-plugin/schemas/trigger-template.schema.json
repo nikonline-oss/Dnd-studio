@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "dndstudio triggers/<name>.json (a trigger template, ADR-0024)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "name", "params", "definition"],
+  "properties": {
+    "id": { "$ref": "#/$defs/ident" },
+    "name": { "$ref": "#/$defs/label" },
+    "description": { "$ref": "#/$defs/label" },
+    "params": {
+      "type": "array",
+      "maxItems": 16,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "label", "kind"],
+        "properties": {
+          "id": { "$ref": "#/$defs/ident" },
+          "label": { "$ref": "#/$defs/label" },
+          "kind": {
+            "enum": [
+              "zone",
+              "board_node",
+              "board",
+              "map",
+              "journal",
+              "token",
+              "roll",
+              "resource",
+              "condition",
+              "number",
+              "text"
+            ]
+          }
+        }
+      }
+    },
+    "definition": {
+      "type": "object",
+      "required": ["name", "event", "steps"],
+      "properties": {
+        "steps": { "type": "array", "minItems": 1, "maxItems": 32 }
+      }
+    }
+  },
+  "$defs": {
+    "ident": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$", "maxLength": 64 },
+    "label": {
+      "oneOf": [
+        { "type": "string", "minLength": 1, "maxLength": 500 },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "properties": {
+            "ru": { "type": "string", "minLength": 1, "maxLength": 500 },
+            "en": { "type": "string", "minLength": 1, "maxLength": 500 }
+          }
+        }
+      ]
+    }
+  }
+}

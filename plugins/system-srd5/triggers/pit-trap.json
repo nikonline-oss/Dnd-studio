@@ -1,0 +1,37 @@
+{
+  "id": "pit_trap",
+  "name": { "ru": "Ловушка-яма", "en": "Pit trap" },
+  "description": {
+    "ru": "Токен входит в зону: спасбросок Ловкости против Сл, при провале — урон и «Сбит с ног».",
+    "en": "A token enters the zone: a Dexterity save against the DC; on a failure, damage and prone."
+  },
+  "params": [
+    { "id": "zone", "label": { "ru": "Зона", "en": "Zone" }, "kind": "zone" },
+    { "id": "dc", "label": { "ru": "Сл", "en": "DC" }, "kind": "number" },
+    { "id": "damage", "label": { "ru": "Урон (кости)", "en": "Damage (dice)" }, "kind": "text" }
+  ],
+  "definition": {
+    "name": "Pit trap",
+    "enabled": true,
+    "once": false,
+    "event": { "type": "token_entered_zone", "zone": "{{zone}}" },
+    "tokens": [],
+    "condition": null,
+    "steps": [
+      {
+        "when": null,
+        "action": { "type": "roll", "dice": "1d20 + @dex_save", "label": "Dexterity save" }
+      },
+      {
+        "when": "@roll < {{dc}}",
+        "action": {
+          "type": "change_resource",
+          "resource": "hp",
+          "dice": "{{damage}}",
+          "heal": false
+        }
+      },
+      { "when": "@roll < {{dc}}", "action": { "type": "add_condition", "condition": "prone" } }
+    ]
+  }
+}

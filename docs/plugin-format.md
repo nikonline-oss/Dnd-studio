@@ -16,10 +16,11 @@
 | `system.json`                  | правила системы                                        | только и всегда у `system`      |
 | `sheet/<имя>.json`             | схема данных и раскладка листа персонажа               | те, что названы в `system.json` |
 | `compendia/<имя>.json`         | компендий                                              | нет                             |
+| `triggers/<имя>.json`          | шаблон триггера (ADR-0024)                             | нет                             |
 | `assets/<sha256>.webp`, `.png` | картинка; имя — SHA-256 содержимого (64 hex, строчные) | нет                             |
 
 `<имя>` — `[a-z0-9][a-z0-9._-]*\.json`, не длиннее 64 символов, без подпапок. Папки-записи
-`sheet/`, `compendia/`, `assets/` допускаются. Любое другое имя (в том числе `../x`, абсолютные
+`sheet/`, `compendia/`, `triggers/`, `assets/` допускаются. Любое другое имя (в том числе `../x`, абсолютные
 пути, `README.md`, `.css`, `.js`, `.svg`) — отказ `unexpected_file`: имена сверяются целиком по
 белому списку, поэтому выйти за пределы пакета нельзя по построению. Файлы в `sheet/`, на которые
 не ссылается `system.json`, тоже отказ.
@@ -309,6 +310,39 @@
 
 `id` компендия и записей — `[a-z0-9][a-z0-9._-]*` (≤ 64), уникальны (компендии — в пакете,
 записи — в компендии); `entry_type` — идентификатор; `data` — объект; ≤ 10 000 записей.
+
+## Шаблоны триггеров (`triggers/*.json`)
+
+Готовый триггер «Когда → Если → Тогда» (ADR-0024) с пропусками. Это данные, а не код: плагин ничего
+не исполняет. Не больше 64 шаблонов, `id` уникальны.
+
+```json
+{
+  "id": "hidden_find",
+  "name": { "ru": "Скрытая находка", "en": "Hidden find" },
+  "description": { "ru": "…", "en": "…" },
+  "params": [
+    { "id": "zone", "label": { "ru": "Зона", "en": "Zone" }, "kind": "zone" },
+    { "id": "dc", "label": { "ru": "Сл", "en": "DC" }, "kind": "number" }
+  ],
+  "definition": {
+    "name": "Hidden find",
+    "enabled": true,
+    "once": true,
+    "event": { "type": "roll_in_zone", "zone": "{{zone}}", "rolls": ["perception"] },
+    "tokens": [],
+    "condition": "@total >= {{dc}}",
+    "steps": [{ "when": null, "action": { "type": "chat", "text": "…", "gm_only": false } }]
+  }
+}
+```
+
+- `params[].kind`: `zone`, `board_node`, `board`, `map`, `journal`, `token` (мастер выбирает элемент
+  кампании), `roll`, `resource`, `condition` (из правил системы), `number`, `text`.
+- `definition` — определение триггера (как в протоколе: `event`, `steps` с действиями `reveal`,
+  `set_node_visibility`, `chat`, `roll`, `change_resource`, `add_condition`, `remove_condition`,
+  `give_item`), в строках которого `{{id}}` заменяется значением параметра. Пакет проверяет только
+  форму шаблона; заполненный триггер ядро проверяет как любой другой.
 
 ## Ассеты (`assets/`)
 

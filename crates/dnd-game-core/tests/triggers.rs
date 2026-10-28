@@ -594,3 +594,58 @@ fn players_never_see_triggers() {
         })
     );
 }
+
+/// Fills `{{param}}` blanks the way the editor does: a whole-string blank takes the value, a blank
+/// inside a string is replaced in place.
+fn fill(value: &serde_json::Value, params: &[(&str, &str)]) -> serde_json::Value {
+    match value {
+        serde_json::Value::String(s) => {
+            let mut out = s.clone();
+            for (id, v) in params {
+                out = out.replace(&format!("{{{{{id}}}}}"), v);
+            }
+            serde_json::Value::String(out)
+        }
+        serde_json::Value::Array(items) => {
+            serde_json::Value::Array(items.iter().map(|i| fill(i, params)).collect())
+        }
+        serde_json::Value::Object(map) => serde_json::Value::Object(
+            map.iter()
+                .map(|(k, v)| (k.clone(), fill(v, params)))
+                .collect(),
+        ),
+        other => other.clone(),
+    }
+}
+
+#[test]
+fn bundled_templates_make_triggers_the_core_accepts() {
+    let state = world();
+    let zone = ZoneId(v7(ZONE)).to_string();
+    let node = BoardNodeId(v7(NODE)).to_string();
+    let params = [
+        ("zone", zone.as_str()),
+        ("node", node.as_str()),
+        ("dc", "13"),
+        ("message", "A draft from the wall."),
+        ("damage", "1d6"),
+        ("attack", "4"),
+        ("target", "8"),
+    ];
+    let srd = srd();
+    assert_eq!(srd.trigger_templates.len(), 3);
+    for (n, template) in srd.trigger_templates.iter().enumerate() {
+        let definition: TriggerDef =
+            serde_json::from_value(fill(&template.definition, &params)).unwrap();
+        let result = run(
+            &mut state.clone(),
+            Role::Gm,
+            Intent::CreateTrigger {
+                id: trigger(20 + n as u128),
+                definition,
+            },
+            None,
+        );
+        assert!(result.is_ok(), "{}: {result:?}", template.id);
+    }
+}

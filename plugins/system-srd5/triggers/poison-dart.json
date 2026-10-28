@@ -1,0 +1,33 @@
+{
+  "id": "poison_dart",
+  "name": { "ru": "Отравленный дротик", "en": "Poisoned dart" },
+  "description": {
+    "ru": "Кнопка мастера: атака против КД персонажа, при попадании — урон и «Отравлен».",
+    "en": "The GM's button: an attack against the character's AC; on a hit, damage and poisoned."
+  },
+  "params": [
+    { "id": "attack", "label": { "ru": "Бонус атаки", "en": "Attack bonus" }, "kind": "number" },
+    { "id": "damage", "label": { "ru": "Урон (кости)", "en": "Damage (dice)" }, "kind": "text" }
+  ],
+  "definition": {
+    "name": "Poisoned dart",
+    "enabled": true,
+    "once": false,
+    "event": { "type": "manual" },
+    "tokens": [],
+    "condition": null,
+    "steps": [
+      { "when": null, "action": { "type": "roll", "dice": "1d20 + {{attack}}", "label": "Dart" } },
+      {
+        "when": "@roll >= @ac",
+        "action": {
+          "type": "change_resource",
+          "resource": "hp",
+          "dice": "{{damage}}",
+          "heal": false
+        }
+      },
+      { "when": "@roll >= @ac", "action": { "type": "add_condition", "condition": "poisoned" } }
+    ]
+  }
+}

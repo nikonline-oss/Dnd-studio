@@ -1,0 +1,24 @@
+{
+  "id": "ambush",
+  "name": { "ru": "Засада", "en": "Ambush" },
+  "description": {
+    "ru": "Кнопка мастера: проверка Ловкости против цели, при провале — «Потрясён».",
+    "en": "The GM's button: an Agility check against the target; on a failure, shaken."
+  },
+  "params": [{ "id": "target", "label": { "ru": "Цель", "en": "Target" }, "kind": "number" }],
+  "definition": {
+    "name": "Ambush",
+    "enabled": true,
+    "once": false,
+    "event": { "type": "manual" },
+    "tokens": [],
+    "condition": null,
+    "steps": [
+      {
+        "when": null,
+        "action": { "type": "roll", "dice": "2d6 + @attributes.agility", "label": "Agility" }
+      },
+      { "when": "@roll < {{target}}", "action": { "type": "add_condition", "condition": "shaken" } }
+    ]
+  }
+}

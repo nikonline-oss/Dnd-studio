@@ -20,6 +20,7 @@ pub(crate) enum MetaSchema {
     SheetSchema,
     Layout,
     Compendium,
+    TriggerTemplate,
 }
 
 type Compiled = Result<Validator, String>;
@@ -34,6 +35,8 @@ static LAYOUT: LazyLock<Compiled> =
     LazyLock::new(|| compile(include_str!("../schemas/layout.schema.json")));
 static COMPENDIUM: LazyLock<Compiled> =
     LazyLock::new(|| compile(include_str!("../schemas/compendium.schema.json")));
+static TRIGGER_TEMPLATE: LazyLock<Compiled> =
+    LazyLock::new(|| compile(include_str!("../schemas/trigger-template.schema.json")));
 
 fn compile(source: &str) -> Compiled {
     let schema: Value = serde_json::from_str(source).map_err(|e| e.to_string())?;
@@ -48,6 +51,7 @@ impl MetaSchema {
             Self::SheetSchema => &SHEET_SCHEMA,
             Self::Layout => &LAYOUT,
             Self::Compendium => &COMPENDIUM,
+            Self::TriggerTemplate => &TRIGGER_TEMPLATE,
         }
     }
 

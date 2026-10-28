@@ -11,7 +11,8 @@ use std::collections::BTreeMap;
 use dnd_dice::{FieldLookup, LookupError as DiceLookupError, SplitMix64};
 use dnd_expr::{Computed, Context, Expr, LookupError, Value as ExprValue};
 use dnd_protocol::{
-    Event, Intent, InventoryDef, PluginDto, PluginKind, RejectReason, SystemRulesDto, sheet_schema,
+    Event, Intent, InventoryDef, MAX_TRIGGER_TEMPLATES, PluginDto, PluginKind, RejectReason,
+    SystemRulesDto, sheet_schema,
 };
 use serde_json::{Map, Value};
 
@@ -69,6 +70,18 @@ pub fn check_plugin(plugin: &PluginDto) -> Result<(), RejectReason> {
     }
     if plugin.version.trim().is_empty() || plugin.version.len() > 64 {
         return Err(RejectReason::invalid("version"));
+    }
+    // Trigger templates are data with blanks; the triggers made from them are checked as usual.
+    let mut template_ids: Vec<&str> = plugin
+        .trigger_templates
+        .iter()
+        .map(|t| t.id.as_str())
+        .collect();
+    template_ids.sort_unstable();
+    let count = template_ids.len();
+    template_ids.dedup();
+    if count > MAX_TRIGGER_TEMPLATES || template_ids.len() != count {
+        return Err(RejectReason::invalid("trigger_templates"));
     }
     match (&plugin.kind, &plugin.system) {
         (PluginKind::System, Some(rules)) => check_rules(rules),

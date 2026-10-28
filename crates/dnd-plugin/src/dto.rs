@@ -19,6 +19,7 @@ impl PluginPackage {
             attribution: m.attribution.clone(),
             archive_sha256: self.sha256.clone(),
             system: self.system.as_ref().map(SystemPackage::to_dto),
+            trigger_templates: self.trigger_templates.clone(),
         }
     }
 }

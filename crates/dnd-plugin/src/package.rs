@@ -20,11 +20,13 @@ use crate::error::{PluginError, PluginResult};
 use crate::meta::MetaSchema;
 use crate::model::{Compendium, LayoutNode, Manifest, PLUGIN_FORMAT, PluginKind, SystemRules};
 use crate::sheet;
+use dnd_protocol::{MAX_TRIGGER_TEMPLATES, TriggerTemplateDto};
 
 pub const MANIFEST_FILE: &str = "manifest.json";
 pub const SYSTEM_FILE: &str = "system.json";
 const SHEET_DIR: &str = "sheet/";
 const COMPENDIA_DIR: &str = "compendia/";
+const TRIGGERS_DIR: &str = "triggers/";
 const ASSETS_DIR: &str = "assets/";
 /// Longest file name (without the folder) of a document in `sheet/` or `compendia/`.
 const MAX_DOC_NAME: usize = 64;
@@ -70,6 +72,8 @@ pub struct PluginPackage {
     pub system: Option<SystemPackage>,
     /// Sorted by file name.
     pub compendia: Vec<Compendium>,
+    /// Trigger templates (ADR-0024), sorted by file name.
+    pub trigger_templates: Vec<TriggerTemplateDto>,
     /// Sorted by hash.
     pub assets: Vec<PackageAsset>,
 }
@@ -147,6 +151,7 @@ struct Files {
     /// Full name (`sheet/x.json`) → bytes.
     sheets: BTreeMap<String, Vec<u8>>,
     compendia: BTreeMap<String, Vec<u8>>,
+    triggers: BTreeMap<String, Vec<u8>>,
     assets: BTreeMap<String, PackageAsset>,
 }
 
@@ -155,6 +160,7 @@ enum Entry {
     System,
     Sheet,
     Compendium,
+    TriggerTemplate,
     Asset { sha256: String, format: AssetFormat },
 }
 
@@ -173,7 +179,10 @@ fn extract(bytes: &[u8], limits: PackageLimits) -> PluginResult<Files> {
         let mut file = zip.by_index(i).map_err(zip_error)?;
         let name = file.name().map_err(zip_error)?.into_owned();
         if file.is_dir() {
-            if matches!(name.as_str(), SHEET_DIR | COMPENDIA_DIR | ASSETS_DIR) {
+            if matches!(
+                name.as_str(),
+                SHEET_DIR | COMPENDIA_DIR | TRIGGERS_DIR | ASSETS_DIR
+            ) {
                 continue;
             }
             return Err(PluginError::UnexpectedFile { name });
@@ -212,6 +221,9 @@ fn extract(bytes: &[u8], limits: PackageLimits) -> PluginResult<Files> {
             }
             Entry::Compendium => {
                 files.compendia.insert(name, content);
+            }
+            Entry::TriggerTemplate => {
+                files.triggers.insert(name, content);
             }
             Entry::Asset { sha256, format } => {
                 if hex_sha256(&content) != sha256 {
@@ -254,6 +266,9 @@ fn classify(name: &str) -> Option<Entry> {
     }
     if let Some(file) = name.strip_prefix(COMPENDIA_DIR) {
         return is_doc_name(file).then_some(Entry::Compendium);
+    }
+    if let Some(file) = name.strip_prefix(TRIGGERS_DIR) {
+        return is_doc_name(file).then_some(Entry::TriggerTemplate);
     }
     let file = name.strip_prefix(ASSETS_DIR)?;
     let (sha256, ext) = file.split_once('.')?;
@@ -326,11 +341,37 @@ fn assemble(sha256: String, mut files: Files) -> PluginResult<PluginPackage> {
         compendia.push(compendium);
     }
 
+    if files.triggers.len() > MAX_TRIGGER_TEMPLATES {
+        return Err(too_large(
+            "the number of trigger templates",
+            MAX_TRIGGER_TEMPLATES as u64,
+        ));
+    }
+    let mut trigger_templates = Vec::with_capacity(files.triggers.len());
+    let mut template_ids = BTreeSet::new();
+    for (name, bytes) in &files.triggers {
+        let template: TriggerTemplateDto =
+            parse_document(name, bytes, MetaSchema::TriggerTemplate)?;
+        if !template_ids.insert(template.id.clone()) {
+            return Err(invalid_document(
+                name,
+                format!("trigger template id \"{}\" is used twice", template.id),
+            ));
+        }
+        unique(
+            template.params.iter().map(|p| p.id.as_str()),
+            "template parameter",
+        )
+        .map_err(|reason| invalid_document(name, reason))?;
+        trigger_templates.push(template);
+    }
+
     Ok(PluginPackage {
         sha256,
         manifest,
         system,
         compendia,
+        trigger_templates,
         assets: files.assets.into_values().collect(),
     })
 }

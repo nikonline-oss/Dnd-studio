@@ -47,8 +47,9 @@ pub use model::{
     MAX_FOLDER_DEPTH, MAX_MAP_SIZE, MIN_CELL_SIZE, UNITS16_PER_UNIT,
 };
 pub use plugin::{
-    ConditionDef, InventoryDef, Label, LocalizedText, MAX_PLUGIN_BYTES, PluginDto, PluginKind,
-    ResourceDef, RollDef, SystemRulesDto,
+    ConditionDef, InventoryDef, Label, LocalizedText, MAX_PLUGIN_BYTES, MAX_TRIGGER_TEMPLATES,
+    PluginDto, PluginKind, ResourceDef, RollDef, SystemRulesDto, TemplateParam, TemplateParamKind,
+    TriggerTemplateDto,
 };
 pub use snapshot::Snapshot;
 pub use trigger::{

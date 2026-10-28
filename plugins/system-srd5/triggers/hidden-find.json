@@ -1,0 +1,33 @@
+{
+  "id": "hidden_find",
+  "name": { "ru": "Скрытая находка", "en": "Hidden find" },
+  "description": {
+    "ru": "Персонаж в зоне проходит Внимательность или Анализ против Сл — карточка на поле открывается всем.",
+    "en": "A character in the zone beats the DC with Perception or Investigation — a board card opens to everyone."
+  },
+  "params": [
+    { "id": "zone", "label": { "ru": "Зона", "en": "Zone" }, "kind": "zone" },
+    { "id": "node", "label": { "ru": "Карточка", "en": "Card" }, "kind": "board_node" },
+    { "id": "dc", "label": { "ru": "Сл", "en": "DC" }, "kind": "number" },
+    { "id": "message", "label": { "ru": "Сообщение", "en": "Message" }, "kind": "text" }
+  ],
+  "definition": {
+    "name": "{{message}}",
+    "enabled": true,
+    "once": true,
+    "event": {
+      "type": "roll_in_zone",
+      "zone": "{{zone}}",
+      "rolls": ["perception", "investigation"]
+    },
+    "tokens": [],
+    "condition": "@total >= {{dc}}",
+    "steps": [
+      {
+        "when": null,
+        "action": { "type": "reveal", "target": { "kind": "node", "id": "{{node}}" } }
+      },
+      { "when": null, "action": { "type": "chat", "text": "{{message}}", "gm_only": false } }
+    ]
+  }
+}

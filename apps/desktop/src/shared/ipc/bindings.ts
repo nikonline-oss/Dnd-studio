@@ -831,6 +831,8 @@ export type PluginDto = {
 	archive_sha256: string,
 	/**  Present exactly for `kind: system`. */
 	system: SystemRulesDto | null,
+	/**  Trigger templates (ADR-0024); plugins installed before they existed have none. */
+	trigger_templates?: TriggerTemplateDto[],
 };
 
 export type PluginKind = 
@@ -1038,6 +1040,22 @@ export type SystemRulesDto = {
 	inventory?: InventoryDef | null,
 };
 
+/**  One blank of a trigger template. */
+export type TemplateParam = {
+	id: string,
+	label: Label,
+	kind: TemplateParamKind,
+};
+
+/**  What a template parameter asks for (the GM fills it in when creating the trigger). */
+export type TemplateParamKind = "zone" | "board_node" | "board" | "map" | "journal" | "token" | 
+/**  A roll of the system. */
+"roll" | 
+/**  A resource of the system. */
+"resource" | 
+/**  A condition of the system. */
+"condition" | "number" | "text";
+
 /**  A token on a map. */
 export type TokenDto = {
 	id: TokenId,
@@ -1133,6 +1151,20 @@ export type TriggerId = string;
 export type TriggerStep = {
 	when: string | null,
 	action: TriggerAction,
+};
+
+/**
+ *  A ready-made trigger a plugin ships (`triggers/<name>.json`, ADR-0024): a trigger definition
+ *  whose strings may contain `{{param}}` blanks. Data only; the trigger made from it is checked
+ *  by the core like any other.
+ */
+export type TriggerTemplateDto = {
+	id: string,
+	name: Label,
+	description: Label | null,
+	params: TemplateParam[],
+	/**  A `TriggerDef` with blanks (so not typed until they are filled). */
+	definition: unknown,
 };
 
 /**  An update that can be installed. */

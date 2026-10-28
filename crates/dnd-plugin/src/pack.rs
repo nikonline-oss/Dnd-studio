@@ -22,7 +22,7 @@ pub fn pack_directory(dir: &Path) -> PluginResult<Vec<u8>> {
             names.push(top.to_owned());
         }
     }
-    for folder in ["sheet", "compendia", "assets"] {
+    for folder in ["sheet", "compendia", "triggers", "assets"] {
         let path = dir.join(folder);
         if !path.is_dir() {
             continue;
