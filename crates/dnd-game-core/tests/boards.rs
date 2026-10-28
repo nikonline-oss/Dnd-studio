@@ -434,3 +434,87 @@ fn players_see_the_pictures_of_journal_entries_open_to_them() {
         0
     );
 }
+
+#[test]
+fn trigger_blocks_stay_with_the_gm() {
+    let mut state = boards();
+    let trigger = TriggerId(v7(0x7800));
+    run(
+        &mut state,
+        Role::Gm,
+        Intent::CreateTrigger {
+            id: trigger,
+            definition: TriggerDef {
+                name: "Collapse".into(),
+                enabled: true,
+                once: false,
+                event: TriggerEvent::Manual,
+                tokens: Vec::new(),
+                condition: None,
+                steps: vec![TriggerStep {
+                    when: None,
+                    action: TriggerAction::Chat {
+                        text: "The ceiling falls.".into(),
+                        gm_only: false,
+                    },
+                }],
+            },
+        },
+        None,
+    )
+    .unwrap();
+    // Asked to be shown to players: stored as the GM's anyway.
+    run(
+        &mut state,
+        Role::Gm,
+        Intent::CreateBoardNode {
+            id: node(9),
+            board_id: board(0),
+            content: BoardNodeContent::Trigger { id: trigger },
+            x: 0,
+            y: 0,
+            width: 3200,
+            height: 1600,
+            visibility: BoardVisibility::Players,
+        },
+        None,
+    )
+    .unwrap();
+    assert_eq!(state.board_nodes[&node(9)].visibility, BoardVisibility::Gm);
+    run(
+        &mut state,
+        Role::Gm,
+        Intent::UpdateBoardNode {
+            id: node(9),
+            content: None,
+            width: None,
+            height: None,
+            visibility: Some(BoardVisibility::Players),
+        },
+        Some(Version::INITIAL),
+    )
+    .unwrap();
+    assert_eq!(state.board_nodes[&node(9)].visibility, BoardVisibility::Gm);
+    assert!(!players_state(&state).board_nodes.contains_key(&node(9)));
+    // A missing trigger cannot become a block.
+    assert_eq!(
+        run(
+            &mut state,
+            Role::Gm,
+            Intent::CreateBoardNode {
+                id: node(10),
+                board_id: board(0),
+                content: BoardNodeContent::Trigger {
+                    id: TriggerId(v7(0x7801))
+                },
+                x: 0,
+                y: 0,
+                width: 3200,
+                height: 1600,
+                visibility: BoardVisibility::Gm,
+            },
+            None,
+        ),
+        Err(RejectReason::invalid("content"))
+    );
+}

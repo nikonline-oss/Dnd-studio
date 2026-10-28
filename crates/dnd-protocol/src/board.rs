@@ -4,7 +4,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::ids::{
-    AssetId, BoardEdgeId, BoardId, BoardNodeId, CharacterId, JournalEntryId, MapId, Version,
+    AssetId, BoardEdgeId, BoardId, BoardNodeId, CharacterId, JournalEntryId, MapId, TriggerId,
+    Version,
 };
 
 /// Who sees a board element.
@@ -53,6 +54,8 @@ pub enum BoardNodeContent {
     Link { target: BoardLink },
     /// A picture from the campaign's assets.
     Image { asset_id: AssetId },
+    /// A trigger as a block: GM roles only, whatever the node's visibility says.
+    Trigger { id: TriggerId },
 }
 
 /// An element of a board. Position and size in Units16 (ADR-0016), the top-left corner.

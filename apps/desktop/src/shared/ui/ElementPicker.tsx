@@ -7,7 +7,7 @@ import { assetUrl, type Snapshot } from '@/shared/ipc/client';
 
 /** What can be picked. */
 export type ElementKind =
-  'map' | 'journal' | 'character' | 'token' | 'board' | 'board_node' | 'zone' | 'asset';
+  'map' | 'journal' | 'character' | 'token' | 'board' | 'board_node' | 'zone' | 'asset' | 'trigger';
 
 export interface PickedElement {
   kind: ElementKind;
@@ -31,6 +31,7 @@ const ICONS: Record<ElementKind, IconName> = {
   board_node: 'note',
   zone: 'zone',
   asset: 'image',
+  trigger: 'bolt',
 };
 
 /** The elements of `kind` in the snapshot, by name. */
@@ -106,6 +107,14 @@ function rowsOf(snapshot: Snapshot, kind: ElementKind, t: (key: string) => strin
           id: z.id,
           name: z.name,
           detail: mapName(z.map_id),
+          thumbnail: null,
+        }));
+      case 'trigger':
+        return snapshot.triggers.map((tr) => ({
+          kind,
+          id: tr.id,
+          name: tr.definition.name,
+          detail: t(`triggers.events.${tr.definition.event.type}`),
           thumbnail: null,
         }));
       case 'asset':

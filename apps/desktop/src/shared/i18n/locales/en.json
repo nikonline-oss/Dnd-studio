@@ -467,7 +467,11 @@
     "dragHandle": "Drag to move",
     "pickLink": "Link to…",
     "pickImage": "Picture",
-    "resize": "Drag to resize"
+    "resize": "Drag to resize",
+    "addTrigger": "Trigger",
+    "newTrigger": "New trigger on the board",
+    "trigger": "Trigger",
+    "openTrigger": "Open"
   },
   "zones": {
     "draw": "Draw a zone",
@@ -516,7 +520,8 @@
       "board": "Boards",
       "board_node": "Board cards",
       "zone": "Zones",
-      "asset": "Pictures"
+      "asset": "Pictures",
+      "trigger": "Triggers"
     },
     "pick": "Pick…",
     "none": "None",

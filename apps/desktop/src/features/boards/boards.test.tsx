@@ -52,10 +52,29 @@ function setup(role: Role) {
     plugins: [],
     system_plugin: null,
     boards: [{ id: id(1), name: 'Plot', sort_order: 0, visible_to_players: true, version: 1 }],
-    board_nodes: [note(2, 'The missing mayor', 'players'), note(3, 'Secret passage', 'gm')],
+    board_nodes: [
+      note(2, 'The missing mayor', 'players'),
+      note(3, 'Secret passage', 'gm'),
+      { ...note(4, '', 'gm'), content: { type: 'trigger', id: id(50) }, x: 6400 },
+    ],
     board_edges: [],
     zones: [],
-    triggers: [],
+    triggers: [
+      {
+        id: id(50),
+        definition: {
+          name: 'Collapse',
+          enabled: true,
+          once: false,
+          event: { type: 'manual' },
+          tokens: [],
+          condition: null,
+          steps: [{ when: null, action: { type: 'reveal', target: { kind: 'node', id: id(3) } } }],
+        },
+        fired: false,
+        version: 1,
+      },
+    ],
     assets: [],
     fog: [],
     combats: [],
@@ -130,6 +149,27 @@ describe('BoardView', () => {
         expected_version: 1,
         // 200×100 px + 100×50 px, in Units16.
         intent: { kind: 'update_board_node', id: id(3), width: 300 * 16, height: 150 * 16 },
+      });
+    });
+  });
+
+  it('triggers are blocks: placed with the selection form, run from the board, linked to what they open', async () => {
+    const sent = setup('gm');
+    const block = await screen.findByRole('group', { name: 'Trigger' });
+    expect(block).toHaveTextContent('Collapse');
+    expect(block).toHaveTextContent('Show to players');
+    expect(document.querySelectorAll('.board-trigger-line')).toHaveLength(1);
+    await userEvent.click(within(block).getByRole('button', { name: 'Run' }));
+    await waitFor(() => {
+      expect(sent[0]?.intent).toEqual({ kind: 'fire_trigger', id: id(50), token: null });
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Trigger' }));
+    await userEvent.dblClick(screen.getByRole('option', { name: /Collapse/ }));
+    await waitFor(() => {
+      expect(sent[1]?.intent).toMatchObject({
+        kind: 'create_board_node',
+        content: { type: 'trigger', id: id(50) },
       });
     });
   });

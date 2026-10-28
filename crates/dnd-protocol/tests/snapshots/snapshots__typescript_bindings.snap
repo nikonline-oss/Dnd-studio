@@ -93,7 +93,9 @@ export type BoardNodeContent =
 /**  A card that opens a map, a journal entry or a character sheet. */
 { type: "link"; target: BoardLink } | 
 /**  A picture from the campaign's assets. */
-{ type: "image"; asset_id: AssetId };
+{ type: "image"; asset_id: AssetId } | 
+/**  A trigger as a block: GM roles only, whatever the node's visibility says. */
+{ type: "trigger"; id: TriggerId };
 
 /**  An element of a board. Position and size in Units16 (ADR-0016), the top-left corner. */
 export type BoardNodeDto = {

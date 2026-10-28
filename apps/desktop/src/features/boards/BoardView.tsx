@@ -8,6 +8,7 @@ import {
   type BoardLink,
   type BoardNodeDto,
   type BoardVisibility,
+  type TriggerDto,
 } from '@/shared/ipc/client';
 import { uuidv7 } from '@/shared/ipc/uuid';
 import { useSelection } from '@/shared/state/selection';
@@ -49,6 +50,7 @@ export function BoardView({ boardId }: { boardId: string }) {
   const board = useSnapshotSelect((s) => s.boards.find((b) => b.id === boardId));
   const nodes = useSnapshotSelect((s) => s.board_nodes.filter((n) => n.board_id === boardId));
   const edges = useSnapshotSelect((s) => s.board_edges.filter((e) => e.board_id === boardId));
+  const triggers = useSnapshotSelect((s) => s.triggers);
   const [view, setView] = useState<View>({ x: 40, y: 40, zoom: 1 });
   const [selected, setSelected] = useState<Selected>(null);
   const [connecting, setConnecting] = useState(false);
@@ -95,6 +97,7 @@ export function BoardView({ boardId }: { boardId: string }) {
   }
 
   const position = (node: BoardNodeDto) => local[node.id] ?? { x: node.x / U, y: node.y / U };
+  const triggerLines = isGm ? linesOfTriggers(nodes, triggers ?? []) : [];
   const sizeOf = (node: BoardNodeDto) =>
     sizes[node.id] ?? { w: node.width / U, h: node.height / U };
   const byId = new Map(nodes.map((n) => [n.id, n]));
@@ -326,6 +329,41 @@ export function BoardView({ boardId }: { boardId: string }) {
           onImage={(assetId) => {
             createNode({ type: 'image', asset_id: assetId }, 240, 180);
           }}
+          onTrigger={(triggerId) => {
+            if (triggerId !== null) {
+              createNode({ type: 'trigger', id: triggerId }, 260, 150);
+              return;
+            }
+            // A new trigger, placed at once; it is edited in its tab.
+            const id = uuidv7();
+            submit.mutate(
+              {
+                intent: {
+                  kind: 'create_trigger',
+                  id,
+                  definition: {
+                    name: t('triggers.newName'),
+                    enabled: false,
+                    once: false,
+                    event: { type: 'manual' },
+                    tokens: [],
+                    condition: null,
+                    steps: [
+                      {
+                        when: null,
+                        action: { type: 'chat', text: t('triggers.newText'), gm_only: true },
+                      },
+                    ],
+                  },
+                },
+              },
+              {
+                onSuccess: () => {
+                  createNode({ type: 'trigger', id }, 260, 150);
+                },
+              },
+            );
+          }}
           connecting={connecting}
           canConnect={selectedNode !== undefined}
           onConnect={() => {
@@ -407,6 +445,23 @@ export function BoardView({ boardId }: { boardId: string }) {
                     </text>
                   )}
                 </g>
+              );
+            })}
+            {/* What triggers on this board open: drawn, not stored. */}
+            {triggerLines.map(({ key, from, to }) => {
+              const a = center(position(from), sizeOf(from));
+              const b = center(position(to), sizeOf(to));
+              const end = clipToCard(a, b, sizeOf(to));
+              return (
+                <line
+                  key={key}
+                  x1={a.x}
+                  y1={a.y}
+                  x2={end.x}
+                  y2={end.y}
+                  className="board-trigger-line"
+                  markerEnd={`url(#arrow-${boardId})`}
+                />
               );
             })}
           </svg>
@@ -646,8 +701,10 @@ function BoardCard({
         )
       ) : content.type === 'link' ? (
         <LinkCard target={content.target} />
-      ) : (
+      ) : content.type === 'image' ? (
         <ImageCard assetId={content.asset_id} />
+      ) : (
+        <TriggerCard triggerId={content.id} />
       )}
       {isGm && (
         <div
@@ -669,7 +726,106 @@ function cardTitle(node: BoardNodeDto, t: (key: string) => string): string {
       return t('boards.link');
     case 'image':
       return t('boards.image');
+    case 'trigger':
+      return t('boards.trigger');
   }
+}
+
+/** Lines from each trigger block to the cards of this board its steps open or hide. */
+function linesOfTriggers(
+  nodes: BoardNodeDto[],
+  triggers: TriggerDto[],
+): { key: string; from: BoardNodeDto; to: BoardNodeDto }[] {
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  return nodes.flatMap((block) => {
+    if (block.content.type !== 'trigger') return [];
+    const triggerId = block.content.id;
+    const trigger = triggers.find((tr) => tr.id === triggerId);
+    if (!trigger) return [];
+    return trigger.definition.steps.flatMap(({ action }, i) => {
+      const target =
+        action.type === 'reveal' && action.target.kind === 'node'
+          ? action.target.id
+          : action.type === 'set_node_visibility'
+            ? action.node
+            : null;
+      const to = target === null ? undefined : byId.get(target);
+      return to ? [{ key: `${block.id}:${i}`, from: block, to }] : [];
+    });
+  });
+}
+
+/** A trigger as a block (GM roles only): what sets it off, what it does, on/off and Run. */
+function TriggerCard({ triggerId }: { triggerId: string }) {
+  const { t } = useTranslation();
+  const trigger = useSnapshotSelect((s) => s.triggers.find((tr) => tr.id === triggerId));
+  const submit = useSubmitIntent();
+  const openTrigger = useSelection((s) => s.openTrigger);
+  if (!trigger) return <p className="muted">{t('boards.unavailable')}</p>;
+  const def = trigger.definition;
+  const stop = (e: PointerEvent) => {
+    e.stopPropagation();
+  };
+  return (
+    <div
+      className="board-trigger"
+      data-enabled={def.enabled}
+      onDoubleClick={(e) => {
+        e.stopPropagation();
+        openTrigger(trigger.id);
+      }}
+    >
+      <strong className="board-trigger-name">
+        <Icon name="bolt" size={14} />
+        {def.name}
+      </strong>
+      <span className="board-trigger-when">{t(`triggers.events.${def.event.type}`)}</span>
+      <ol className="board-trigger-steps">
+        {def.steps.slice(0, 4).map((step, i) => (
+          <li key={i}>{t(`triggers.actions.${step.action.type}`)}</li>
+        ))}
+        {def.steps.length > 4 && <li>…</li>}
+      </ol>
+      <span className="board-trigger-actions" onPointerDown={stop}>
+        <label className="inline">
+          <input
+            type="checkbox"
+            checked={def.enabled}
+            onChange={(e) => {
+              submit.mutate({
+                intent: {
+                  kind: 'update_trigger',
+                  id: trigger.id,
+                  definition: { ...def, enabled: e.target.checked },
+                },
+                expectedVersion: trigger.version,
+              });
+            }}
+          />
+          {t('triggers.enabled')}
+        </label>
+        {def.event.type === 'manual' && (
+          <button
+            type="button"
+            disabled={trigger.fired || submit.isPending}
+            onClick={() => {
+              submit.mutate({ intent: { kind: 'fire_trigger', id: trigger.id, token: null } });
+            }}
+          >
+            {t('triggers.run')}
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => {
+            openTrigger(trigger.id);
+          }}
+        >
+          {t('boards.openTrigger')}
+        </button>
+      </span>
+    </div>
+  );
 }
 
 function NoteEditor({ initial, onSave }: { initial: string; onSave: (markdown: string) => void }) {

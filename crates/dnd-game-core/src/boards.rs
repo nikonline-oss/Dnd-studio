@@ -2,9 +2,9 @@
 //! (checked in `permissions::authorize`); what players see is decided in `visibility`.
 
 use dnd_protocol::{
-    BoardDto, BoardEdgeDto, BoardId, BoardLink, BoardNodeContent, BoardNodeDto, BoardNodeId, Event,
-    Intent, MAX_BOARD_COORD, MAX_BOARD_EDGES, MAX_BOARD_NODES, MAX_NODE_SIZE, MAX_NOTE_LEN,
-    MIN_NODE_SIZE, RejectReason, Version,
+    BoardDto, BoardEdgeDto, BoardId, BoardLink, BoardNodeContent, BoardNodeDto, BoardNodeId,
+    BoardVisibility, Event, Intent, MAX_BOARD_COORD, MAX_BOARD_EDGES, MAX_BOARD_NODES,
+    MAX_NODE_SIZE, MAX_NOTE_LEN, MIN_NODE_SIZE, RejectReason, Version,
 };
 
 use crate::apply::{MAX_NAME_LEN, bump, valid_name};
@@ -86,7 +86,7 @@ pub(crate) fn apply(
                     y: coord(*y, "y")?,
                     width: size(*width, "width")?,
                     height: size(*height, "height")?,
-                    visibility: *visibility,
+                    visibility: shown_as(content, *visibility),
                     version: Version::INITIAL,
                 },
             }])
@@ -118,6 +118,7 @@ pub(crate) fn apply(
             if let Some(visibility) = visibility {
                 node.visibility = *visibility;
             }
+            node.visibility = shown_as(&node.content, node.visibility);
             node.version = bump(node.version)?;
             Ok(vec![Event::BoardNodeUpdated { node }])
         })(),
@@ -288,8 +289,21 @@ fn valid_content(
                 return Err(invalid());
             }
         }
+        BoardNodeContent::Trigger { id } => {
+            if !state.triggers.contains_key(id) {
+                return Err(invalid());
+            }
+        }
     }
     Ok(content.clone())
+}
+
+/// Trigger blocks are the GM's (ADR-0024): never open to players.
+fn shown_as(content: &BoardNodeContent, visibility: BoardVisibility) -> BoardVisibility {
+    match content {
+        BoardNodeContent::Trigger { .. } => BoardVisibility::Gm,
+        _ => visibility,
+    }
 }
 
 fn coord(value: i64, field: &str) -> Result<i64, RejectReason> {

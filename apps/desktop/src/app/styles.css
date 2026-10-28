@@ -2954,3 +2954,60 @@ input[type='checkbox'] {
   color: var(--color-text-muted);
   font-style: italic;
 }
+
+/* Triggers as blocks on boards (ADR-0024). */
+.board-card-trigger {
+  border-color: #9b7bff;
+  background: color-mix(in srgb, #9b7bff 10%, var(--color-surface-raised));
+}
+
+.board-trigger {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.board-trigger[data-enabled='false'] .board-trigger-name {
+  opacity: 0.6;
+}
+
+.board-trigger-name {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.board-trigger-when {
+  color: #9b7bff;
+  font-size: 12px;
+}
+
+.board-trigger-steps {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.board-trigger-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  margin-top: auto;
+}
+
+.board-trigger-actions button {
+  min-height: 22px;
+  padding: 0 var(--space-2);
+}
+
+.board-trigger-line {
+  stroke: #9b7bff;
+  stroke-width: 2;
+  stroke-dasharray: 4 4;
+  pointer-events: none;
+}

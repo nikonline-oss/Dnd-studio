@@ -9,6 +9,7 @@ export function BoardToolbar({
   onNote,
   onLink,
   onImage,
+  onTrigger,
   connecting,
   canConnect,
   onConnect,
@@ -18,6 +19,8 @@ export function BoardToolbar({
   onNote: () => void;
   onLink: (target: BoardLink) => void;
   onImage: (assetId: string) => void;
+  /** Places a trigger as a block; `null`: a new one. */
+  onTrigger: (triggerId: string | null) => void;
   connecting: boolean;
   canConnect: boolean;
   onConnect: () => void;
@@ -25,7 +28,7 @@ export function BoardToolbar({
   disabled: boolean;
 }) {
   const { t } = useTranslation();
-  const [picking, setPicking] = useState<'link' | 'image' | null>(null);
+  const [picking, setPicking] = useState<'link' | 'image' | 'trigger' | null>(null);
 
   return (
     <div className="board-toolbar" role="toolbar" aria-label={t('boards.tools')}>
@@ -53,6 +56,24 @@ export function BoardToolbar({
         {t('boards.addImage')}
       </IconButton>
       <IconButton
+        icon="bolt"
+        label={t('boards.addTrigger')}
+        disabled={disabled}
+        onClick={() => {
+          setPicking('trigger');
+        }}
+      >
+        {t('boards.addTrigger')}
+      </IconButton>
+      <IconButton
+        icon="plus"
+        label={t('boards.newTrigger')}
+        disabled={disabled}
+        onClick={() => {
+          onTrigger(null);
+        }}
+      />
+      <IconButton
         icon="link"
         label={t('boards.connect')}
         aria-pressed={connecting}
@@ -71,6 +92,18 @@ export function BoardToolbar({
           }}
           onPick={({ kind, id }) => {
             if (kind === 'map' || kind === 'journal' || kind === 'character') onLink({ kind, id });
+          }}
+        />
+      )}
+      {picking === 'trigger' && (
+        <ElementPicker
+          title={t('boards.addTrigger')}
+          kinds={['trigger']}
+          onClose={() => {
+            setPicking(null);
+          }}
+          onPick={({ id }) => {
+            onTrigger(id);
           }}
         />
       )}

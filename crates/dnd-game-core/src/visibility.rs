@@ -103,7 +103,11 @@ impl PlayersSee {
         let board_nodes: BTreeSet<_> = state
             .board_nodes
             .values()
-            .filter(|n| n.visibility == BoardVisibility::Players && boards.contains(&n.board_id))
+            .filter(|n| {
+                n.visibility == BoardVisibility::Players
+                    && boards.contains(&n.board_id)
+                    && !matches!(n.content, BoardNodeContent::Trigger { .. })
+            })
             .map(|n| n.id)
             .collect();
         let board_edges = state
