@@ -14,7 +14,7 @@ use crate::model::{
 };
 use crate::plugin::PluginDto;
 use crate::trigger::TriggerDef;
-use crate::zone::ZoneShape;
+use crate::zone::{ZoneLabel, ZoneShape};
 
 /// An intent together with its correlation id and the version it was based on (ADR-0003).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -370,6 +370,9 @@ pub enum Intent {
         id: ZoneId,
         name: Option<String>,
         shape: Option<ZoneShape>,
+        /// Moves the zone's name: the top-left corner of the text, on the map.
+        #[serde(default)]
+        label: Option<ZoneLabel>,
     },
     DeleteZone {
         id: ZoneId,

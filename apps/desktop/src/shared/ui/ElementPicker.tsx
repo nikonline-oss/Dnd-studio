@@ -130,8 +130,174 @@ function rowsOf(snapshot: Snapshot, kind: ElementKind, t: (key: string) => strin
   return rows.sort((a, b) => a.name.localeCompare(b.name));
 }
 
+/** What the details pane shows about the highlighted element. */
+interface Details {
+  /** A large picture (map background, token, asset), if the element has one. */
+  preview: string | null;
+  facts: { label: string; value: string }[];
+}
+
+/** The facts that matter about one element, per kind. */
+function detailsOf(
+  snapshot: Snapshot,
+  row: Row,
+  t: (key: string) => string,
+  language: string,
+): Details {
+  const picture = (assetId: string | null) => {
+    const asset = assetId ? snapshot.assets.find((a) => a.id === assetId) : undefined;
+    return asset ? assetUrl(asset.display_sha256 ?? asset.thumbnail_sha256) : null;
+  };
+  const mapName = (id: string) => snapshot.maps.find((m) => m.id === id)?.name ?? '';
+  const yesNo = (value: boolean) => (value ? t('picker.yes') : t('picker.no'));
+  const fact = (key: string, value: string) => ({ label: t(`picker.fact.${key}`), value });
+  switch (row.kind) {
+    case 'map': {
+      const m = snapshot.maps.find((x) => x.id === row.id);
+      if (!m) break;
+      const grid =
+        m.grid.kind === 'none'
+          ? t('inspector.gridKind.none')
+          : `${t(`inspector.gridKind.${m.grid.kind}`)}, ${m.grid.cell_size}`;
+      return {
+        preview: picture(m.background_asset_id),
+        facts: [
+          fact('size', `${m.width}×${m.height}`),
+          fact('grid', grid),
+          fact('players', yesNo(m.visible_to_players)),
+        ],
+      };
+    }
+    case 'journal': {
+      const e = snapshot.journal.find((x) => x.id === row.id);
+      if (!e) break;
+      const folder = snapshot.journal_folders.find((f) => f.id === e.folder_id)?.name;
+      return {
+        preview: null,
+        facts: [
+          fact('folder', folder ?? t('picker.fact.root')),
+          fact('visibility', t(`journal.visibility.${e.visibility}`)),
+        ],
+      };
+    }
+    case 'character': {
+      const c = snapshot.characters.find((x) => x.id === row.id);
+      if (!c) break;
+      return {
+        preview: null,
+        facts: [
+          fact('type', t(`characters.kinds.${c.kind}`)),
+          fact('owner', snapshot.users.find((u) => u.id === c.owner)?.name ?? t('picker.npc')),
+          fact('status', t(`characters.status.${c.status}`)),
+        ],
+      };
+    }
+    case 'token': {
+      const tok = snapshot.tokens.find((x) => x.id === row.id);
+      if (!tok) break;
+      return {
+        preview: picture(tok.asset_id),
+        facts: [
+          fact('map', mapName(tok.map_id)),
+          fact('layer', t(`tokens.layers.${tok.layer}`)),
+          fact('players', yesNo(tok.visible)),
+        ],
+      };
+    }
+    case 'board': {
+      const b = snapshot.boards.find((x) => x.id === row.id);
+      if (!b) break;
+      return { preview: null, facts: [fact('players', yesNo(b.visible_to_players))] };
+    }
+    case 'board_node': {
+      const n = snapshot.board_nodes.find((x) => x.id === row.id);
+      if (!n) break;
+      return {
+        preview: n.content.type === 'image' ? picture(n.content.asset_id) : null,
+        facts: [
+          fact('board', snapshot.boards.find((b) => b.id === n.board_id)?.name ?? ''),
+          fact('type', t(`picker.cardType.${n.content.type}`)),
+          fact('players', yesNo(n.visibility === 'players')),
+        ],
+      };
+    }
+    case 'zone': {
+      const z = snapshot.zones.find((x) => x.id === row.id);
+      if (!z) break;
+      const facts = [fact('map', mapName(z.map_id))];
+      if (z.shape.type === 'union') facts.push(fact('parts', String(z.shape.parts.length)));
+      return { preview: null, facts };
+    }
+    case 'trigger': {
+      const tr = snapshot.triggers.find((x) => x.id === row.id);
+      if (!tr) break;
+      const steps = tr.definition.steps.map((s) => t(`triggers.actions.${s.action.type}`));
+      return {
+        preview: null,
+        facts: [
+          fact('event', t(`triggers.events.${tr.definition.event.type}`)),
+          fact('steps', steps.length > 0 ? steps.join(' → ') : t('picker.fact.noSteps')),
+        ],
+      };
+    }
+    case 'asset': {
+      const a = snapshot.assets.find((x) => x.id === row.id);
+      if (!a) break;
+      return {
+        preview: picture(a.id),
+        facts: [
+          fact('size', `${a.width}×${a.height}, ${formatBytes(a.size_bytes, language)}`),
+          fact('file', a.original_name ?? a.sha256.slice(0, 12)),
+        ],
+      };
+    }
+  }
+  return { preview: null, facts: [] };
+}
+
+function formatBytes(bytes: number, language: string): string {
+  const [value, unit] =
+    bytes < 1024 * 1024 ? [bytes / 1024, 'kilobyte'] : [bytes / (1024 * 1024), 'megabyte'];
+  return new Intl.NumberFormat(language, {
+    style: 'unit',
+    unit,
+    maximumFractionDigits: unit === 'kilobyte' ? 0 : 1,
+  }).format(value);
+}
+
+/** The highlighted element: a large picture, its name and kind, and what matters about it. */
+function DetailsPane({ snapshot, row }: { snapshot: Snapshot | undefined; row: Row | null }) {
+  const { t, i18n } = useTranslation();
+  if (!snapshot || !row) {
+    return (
+      <aside className="picker-details muted" aria-label={t('picker.details')}>
+        {t('picker.noSelection')}
+      </aside>
+    );
+  }
+  const { preview, facts } = detailsOf(snapshot, row, t, i18n.language);
+  return (
+    <aside className="picker-details" aria-label={t('picker.details')}>
+      <div className="picker-preview">
+        {preview ? <img src={preview} alt="" /> : <Icon name={ICONS[row.kind]} size={48} />}
+      </div>
+      <h3 className="picker-details-name">{row.name}</h3>
+      <p className="muted">{t(`picker.kind.${row.kind}`)}</p>
+      <dl>
+        {facts.map((f) => (
+          <div key={f.label}>
+            <dt>{f.label}</dt>
+            <dd>{f.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </aside>
+  );
+}
+
 /**
- * A selection form (as in 1C): element kinds on the left, a searchable list on the right; a
+ * A selection form (as in 1C): element kinds on the left, a searchable list in the middle and
+ * the highlighted element's details on the right; a
  * double click, Enter or "Select" picks the highlighted element.
  */
 export function ElementPicker({
@@ -235,6 +401,7 @@ export function ElementPicker({
             ))}
           </ul>
         </div>
+        <DetailsPane snapshot={snapshot} row={current} />
       </div>
       <footer className="dialog-actions">
         <button type="button" onClick={onClose}>

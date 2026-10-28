@@ -25,6 +25,7 @@ mod state;
 mod triggers;
 mod users;
 mod visibility;
+mod zone_union;
 mod zones;
 
 pub use apply::{MAX_DESCRIPTION_LEN, MAX_NAME_LEN, RuleError, apply};

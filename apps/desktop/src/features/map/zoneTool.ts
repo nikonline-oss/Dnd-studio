@@ -13,17 +13,26 @@ interface ZoneToolState {
   drawing: ZoneDrawing;
   /** Zones ticked in the list (to merge); the first is kept. */
   ticked: string[];
+  /** Zone edit mode on the map: select, move, resize, move the name. */
+  editing: boolean;
+  /** The zone selected in edit mode. */
+  selected: string | null;
   draw: (drawing: ZoneDrawing) => void;
   toggle: (zoneId: string) => void;
   clearTicks: () => void;
+  setEditing: (editing: boolean) => void;
+  select: (zoneId: string | null) => void;
 }
 
 /** Shared by the zone list (inspector) and the map view; both are the map feature. */
 export const useZoneTool = create<ZoneToolState>()((set) => ({
   drawing: { mode: 'new' },
   ticked: [],
+  editing: false,
+  selected: null,
   draw: (drawing) => {
-    set({ drawing });
+    // Drawing a rectangle ends edit mode.
+    set(drawing.mode === 'new' ? { drawing } : { drawing, editing: false });
   },
   toggle: (zoneId) => {
     set((s) => ({
@@ -34,6 +43,12 @@ export const useZoneTool = create<ZoneToolState>()((set) => ({
   },
   clearTicks: () => {
     set({ ticked: [] });
+  },
+  setEditing: (editing) => {
+    set(editing ? { editing, drawing: { mode: 'new' } } : { editing, selected: null });
+  },
+  select: (selected) => {
+    set({ selected });
   },
 }));
 

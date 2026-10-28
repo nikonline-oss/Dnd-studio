@@ -65,6 +65,16 @@ fn only_gm_roles_manage_zones() {
                     id: zone(0),
                     name: Some("Old chapel".into()),
                     shape: None,
+                    label: None,
+                },
+                Some(Version::INITIAL),
+            ),
+            (
+                Intent::UpdateZone {
+                    id: zone(0),
+                    name: None,
+                    shape: None,
+                    label: Some(ZoneLabel { x: 800, y: 800 }),
                 },
                 Some(Version::INITIAL),
             ),
@@ -250,6 +260,7 @@ fn merging_joins_the_parts_moves_triggers_and_deletes_the_rest() {
             id: zone(0),
             name: None,
             shape: Some(ZoneShape::Union { parts }),
+            label: None,
         },
         Some(version),
     )
@@ -271,4 +282,167 @@ fn merging_joins_the_parts_moves_triggers_and_deletes_the_rest() {
             "{from:?}"
         );
     }
+}
+
+/// Zone 0 (the chapel, 1600..4800 square) merged with new zones of `shapes`.
+fn merged_with(shapes: &[ZoneShape]) -> ZoneShape {
+    let mut state = zoned();
+    let mut from = Vec::new();
+    for (n, shape) in (1..).zip(shapes) {
+        run(
+            &mut state,
+            Role::Gm,
+            Intent::CreateZone {
+                id: zone(n),
+                map_id: pooled_map_id(0),
+                name: format!("Part {n}"),
+                shape: shape.clone(),
+            },
+            None,
+        )
+        .unwrap();
+        from.push(zone(n));
+    }
+    run(
+        &mut state,
+        Role::Gm,
+        Intent::MergeZones {
+            into: zone(0),
+            from,
+        },
+        Some(Version::INITIAL),
+    )
+    .unwrap();
+    state.zones[&zone(0)].shape.clone()
+}
+
+#[test]
+fn merging_rectangles_that_share_an_edge_gives_one_rectangle() {
+    assert_eq!(
+        merged_with(&[rect(4800, 1600, 1600, 3200)]),
+        rect(1600, 1600, 4800, 3200)
+    );
+}
+
+#[test]
+fn merging_overlapping_rectangles_gives_one_outline() {
+    // An L: the chapel and a corridor running right from its lower half.
+    let shape = merged_with(&[rect(3200, 3200, 4800, 1600)]);
+    assert_eq!(
+        shape,
+        ZoneShape::Polygon {
+            points: vec![
+                1600, 1600, 4800, 1600, 4800, 3200, 8000, 3200, 8000, 4800, 1600, 4800
+            ]
+        }
+    );
+    assert!(shape.contains(2000, 2000) && shape.contains(7000, 4000) && shape.contains(8000, 4800));
+    assert!(!shape.contains(7000, 2000));
+}
+
+#[test]
+fn merging_rectangles_apart_or_meeting_at_a_corner_keeps_the_parts() {
+    let apart = merged_with(&[rect(8000, 1600, 1600, 1600)]);
+    assert_eq!(apart.parts().len(), 2);
+    let corner = merged_with(&[rect(4800, 4800, 1600, 1600)]);
+    assert_eq!(corner.parts().len(), 2);
+    // Touching pieces join; a separate piece stays a part of the union.
+    let mixed = merged_with(&[rect(4800, 1600, 1600, 3200), rect(20_000, 0, 800, 800)]);
+    assert_eq!(
+        mixed.parts(),
+        [rect(1600, 1600, 4800, 3200), rect(20_000, 0, 800, 800)]
+    );
+}
+
+#[test]
+fn adding_a_touching_part_joins_it() {
+    let mut state = zoned();
+    run(
+        &mut state,
+        Role::Gm,
+        Intent::UpdateZone {
+            id: zone(0),
+            name: None,
+            shape: Some(ZoneShape::Union {
+                parts: vec![rect(1600, 1600, 3200, 3200), rect(1600, 4800, 3200, 1600)],
+            }),
+            label: None,
+        },
+        Some(Version::INITIAL),
+    )
+    .unwrap();
+    assert_eq!(state.zones[&zone(0)].shape, rect(1600, 1600, 3200, 4800));
+}
+
+#[test]
+fn the_name_label_moves_on_the_map_only() {
+    let mut state = zoned();
+    let label = |x, y| Intent::UpdateZone {
+        id: zone(0),
+        name: None,
+        shape: None,
+        label: Some(ZoneLabel { x, y }),
+    };
+    // Map 0 is 4000×3000 units: 64 000×48 000 in Units16.
+    for (x, y) in [(-1, 0), (0, 48_001), (64_001, 10)] {
+        assert_eq!(
+            run(
+                &mut state.clone(),
+                Role::Gm,
+                label(x, y),
+                Some(Version::INITIAL)
+            ),
+            Err(RejectReason::invalid("label")),
+            "({x}, {y})"
+        );
+    }
+    run(
+        &mut state,
+        Role::Gm,
+        label(64_000, 48_000),
+        Some(Version::INITIAL),
+    )
+    .unwrap();
+    let zone0 = &state.zones[&zone(0)];
+    assert_eq!(
+        zone0.label,
+        Some(ZoneLabel {
+            x: 64_000,
+            y: 48_000
+        })
+    );
+    assert_eq!(zone0.shape, rect(1600, 1600, 3200, 3200));
+    // Moving the zone and its label in one request.
+    run(
+        &mut state,
+        Role::Gm,
+        Intent::UpdateZone {
+            id: zone(0),
+            name: None,
+            shape: Some(rect(0, 0, 3200, 3200)),
+            label: Some(ZoneLabel { x: 64, y: 48 }),
+        },
+        Some(Version(2)),
+    )
+    .unwrap();
+    let zone0 = &state.zones[&zone(0)];
+    assert_eq!(
+        (zone0.shape.clone(), zone0.label),
+        (rect(0, 0, 3200, 3200), Some(ZoneLabel { x: 64, y: 48 }))
+    );
+    // Nothing to change is refused.
+    assert!(
+        run(
+            &mut state,
+            Role::Gm,
+            Intent::UpdateZone {
+                id: zone(0),
+                name: None,
+                shape: None,
+                label: None,
+            },
+            Some(Version(3)),
+        )
+        .is_err()
+    );
 }

@@ -497,7 +497,11 @@
     "drawReplace": "Draw the zone’s new rectangle on the map.",
     "drawAdd": "Draw a rectangle on the map to add to the zone.",
     "merge": "Merge into “{{name}}”",
-    "mergeHint": "The first ticked zone stays; the others join it, and their triggers move to it."
+    "mergeHint": "The first ticked zone stays; the others join it, and their triggers move to it.",
+    "edit": "Edit zones",
+    "editOne": "Edit “{{name}}” on the map",
+    "editHint": "Click a zone to select it; drag it, its corners or its name. Double-click the name to rename it.",
+    "nameOnMap": "Zone name"
   },
   "conditions": {
     "title": "Conditions",
@@ -537,7 +541,36 @@
     "pick": "Pick…",
     "none": "None",
     "gone": "Deleted",
-    "pickFor": "Pick: {{label}}"
+    "pickFor": "Pick: {{label}}",
+    "details": "Details",
+    "noSelection": "Highlight an element in the list to see its details.",
+    "fact": {
+      "size": "Size",
+      "grid": "Grid",
+      "players": "Players",
+      "folder": "Folder",
+      "root": "Journal root",
+      "visibility": "Visibility",
+      "owner": "Owner",
+      "status": "Status",
+      "map": "Map",
+      "layer": "Layer",
+      "board": "Board",
+      "type": "Type",
+      "event": "Event",
+      "steps": "Steps",
+      "noSteps": "No steps",
+      "file": "File",
+      "parts": "Parts"
+    },
+    "yes": "yes",
+    "no": "no",
+    "cardType": {
+      "note": "Note",
+      "link": "Link",
+      "image": "Picture",
+      "trigger": "Trigger"
+    }
   },
   "triggers": {
     "title": "Triggers",

@@ -23,7 +23,7 @@ use crate::model::{
 use crate::trigger::{
     RevealTarget, TriggerAction, TriggerDef, TriggerDto, TriggerEvent, TriggerFiredDto, TriggerStep,
 };
-use crate::zone::{ZoneDto, ZoneShape};
+use crate::zone::{ZoneDto, ZoneLabel, ZoneShape};
 
 /// Number of distinct map ids produced by [`map_id`].
 pub const MAP_POOL: u128 = 3;
@@ -178,15 +178,26 @@ pub fn zone_shape() -> impl Strategy<Value = ZoneShape> {
 }
 
 pub fn zone_dto() -> impl Strategy<Value = ZoneDto> {
-    (zone_id(), map_id(), name(), zone_shape(), version()).prop_map(
-        |(id, map_id, name, shape, version)| ZoneDto {
+    (
+        zone_id(),
+        map_id(),
+        name(),
+        zone_shape(),
+        proptest::option::of(zone_label()),
+        version(),
+    )
+        .prop_map(|(id, map_id, name, shape, label, version)| ZoneDto {
             id,
             map_id,
             name,
             shape,
+            label,
             version,
-        },
-    )
+        })
+}
+
+pub fn zone_label() -> impl Strategy<Value = ZoneLabel> {
+    (position(), position()).prop_map(|(x, y)| ZoneLabel { x, y })
 }
 
 pub fn trigger_id() -> impl Strategy<Value = TriggerId> {
@@ -583,9 +594,15 @@ pub fn intent() -> impl Strategy<Value = Intent> {
         (
             zone_id(),
             proptest::option::of(name()),
-            proptest::option::of(zone_shape())
+            proptest::option::of(zone_shape()),
+            proptest::option::of(zone_label())
         )
-            .prop_map(|(id, name, shape)| Intent::UpdateZone { id, name, shape }),
+            .prop_map(|(id, name, shape, label)| Intent::UpdateZone {
+                id,
+                name,
+                shape,
+                label
+            }),
         zone_id().prop_map(|id| Intent::DeleteZone { id }),
         (trigger_id(), trigger_def())
             .prop_map(|(id, definition)| Intent::CreateTrigger { id, definition }),

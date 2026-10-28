@@ -1587,6 +1587,7 @@ async fn zones_are_projected_loaded_and_go_with_their_map() {
         shape: ZoneShape::Polygon {
             points: vec![0, 0, 160, 0, 80, 160],
         },
+        label: None,
         version: Version(1),
     };
     db.project(&[record(
@@ -1607,6 +1608,7 @@ async fn zones_are_projected_loaded_and_go_with_their_map() {
             width: 160,
             height: 320,
         },
+        label: Some(ZoneLabel { x: 48, y: 64 }),
         version: Version(2),
         ..zone.clone()
     };

@@ -7,8 +7,8 @@ import { ConfirmDelete, IconButton } from '@/shared/ui/IconButton';
 import { InlineEdit } from '@/shared/ui/InlineEdit';
 
 /**
- * The zones of a map (ADR-0024), GM roles only: rename, redraw, add a part, merge ticked zones,
- * delete. New zones are drawn with the map's zone tool.
+ * The zones of a map (ADR-0024), GM roles only: rename, edit on the map, redraw, add a part, merge
+ * ticked zones, delete. New zones are drawn with the map's zone tool.
  */
 export function ZoneList({ mapId }: { mapId: string }) {
   const { t } = useTranslation();
@@ -19,6 +19,8 @@ export function ZoneList({ mapId }: { mapId: string }) {
   const ticked = useZoneTool((s) => s.ticked).filter((id) => zones.some((z) => z.id === id));
   const toggle = useZoneTool((s) => s.toggle);
   const clearTicks = useZoneTool((s) => s.clearTicks);
+  const editing = useZoneTool((s) => s.editing);
+  const selected = useZoneTool((s) => s.selected);
   const [into, ...from] = ticked;
   const target = zones.find((z) => z.id === into);
 
@@ -44,7 +46,11 @@ export function ZoneList({ mapId }: { mapId: string }) {
       )}
       <ul className="zone-list" aria-label={t('zones.title')}>
         {zones.map((zone) => (
-          <li key={zone.id} className="nav-row">
+          <li
+            key={zone.id}
+            className="nav-row"
+            aria-current={editing && zone.id === selected ? 'true' : undefined}
+          >
             <input
               type="checkbox"
               aria-label={t('zones.tick', { name: zone.name })}
@@ -64,6 +70,15 @@ export function ZoneList({ mapId }: { mapId: string }) {
               }}
             />
             <span className="row-actions">
+              <IconButton
+                icon="pointer"
+                label={t('zones.editOne', { name: zone.name })}
+                onClick={() => {
+                  const tool = useZoneTool.getState();
+                  tool.setEditing(true);
+                  tool.select(zone.id);
+                }}
+              />
               <IconButton
                 icon="brush"
                 label={t('zones.redraw')}

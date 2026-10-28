@@ -142,6 +142,7 @@ export function boardEvents(snapshot: Snapshot, intent: Intent): Event[] | null 
           zone: bump(zone, {
             ...(intent.name === null ? {} : { name: intent.name }),
             ...(intent.shape === null ? {} : { shape: intent.shape }),
+            ...(intent.label ? { label: intent.label } : {}),
           }),
         },
       ];

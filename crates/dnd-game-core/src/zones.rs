@@ -8,6 +8,7 @@ use dnd_protocol::{
 
 use crate::apply::{bump, valid_name};
 use crate::state::GameState;
+use crate::zone_union;
 
 /// Events for a zone intent; `None` if `intent` is not about zones.
 pub(crate) fn apply(
@@ -32,12 +33,18 @@ pub(crate) fn apply(
                     map_id: *map_id,
                     name: valid_name(name, "name")?,
                     shape: valid_shape(map, shape)?,
+                    label: None,
                     version: Version::INITIAL,
                 },
             }])
         })(),
-        Intent::UpdateZone { id, name, shape } => (|| {
-            if name.is_none() && shape.is_none() {
+        Intent::UpdateZone {
+            id,
+            name,
+            shape,
+            label,
+        } => (|| {
+            if name.is_none() && shape.is_none() && label.is_none() {
                 return Err(RejectReason::invalid("intent"));
             }
             let mut zone = state.zones.get(id).cloned().ok_or(RejectReason::NotFound)?;
@@ -47,6 +54,15 @@ pub(crate) fn apply(
             if let Some(shape) = shape {
                 let map = state.maps.get(&zone.map_id).ok_or(RejectReason::NotFound)?;
                 zone.shape = valid_shape(map, shape)?;
+            }
+            if let Some(label) = label {
+                let map = state.maps.get(&zone.map_id).ok_or(RejectReason::NotFound)?;
+                let on_map =
+                    |v: i64, size: i64| (0..=size.saturating_mul(UNITS16_PER_UNIT)).contains(&v);
+                if !on_map(label.x, map.width) || !on_map(label.y, map.height) {
+                    return Err(RejectReason::invalid("label"));
+                }
+                zone.label = Some(*label);
             }
             zone.version = bump(zone.version)?;
             Ok(vec![Event::ZoneUpdated { zone }])
@@ -107,7 +123,8 @@ pub(crate) fn apply(
 }
 
 /// A rectangle with a positive size or a polygon of 3..=64 corners, all on the map; or a union of
-/// up to 32 of them (nested unions are flattened).
+/// up to 32 of them (nested unions are flattened, touching or overlapping axis-aligned parts
+/// joined into one outline).
 fn valid_shape(map: &MapDto, shape: &ZoneShape) -> Result<ZoneShape, RejectReason> {
     if let ZoneShape::Union { .. } = shape {
         let parts = shape.parts();
@@ -118,7 +135,7 @@ fn valid_shape(map: &MapDto, shape: &ZoneShape) -> Result<ZoneShape, RejectReaso
             .iter()
             .map(|p| valid_shape(map, p))
             .collect::<Result<Vec<_>, _>>()?;
-        return Ok(ZoneShape::of_parts(parts));
+        return Ok(ZoneShape::of_parts(zone_union::merge(parts)));
     }
     let invalid = || RejectReason::invalid("shape");
     let width = map.width.saturating_mul(UNITS16_PER_UNIT);
