@@ -7,7 +7,8 @@ import { ConfirmButton } from '@/shared/ui/IconButton';
 
 /** What the toolbar selects: a fog tool, or panning. */
 export interface FogToolState {
-  shape: 'pan' | FogTool['shape'];
+  /** `zone_edit`: zone edit mode (no fog tool). */
+  shape: 'pan' | FogTool['shape'] | 'zone_edit';
   kind: FogOpKind;
   radius: number;
 }
@@ -16,7 +17,7 @@ export const DEFAULT_FOG_TOOL: FogToolState = { shape: 'pan', kind: 'reveal', ra
 
 /** The scene's tool for a toolbar state (`null` = pan). */
 export function sceneTool(state: FogToolState): FogTool | null {
-  return state.shape === 'pan'
+  return state.shape === 'pan' || state.shape === 'zone_edit'
     ? null
     : { shape: state.shape, kind: state.kind, radius: state.radius };
 }
@@ -38,6 +39,7 @@ export function FogToolbar({ state, onChange, onReset, hasFog, disabled }: Props
     ['rect', 'square', t('fog.rect')],
     ['brush', 'brush', t('fog.brush')],
     ['zone', 'zone', t('zones.draw')],
+    ['zone_edit', 'pointer', t('zones.edit')],
   ];
   const kinds: [FogOpKind, IconName, string][] = [
     ['reveal', 'eye', t('fog.reveal')],
@@ -67,7 +69,7 @@ export function FogToolbar({ state, onChange, onReset, hasFog, disabled }: Props
           </button>
         ))}
       </div>
-      {state.shape !== 'pan' && state.shape !== 'zone' && (
+      {(state.shape === 'rect' || state.shape === 'brush') && (
         <div className="segmented" role="radiogroup" aria-label={t('fog.mode')}>
           {kinds.map(([kind, icon, label]) => (
             <button

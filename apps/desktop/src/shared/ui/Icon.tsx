@@ -41,6 +41,7 @@ const PATHS = {
   link: 'M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1',
   note: 'M5 4h14v12l-4 4H5zM15 20v-4h4M8 9h8M8 13h5',
   zone: 'M4 4h3M10 4h4M17 4h3v3M20 10v4M20 17v3h-3M14 20h-4M7 20H4v-3M4 14v-4M4 7V4',
+  pointer: 'M6 3l12 9-5.5 1 3 6.5-2.5 1-3-6.5L6 18z',
   grip: 'M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01',
   bolt: 'M13 2L4 14h7l-1 8 9-12h-7z',
 } as const;

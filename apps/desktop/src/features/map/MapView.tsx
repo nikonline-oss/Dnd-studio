@@ -2,7 +2,7 @@ import type { Application } from 'pixi.js';
 import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DEFAULT_FOG_TOOL, FogToolbar, sceneTool, type FogToolState } from './FogToolbar';
-import { MapScene, type TokenMove } from './MapScene';
+import { MapScene, type TokenMove, type ZoneEditCallbacks } from './MapScene';
 import { snapToGrid, tokenPosition } from './tokenMath';
 import { tokenViews } from './tokenViews';
 import { useZoneTool, zoneParts } from './zoneTool';
@@ -42,10 +42,22 @@ export function MapView() {
   const [chosenTool, setTool] = useState<FogToolState>(DEFAULT_FOG_TOOL);
   // The zone list asks to redraw a zone or add a part to it: the zone tool takes the next rectangle.
   const zoneDrawing = useZoneTool((s) => s.drawing);
+  // Zone edit mode is shared with the zone list ("Edit on the map").
+  const zoneEditing = useZoneTool((s) => s.editing);
+  const selectedZone = useZoneTool((s) => s.selected);
   const tool = useMemo<FogToolState>(
-    () => (zoneDrawing.mode === 'new' ? chosenTool : { ...chosenTool, shape: 'zone' }),
-    [zoneDrawing, chosenTool],
+    () =>
+      zoneDrawing.mode !== 'new'
+        ? { ...chosenTool, shape: 'zone' }
+        : zoneEditing
+          ? { ...chosenTool, shape: 'zone_edit' }
+          : chosenTool,
+    [zoneDrawing, zoneEditing, chosenTool],
   );
+  const chooseTool = (next: FogToolState) => {
+    useZoneTool.getState().setEditing(next.shape === 'zone_edit');
+    if (next.shape !== 'zone_edit') setTool(next);
+  };
 
   useEffect(() => {
     scene?.show(map ?? null, background ?? null, fog ?? null, isGm);
@@ -53,13 +65,62 @@ export function MapView() {
 
   useEffect(() => {
     scene?.setTool(isGm ? sceneTool(tool) : null);
+    scene?.setZoneEditing(isGm && tool.shape === 'zone_edit');
   }, [scene, tool, isGm]);
 
   // Zones are the GM's (ADR-0024); players never receive any.
   const zones = useSnapshotSelect((s) => s.zones.filter((z) => z.map_id === map?.id));
   useEffect(() => {
-    scene?.setZones(isGm ? (zones ?? []) : []);
-  }, [scene, zones, isGm]);
+    scene?.setZones(isGm ? (zones ?? []) : [], selectedZone);
+  }, [scene, zones, isGm, selectedZone]);
+  // Another map: nothing of the last one stays selected or renamed.
+  const shownMapIdForZones = map?.id;
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [renamingOn, setRenamingOn] = useState(shownMapIdForZones);
+  if (renamingOn !== shownMapIdForZones) {
+    setRenamingOn(shownMapIdForZones);
+    setRenaming(null);
+  }
+  useEffect(() => {
+    useZoneTool.getState().select(null);
+  }, [shownMapIdForZones]);
+  const zoneEdits = useRef<Omit<ZoneEditCallbacks, 'onRename'>>({
+    onSelect: () => undefined,
+    onEdit: () => undefined,
+  });
+  useEffect(() => {
+    zoneEdits.current = {
+      onSelect: (zoneId) => {
+        useZoneTool.getState().select(zoneId);
+      },
+      onEdit: (zone, edit) => {
+        submit.mutate(
+          {
+            intent: {
+              kind: 'update_zone',
+              id: zone.id,
+              name: null,
+              shape: edit.shape ?? null,
+              label: edit.label ?? null,
+            },
+            expectedVersion: zone.version,
+          },
+          { onError: () => scene?.clearZoneOverride() },
+        );
+      },
+    };
+  });
+  const renamed = renaming ? zones?.find((z) => z.id === renaming) : undefined;
+  const renameAt = renamed && scene ? scene.zoneLabelOnCanvas(renamed.id) : null;
+  const rename = (name: string) => {
+    setRenaming(null);
+    const trimmed = name.trim();
+    if (!renamed || trimmed === '' || trimmed === renamed.name) return;
+    submit.mutate({
+      intent: { kind: 'update_zone', id: renamed.id, name: trimmed, shape: null },
+      expectedVersion: renamed.version,
+    });
+  };
   const sendZone = useRef<(shape: ZoneShape) => void>(() => undefined);
   useEffect(() => {
     sendZone.current = (shape) => {
@@ -153,6 +214,20 @@ export function MapView() {
       (shape) => {
         sendZone.current(shape);
       },
+      {
+        onSelect: (zoneId) => {
+          zoneEdits.current.onSelect(zoneId);
+        },
+        onEdit: (zone, edit) => {
+          zoneEdits.current.onEdit(zone, edit);
+        },
+        // After the press: its mousedown would take the focus from the field again.
+        onRename: (zoneId) => {
+          window.setTimeout(() => {
+            setRenaming(zoneId);
+          }, 0);
+        },
+      },
     );
     setScene(created);
     return () => {
@@ -223,6 +298,33 @@ export function MapView() {
     >
       <PixiHost onReady={onReady} onError={onError} />
       {dropping && <div className="map-drop-hint">{t('mapView.dropHint')}</div>}
+      {map && isGm && tool.shape === 'zone_edit' && (
+        <p className="map-edit-hint" role="status">
+          {t('zones.editHint')}
+        </p>
+      )}
+      {renamed && renameAt && (
+        <input
+          className="zone-rename"
+          aria-label={t('zones.nameOnMap')}
+          style={{ left: renameAt.x, top: renameAt.y }}
+          defaultValue={renamed.name}
+          maxLength={200}
+          autoFocus
+          onFocus={(e) => {
+            e.currentTarget.select();
+          }}
+          onKeyDown={(e) => {
+            // Both end in blur, so the name is sent once.
+            if (e.key === 'Escape') e.currentTarget.dataset.cancelled = 'true';
+            if (e.key === 'Enter' || e.key === 'Escape') e.currentTarget.blur();
+          }}
+          onBlur={(e) => {
+            if (e.currentTarget.dataset.cancelled) setRenaming(null);
+            else rename(e.currentTarget.value);
+          }}
+        />
+      )}
       {!map && (
         <div className="map-view-empty">
           <Icon name="map" size={40} />
@@ -232,7 +334,7 @@ export function MapView() {
       {map && isGm && (
         <FogToolbar
           state={tool}
-          onChange={setTool}
+          onChange={chooseTool}
           hasFog={fog !== undefined}
           disabled={submit.isPending}
           onReset={(covered) => {

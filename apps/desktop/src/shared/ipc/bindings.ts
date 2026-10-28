@@ -695,7 +695,9 @@ roll: string | null } |
 /**  Deletes the node with its edges. */
 { kind: "delete_board_node"; id: BoardNodeId } | { kind: "create_board_edge"; id: BoardEdgeId; board_id: BoardId; from: BoardNodeId; to: BoardNodeId; label: string; directed: boolean; visibility: BoardVisibility } | { kind: "update_board_edge"; id: BoardEdgeId; label: string | null; directed: boolean | null; visibility: BoardVisibility | null } | { kind: "delete_board_edge"; id: BoardEdgeId } | 
 /**  GM / Co-GM: a named area on a map for triggers (ADR-0024). */
-{ kind: "create_zone"; id: ZoneId; map_id: MapId; name: string; shape: ZoneShape } | { kind: "update_zone"; id: ZoneId; name: string | null; shape: ZoneShape | null } | { kind: "delete_zone"; id: ZoneId } | 
+{ kind: "create_zone"; id: ZoneId; map_id: MapId; name: string; shape: ZoneShape } | { kind: "update_zone"; id: ZoneId; name: string | null; shape: ZoneShape | null; 
+/**  Moves the zone's name: the top-left corner of the text, on the map. */
+label?: ZoneLabel | null } | { kind: "delete_zone"; id: ZoneId } | 
 /**
  *  Joins zones of the same map into `into` (its parts and theirs); the others are deleted and
  *  triggers watching them watch `into` instead.
@@ -1237,11 +1239,19 @@ export type ZoneDto = {
 	map_id: MapId,
 	name: string,
 	shape: ZoneShape,
+	/**  Where the GM moved the name to; `None` (and zones stored before): at the first part's corner. */
+	label?: ZoneLabel | null,
 	version: Version,
 };
 
 /**  A named area on a map that triggers watch (ADR-0024). */
 export type ZoneId = string;
+
+/**  Where a zone's name is drawn: the top-left corner of the text, in Units16 (ADR-0016). */
+export type ZoneLabel = {
+	x: number,
+	y: number,
+};
 
 /**  The area of a zone, in Units16 (ADR-0016). */
 export type ZoneShape = 

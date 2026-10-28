@@ -1,5 +1,5 @@
-// Imperative Pixi scene of one map (ADR-0017): tiled background, grid, fog (ADR-0019), camera and
-// the GM's fog tools. React only feeds it through `show` and `setTool`; nothing here is rendered
+// Imperative Pixi scene of one map (ADR-0017): tiled background, grid, fog (ADR-0019), camera,
+// the GM's fog tools and zone edit mode (ADR-0024). React only feeds it through `show` and `setTool`; nothing here is rendered
 // by React.
 import {
   Container,
@@ -15,7 +15,17 @@ import { drawShape, FogLayer } from './FogLayer';
 import { BrushStroke, brushRadius16, rectFromDrag } from './fogShapes';
 import { gridPattern } from './gridPattern';
 import { TokenLayer, type TokenView } from './TokenLayer';
-import { ZoneLayer } from './ZoneLayer';
+import {
+  clampLabel,
+  dragHandle,
+  handleAt,
+  labelPosition,
+  moveShape,
+  zoneAt,
+  type Handle,
+  type Point16,
+} from './zoneEdit';
+import { HANDLE_PX, ZoneLayer } from './ZoneLayer';
 import { snapToGrid, Throttle, tokenPosition } from './tokenMath';
 import {
   clampCamera,
@@ -35,6 +45,7 @@ import type {
   Grid,
   MapDto,
   ZoneDto,
+  ZoneLabel,
   ZoneShape,
 } from '@/shared/ipc/client';
 import { assetUrl } from '@/shared/ipc/client';
@@ -53,6 +64,8 @@ const ZONE_PREVIEW = 0x9b7bff;
 const CLICK_SLOP_PX = 4;
 /** Token moves while dragging: ~12 Hz (ADR-0003 asks for 10–15 Hz). */
 const MOVE_INTERVAL_MS = 80;
+/** Two presses on a zone's name within this time rename it. */
+const DOUBLE_CLICK_MS = 400;
 
 /** A token position to send; `final` on drop (snapped to the grid). */
 export interface TokenMove {
@@ -69,6 +82,25 @@ export interface FogTool {
   /** Brush radius in map units. */
   radius: number;
 }
+
+/** What the GM changed about a zone in edit mode: sent as one `update_zone`. */
+export interface ZoneEdit {
+  shape?: ZoneShape;
+  label?: ZoneLabel;
+}
+
+/** Zone edit mode callbacks (GM roles, ADR-0024). */
+export interface ZoneEditCallbacks {
+  /** A zone was clicked (`null`: the empty map). */
+  onSelect: (zoneId: string | null) => void;
+  /** A zone, one of its handles or its name was dragged and dropped. */
+  onEdit: (zone: ZoneDto, edit: ZoneEdit) => void;
+  /** The zone's name was double-clicked. */
+  onRename: (zoneId: string) => void;
+}
+
+/** What a press in zone edit mode grabbed. */
+type ZoneGrab = { kind: 'move' } | { kind: 'label' } | { kind: 'handle'; handle: Handle };
 
 type Drawing =
   | { tool: 'rect'; kind: FogOpKind; from: Point; to: Point; zone: boolean }
@@ -119,6 +151,20 @@ export class MapScene {
     moved: boolean;
   } | null = null;
   private readonly moves: Throttle<TokenMove>;
+  private zoneList: ZoneDto[] = [];
+  private selectedZone: string | null = null;
+  private zoneEditing = false;
+  /** The zone being dragged in edit mode and from where (Units16). */
+  private zoneDrag: {
+    zone: ZoneDto;
+    grab: ZoneGrab;
+    from: Point16;
+    start: Point;
+    moved: boolean;
+  } | null = null;
+  /** Shown instead of the zone while dragging, and until the change comes back. */
+  private zoneOverride: { zone: ZoneDto; sent: boolean } | null = null;
+  private lastLabelPress: { zoneId: string; time: number } | null = null;
 
   constructor(
     private readonly app: Application,
@@ -131,6 +177,11 @@ export class MapScene {
     private readonly onSelectToken: (id: string | null) => void = () => undefined,
     /** A zone was drawn (GM roles, ADR-0024). */
     private readonly onZone: (shape: ZoneShape) => void = () => undefined,
+    private readonly zoneEdit: ZoneEditCallbacks = {
+      onSelect: () => undefined,
+      onEdit: () => undefined,
+      onRename: () => undefined,
+    },
   ) {
     this.fog = new FogLayer(app);
     this.tokens = new TokenLayer(this.onGrabToken);
@@ -194,18 +245,50 @@ export class MapScene {
       this.fit();
     }
     this.grid = map.grid;
-    this.tokens.show(this.tokenViews, map.grid, this.tool === null);
+    this.tokens.show(this.tokenViews, map.grid, this.tokensGrabbable());
   }
 
   /** The tokens of the shown map, bottom first. A dragged token keeps its local position. */
   setTokens(views: TokenView[]): void {
     this.tokenViews = views;
-    if (this.grid) this.tokens.show(views, this.grid, this.tool === null);
+    if (this.grid) this.tokens.show(views, this.grid, this.tokensGrabbable());
   }
 
-  /** The zones of the shown map (empty for players, who never get any). */
-  setZones(zones: ZoneDto[]): void {
-    this.zones.show(zones);
+  /** The zones of the shown map (empty for players, who never get any) and the selected one. */
+  setZones(zones: ZoneDto[], selected: string | null = null): void {
+    this.zoneList = zones;
+    this.selectedZone = selected;
+    // A sent change is shown until the zone comes back changed (or the request fails).
+    const shown = this.zoneOverride;
+    if (shown?.sent) {
+      const current = zones.find((z) => z.id === shown.zone.id);
+      if (!current || current.version !== shown.zone.version) this.zoneOverride = null;
+    }
+    this.drawZones();
+  }
+
+  /** Drops a change still shown after its request failed. */
+  clearZoneOverride(): void {
+    if (this.zoneOverride?.sent) {
+      this.zoneOverride = null;
+      this.drawZones();
+    }
+  }
+
+  /** Zone edit mode (GM roles): the left button selects, moves and reshapes zones. */
+  setZoneEditing(on: boolean): void {
+    if (on === this.zoneEditing) return;
+    this.zoneEditing = on;
+    this.zoneDrag = null;
+    this.app.canvas.style.cursor = this.idleCursor();
+    if (this.grid) this.tokens.show(this.tokenViews, this.grid, this.tokensGrabbable());
+    this.drawZones();
+  }
+
+  /** Where a zone's name is on the canvas (CSS pixels), to rename it in place. */
+  zoneLabelOnCanvas(zoneId: string): Point | null {
+    const box = this.zones.labelBox(zoneId);
+    return box ? this.world.toGlobal({ x: box.x / 16, y: box.y / 16 }) : null;
   }
 
   /** Converts a point of the canvas (CSS pixels) to map units. */
@@ -218,9 +301,9 @@ export class MapScene {
     this.tool = tool;
     this.cancelDrawing();
     this.endTokenDrag();
-    this.app.canvas.style.cursor = tool ? 'crosshair' : 'grab';
-    // Tokens can be grabbed only without a fog tool.
-    if (this.grid) this.tokens.show(this.tokenViews, this.grid, tool === null);
+    this.app.canvas.style.cursor = this.idleCursor();
+    // Tokens can be grabbed only without a fog tool (and outside zone edit mode).
+    if (this.grid) this.tokens.show(this.tokenViews, this.grid, this.tokensGrabbable());
   }
 
   /** The whole map in the window. */
@@ -344,6 +427,176 @@ export class MapScene {
     this.camera = camera;
     this.world.position.set(camera.x, camera.y);
     this.world.scale.set(camera.zoom);
+    // Handles keep their size on screen.
+    if (this.zoneEditing && this.selectedZone) this.drawZones();
+  }
+
+  private tokensGrabbable(): boolean {
+    return this.tool === null && !this.zoneEditing;
+  }
+
+  private idleCursor(): string {
+    if (this.tool) return 'crosshair';
+    return this.zoneEditing ? 'default' : 'grab';
+  }
+
+  private drawZones(): void {
+    const override = this.zoneOverride?.zone;
+    const zones = override
+      ? this.zoneList.map((z) => (z.id === override.id ? override : z))
+      : this.zoneList;
+    this.zones.show(
+      zones,
+      this.zoneEditing ? this.selectedZone : null,
+      this.camera.zoom,
+      (this.mapSize?.width ?? 0) * 16,
+    );
+  }
+
+  /** The map point under the pointer, Units16. */
+  private at16(event: FederatedPointerEvent): Point16 {
+    const at = this.world.toLocal(event.global);
+    return { x: at.x * 16, y: at.y * 16 };
+  }
+
+  /** The map in Units16. */
+  private map16(): { width: number; height: number } | null {
+    return this.mapSize
+      ? { width: this.mapSize.width * 16, height: this.mapSize.height * 16 }
+      : null;
+  }
+
+  /** What a press at `at` grabs in zone edit mode: the selected zone's handles first. */
+  private zoneGrabAt(at: Point16): { zone: ZoneDto; grab: ZoneGrab } | null {
+    const selected = this.zoneList.find((z) => z.id === this.selectedZone);
+    if (selected) {
+      const handle = handleAt(selected.shape, at, (HANDLE_PX * 16) / this.camera.zoom);
+      if (handle) return { zone: selected, grab: { kind: 'handle', handle } };
+    }
+    const onLabel = (zone: ZoneDto) => {
+      const box = this.zones.labelBox(zone.id);
+      return (
+        box !== undefined &&
+        at.x >= box.x &&
+        at.x <= box.x + box.width &&
+        at.y >= box.y &&
+        at.y <= box.y + box.height
+      );
+    };
+    const labelled = [...(selected ? [selected] : []), ...[...this.zoneList].reverse()].find(
+      onLabel,
+    );
+    if (labelled) return { zone: labelled, grab: { kind: 'label' } };
+    const inside = selected && zoneAt([selected], at) ? selected : zoneAt(this.zoneList, at);
+    return inside ? { zone: inside, grab: { kind: 'move' } } : null;
+  }
+
+  /** The zone as it would be with this drag at the pointer. */
+  private draggedZone(
+    drag: NonNullable<MapScene['zoneDrag']>,
+    event: FederatedPointerEvent,
+  ): ZoneDto | null {
+    const map = this.map16();
+    if (!map) return null;
+    const at = this.at16(event);
+    const dx = at.x - drag.from.x;
+    const dy = at.y - drag.from.y;
+    const { zone, grab } = drag;
+    switch (grab.kind) {
+      case 'move': {
+        // A name the GM placed moves with the zone; the default one follows it anyway.
+        const moved = moveShape(zone.shape, dx, dy, map);
+        const label = zone.label
+          ? clampLabel({ x: zone.label.x + moved.dx, y: zone.label.y + moved.dy }, map)
+          : null;
+        return { ...zone, shape: moved.shape, label };
+      }
+      case 'handle':
+        return { ...zone, shape: dragHandle(zone.shape, grab.handle, at, map) };
+      case 'label': {
+        const from = labelPosition(zone);
+        return { ...zone, label: clampLabel({ x: from.x + dx, y: from.y + dy }, map) };
+      }
+    }
+  }
+
+  /** A press in edit mode: select, start a drag, or rename on a double click on the name. */
+  private zoneDown(event: FederatedPointerEvent): boolean {
+    const at = this.at16(event);
+    const hit = this.zoneGrabAt(at);
+    if (!hit) {
+      this.lastLabelPress = null;
+      if (this.selectedZone !== null) this.zoneEdit.onSelect(null);
+      return false;
+    }
+    if (hit.zone.id !== this.selectedZone) this.zoneEdit.onSelect(hit.zone.id);
+    if (hit.grab.kind === 'label') {
+      const last = this.lastLabelPress;
+      const now = performance.now();
+      if (last?.zoneId === hit.zone.id && now - last.time < DOUBLE_CLICK_MS) {
+        this.lastLabelPress = null;
+        this.zoneEdit.onRename(hit.zone.id);
+        return true;
+      }
+      this.lastLabelPress = { zoneId: hit.zone.id, time: now };
+    }
+    this.zoneDrag = {
+      zone: hit.zone,
+      grab: hit.grab,
+      from: at,
+      start: { x: event.global.x, y: event.global.y },
+      moved: false,
+    };
+    return true;
+  }
+
+  private zoneMove(event: FederatedPointerEvent): void {
+    const drag = this.zoneDrag;
+    if (drag) {
+      if (!drag.moved) {
+        const distance = Math.hypot(event.global.x - drag.start.x, event.global.y - drag.start.y);
+        if (distance < CLICK_SLOP_PX) return;
+        drag.moved = true;
+        this.lastLabelPress = null;
+      }
+      const zone = this.draggedZone(drag, event);
+      if (zone) {
+        this.zoneOverride = { zone, sent: false };
+        this.drawZones();
+      }
+      return;
+    }
+    const hit = this.zoneGrabAt(this.at16(event));
+    this.app.canvas.style.cursor = !hit
+      ? 'default'
+      : hit.grab.kind === 'handle'
+        ? 'crosshair'
+        : 'move';
+  }
+
+  private zoneUp(event: FederatedPointerEvent): void {
+    const drag = this.zoneDrag;
+    this.zoneDrag = null;
+    if (!drag?.moved) return;
+    const zone = this.draggedZone(drag, event);
+    if (!zone) {
+      this.zoneOverride = null;
+      this.drawZones();
+      return;
+    }
+    const edit: ZoneEdit = {};
+    if (JSON.stringify(zone.shape) !== JSON.stringify(drag.zone.shape)) edit.shape = zone.shape;
+    if (zone.label && JSON.stringify(zone.label) !== JSON.stringify(drag.zone.label)) {
+      edit.label = zone.label;
+    }
+    if (!edit.shape && !edit.label) {
+      this.zoneOverride = null;
+      this.drawZones();
+      return;
+    }
+    this.zoneOverride = { zone, sent: true };
+    this.drawZones();
+    this.zoneEdit.onEdit(drag.zone, edit);
   }
 
   private cancelDrawing(): void {
@@ -447,6 +700,8 @@ export class MapScene {
       this.drawPreview();
       return;
     }
+    // In zone edit mode the left button works on zones; on the empty map it still pans.
+    if (event.button === 0 && this.zoneEditing && this.mapSize && this.zoneDown(event)) return;
     if (event.button !== 0 && event.button !== 1) return;
     this.dragFrom = { x: event.global.x, y: event.global.y };
     this.panStart = event.button === 0 ? { ...this.dragFrom } : null;
@@ -466,6 +721,10 @@ export class MapScene {
       const clamped = tokenPosition(p, this.mapSize);
       this.tokens.dragTo(drag.id, clamped.x / 16, clamped.y / 16);
       this.moves.push({ id: drag.id, ...clamped, final: false });
+      return;
+    }
+    if (this.zoneEditing && !this.dragFrom) {
+      this.zoneMove(event);
       return;
     }
     const drawing = this.drawing;
@@ -489,6 +748,10 @@ export class MapScene {
   };
 
   private readonly onUp = (event: FederatedPointerEvent): void => {
+    if (this.zoneDrag) {
+      this.zoneUp(event);
+      return;
+    }
     const drag = this.tokenDrag;
     if (drag && !drag.moved) {
       // A click: select the token, do not move it.
@@ -526,7 +789,7 @@ export class MapScene {
         Math.hypot(event.global.x - start.x, event.global.y - start.y) < CLICK_SLOP_PX;
       this.dragFrom = null;
       this.panStart = null;
-      this.app.canvas.style.cursor = this.tool ? 'crosshair' : 'grab';
+      this.app.canvas.style.cursor = this.idleCursor();
       if (clicked) this.onSelectToken(null);
     }
   };

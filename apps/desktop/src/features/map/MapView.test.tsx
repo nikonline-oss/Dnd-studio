@@ -8,7 +8,7 @@ import { GridForm } from './GridForm';
 import { MapView } from './MapView';
 import { ZoneList } from './ZoneList';
 import { useZoneTool } from './zoneTool';
-import type { FogTool, TokenMove } from './MapScene';
+import type { FogTool, TokenMove, ZoneEditCallbacks } from './MapScene';
 import type { TokenView } from './TokenLayer';
 import type {
   AssetDto,
@@ -41,6 +41,11 @@ const scene = vi.hoisted(() => ({
   onSelect: null as ((id: string | null) => void) | null,
   onZone: null as ((shape: ZoneShape) => void) | null,
   zones: [] as ZoneDto[][],
+  /** The zone selected when zones were last shown. */
+  selectedZone: null as string | null,
+  editing: [] as boolean[],
+  zoneEdit: null as ZoneEditCallbacks | null,
+  clearZoneOverride: vi.fn(),
   tokens: [] as TokenView[],
   /** canvasToMap returns the canvas point as is (scale 1, no pan). */
   fit: vi.fn(),
@@ -58,7 +63,9 @@ vi.mock('./MapScene', () => ({
       onMove: (move: TokenMove) => void,
       onSelect: (id: string | null) => void,
       onZone: (shape: ZoneShape) => void,
+      zoneEdit: ZoneEditCallbacks,
     ) {
+      scene.zoneEdit = zoneEdit;
       scene.onSelect = onSelect;
       scene.onZone = onZone;
       scene.loadError = onLoadError;
@@ -82,9 +89,17 @@ vi.mock('./MapScene', () => ({
     setTool(tool: FogTool | null) {
       scene.tools.push(tool);
     }
-    setZones(zones: ZoneDto[]) {
+    setZones(zones: ZoneDto[], selected: string | null) {
       scene.zones.push(zones);
+      scene.selectedZone = selected;
     }
+    setZoneEditing(on: boolean) {
+      scene.editing.push(on);
+    }
+    zoneLabelOnCanvas() {
+      return { x: 10, y: 20 };
+    }
+    clearZoneOverride = scene.clearZoneOverride;
     fit = scene.fit;
     destroy = scene.destroy;
   },
@@ -195,6 +210,8 @@ beforeEach(() => {
   scene.onMove = null;
   scene.tokens = [];
   scene.zones = [];
+  scene.editing = [];
+  scene.selectedZone = null;
   scene.rendererError = null;
   scene.fit.mockClear();
   scene.destroy.mockClear();
@@ -372,6 +389,84 @@ describe('MapView fog (ADR-0019)', () => {
         intent: { kind: 'merge_zones', into: id(71), from: [id(70)] },
       });
     });
+  });
+
+  it('zone edit mode: picks a zone from the list, sends moves and the name label, renames in place', async () => {
+    useSelection.setState({ mapId: id(1) });
+    useZoneTool.setState({ drawing: { mode: 'new' }, ticked: [], editing: false, selected: null });
+    const altar: ZoneDto = {
+      id: id(70),
+      map_id: id(1),
+      name: 'Altar',
+      shape: { type: 'rect', x: 0, y: 0, width: 160, height: 160 },
+      version: 3,
+    };
+    const sent = setup(
+      <>
+        <MapView />
+        <ZoneList mapId={id(1)} />
+      </>,
+      [map(1)],
+      'gm',
+      [],
+      { zones: [altar] },
+    );
+    await userEvent.click(await screen.findByRole('button', { name: 'Edit “Altar” on the map' }));
+    await waitFor(() => {
+      expect(scene.editing.at(-1)).toBe(true);
+    });
+    expect(scene.selectedZone).toBe(id(70));
+    expect(scene.tools.at(-1)).toBeNull();
+    expect(screen.getByRole('radio', { name: 'Edit zones' })).toBeChecked();
+    expect(screen.getByRole('status')).toHaveTextContent('Double-click the name');
+
+    // A drag on the map: one update with the new shape and name position.
+    const moved: ZoneShape = { type: 'rect', x: 320, y: 160, width: 160, height: 160 };
+    act(() => {
+      scene.zoneEdit?.onEdit(altar, { shape: moved, label: { x: 400, y: 200 } });
+    });
+    await waitFor(() => {
+      expect(sent[0]).toMatchObject({
+        expected_version: 3,
+        intent: {
+          kind: 'update_zone',
+          id: id(70),
+          name: null,
+          shape: moved,
+          label: { x: 400, y: 200 },
+        },
+      });
+    });
+
+    // A double click on the name: renamed in place; Escape leaves it as it was.
+    act(() => {
+      scene.zoneEdit?.onRename(id(70));
+    });
+    const field = await screen.findByRole('textbox', { name: 'Zone name' });
+    await userEvent.clear(field);
+    await userEvent.type(field, 'Old altar{Enter}');
+    await waitFor(() => {
+      expect(sent[1]?.intent).toMatchObject({ kind: 'update_zone', id: id(70), name: 'Old altar' });
+    });
+    expect(screen.queryByRole('textbox', { name: 'Zone name' })).not.toBeInTheDocument();
+    act(() => {
+      scene.zoneEdit?.onRename(id(70));
+    });
+    await userEvent.type(await screen.findByRole('textbox', { name: 'Zone name' }), 'X{Escape}');
+    expect(screen.queryByRole('textbox', { name: 'Zone name' })).not.toBeInTheDocument();
+
+    // Clicking the empty map deselects; another tool ends edit mode.
+    act(() => {
+      scene.zoneEdit?.onSelect(null);
+    });
+    await waitFor(() => {
+      expect(scene.selectedZone).toBeNull();
+    });
+    await userEvent.click(screen.getByRole('radio', { name: 'Pan (no fog tool)' }));
+    await waitFor(() => {
+      expect(scene.editing.at(-1)).toBe(false);
+    });
+    expect(sent).toHaveLength(2);
   });
 
   it('players never get zones on the scene', async () => {

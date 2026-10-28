@@ -115,6 +115,16 @@ impl ZoneShape {
     }
 }
 
+/// Where a zone's name is drawn: the top-left corner of the text, in Units16 (ADR-0016).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct ZoneLabel {
+    #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
+    pub x: i64,
+    #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
+    pub y: i64,
+}
+
 /// A named zone on a map.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
@@ -123,6 +133,9 @@ pub struct ZoneDto {
     pub map_id: MapId,
     pub name: String,
     pub shape: ZoneShape,
+    /// Where the GM moved the name to; `None` (and zones stored before): at the first part's corner.
+    #[serde(default)]
+    pub label: Option<ZoneLabel>,
     pub version: Version,
 }
 
@@ -140,6 +153,13 @@ mod tests {
         };
         assert!(rect.contains(10, 20) && rect.contains(110, 70) && rect.contains(60, 40));
         assert!(!rect.contains(9, 40) && !rect.contains(60, 71));
+    }
+
+    #[test]
+    fn zones_stored_without_a_label_still_load() {
+        let json = r#"{"id":"0190a000-0000-7000-8000-000000000001","map_id":"0190a000-0000-7000-8000-000000000002","name":"Altar","shape":{"type":"rect","x":0,"y":0,"width":16,"height":16},"version":3}"#;
+        let zone: ZoneDto = serde_json::from_str(json).unwrap();
+        assert_eq!(zone.label, None);
     }
 
     #[test]

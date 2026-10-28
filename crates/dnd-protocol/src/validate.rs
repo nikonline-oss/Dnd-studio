@@ -90,10 +90,16 @@ impl Intent {
                 .chain(height.map(|h| ("height", h)))
                 .collect(),
             Self::MoveBoardNode { x, y, .. } => vec![("x", *x), ("y", *y)],
-            Self::CreateZone { shape, .. }
-            | Self::UpdateZone {
-                shape: Some(shape), ..
-            } => zone_integers(shape),
+            Self::CreateZone { shape, .. } => zone_integers(shape),
+            Self::UpdateZone { shape, label, .. } => shape
+                .iter()
+                .flat_map(zone_integers)
+                .chain(
+                    label
+                        .iter()
+                        .flat_map(|l| [("label.x", l.x), ("label.y", l.y)]),
+                )
+                .collect(),
             Self::UpdateCampaignMeta { .. }
             | Self::UpdateMap { .. }
             | Self::DeleteMap { .. }
@@ -131,7 +137,6 @@ impl Intent {
             | Self::CreateBoardEdge { .. }
             | Self::UpdateBoardEdge { .. }
             | Self::DeleteBoardEdge { .. }
-            | Self::UpdateZone { shape: None, .. }
             | Self::DeleteZone { .. }
             | Self::MergeZones { .. }
             | Self::SetConditions { .. }

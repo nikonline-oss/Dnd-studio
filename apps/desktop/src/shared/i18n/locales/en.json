@@ -487,7 +487,11 @@
     "drawReplace": "Draw the zone’s new rectangle on the map.",
     "drawAdd": "Draw a rectangle on the map to add to the zone.",
     "merge": "Merge into “{{name}}”",
-    "mergeHint": "The first ticked zone stays; the others join it, and their triggers move to it."
+    "mergeHint": "The first ticked zone stays; the others join it, and their triggers move to it.",
+    "edit": "Edit zones",
+    "editOne": "Edit “{{name}}” on the map",
+    "editHint": "Click a zone to select it; drag it, its corners or its name. Double-click the name to rename it.",
+    "nameOnMap": "Zone name"
   },
   "conditions": {
     "title": "Conditions",
