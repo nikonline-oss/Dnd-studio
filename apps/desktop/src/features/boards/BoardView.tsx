@@ -265,7 +265,9 @@ export function BoardView({ boardId }: { boardId: string }) {
             createNode({ type: 'note', markdown: t('boards.newNote') }, 220, 120);
           }}
           onLink={(target) => {
-            createNode({ type: 'link', target }, 200, 56);
+            // A map link has room for the map's picture.
+            if (target.kind === 'map') createNode({ type: 'link', target }, 220, 160);
+            else createNode({ type: 'link', target }, 200, 64);
           }}
           onImage={(assetId) => {
             createNode({ type: 'image', asset_id: assetId }, 240, 180);
@@ -555,10 +557,16 @@ function BoardCard({
       onPointerDown={onPointerDown}
       onDoubleClick={onEdit}
     >
-      {isGm && node.visibility === 'gm' && (
-        <span className="board-card-badge" title={t('boards.gmOnly')}>
-          <Icon name="eyeOff" size={12} />
-        </span>
+      {isGm && (
+        // A strip to grab the card by: links and pictures are clickable all over.
+        <div className="board-card-handle" title={t('boards.dragHandle')} aria-hidden="true">
+          <Icon name="grip" size={14} />
+          {node.visibility === 'gm' && (
+            <span className="board-card-badge" title={t('boards.gmOnly')}>
+              <Icon name="eyeOff" size={12} />
+            </span>
+          )}
+        </div>
       )}
       {content.type === 'note' ? (
         editing ? (
@@ -625,6 +633,13 @@ function LinkCard({ target }: { target: BoardLink }) {
         return s.characters.find((c) => c.id === target.id)?.name;
     }
   });
+  // A map link shows the map's picture.
+  const picture = useSnapshotSelect((s) => {
+    if (target.kind !== 'map') return null;
+    const map = s.maps.find((m) => m.id === target.id);
+    const asset = s.assets.find((a) => a.id === map?.background_asset_id);
+    return asset ? assetUrl(asset.thumbnail_sha256) : null;
+  });
   const openMap = useSelection((s) => s.openMap);
   const openJournal = useSelection((s) => s.openJournal);
   const openCharacter = useSelection((s) => s.openCharacter);
@@ -644,8 +659,11 @@ function LinkCard({ target }: { target: BoardLink }) {
       }}
       onClick={open}
     >
-      <Icon name={icon[target.kind]} />
-      <span>{name ?? t('boards.unavailable')}</span>
+      {picture && <img className="board-link-picture" src={picture} alt="" draggable={false} />}
+      <span className="board-link-caption">
+        <Icon name={icon[target.kind]} />
+        <span>{name ?? t('boards.unavailable')}</span>
+      </span>
     </button>
   );
 }

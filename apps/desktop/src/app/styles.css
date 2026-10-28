@@ -2463,24 +2463,65 @@ input[type='checkbox'] {
   padding: 0;
 }
 
+/* GM roles grab cards by this strip (links and pictures are clickable all over). */
+.board-card-handle {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  height: 14px;
+  margin: calc(-1 * var(--space-2)) calc(-1 * var(--space-2)) var(--space-1);
+  color: var(--color-text-muted);
+  background: var(--color-surface-alt);
+  border-bottom: 1px solid var(--color-border);
+  cursor: grab;
+}
+
+.board-card-link .board-card-handle,
+.board-card-image .board-card-handle {
+  margin: 0;
+}
+
 .board-card-badge {
   position: absolute;
-  top: 4px;
+  top: 0;
   right: 4px;
   color: var(--color-text-muted);
 }
 
 .board-link {
-  justify-content: flex-start;
-  height: 100%;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-end;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
   border: 0;
   background: none;
   box-shadow: none;
 }
 
-.board-image {
+.board-link-picture {
+  flex: 1;
+  min-height: 0;
   width: 100%;
-  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+
+.board-link-caption {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: var(--space-1) var(--space-2);
+}
+
+.board-image {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
   object-fit: cover;
   pointer-events: none;
 }
@@ -2555,4 +2596,96 @@ input[type='checkbox'] {
 .give-item input {
   flex: 1;
   min-width: 0;
+}
+
+/* ---------- Element picker (a selection form, as in 1C) ---------- */
+
+.dialog:has(.picker) {
+  width: min(760px, 100%);
+}
+
+.picker {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-3);
+  min-height: 360px;
+}
+
+.picker-kinds {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-right: var(--space-3);
+  border-right: 1px solid var(--color-border);
+}
+
+.picker-kinds button {
+  justify-content: flex-start;
+  background: none;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.picker-kinds button[aria-pressed='true'] {
+  background: var(--color-accent-soft);
+  border-color: var(--color-accent);
+}
+
+.picker-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.picker-list {
+  flex: 1;
+  max-height: 360px;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.picker-list [role='option'] {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) minmax(0, 40%);
+  align-items: center;
+  gap: var(--space-2);
+  padding: 4px var(--space-2);
+  cursor: pointer;
+}
+
+.picker-list [role='option']:hover {
+  background: var(--color-hover);
+}
+
+.picker-list [role='option'][aria-selected='true'] {
+  background: var(--color-accent-soft);
+}
+
+.picker-list > .muted {
+  padding: var(--space-2);
+}
+
+.picker-thumb {
+  width: 32px;
+  height: 24px;
+  object-fit: cover;
+  border-radius: 3px;
+}
+
+.picker-name,
+.picker-detail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
 }

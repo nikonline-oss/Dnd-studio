@@ -439,8 +439,8 @@
     "tools": "Board tools",
     "addNote": "Note",
     "newNote": "New note",
-    "addLink": "Link…",
-    "addImage": "Picture…",
+    "addLink": "Link",
+    "addImage": "Picture",
     "connect": "Connect",
     "connectHint": "Pick the card to connect the selected one to.",
     "resetView": "Reset view",
@@ -460,7 +460,10 @@
     "link": "Link",
     "image": "Picture",
     "noteText": "Note text",
-    "unavailable": "Unavailable"
+    "unavailable": "Unavailable",
+    "dragHandle": "Drag to move",
+    "pickLink": "Link to…",
+    "pickImage": "Picture"
   },
   "zones": {
     "draw": "Draw a zone",
@@ -479,5 +482,30 @@
   "items": {
     "name": "Item",
     "give": "Give item"
+  },
+  "picker": {
+    "title": "Pick an element",
+    "kinds": "Element kinds",
+    "search": "Search",
+    "nothing": "Nothing found",
+    "select": "Select",
+    "cancel": "Cancel",
+    "shown": "visible to players",
+    "hidden": "hidden",
+    "npc": "NPC",
+    "unnamed": "Unnamed",
+    "emptyNote": "Empty note",
+    "image": "Picture",
+    "link": "Link",
+    "kind": {
+      "map": "Maps",
+      "journal": "Journal",
+      "character": "Characters",
+      "token": "Tokens",
+      "board": "Boards",
+      "board_node": "Board cards",
+      "zone": "Zones",
+      "asset": "Pictures"
+    }
   }
 }
