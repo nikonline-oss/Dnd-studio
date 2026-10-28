@@ -8,6 +8,8 @@ import { MenuBar } from './MenuBar';
 import { StatusBar } from './StatusBar';
 import { BoardList } from '@/features/boards/BoardList';
 import { BoardView } from '@/features/boards/BoardView';
+import { TriggerEditor } from '@/features/triggers/TriggerEditor';
+import { TriggerList } from '@/features/triggers/TriggerList';
 import { CharacterEditor } from '@/features/characters/CharacterEditor';
 import { CharacterList } from '@/features/characters/CharacterList';
 import { ChatPanel } from '@/features/chat/ChatPanel';
@@ -35,7 +37,7 @@ const BOTTOM_TAB_ICONS = { chat: 'send', initiative: 'dice', logs: 'book' } as c
 const MapView = lazy(() => import('@/features/map/MapView').then((m) => ({ default: m.MapView })));
 
 /** Side panel views per preset; players get no map list (§5: the map is chosen for them). */
-const GM_VIEWS: SideView[] = ['maps', 'characters', 'journal', 'plugins', 'boards'];
+const GM_VIEWS: SideView[] = ['maps', 'characters', 'journal', 'plugins', 'boards', 'triggers'];
 const PLAYER_VIEWS: SideView[] = ['characters', 'journal', 'boards'];
 const VIEW_ICONS = {
   maps: 'map',
@@ -43,6 +45,7 @@ const VIEW_ICONS = {
   journal: 'book',
   plugins: 'puzzle',
   boards: 'board',
+  triggers: 'bolt',
 } as const;
 
 /**
@@ -62,10 +65,20 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
   const sheetName = useSnapshotSelect((s) => s.characters.find((c) => c.id === sheetId)?.name);
   const boardId = active?.kind === 'board' ? active.id : null;
   const boardName = useSnapshotSelect((s) => s.boards.find((b) => b.id === boardId)?.name);
+  const triggerId = active?.kind === 'trigger' ? active.id : null;
+  const triggerName = useSnapshotSelect(
+    (s) => s.triggers.find((tr) => tr.id === triggerId)?.definition.name,
+  );
   const journalTitle = useSnapshotSelect((s) => s.journal.find((e) => e.id === journalId)?.title);
   const mapName = useSnapshotSelect((s) => s.maps.find((m) => m.id === mapId)?.name);
   // Breadcrumbs follow the tab in front.
-  const crumbs = { journal: journalTitle, character: sheetName, board: boardName, map: mapName };
+  const crumbs = {
+    journal: journalTitle,
+    character: sheetName,
+    board: boardName,
+    trigger: triggerName,
+    map: mapName,
+  };
   const crumb = crumbs[center];
   const isGm = preset === 'gm';
   // Logs are a GM/maintenance tool; the player preset keeps only chat (§5).
@@ -181,6 +194,10 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
               <ErrorBoundary name={t('characters.title')}>
                 <CharacterList />
               </ErrorBoundary>
+            ) : sideView === 'triggers' ? (
+              <ErrorBoundary name={t('triggers.title')}>
+                <TriggerList />
+              </ErrorBoundary>
             ) : sideView === 'boards' ? (
               <ErrorBoundary name={t('boards.title')}>
                 <BoardList />
@@ -208,6 +225,10 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
                   {center === 'journal' ? (
                     <ErrorBoundary name={t('journal.title')}>
                       <JournalEditor />
+                    </ErrorBoundary>
+                  ) : center === 'trigger' && triggerId !== null ? (
+                    <ErrorBoundary name={t('triggers.title')}>
+                      <TriggerEditor key={triggerId} triggerId={triggerId} />
                     </ErrorBoundary>
                   ) : center === 'board' && boardId !== null ? (
                     <ErrorBoundary name={t('boards.title')}>

@@ -245,3 +245,56 @@ export function ElementPicker({
     </Dialog>
   );
 }
+
+/** The name of an element, or `null` when it is gone (or hidden from this viewer). */
+export function useElementName(kind: ElementKind, id: string | null): string | null {
+  const { t } = useTranslation();
+  const snapshot = useSnapshotSelect((s) => s);
+  if (!snapshot || id === null) return null;
+  return rowsOf(snapshot, kind, t).find((r) => r.id === id)?.name ?? null;
+}
+
+/** A form field holding one element: its name and a "Pick…" button opening the selection form. */
+export function ElementField({
+  label,
+  kinds,
+  value,
+  onChange,
+}: {
+  label: string;
+  kinds: ElementKind[];
+  value: { kind: ElementKind; id: string } | null;
+  onChange: (element: PickedElement) => void;
+}) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const name = useElementName(value?.kind ?? kinds[0] ?? 'map', value?.id ?? null);
+  return (
+    <div className="element-field">
+      <span className="element-field-label">{label}</span>
+      <span className="element-field-value" data-empty={name === null}>
+        {value && <Icon name={ICONS[value.kind]} size={14} />}
+        {name ?? (value ? t('picker.gone') : t('picker.none'))}
+      </span>
+      <button
+        type="button"
+        aria-label={t('picker.pickFor', { label })}
+        onClick={() => {
+          setOpen(true);
+        }}
+      >
+        {t('picker.pick')}
+      </button>
+      {open && (
+        <ElementPicker
+          title={label}
+          kinds={kinds}
+          onPick={onChange}
+          onClose={() => {
+            setOpen(false);
+          }}
+        />
+      )}
+    </div>
+  );
+}

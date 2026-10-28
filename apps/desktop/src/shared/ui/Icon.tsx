@@ -42,6 +42,7 @@ const PATHS = {
   note: 'M5 4h14v12l-4 4H5zM15 20v-4h4M8 9h8M8 13h5',
   zone: 'M4 4h3M10 4h4M17 4h3v3M20 10v4M20 17v3h-3M14 20h-4M7 20H4v-3M4 14v-4M4 7V4',
   grip: 'M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01',
+  bolt: 'M13 2L4 14h7l-1 8 9-12h-7z',
 } as const;
 
 export type IconName = keyof typeof PATHS;

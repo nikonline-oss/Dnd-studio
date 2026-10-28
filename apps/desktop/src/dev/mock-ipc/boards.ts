@@ -1,5 +1,6 @@
 // Boards and zones in the browser mock (ADR-0024): a rough stand-in for the core, enough to look at the
 // canvas. Dev only, never shipped.
+import { uuidv7 } from '@/shared/ipc/uuid';
 import type {
   BoardDto,
   BoardEdgeDto,
@@ -147,6 +148,69 @@ export function boardEvents(snapshot: Snapshot, intent: Intent): Event[] | null 
     }
     case 'delete_zone':
       return [{ kind: 'zone_deleted', id: intent.id }];
+    case 'create_trigger':
+      return [
+        {
+          kind: 'trigger_created',
+          trigger: { id: intent.id, definition: intent.definition, fired: false, version: 1 },
+        },
+      ];
+    case 'update_trigger': {
+      const trigger = snapshot.triggers.find((tr) => tr.id === intent.id);
+      if (!trigger) return [];
+      return [
+        {
+          kind: 'trigger_updated',
+          trigger: bump(trigger, { definition: intent.definition, fired: false }),
+        },
+      ];
+    }
+    case 'delete_trigger':
+      return [{ kind: 'trigger_deleted', id: intent.id }];
+    case 'fire_trigger': {
+      // A rough stand-in for the core: reveals and chat lines only.
+      const trigger = snapshot.triggers.find((tr) => tr.id === intent.id);
+      if (!trigger) return [];
+      const events: Event[] = [
+        {
+          kind: 'trigger_fired',
+          fired: {
+            trigger: trigger.id,
+            name: trigger.definition.name,
+            character: null,
+            token: null,
+          },
+        },
+      ];
+      for (const { action } of trigger.definition.steps) {
+        if (action.type === 'reveal' && action.target.kind === 'node') {
+          const node = snapshot.board_nodes.find((n) => n.id === action.target.id);
+          if (node) {
+            events.push({
+              kind: 'board_node_updated',
+              node: bump(node, { visibility: 'players' }),
+            });
+          }
+        }
+        if (action.type === 'chat') {
+          events.push({
+            kind: 'chat_message_posted',
+            message: {
+              id: uuidv7(),
+              kind: 'system',
+              sender: null,
+              sender_name: '',
+              body: '',
+              roll: null,
+              system: { code: 'narration', text: action.text },
+              visibility: action.gm_only ? 'gm' : 'all',
+              at_ms: null,
+            },
+          });
+        }
+      }
+      return events;
+    }
     default:
       return null;
   }

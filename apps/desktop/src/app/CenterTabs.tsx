@@ -4,7 +4,13 @@ import { useSnapshotSelect } from '@/shared/game/useGame';
 import { useSelection, type TabRef } from '@/shared/state/selection';
 import { Icon } from '@/shared/ui/Icon';
 
-const TAB_ICONS = { map: 'map', journal: 'book', character: 'user', board: 'board' } as const;
+const TAB_ICONS = {
+  map: 'map',
+  journal: 'book',
+  character: 'user',
+  board: 'board',
+  trigger: 'bolt',
+} as const;
 
 /**
  * Tab bar of the center area: maps, journal entries and character sheets opened from the navigator. A tab stays
@@ -19,6 +25,9 @@ export function CenterTabs() {
     s.characters.map((c) => ({ id: c.id, name: c.name })),
   );
   const boards = useSnapshotSelect((s) => s.boards.map((b) => ({ id: b.id, name: b.name })));
+  const triggers = useSnapshotSelect((s) =>
+    s.triggers.map((tr) => ({ id: tr.id, name: tr.definition.name })),
+  );
   const tabs = useSelection((s) => s.tabs);
   const active = useSelection((s) => s.active);
   const activate = useSelection((s) => s.activate);
@@ -28,10 +37,16 @@ export function CenterTabs() {
 
   // Deleted here or by someone else: the tab goes away with the entity.
   useEffect(() => {
-    if (!maps || !entries || !characters || !boards) return;
-    const lists = { map: maps, journal: entries, character: characters, board: boards };
+    if (!maps || !entries || !characters || !boards || !triggers) return;
+    const lists = {
+      map: maps,
+      journal: entries,
+      character: characters,
+      board: boards,
+      trigger: triggers,
+    };
     pruneTabs((tab) => lists[tab.kind].some((item) => item.id === tab.id));
-  }, [maps, entries, characters, boards, pruneTabs]);
+  }, [maps, entries, characters, boards, triggers, pruneTabs]);
 
   const title = (tab: TabRef) =>
     tab.kind === 'map'
@@ -40,7 +55,9 @@ export function CenterTabs() {
         ? (entries?.find((e) => e.id === tab.id)?.title ?? t('journal.title'))
         : tab.kind === 'character'
           ? (characters?.find((c) => c.id === tab.id)?.name ?? t('characters.title'))
-          : (boards?.find((b) => b.id === tab.id)?.name ?? t('boards.title'));
+          : tab.kind === 'board'
+            ? (boards?.find((b) => b.id === tab.id)?.name ?? t('boards.title'))
+            : (triggers?.find((tr) => tr.id === tab.id)?.name ?? t('triggers.title'));
 
   // No map opened in a tab (always so for players, who have no navigator): the map view keeps a
   // tab of its own, so opening a journal entry does not hide the map.

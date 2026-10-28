@@ -2689,3 +2689,178 @@ input[type='checkbox'] {
   justify-content: flex-end;
   gap: var(--space-2);
 }
+
+.element-field {
+  display: grid;
+  grid-template-columns: minmax(120px, auto) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.element-field-label {
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.element-field-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.element-field-value[data-empty='true'] {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+/* ---------- Triggers (ADR-0024) ---------- */
+
+.trigger-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-width: 900px;
+  margin: 0 auto;
+  padding: var(--space-3);
+}
+
+.trigger-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.trigger-name {
+  flex: 1;
+  min-width: 200px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.trigger-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.trigger-section legend {
+  padding: 0 var(--space-1);
+  color: var(--color-accent);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 12px;
+}
+
+.trigger-field {
+  display: grid;
+  grid-template-columns: minmax(120px, auto) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.trigger-field > span {
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.trigger-rolls,
+.trigger-tokens {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.trigger-hint {
+  font-size: 12px;
+}
+
+.trigger-steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.trigger-step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.trigger-step-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.trigger-step-head select {
+  flex: 1;
+}
+
+.trigger-step-n {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  color: var(--color-accent-contrast);
+  background: var(--color-accent);
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.trigger-step-head .up svg {
+  transform: rotate(-90deg);
+}
+
+.trigger-step-head .down svg {
+  transform: rotate(90deg);
+}
+
+.trigger-step-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.trigger-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.trigger-run {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.nav-row[data-disabled='true'] .nav-row-name {
+  opacity: 0.6;
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
