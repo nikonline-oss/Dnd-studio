@@ -8,6 +8,7 @@ import { MenuBar } from './MenuBar';
 import { StatusBar } from './StatusBar';
 import { BoardList } from '@/features/boards/BoardList';
 import { BoardView } from '@/features/boards/BoardView';
+import { ImageLibrary } from '@/features/images/ImageLibrary';
 import { TriggerEditor } from '@/features/triggers/TriggerEditor';
 import { TriggerList } from '@/features/triggers/TriggerList';
 import { CharacterEditor } from '@/features/characters/CharacterEditor';
@@ -37,7 +38,15 @@ const BOTTOM_TAB_ICONS = { chat: 'send', initiative: 'dice', logs: 'book' } as c
 const MapView = lazy(() => import('@/features/map/MapView').then((m) => ({ default: m.MapView })));
 
 /** Side panel views per preset; players get no map list (§5: the map is chosen for them). */
-const GM_VIEWS: SideView[] = ['maps', 'characters', 'journal', 'plugins', 'boards', 'triggers'];
+const GM_VIEWS: SideView[] = [
+  'maps',
+  'characters',
+  'journal',
+  'plugins',
+  'boards',
+  'triggers',
+  'images',
+];
 const PLAYER_VIEWS: SideView[] = ['characters', 'journal', 'boards'];
 const VIEW_ICONS = {
   maps: 'map',
@@ -46,6 +55,7 @@ const VIEW_ICONS = {
   plugins: 'puzzle',
   boards: 'board',
   triggers: 'bolt',
+  images: 'image',
 } as const;
 
 /**
@@ -193,6 +203,10 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
             ) : sideView === 'characters' ? (
               <ErrorBoundary name={t('characters.title')}>
                 <CharacterList />
+              </ErrorBoundary>
+            ) : sideView === 'images' ? (
+              <ErrorBoundary name={t('images.title')}>
+                <ImageLibrary />
               </ErrorBoundary>
             ) : sideView === 'triggers' ? (
               <ErrorBoundary name={t('triggers.title')}>

@@ -306,7 +306,8 @@
     "cancel": "Cancel",
     "confirmDeleteEntry": "Delete the entry “{{title}}”?",
     "confirmDeleteEmptyFolder": "Delete the empty folder “{{name}}”?",
-    "confirmDeleteFolder": "Delete the folder “{{name}}” with everything in it? Entries: {{entries}}, subfolders: {{folders}}."
+    "confirmDeleteFolder": "Delete the folder “{{name}}” with everything in it? Entries: {{entries}}, subfolders: {{folders}}.",
+    "insertPicture": "Picture…"
   },
   "chat": {
     "input": "Message",
@@ -359,7 +360,8 @@
     "badge_other": "{{count}} waiting for approval",
     "plugins": "Plugins",
     "boards": "Boards",
-    "triggers": "Triggers"
+    "triggers": "Triggers",
+    "images": "Pictures"
   },
   "session": {
     "host": "Invite players…",
@@ -589,5 +591,14 @@
     "templates": "Templates",
     "noTemplates": "The installed plugins have no trigger templates.",
     "createFromTemplate": "Create trigger"
+  },
+  "images": {
+    "title": "Pictures",
+    "import": "Import pictures…",
+    "empty": "No pictures. Import images to put them on boards and into the journal.",
+    "toBoard": "Onto the open board",
+    "openBoardFirst": "Open a board in a tab first",
+    "copyForJournal": "Copy for the journal",
+    "copied": "Copied: paste it into an entry"
   }
 }

@@ -4,6 +4,7 @@ import { useCampaign, useJournalEntry, useSubmitIntent } from '@/shared/game/use
 import { IntentRejected, type JournalEntryDto } from '@/shared/ipc/client';
 import { useSelection } from '@/shared/state/selection';
 import { CodeEditor } from '@/shared/ui/CodeEditor';
+import { ElementPicker } from '@/shared/ui/ElementPicker';
 import { ErrorText } from '@/shared/ui/ErrorText';
 import { InlineEdit } from '@/shared/ui/InlineEdit';
 import { Markdown } from '@/shared/ui/Markdown';
@@ -30,6 +31,7 @@ function Editor({ entry }: { entry: JournalEntryDto }) {
   const [draft, setDraft] = useState<string | null>(null);
   const [conflict, setConflict] = useState(false);
   const [preview, setPreview] = useState(false);
+  const [picking, setPicking] = useState(false);
 
   const isGm = campaign?.role === 'gm' || campaign?.role === 'co_gm';
   const canEditText =
@@ -123,6 +125,16 @@ function Editor({ entry }: { entry: JournalEntryDto }) {
             entry.title
           )}
         </h2>
+        {canEditText && !preview && (
+          <button
+            type="button"
+            onClick={() => {
+              setPicking(true);
+            }}
+          >
+            {t('journal.insertPicture')}
+          </button>
+        )}
         <button
           type="button"
           aria-pressed={preview}
@@ -133,6 +145,22 @@ function Editor({ entry }: { entry: JournalEntryDto }) {
           {preview ? t('journal.edit') : t('journal.preview')}
         </button>
       </header>
+      {picking && (
+        <ElementPicker
+          title={t('journal.insertPicture')}
+          kinds={['asset']}
+          onClose={() => {
+            setPicking(false);
+          }}
+          onPick={({ id, name }) => {
+            // Appended to the draft: saved with the text after the usual debounce.
+            const alt = name.replace(/\.[a-z0-9]+$/i, '').replace(/[[\]]/g, '');
+            setDraft(
+              `${text}${text.endsWith('\n') || text === '' ? '' : '\n\n'}![${alt}](asset:${id})\n`,
+            );
+          }}
+        />
+      )}
 
       {isGm && (
         <div className="inline actions">

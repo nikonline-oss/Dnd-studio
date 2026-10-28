@@ -73,6 +73,62 @@ pub async fn asset_import_map<R: Runtime>(
     .map(Some)
 }
 
+/// Asks for pictures (several at once) and imports them into the campaign's image library
+/// (ADR-0024): one WebP each, at most 2048 px per side, like portraits. The same picture imported
+/// again is reused. Returns the assets in the order picked (empty if cancelled).
+#[tauri::command]
+#[specta::specta]
+pub async fn asset_import_images<R: Runtime>(
+    app: AppHandle<R>,
+    state: State<'_, AppState>,
+) -> Result<Vec<AssetId>, IpcError> {
+    let paths = pick_images(&app).await;
+    let assets_dir = {
+        let guard = state.server.lock().await;
+        let server = guard.as_ref().ok_or_else(IpcError::no_campaign)?;
+        server.folder().join(ASSETS_DIR)
+    };
+    let mut ids = Vec::with_capacity(paths.len());
+    for path in paths {
+        let original_name = path.file_name().map(|s| s.to_string_lossy().into_owned());
+        let imported = read_and_import(path, assets_dir.clone(), AssetUsage::Token).await?;
+        let mut guard = state.server.lock().await;
+        let server = guard.as_mut().ok_or_else(IpcError::no_campaign)?;
+        let id = register_image(server, &imported, original_name, |batch| {
+            if let Err(e) = GameEventsEmitted(batch).emit(&app) {
+                tracing::error!(error = %e, "failed to emit game events");
+            }
+        })
+        .await?;
+        ids.push(id);
+    }
+    Ok(ids)
+}
+
+/// Registers an imported picture unless the same original exists; returns its asset.
+pub async fn register_image(
+    server: &mut LocalServer,
+    imported: &Imported,
+    original_name: Option<String>,
+    mut on_batch: impl FnMut(EventBatch),
+) -> Result<AssetId, IpcError> {
+    if let Some(existing) = server.asset_by_sha(&imported.original.sha256) {
+        return Ok(existing);
+    }
+    let asset = asset_dto(imported, original_name);
+    let id = asset.id;
+    on_batch(
+        submit(
+            server,
+            Intent::RegisterAsset {
+                asset: Box::new(asset),
+            },
+        )
+        .await?,
+    );
+    Ok(id)
+}
+
 /// Registers an imported image (unless the same original exists) and creates a map of its size.
 pub async fn register_map(
     server: &mut LocalServer,
@@ -203,6 +259,22 @@ async fn pick_image<R: Runtime>(app: &AppHandle<R>) -> Option<PathBuf> {
             let _ = tx.send(file.and_then(|f| f.into_path().ok()));
         });
     rx.await.ok().flatten()
+}
+
+async fn pick_images<R: Runtime>(app: &AppHandle<R>) -> Vec<PathBuf> {
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    app.dialog()
+        .file()
+        .add_filter("Images", &["png", "jpg", "jpeg", "webp"])
+        .pick_files(move |files| {
+            let paths = files
+                .unwrap_or_default()
+                .into_iter()
+                .filter_map(|f| f.into_path().ok())
+                .collect();
+            let _ = tx.send(paths);
+        });
+    rx.await.unwrap_or_default()
 }
 
 /// `dnd-asset` handler: serves `assets/<sha256>.webp` of the open campaign, nothing else.

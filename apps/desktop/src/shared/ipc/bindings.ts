@@ -85,6 +85,12 @@ export const commands = {
 	source_height: number,
 } | null, IpcError>(__TAURI_INVOKE("asset_import_map")),
 	/**
+	 *  Asks for pictures (several at once) and imports them into the campaign's image library
+	 *  (ADR-0024): one WebP each, at most 2048 px per side, like portraits. The same picture imported
+	 *  again is reused. Returns the assets in the order picked (empty if cancelled).
+	 */
+	assetImportImages: () => typedError<AssetId[], IpcError>(__TAURI_INVOKE("asset_import_images")),
+	/**
 	 *  Applies an intent through the game core and commits the resulting events. Only then are they
 	 *  broadcast as [`GameEventsEmitted`], so every view updates the same way for local and remote
 	 *  play and never shows an event that is not on disk.

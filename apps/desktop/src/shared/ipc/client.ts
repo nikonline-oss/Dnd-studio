@@ -72,6 +72,7 @@ export const ipc = {
   campaignCurrent: () => unwrap(commands.campaignCurrent()),
   getSnapshot: () => unwrap(commands.getSnapshot()),
   assetImportMap: () => unwrap(commands.assetImportMap()),
+  assetImportImages: () => unwrap(commands.assetImportImages()),
 };
 
 /** Writes to the application log file; never throws (logging must not break the caller). */

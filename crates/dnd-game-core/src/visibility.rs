@@ -27,6 +27,14 @@ use dnd_protocol::{
 
 use crate::state::GameState;
 
+/// The pictures a journal text shows: `![…](asset:<asset id>)` (ADR-0024).
+pub fn journal_pictures(markdown: &str) -> impl Iterator<Item = AssetId> + '_ {
+    markdown.split("](asset:").skip(1).filter_map(|rest| {
+        let id = rest.split(')').next()?.trim();
+        id.parse().ok().map(AssetId)
+    })
+}
+
 /// Whether `role` sees the full state.
 #[must_use]
 pub fn sees_everything(role: Role) -> bool {
@@ -129,6 +137,13 @@ impl PlayersSee {
                         BoardNodeContent::Image { asset_id } => Some(asset_id),
                         _ => None,
                     }),
+            )
+            .chain(
+                state
+                    .journal
+                    .values()
+                    .filter(|e| entries.contains(&e.id))
+                    .flat_map(|e| journal_pictures(&e.markdown)),
             )
             .collect();
         let combats: BTreeSet<_> = state

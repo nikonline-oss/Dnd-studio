@@ -2878,3 +2878,65 @@ input[type='checkbox'] {
   flex-direction: column;
   gap: var(--space-2);
 }
+
+/* ---------- Image library (ADR-0024) ---------- */
+
+.image-search {
+  margin: 0 var(--space-2) var(--space-2);
+}
+
+.image-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0 var(--space-2);
+  overflow: auto;
+  list-style: none;
+}
+
+.image-grid [role='option'] {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.image-grid [role='option'][aria-selected='true'] {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
+.image-grid img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 3px;
+}
+
+.image-grid span {
+  overflow: hidden;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.image-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-2);
+}
+
+.md-image {
+  max-width: 100%;
+  border-radius: var(--radius);
+}
+
+.md-image-missing {
+  color: var(--color-text-muted);
+  font-style: italic;
+}

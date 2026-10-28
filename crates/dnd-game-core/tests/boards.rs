@@ -386,3 +386,51 @@ fn revealing_a_node_sends_a_snapshot_and_hidden_moves_are_redacted() {
         ]
     );
 }
+
+#[test]
+fn players_see_the_pictures_of_journal_entries_open_to_them() {
+    let picture = |n: u128| AssetDto {
+        id: AssetId(v7(0x7700 + n)),
+        usage: AssetUsage::Token,
+        sha256: format!("{n:064x}"),
+        mime: "image/png".into(),
+        size_bytes: 10,
+        original_name: Some(format!("picture {n}.png")),
+        width: 10,
+        height: 10,
+        display_sha256: Some(format!("{n:064x}")),
+        thumbnail_sha256: format!("{n:064x}"),
+        tiles: Vec::new(),
+        version: Version::INITIAL,
+    };
+    let mut state = table_state();
+    for n in [0, 1] {
+        let asset = picture(n);
+        state.assets.insert(asset.id, asset);
+    }
+    for (n, visibility) in [(0, JournalVisibility::Players), (1, JournalVisibility::Gm)] {
+        run(
+            &mut state,
+            Role::Gm,
+            Intent::CreateJournalEntry {
+                id: JournalEntryId(v7(0x7710 + n)),
+                folder_id: None,
+                title: format!("Entry {n}"),
+                markdown: format!("See ![the hall](asset:{}) here.", AssetId(v7(0x7700 + n))),
+                visibility,
+                players_can_edit: false,
+            },
+            None,
+        )
+        .unwrap();
+    }
+    let seen = players_state(&state);
+    assert_eq!(
+        seen.assets.keys().copied().collect::<Vec<_>>(),
+        [AssetId(v7(0x7700))]
+    );
+    assert_eq!(
+        dnd_game_core::journal_pictures("![a](asset:nope) ![b](https://x) text").count(),
+        0
+    );
+}
