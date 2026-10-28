@@ -8,6 +8,8 @@ import type { Grid, TokenDto } from '@/shared/ipc/client';
 
 /** Ring around the token whose turn it is (the accent colour). */
 const ACTIVE_RING = 0xe3aa45;
+/** The dot of a token whose character has conditions. */
+const CONDITION_DOT = 0xe5484d;
 
 /** How the viewer sees a token. */
 export interface TokenView {
@@ -22,6 +24,8 @@ export interface TokenView {
   active: boolean;
   /** Selected (its properties are in the inspector): drawn with a white ring. */
   selected: boolean;
+  /** How many conditions its character has (ADR-0024): a red dot at the top right. */
+  conditions: number;
 }
 
 interface Sprite {
@@ -65,7 +69,7 @@ export class TokenLayer {
         this.view.addChild(sprite.root);
       }
       const diameter = tokenDiameter(grid, token.scale);
-      const look = `${diameter}:${token.name}:${view.colorKey}:${view.gmOnly}:${view.active}:${view.selected}`;
+      const look = `${diameter}:${token.name}:${view.colorKey}:${view.gmOnly}:${view.active}:${view.selected}:${view.conditions}`;
       if (look !== sprite.look) {
         this.draw(sprite, view, diameter);
         sprite.look = look;
@@ -184,6 +188,14 @@ export class TokenLayer {
       sprite.disc
         .circle(0, 0, r + Math.max(3, r * 0.18))
         .stroke({ color: ACTIVE_RING, width: Math.max(2.5, r * 0.14) });
+    }
+    if (view.conditions > 0) {
+      // Conditions apply: a red dot at the top right, like a notification badge.
+      const d = r * 0.7;
+      sprite.disc
+        .circle(d, -d, Math.max(3, r * 0.22))
+        .fill({ color: CONDITION_DOT })
+        .stroke({ color: 0xffffff, width: Math.max(1, r * 0.05) });
     }
     sprite.root.alpha = view.gmOnly ? 0.55 : 1;
     sprite.label.text = tokenInitial(view.token.name);

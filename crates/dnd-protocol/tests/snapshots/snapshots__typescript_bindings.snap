@@ -136,6 +136,8 @@ export type CharacterDto = {
 	owner: UserId | null,
 	status: CharacterStatus,
 	sheet_json: string,
+	/**  Ids of the system's conditions that apply (ADR-0024); stored before conditions existed: empty. */
+	conditions?: string[],
 	version: Version,
 };
 
@@ -219,6 +221,12 @@ export type CombatantDto = {
 
 /**  A participant of a combat. */
 export type CombatantId = string;
+
+/**  A condition of the system (poisoned, prone, …), shown on sheets and tokens (ADR-0024). */
+export type ConditionDef = {
+	id: string,
+	label: Label,
+};
 
 /**  Result of a dice roll (ADR-0005, ADR-0016: all numbers are integers). */
 export type DiceRollDto = {
@@ -432,7 +440,19 @@ asset: AssetDto } |
  *  Everyone except spectators. `hidden` (seen by GM roles only) is for GM and Co-GM. Field
  *  references (`@str_mod`) read the sheet of `character_id`, which a player must own.
  */
-{ kind: "roll_dice"; id: ChatMessageId; expression: string; hidden: boolean; character_id: CharacterId | null } | 
+{ kind: "roll_dice"; id: ChatMessageId; expression: string; hidden: boolean; character_id: CharacterId | null; 
+/**
+ *  A roll of the system (a sheet button): the core rolls the system's formula, and
+ *  triggers know which roll it was (ADR-0024).
+ */
+roll: string | null } | 
+/**
+ *  The character's conditions (ids of the system's), replacing the current ones. GM roles,
+ *  or the owner of an active or draft character.
+ */
+{ kind: "set_conditions"; id: CharacterId; conditions: string[] } | 
+/**  GM / Co-GM: adds an item to the character's inventory list (the system's `inventory`). */
+{ kind: "give_item"; id: CharacterId; name: string } | 
 /**
  *  GM / Co-GM: installs (or replaces) a plugin in the campaign (ADR-0023). The client reads
  *  the package; the core checks the rules again.
@@ -474,6 +494,15 @@ export type IntentId = string;
 export type IntentOutcome = { status: "accepted"; 
 /**  Sequence number of the last event produced. */
 seq: Seq } | { status: "rejected"; reason: RejectReason };
+
+/**
+ *  Where a character's items live in the sheet: a list of objects at `path` whose `name_field`
+ *  is the item's name (ADR-0024).
+ */
+export type InventoryDef = {
+	path: string,
+	name_field: string,
+};
 
 /**  A journal entry with its Markdown text. */
 export type JournalEntryDto = {
@@ -698,6 +727,10 @@ export type SystemRulesDto = {
 	/**  Strictly descending percents: Healthy / Wounded / Critical / Dead boundaries. */
 	health_thresholds: number[],
 	rolls: RollDef[],
+	/**  Conditions characters may have; rules installed before they existed have none. */
+	conditions?: ConditionDef[],
+	/**  The sheet list of items, if the system has one. */
+	inventory?: InventoryDef | null,
 };
 
 /**  A token on a map. */

@@ -52,6 +52,7 @@ pub(crate) fn apply(
             expression,
             hidden,
             character_id,
+            roll: roll_id,
         } => (|| {
             if *hidden && !actor.role.is_game_master() {
                 return Err(RejectReason::Forbidden);
@@ -66,6 +67,21 @@ pub(crate) fn apply(
                         return Err(RejectReason::Forbidden);
                     }
                     Some(character.ok_or(RejectReason::NotFound)?.sheet_json.as_str())
+                }
+            };
+            // A system roll uses the system's formula: a client cannot pass off "1d20 + 100" as a
+            // perception check to a trigger (ADR-0024).
+            let expression = match roll_id {
+                None => expression.as_str(),
+                Some(roll_id) => {
+                    let def = state
+                        .rules()
+                        .and_then(|r| r.rolls.iter().find(|r| r.id == *roll_id))
+                        .ok_or_else(|| RejectReason::invalid("roll"))?;
+                    if def.dice.trim() != expression.trim() {
+                        return Err(RejectReason::invalid("expression"));
+                    }
+                    def.dice.as_str()
                 }
             };
             let expr = Expr::parse(expression).map_err(|_| RejectReason::invalid("expression"))?;

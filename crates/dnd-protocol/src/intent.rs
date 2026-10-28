@@ -250,6 +250,20 @@ pub enum Intent {
         expression: String,
         hidden: bool,
         character_id: Option<CharacterId>,
+        /// A roll of the system (a sheet button): the core rolls the system's formula, and
+        /// triggers know which roll it was (ADR-0024).
+        roll: Option<String>,
+    },
+    /// The character's conditions (ids of the system's), replacing the current ones. GM roles,
+    /// or the owner of an active or draft character.
+    SetConditions {
+        id: CharacterId,
+        conditions: Vec<String>,
+    },
+    /// GM / Co-GM: adds an item to the character's inventory list (the system's `inventory`).
+    GiveItem {
+        id: CharacterId,
+        name: String,
     },
 
     /// GM / Co-GM: installs (or replaces) a plugin in the campaign (ADR-0023). The client reads
@@ -402,6 +416,8 @@ impl Intent {
             Self::RegisterAsset { .. } => "register_asset",
             Self::SendMessage { .. } => "send_message",
             Self::RollDice { .. } => "roll_dice",
+            Self::SetConditions { .. } => "set_conditions",
+            Self::GiveItem { .. } => "give_item",
             Self::InstallPlugin { .. } => "install_plugin",
             Self::UninstallPlugin { .. } => "uninstall_plugin",
             Self::SetSystemPlugin { .. } => "set_system_plugin",
@@ -476,7 +492,9 @@ impl Intent {
             | Self::UpdateBoardEdge { .. }
             | Self::DeleteBoardEdge { .. }
             | Self::UpdateZone { .. }
-            | Self::DeleteZone { .. } => VersionPolicy::Checked,
+            | Self::DeleteZone { .. }
+            | Self::SetConditions { .. }
+            | Self::GiveItem { .. } => VersionPolicy::Checked,
         }
     }
 
@@ -485,6 +503,8 @@ impl Intent {
     pub fn character_id(&self) -> Option<CharacterId> {
         match self {
             Self::CreateCharacter { id, .. }
+            | Self::SetConditions { id, .. }
+            | Self::GiveItem { id, .. }
             | Self::UpdateCharacter { id, .. }
             | Self::SubmitCharacter { id }
             | Self::ApproveCharacter { id }

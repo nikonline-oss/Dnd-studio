@@ -132,7 +132,9 @@ impl Intent {
             | Self::UpdateBoardEdge { .. }
             | Self::DeleteBoardEdge { .. }
             | Self::UpdateZone { shape: None, .. }
-            | Self::DeleteZone { .. } => Vec::new(),
+            | Self::DeleteZone { .. }
+            | Self::SetConditions { .. }
+            | Self::GiveItem { .. } => Vec::new(),
             Self::RegisterAsset { asset } => vec![("size_bytes", asset.size_bytes)],
             Self::ApplyFog { op, .. } => match &op.shape {
                 FogShape::Rect {
@@ -208,7 +210,9 @@ impl Intent {
             | Self::UpdateBoardEdge { .. }
             | Self::DeleteBoardEdge { .. }
             | Self::UpdateZone { .. }
-            | Self::DeleteZone { .. } => None,
+            | Self::DeleteZone { .. }
+            | Self::SetConditions { .. }
+            | Self::GiveItem { .. } => None,
         }
     }
 }

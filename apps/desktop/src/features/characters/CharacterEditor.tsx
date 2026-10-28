@@ -7,6 +7,7 @@ import { CodeEditor } from '@/shared/ui/CodeEditor';
 import { ErrorText } from '@/shared/ui/ErrorText';
 import { Icon } from '@/shared/ui/Icon';
 import { InlineEdit } from '@/shared/ui/InlineEdit';
+import { Conditions, GiveItem } from './Conditions';
 import { SystemSheet } from './SystemSheet';
 
 /** Checks what the core checks (ADR-0016) to give feedback before sending. */
@@ -149,7 +150,9 @@ function Editor({ character, inTab }: { character: CharacterDto; inTab: boolean 
 
       {rules ? (
         <>
+          <Conditions character={character} rules={rules} canEdit={canEdit} />
           <SystemSheet character={character} rules={rules} canEdit={canEdit} />
+          {isGm && rules.inventory && <GiveItem character={character} />}
           {isGm && (
             <details className="raw-sheet">
               <summary>{t('characters.rawSheet')}</summary>

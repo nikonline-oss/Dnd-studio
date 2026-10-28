@@ -78,6 +78,7 @@ export function ChatPanel() {
                 expression: parsed.expression,
                 hidden: parsed.hidden,
                 character_id: rollAs?.id ?? null,
+                roll: null,
               },
       },
       {

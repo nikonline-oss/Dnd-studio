@@ -63,6 +63,13 @@ pub fn authorize(actor: &Actor, intent: &Intent, state: &GameState) -> Result<()
             {
                 Ok(())
             }
+            Intent::SetConditions { id, .. }
+                if owns_character(actor.user_id, *id, state, |s| {
+                    matches!(s, CharacterStatus::Draft | CharacterStatus::Active)
+                }) =>
+            {
+                Ok(())
+            }
             Intent::SubmitCharacter { id }
                 if owns_character(actor.user_id, *id, state, |_| true) =>
             {

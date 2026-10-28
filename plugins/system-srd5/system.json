@@ -299,5 +299,116 @@
       },
       "dice": "1d20 + @dex_mod"
     }
-  ]
+  ],
+  "conditions": [
+    {
+      "id": "blinded",
+      "label": {
+        "ru": "Ослеплён",
+        "en": "Blinded"
+      }
+    },
+    {
+      "id": "charmed",
+      "label": {
+        "ru": "Очарован",
+        "en": "Charmed"
+      }
+    },
+    {
+      "id": "deafened",
+      "label": {
+        "ru": "Оглох",
+        "en": "Deafened"
+      }
+    },
+    {
+      "id": "exhaustion",
+      "label": {
+        "ru": "Истощение",
+        "en": "Exhaustion"
+      }
+    },
+    {
+      "id": "frightened",
+      "label": {
+        "ru": "Напуган",
+        "en": "Frightened"
+      }
+    },
+    {
+      "id": "grappled",
+      "label": {
+        "ru": "Схвачен",
+        "en": "Grappled"
+      }
+    },
+    {
+      "id": "incapacitated",
+      "label": {
+        "ru": "Недееспособен",
+        "en": "Incapacitated"
+      }
+    },
+    {
+      "id": "invisible",
+      "label": {
+        "ru": "Невидим",
+        "en": "Invisible"
+      }
+    },
+    {
+      "id": "paralyzed",
+      "label": {
+        "ru": "Парализован",
+        "en": "Paralyzed"
+      }
+    },
+    {
+      "id": "petrified",
+      "label": {
+        "ru": "Окаменел",
+        "en": "Petrified"
+      }
+    },
+    {
+      "id": "poisoned",
+      "label": {
+        "ru": "Отравлен",
+        "en": "Poisoned"
+      }
+    },
+    {
+      "id": "prone",
+      "label": {
+        "ru": "Сбит с ног",
+        "en": "Prone"
+      }
+    },
+    {
+      "id": "restrained",
+      "label": {
+        "ru": "Опутан",
+        "en": "Restrained"
+      }
+    },
+    {
+      "id": "stunned",
+      "label": {
+        "ru": "Ошеломлён",
+        "en": "Stunned"
+      }
+    },
+    {
+      "id": "unconscious",
+      "label": {
+        "ru": "Без сознания",
+        "en": "Unconscious"
+      }
+    }
+  ],
+  "inventory": {
+    "path": "equipment",
+    "name_field": "name"
+  }
 }

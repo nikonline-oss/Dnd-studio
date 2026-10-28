@@ -518,6 +518,7 @@ async fn characters_and_users_are_projected_and_loaded() {
         owner: Some(UserId(v7(1))),
         status: CharacterStatus::Draft,
         sheet_json: r#"{"hp": 12}"#.into(),
+        conditions: vec!["poisoned".into(), "prone".into()],
         version: Version(1),
     };
     db.project(&[record(
@@ -632,6 +633,8 @@ async fn plugins_and_the_system_are_projected_and_loaded() {
             resources: Vec::new(),
             health_thresholds: vec![75, 25, 0],
             rolls: Vec::new(),
+            conditions: Vec::new(),
+            inventory: None,
         }),
     };
     let theme = PluginDto {

@@ -2,8 +2,8 @@
 //! the GM. Permissions are checked in `permissions::authorize` before this runs.
 
 use dnd_protocol::{
-    CharacterDto, CharacterStatus, Event, Intent, RejectReason, SystemMessage, Version,
-    validate_sheet_json,
+    CharacterDto, CharacterStatus, Event, Intent, MAX_CONDITIONS, RejectReason, SystemMessage,
+    Version, validate_sheet_json,
 };
 
 use crate::apply::{bump, valid_name};
@@ -47,6 +47,7 @@ pub(crate) fn apply(
                     owner: *owner,
                     status,
                     sheet_json,
+                    conditions: Vec::new(),
                     version: Version::INITIAL,
                 },
             }])
@@ -66,6 +67,15 @@ pub(crate) fn apply(
                 validate_sheet_json(sheet)?;
                 c.sheet_json = crate::plugins::normalize_sheet(state, sheet)?;
             }
+            Ok(())
+        }),
+        Intent::SetConditions { id, conditions } => change(state, *id, |c| {
+            c.conditions = valid_conditions(state, conditions)?;
+            Ok(())
+        }),
+        Intent::GiveItem { id, name } => change(state, *id, |c| {
+            let name = valid_name(name, "name")?;
+            c.sheet_json = crate::plugins::give_item(state, &c.sheet_json, &name)?;
             Ok(())
         }),
         Intent::SubmitCharacter { id } => announce(
@@ -123,6 +133,25 @@ pub(crate) fn apply(
 }
 
 /// Applies `edit` to a copy of the character and emits `CharacterUpdated` with a bumped version.
+/// Conditions of the campaign's system, each once, in the system's order.
+fn valid_conditions(state: &GameState, ids: &[String]) -> Result<Vec<String>, RejectReason> {
+    let invalid = || RejectReason::invalid("conditions");
+    let rules = state.rules().ok_or_else(invalid)?;
+    if ids.len() > MAX_CONDITIONS
+        || ids
+            .iter()
+            .any(|id| !rules.conditions.iter().any(|c| c.id == *id))
+    {
+        return Err(invalid());
+    }
+    Ok(rules
+        .conditions
+        .iter()
+        .filter(|c| ids.contains(&c.id))
+        .map(|c| c.id.clone())
+        .collect())
+}
+
 fn change(
     state: &GameState,
     id: dnd_protocol::CharacterId,

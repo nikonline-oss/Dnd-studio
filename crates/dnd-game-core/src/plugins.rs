@@ -11,7 +11,7 @@ use std::collections::BTreeMap;
 use dnd_dice::{FieldLookup, LookupError as DiceLookupError, SplitMix64};
 use dnd_expr::{Computed, Context, Expr, LookupError, Value as ExprValue};
 use dnd_protocol::{
-    Event, Intent, PluginDto, PluginKind, RejectReason, SystemRulesDto, sheet_schema,
+    Event, Intent, InventoryDef, PluginDto, PluginKind, RejectReason, SystemRulesDto, sheet_schema,
 };
 use serde_json::{Map, Value};
 
@@ -128,7 +128,100 @@ fn check_rules(rules: &SystemRulesDto) -> Result<(), RejectReason> {
     {
         return Err(RejectReason::invalid("ids"));
     }
+    let condition_id = |id: &str| {
+        !id.is_empty()
+            && id.len() <= 64
+            && id
+                .bytes()
+                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_' || b == b'-')
+    };
+    if rules.conditions.len() > MAX_SYSTEM_CONDITIONS
+        || !rules.conditions.iter().all(|c| condition_id(&c.id))
+        || !unique(rules.conditions.iter().map(|c| c.id.as_str()).collect())
+    {
+        return Err(RejectReason::invalid("conditions"));
+    }
+    if let Some(inventory) = &rules.inventory
+        && inventory_items(&rules.sheet_schema, inventory).is_none()
+    {
+        return Err(RejectReason::invalid("inventory"));
+    }
     Ok(())
+}
+
+/// Most conditions a system may define.
+pub const MAX_SYSTEM_CONDITIONS: usize = 64;
+
+/// The schema of one inventory item: `path` leads (through object properties) to an array of
+/// objects with a string property `name_field`.
+fn inventory_items<'a>(schema: &'a Value, inventory: &InventoryDef) -> Option<&'a Value> {
+    let mut node = schema;
+    for segment in inventory.path.split('.') {
+        node = node.get("properties")?.get(segment)?;
+    }
+    if node.get("type")?.as_str()? != "array" {
+        return None;
+    }
+    let items = node.get("items")?;
+    let name = items.get("properties")?.get(&inventory.name_field)?;
+    (items.get("type")?.as_str()? == "object" && name.get("type")?.as_str()? == "string")
+        .then_some(items)
+}
+
+/// The names of the items in a sheet's inventory list (empty without one).
+#[must_use]
+pub fn inventory_names(rules: &SystemRulesDto, sheet_json: &str) -> Vec<String> {
+    let Some(inventory) = &rules.inventory else {
+        return Vec::new();
+    };
+    let Ok(sheet) = serde_json::from_str::<Value>(sheet_json) else {
+        return Vec::new();
+    };
+    let mut node = &sheet;
+    for segment in inventory.path.split('.') {
+        match node.get(segment) {
+            Some(next) => node = next,
+            None => return Vec::new(),
+        }
+    }
+    node.as_array()
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|i| i.get(&inventory.name_field)?.as_str().map(str::to_owned))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// The sheet with one more item named `name` in the system's inventory list (the item's other
+/// fields take the schema's defaults), normalized like any sheet edit.
+pub(crate) fn give_item(
+    state: &GameState,
+    sheet_json: &str,
+    name: &str,
+) -> Result<String, RejectReason> {
+    let invalid = || RejectReason::invalid("name");
+    let rules = state.rules().ok_or_else(invalid)?;
+    let inventory = rules.inventory.as_ref().ok_or_else(invalid)?;
+    let items = inventory_items(&rules.sheet_schema, inventory).ok_or_else(invalid)?;
+    let mut fields = Map::new();
+    fields.insert(inventory.name_field.clone(), Value::String(name.to_owned()));
+    let item = sheet_schema::apply_defaults(items, &Value::Object(fields));
+    let mut sheet: Value = serde_json::from_str(sheet_json).map_err(|_| invalid())?;
+    let mut node = &mut sheet;
+    for segment in inventory.path.split('.') {
+        let object = node.as_object_mut().ok_or_else(invalid)?;
+        node = object
+            .entry(segment)
+            .or_insert_with(|| Value::Object(Map::new()));
+    }
+    if !node.is_array() {
+        *node = Value::Array(Vec::new());
+    }
+    node.as_array_mut().ok_or_else(invalid)?.push(item);
+    let sheet = serde_json::to_string(&sheet).map_err(|_| invalid())?;
+    normalize_sheet(state, &sheet)
 }
 
 /// A sheet of the schema's defaults (what a new character starts with).

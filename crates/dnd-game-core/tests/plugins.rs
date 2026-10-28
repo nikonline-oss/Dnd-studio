@@ -74,6 +74,7 @@ fn roll(state: &mut GameState, expression: &str, character: CharacterId) -> Dice
             expression: expression.into(),
             hidden: false,
             character_id: Some(character),
+            roll: None,
         },
         None,
     )

@@ -22,6 +22,9 @@ export function tokenViews(
   const turnToken = combat?.turn
     ? snapshot.combatants.find((c) => c.id === combat.turn)?.token_id
     : null;
+  const conditions = new Map(
+    snapshot.characters.map((c) => [c.id, (c.conditions ?? []).length] as const),
+  );
   const owned = new Set(
     snapshot.characters.filter((c) => c.owner === campaign.user_id).map((c) => c.id),
   );
@@ -42,5 +45,6 @@ export function tokenViews(
       colorKey: token.character_id ?? token.id,
       active: token.id === turnToken,
       selected: token.id === selectedTokenId,
+      conditions: token.character_id ? (conditions.get(token.character_id) ?? 0) : 0,
     }));
 }

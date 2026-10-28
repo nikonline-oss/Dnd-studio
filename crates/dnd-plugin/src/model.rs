@@ -5,7 +5,9 @@
 
 use std::collections::BTreeMap;
 
-pub use dnd_protocol::{Label, LocalizedText, PluginKind, ResourceDef, RollDef};
+pub use dnd_protocol::{
+    ConditionDef, InventoryDef, Label, LocalizedText, PluginKind, ResourceDef, RollDef,
+};
 use semver::{Version, VersionReq};
 use serde::{Deserialize, Serialize};
 
@@ -54,6 +56,12 @@ pub struct SystemRules {
     pub health_thresholds: Vec<u8>,
     #[serde(default)]
     pub rolls: Vec<RollDef>,
+    /// Conditions characters may have (ADR-0024).
+    #[serde(default)]
+    pub conditions: Vec<ConditionDef>,
+    /// The sheet list of items.
+    #[serde(default)]
+    pub inventory: Option<InventoryDef>,
 }
 
 fn default_health_thresholds() -> Vec<u8> {

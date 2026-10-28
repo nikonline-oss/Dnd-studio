@@ -54,5 +54,39 @@
       },
       "dice": "2d6 + @attributes.spirit"
     }
-  ]
+  ],
+  "conditions": [
+    {
+      "id": "shaken",
+      "label": {
+        "ru": "Потрясён",
+        "en": "Shaken"
+      }
+    },
+    {
+      "id": "wounded",
+      "label": {
+        "ru": "Ранен",
+        "en": "Wounded"
+      }
+    },
+    {
+      "id": "stunned",
+      "label": {
+        "ru": "Оглушён",
+        "en": "Stunned"
+      }
+    },
+    {
+      "id": "hidden",
+      "label": {
+        "ru": "Скрыт",
+        "en": "Hidden"
+      }
+    }
+  ],
+  "inventory": {
+    "path": "gear",
+    "name_field": "name"
+  }
 }

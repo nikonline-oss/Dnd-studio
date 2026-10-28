@@ -37,6 +37,7 @@ pub fn base_state() -> GameState {
                 owner: Some(owner),
                 status: CharacterStatus::Active,
                 sheet_json: "{}".into(),
+                conditions: Vec::new(),
                 version: Version::INITIAL,
             },
         );

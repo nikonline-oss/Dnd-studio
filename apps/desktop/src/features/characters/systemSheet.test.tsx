@@ -45,6 +45,11 @@ const SRD: PluginDto = {
     resources: [],
     health_thresholds: [75, 25, 0],
     rolls: [{ id: 'str_check', label: 'Strength check', dice: '1d20 + @str_mod' }],
+    conditions: [
+      { id: 'poisoned', label: { ru: 'Отравлен', en: 'Poisoned' } },
+      { id: 'prone', label: { ru: 'Сбит с ног', en: 'Prone' } },
+    ],
+    inventory: null,
   },
 };
 
@@ -55,6 +60,7 @@ const hero: CharacterDto = {
   owner: null,
   status: 'active',
   sheet_json: '{"abilities":{"str":16}}',
+  conditions: ['prone'],
   version: 4,
 };
 
@@ -126,6 +132,7 @@ describe('CharacterEditor with a system plugin', () => {
       expression: '1d20 + @str_mod',
       character_id: hero.id,
       hidden: false,
+      roll: 'str_check',
     });
 
     fireEvent.change(strength, { target: { value: '18' } });
@@ -142,6 +149,23 @@ describe('CharacterEditor with a system plugin', () => {
 
     // GM roles keep the raw JSON at hand.
     expect(screen.getByText('Sheet as JSON')).toBeInTheDocument();
+  });
+
+  it('shows conditions; GM roles take them off and add the system ones', async () => {
+    const sent = setup('gm');
+    const conditions = await screen.findByRole('region', { name: 'Conditions' });
+    expect(conditions).toHaveTextContent('Prone');
+    await userEvent.click(await screen.findByRole('button', { name: 'Remove Prone' }));
+    await waitFor(() => {
+      expect(sent[0]).toMatchObject({
+        expected_version: 4,
+        intent: { kind: 'set_conditions', id: hero.id, conditions: [] },
+      });
+    });
+    await userEvent.selectOptions(screen.getByLabelText('Add a condition…'), 'poisoned');
+    await waitFor(() => {
+      expect(sent[1]?.intent).toMatchObject({ conditions: ['prone', 'poisoned'] });
+    });
   });
 
   it('without a system the raw JSON editor stays', async () => {

@@ -1124,6 +1124,40 @@
     },
     {
       "label": {
+        "ru": "Снаряжение",
+        "en": "Equipment"
+      },
+      "children": [
+        {
+          "type": "list",
+          "path": "equipment",
+          "label": {
+            "ru": "Снаряжение",
+            "en": "Equipment"
+          },
+          "item": [
+            {
+              "type": "field",
+              "path": "name",
+              "label": {
+                "ru": "Предмет",
+                "en": "Item"
+              }
+            },
+            {
+              "type": "field",
+              "path": "quantity",
+              "label": {
+                "ru": "Кол-во",
+                "en": "Qty"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "label": {
         "ru": "Атаки и заметки",
         "en": "Attacks & notes"
       },

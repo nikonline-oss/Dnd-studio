@@ -164,6 +164,7 @@ async fn character_owners_are_loaded() {
             owner: Some(GM),
             status: CharacterStatus::Draft,
             sheet_json: "{}".into(),
+            conditions: Vec::new(),
             version: Version::INITIAL,
         }
     );

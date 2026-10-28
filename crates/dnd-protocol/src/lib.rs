@@ -38,15 +38,16 @@ pub use model::{
     CharacterKind, CharacterStatus, ChatKind, ChatMessageDto, ChatVisibility, CombatDto,
     CombatantDto, DiceRollDto, DiceTermDto, DieDto, FogDto, FogOp, FogOpKind, FogShape, Grid,
     GridKind, JournalEntryDto, JournalEntryMeta, JournalFolderDto, JournalVisibility, MAX_CHAT_LEN,
-    MAX_JOURNAL_BYTES, MAX_SHEET_BYTES, MapDto, SystemMessage, TokenDto, TokenLayer, UserDto,
+    MAX_CONDITIONS, MAX_JOURNAL_BYTES, MAX_SHEET_BYTES, MapDto, SystemMessage, TokenDto,
+    TokenLayer, UserDto,
 };
 pub use model::{
     MAX_BRUSH_POINTS, MAX_BRUSH_RADIUS, MAX_CELL_SIZE, MAX_COMBATANTS, MAX_FOG_OPS, MAX_FOG_POINTS,
     MAX_FOLDER_DEPTH, MAX_MAP_SIZE, MIN_CELL_SIZE, UNITS16_PER_UNIT,
 };
 pub use plugin::{
-    Label, LocalizedText, MAX_PLUGIN_BYTES, PluginDto, PluginKind, ResourceDef, RollDef,
-    SystemRulesDto,
+    ConditionDef, InventoryDef, Label, LocalizedText, MAX_PLUGIN_BYTES, PluginDto, PluginKind,
+    ResourceDef, RollDef, SystemRulesDto,
 };
 pub use snapshot::Snapshot;
 /// Re-exported so dependants use the exact same UUID type.

@@ -182,6 +182,32 @@
         "en": "Notes"
       },
       "widget": "textarea"
+    },
+    {
+      "type": "list",
+      "path": "gear",
+      "label": {
+        "ru": "Снаряжение",
+        "en": "Gear"
+      },
+      "item": [
+        {
+          "type": "field",
+          "path": "name",
+          "label": {
+            "ru": "Предмет",
+            "en": "Item"
+          }
+        },
+        {
+          "type": "field",
+          "path": "quantity",
+          "label": {
+            "ru": "Кол-во",
+            "en": "Qty"
+          }
+        }
+      ]
     }
   ]
 }

@@ -464,5 +464,15 @@
     "empty": "No zones. Draw one with the map tool — only GMs see zones.",
     "rename": "Rename zone",
     "delete": "Delete zone"
+  },
+  "conditions": {
+    "title": "Conditions",
+    "none": "None",
+    "add": "Add a condition…",
+    "remove": "Remove {{name}}"
+  },
+  "items": {
+    "name": "Item",
+    "give": "Give item"
   }
 }

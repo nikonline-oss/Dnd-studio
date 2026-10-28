@@ -35,6 +35,8 @@ impl SystemPackage {
             resources: r.resources.clone(),
             health_thresholds: r.health_thresholds.clone(),
             rolls: r.rolls.clone(),
+            conditions: r.conditions.clone(),
+            inventory: r.inventory.clone(),
         }
     }
 }

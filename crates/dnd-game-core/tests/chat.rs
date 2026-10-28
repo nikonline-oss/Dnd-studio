@@ -27,6 +27,7 @@ fn roll(expr: &str, hidden: bool, character: Option<u128>) -> Intent {
         expression: expr.into(),
         hidden,
         character_id: character.map(pooled_character_id),
+        roll: None,
     }
 }
 

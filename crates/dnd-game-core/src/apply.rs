@@ -248,6 +248,11 @@ pub fn apply(
         | Intent::EndCombat { .. } => crate::combat::apply(state, intent, actor, rng)
             .unwrap_or(Err(RejectReason::invalid("intent"))),
 
+        Intent::SetConditions { .. } | Intent::GiveItem { .. } => {
+            crate::characters::apply(state, intent, actor, rng)
+                .unwrap_or(Err(RejectReason::invalid("intent")))
+        }
+
         Intent::SendMessage { .. } | Intent::RollDice { .. } => {
             crate::chat::apply(state, intent, actor, rng)
                 .unwrap_or(Err(RejectReason::invalid("intent")))
@@ -303,7 +308,9 @@ fn current_version(state: &GameState, intent: &Intent) -> Result<Version, Reject
         | Intent::ApproveCharacter { id }
         | Intent::ReturnCharacter { id }
         | Intent::ArchiveCharacter { id }
-        | Intent::AssignCharacterOwner { id, .. } => state.characters.get(id).map(|c| c.version),
+        | Intent::AssignCharacterOwner { id, .. }
+        | Intent::SetConditions { id, .. }
+        | Intent::GiveItem { id, .. } => state.characters.get(id).map(|c| c.version),
         Intent::UpdateJournalEntry { id, .. }
         | Intent::MoveJournalEntry { id, .. }
         | Intent::DeleteJournalEntry { id } => state.journal.get(id).map(|e| e.version),

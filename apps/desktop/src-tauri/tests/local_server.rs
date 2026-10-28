@@ -467,6 +467,7 @@ async fn chat_and_rolls_persist_and_page() {
                 expression: "1d20 adv".into(),
                 hidden: true,
                 character_id: None,
+                roll: None,
             },
             None,
         ))

@@ -80,6 +80,8 @@ export function SystemSheet({
               expression: roll.dice,
               hidden: false,
               character_id: character.id,
+              // The system's roll: the core uses its formula, and triggers know which it was.
+              roll: roll.id,
             },
           });
         }}

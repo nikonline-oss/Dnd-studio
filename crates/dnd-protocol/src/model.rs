@@ -137,8 +137,14 @@ pub struct CharacterDto {
     pub owner: Option<UserId>,
     pub status: CharacterStatus,
     pub sheet_json: String,
+    /// Ids of the system's conditions that apply (ADR-0024); stored before conditions existed: empty.
+    #[serde(default)]
+    pub conditions: Vec<String>,
     pub version: Version,
 }
+
+/// Most conditions on one character.
+pub const MAX_CONDITIONS: usize = 32;
 
 /// A user of the campaign. Read-only in stage 2a (users join through the session server, 2b).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

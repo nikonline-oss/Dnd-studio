@@ -80,6 +80,23 @@ pub struct ResourceDef {
     pub max: String,
 }
 
+/// A condition of the system (poisoned, prone, …), shown on sheets and tokens (ADR-0024).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct ConditionDef {
+    pub id: String,
+    pub label: Label,
+}
+
+/// Where a character's items live in the sheet: a list of objects at `path` whose `name_field`
+/// is the item's name (ADR-0024).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct InventoryDef {
+    pub path: String,
+    pub name_field: String,
+}
+
 /// A roll macro shown on the sheet.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
@@ -124,4 +141,10 @@ pub struct SystemRulesDto {
     /// Strictly descending percents: Healthy / Wounded / Critical / Dead boundaries.
     pub health_thresholds: Vec<u8>,
     pub rolls: Vec<RollDef>,
+    /// Conditions characters may have; rules installed before they existed have none.
+    #[serde(default)]
+    pub conditions: Vec<ConditionDef>,
+    /// The sheet list of items, if the system has one.
+    #[serde(default)]
+    pub inventory: Option<InventoryDef>,
 }

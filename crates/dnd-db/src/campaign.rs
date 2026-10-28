@@ -410,7 +410,7 @@ impl CampaignDb {
             state.combatants.insert(combatant.id, combatant);
         }
         for row in sqlx::query(
-            "SELECT id, kind, name, owner_user_id, status, sheet_data, version \
+            "SELECT id, kind, name, owner_user_id, status, sheet_data, conditions, version \
              FROM characters ORDER BY id",
         )
         .fetch_all(&self.pool)
@@ -430,6 +430,7 @@ impl CampaignDb {
                 .map(UserId),
                 status: enum_from_str("characters.status", &row.try_get::<String, _>("status")?)?,
                 sheet_json: row.try_get("sheet_data")?,
+                conditions: serde_json::from_str(&row.try_get::<String, _>("conditions")?)?,
                 version: Version(row.try_get("version")?),
             };
             state.characters.insert(character.id, character);
@@ -930,11 +931,12 @@ async fn insert_chat_message(
 
 async fn upsert_character(conn: &mut SqliteConnection, c: &CharacterDto) -> DbResult<()> {
     sqlx::query(
-        "INSERT INTO characters (id, kind, name, owner_user_id, status, sheet_data, version) \
-         VALUES (?, ?, ?, ?, ?, ?, ?) \
+        "INSERT INTO characters (id, kind, name, owner_user_id, status, sheet_data, conditions, \
+         version) VALUES (?, ?, ?, ?, ?, ?, ?, ?) \
          ON CONFLICT (id) DO UPDATE SET \
              kind = excluded.kind, name = excluded.name, owner_user_id = excluded.owner_user_id, \
-             status = excluded.status, sheet_data = excluded.sheet_data, version = excluded.version",
+             status = excluded.status, sheet_data = excluded.sheet_data, \
+             conditions = excluded.conditions, version = excluded.version",
     )
     .bind(c.id.to_string())
     .bind(enum_to_str(&c.kind)?)
@@ -942,6 +944,7 @@ async fn upsert_character(conn: &mut SqliteConnection, c: &CharacterDto) -> DbRe
     .bind(c.owner.map(|u| u.to_string()))
     .bind(enum_to_str(&c.status)?)
     .bind(&c.sheet_json)
+    .bind(serde_json::to_string(&c.conditions)?)
     .bind(c.version.0)
     .execute(conn)
     .await?;
