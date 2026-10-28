@@ -1375,6 +1375,127 @@ input[type='checkbox'] {
   gap: var(--space-2);
 }
 
+/* ---------- Journal tables (ADR-0026) ---------- */
+
+.table-entry {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-height: 0;
+}
+
+.table-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.table-grid {
+  overflow: auto;
+  max-height: 70vh;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.table-grid:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 1px;
+}
+
+.table-grid table {
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.table-grid th,
+.table-grid td {
+  border: 1px solid var(--color-border);
+  padding: 3px 6px;
+  height: 26px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: pre-wrap;
+  vertical-align: top;
+}
+
+.table-grid thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--color-surface-alt);
+  text-align: left;
+}
+
+.table-grid th.table-row-head,
+.table-grid col.table-row-head {
+  width: 44px;
+}
+
+.table-grid tbody th {
+  color: var(--color-text-muted);
+  background: var(--color-surface-alt);
+  text-align: right;
+  font-weight: normal;
+}
+
+.table-letter {
+  display: block;
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.table-column-name {
+  display: block;
+  width: 100%;
+  font-weight: 600;
+}
+
+input.table-column-name {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+}
+
+.table-grid thead th {
+  overflow: visible;
+}
+
+.table-resize {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.table-grid td[aria-selected='true'] {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+.table-grid td.table-formula {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.table-cell-input {
+  display: block;
+  width: 100%;
+  min-height: 20px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  resize: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
 .journal-header h2,
 .journal-header input {
   font-family: var(--font-display);

@@ -7,7 +7,9 @@ use crate::ids::{
     AssetId, BoardEdgeId, BoardId, BoardNodeId, CharacterId, ChatMessageId, CombatId, CombatantId,
     IntentId, JournalEntryId, JournalFolderId, MapId, TokenId, TriggerId, UserId, Version, ZoneId,
 };
-use crate::model::{AssetDto, CharacterKind, FogOp, Grid, JournalVisibility, TokenLayer};
+use crate::model::{
+    AssetDto, CharacterKind, FogOp, Grid, JournalTable, JournalVisibility, TokenLayer,
+};
 use crate::plugin::PluginDto;
 use crate::trigger::TriggerDef;
 use crate::zone::ZoneShape;
@@ -179,7 +181,8 @@ pub enum Intent {
         owner: Option<UserId>,
     },
 
-    /// GM / Co-GM. Placed last in its folder.
+    /// GM / Co-GM. Placed last in its folder. With `table` it is a table entry (ADR-0026) and
+    /// `markdown` must be empty; an entry stays a text or a table for good.
     CreateJournalEntry {
         id: JournalEntryId,
         folder_id: Option<JournalFolderId>,
@@ -187,15 +190,20 @@ pub enum Intent {
         markdown: String,
         visibility: JournalVisibility,
         players_can_edit: bool,
+        #[serde(default)]
+        table: Option<JournalTable>,
     },
-    /// GM / Co-GM change anything; players only `title`/`markdown` of entries that are visible to
-    /// them and marked `players_can_edit`.
+    /// GM / Co-GM change anything; players only `title`/`markdown`/`table` of entries that are
+    /// visible to them and marked `players_can_edit`.
     UpdateJournalEntry {
         id: JournalEntryId,
         title: Option<String>,
         markdown: Option<String>,
         visibility: Option<JournalVisibility>,
         players_can_edit: Option<bool>,
+        /// The whole table of a table entry (like `markdown` of a text).
+        #[serde(default)]
+        table: Option<JournalTable>,
     },
     /// GM / Co-GM: move into `folder_id` (`None`: the root) at position `sort_order`.
     MoveJournalEntry {

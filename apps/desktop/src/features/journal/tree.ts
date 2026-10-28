@@ -5,10 +5,10 @@ export type TreeRow =
   | { kind: 'folder'; folder: JournalFolderDto; depth: number; expanded: boolean; empty: boolean }
   | { kind: 'entry'; entry: JournalEntryMeta; depth: number }
   /** The name input of an entry or folder being created. */
-  | { kind: 'new'; type: 'entry' | 'folder'; parent: string | null; depth: number };
+  | { kind: 'new'; type: Pending['type']; parent: string | null; depth: number };
 
 export interface Pending {
-  type: 'entry' | 'folder';
+  type: 'entry' | 'table' | 'folder';
   parent: string | null;
 }
 

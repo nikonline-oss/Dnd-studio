@@ -49,11 +49,34 @@ function sampleJournal(): JournalEntryDto[] {
       id: id(31),
       folder_id: GM_NOTES,
       title: 'Session 3 plan',
-      markdown: 'The knight remembers the party if they bring the signet ring.',
+      markdown: `The knight remembers the party if they bring the signet ring.\n\nSee [the crypt](journal:${id(30)}) and the [price list](journal:${id(32)}).`,
       sort_order: 0,
       visibility: 'gm',
       players_can_edit: false,
       author: GM,
+      version: 1,
+    },
+    {
+      id: id(32),
+      folder_id: LORE,
+      title: 'Prices at the Gilded Goose',
+      markdown: '',
+      sort_order: 1,
+      visibility: 'players',
+      players_can_edit: true,
+      author: GM,
+      table: {
+        columns: [
+          { name: 'Item', width: 180 },
+          { name: 'Price', width: 100 },
+          { name: 'Notes', width: 240 },
+        ],
+        rows: [
+          ['Ale (mug)', '4 cp', ''],
+          ['Room (night)', '5 sp', 'Breakfast included'],
+          ['Stabling', '5 sp', ''],
+        ],
+      },
       version: 1,
     },
   ];
@@ -228,6 +251,7 @@ export async function installMockIpc(
       visibility: e.visibility,
       players_can_edit: e.players_can_edit,
       author: e.author,
+      kind: e.table ? 'table' : 'text',
       version: e.version,
     })),
     assets: [
@@ -506,6 +530,7 @@ export async function installMockIpc(
           visibility: intent.visibility,
           players_can_edit: intent.players_can_edit,
           author: info.user_id,
+          table: intent.table ?? null,
           version: 1,
         };
         journal.push(entry);
@@ -525,6 +550,7 @@ export async function installMockIpc(
                 markdown: intent.markdown ?? old.markdown,
                 visibility: intent.visibility ?? old.visibility,
                 players_can_edit: intent.players_can_edit ?? old.players_can_edit,
+                table: intent.table ?? old.table ?? null,
               };
         entry.version = old.version + 1;
         journal[n] = entry;

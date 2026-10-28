@@ -216,6 +216,7 @@ function toMeta(entry: JournalEntryDto): JournalEntryMeta {
     visibility: entry.visibility,
     players_can_edit: entry.players_can_edit,
     author: entry.author,
+    kind: entry.table ? 'table' : 'text',
     version: entry.version,
   };
 }

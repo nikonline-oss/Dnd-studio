@@ -629,13 +629,18 @@ width: number; height: number; grid: Grid; visible_to_players: boolean } | { kin
 { kind: "archive_character"; id: CharacterId } | 
 /**  GM / Co-GM; `owner` must be a known user. */
 { kind: "assign_character_owner"; id: CharacterId; owner: UserId | null } | 
-/**  GM / Co-GM. Placed last in its folder. */
-{ kind: "create_journal_entry"; id: JournalEntryId; folder_id: JournalFolderId | null; title: string; markdown: string; visibility: JournalVisibility; players_can_edit: boolean } | 
 /**
- *  GM / Co-GM change anything; players only `title`/`markdown` of entries that are visible to
- *  them and marked `players_can_edit`.
+ *  GM / Co-GM. Placed last in its folder. With `table` it is a table entry (ADR-0026) and
+ *  `markdown` must be empty; an entry stays a text or a table for good.
  */
-{ kind: "update_journal_entry"; id: JournalEntryId; title: string | null; markdown: string | null; visibility: JournalVisibility | null; players_can_edit: boolean | null } | 
+{ kind: "create_journal_entry"; id: JournalEntryId; folder_id: JournalFolderId | null; title: string; markdown: string; visibility: JournalVisibility; players_can_edit: boolean; table?: JournalTable | null } | 
+/**
+ *  GM / Co-GM change anything; players only `title`/`markdown`/`table` of entries that are
+ *  visible to them and marked `players_can_edit`.
+ */
+{ kind: "update_journal_entry"; id: JournalEntryId; title: string | null; markdown: string | null; visibility: JournalVisibility | null; players_can_edit: boolean | null; 
+/**  The whole table of a table entry (like `markdown` of a text). */
+table?: JournalTable | null } | 
 /**  GM / Co-GM: move into `folder_id` (`None`: the root) at position `sort_order`. */
 { kind: "move_journal_entry"; id: JournalEntryId; folder_id: JournalFolderId | null; sort_order: number } | 
 /**  GM / Co-GM. */
@@ -773,11 +778,20 @@ export type JournalEntryDto = {
 	/**  Players may edit it (only when visible to players). */
 	players_can_edit: boolean,
 	author: UserId | null,
+	/**  The table of a table entry (`markdown` is then empty); `None` for a text (ADR-0026). */
+	table?: JournalTable | null,
 	version: Version,
 };
 
 /**  A journal entry. */
 export type JournalEntryId = string;
+
+/**  What a journal entry holds (ADR-0026). */
+export type JournalEntryKind = 
+/**  Markdown text. */
+"text" | 
+/**  A spreadsheet-like table. */
+"table";
 
 /**  A journal entry without its text, as listed in the snapshot (texts are fetched on demand). */
 export type JournalEntryMeta = {
@@ -788,6 +802,7 @@ export type JournalEntryMeta = {
 	visibility: JournalVisibility,
 	players_can_edit: boolean,
 	author: UserId | null,
+	kind?: JournalEntryKind,
 	version: Version,
 };
 
@@ -804,6 +819,15 @@ export type JournalFolderDto = {
 
 /**  A folder of the journal (ADR-0021). */
 export type JournalFolderId = string;
+
+/**
+ *  A table entry of the journal (ADR-0026). Every row has one cell per column. A cell is the text
+ *  the user typed; a cell starting with `=` is reserved for formulas (later).
+ */
+export type JournalTable = {
+	columns: TableColumn[],
+	rows: string[][],
+};
 
 /**  Who may read a journal entry. */
 export type JournalVisibility = 
@@ -1078,6 +1102,13 @@ export type SystemRulesDto = {
 	conditions?: ConditionDef[],
 	/**  The sheet list of items, if the system has one. */
 	inventory?: InventoryDef | null,
+};
+
+/**  A column of a journal table. */
+export type TableColumn = {
+	name: string,
+	/**  Width on screen, in CSS pixels (`MIN_COLUMN_WIDTH..=MAX_COLUMN_WIDTH`). */
+	width: number,
 };
 
 /**  One blank of a trigger template. */

@@ -27,6 +27,7 @@ fn entry(
         sort_order: 0,
         visibility,
         players_can_edit: false,
+        table: None,
         author: None,
         version: Version::INITIAL,
     }

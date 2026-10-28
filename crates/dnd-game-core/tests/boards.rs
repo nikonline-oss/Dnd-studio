@@ -419,6 +419,7 @@ fn players_see_the_pictures_of_journal_entries_open_to_them() {
                 markdown: format!("See ![the hall](asset:{}) here.", AssetId(v7(0x7700 + n))),
                 visibility,
                 players_can_edit: false,
+                table: None,
             },
             None,
         )

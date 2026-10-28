@@ -437,7 +437,7 @@ impl CampaignDb {
         }
         for row in sqlx::query(
             "SELECT id, folder_id, title, markdown, sort_order, visibility, players_can_edit, \
-             author_user_id, version FROM journal_entries ORDER BY id",
+             author_user_id, table_data, version FROM journal_entries ORDER BY id",
         )
         .fetch_all(&self.pool)
         .await?
@@ -465,6 +465,10 @@ impl CampaignDb {
                     row.try_get("author_user_id")?,
                 )?
                 .map(UserId),
+                table: row
+                    .try_get::<Option<String>, _>("table_data")?
+                    .map(|json| serde_json::from_str(&json))
+                    .transpose()?,
                 version: Version(row.try_get("version")?),
             };
             state.journal.insert(entry.id, entry);
@@ -1119,14 +1123,14 @@ async fn upsert_journal_entry(
 ) -> DbResult<()> {
     sqlx::query(
         "INSERT INTO journal_entries (id, folder_id, title, markdown, sort_order, visibility, \
-             players_can_edit, author_user_id, created_at, updated_at, version) \
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) \
+             players_can_edit, author_user_id, table_data, created_at, updated_at, version) \
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) \
          ON CONFLICT (id) DO UPDATE SET \
              folder_id = excluded.folder_id, title = excluded.title, markdown = excluded.markdown, \
              sort_order = excluded.sort_order, visibility = excluded.visibility, \
              players_can_edit = excluded.players_can_edit, \
-             author_user_id = excluded.author_user_id, updated_at = excluded.updated_at, \
-             version = excluded.version",
+             author_user_id = excluded.author_user_id, table_data = excluded.table_data, \
+             updated_at = excluded.updated_at, version = excluded.version",
     )
     .bind(e.id.to_string())
     .bind(e.folder_id.map(|f| f.to_string()))
@@ -1136,6 +1140,7 @@ async fn upsert_journal_entry(
     .bind(enum_to_str(&e.visibility)?)
     .bind(e.players_can_edit)
     .bind(e.author.map(|u| u.to_string()))
+    .bind(e.table.as_ref().map(serde_json::to_string).transpose()?)
     .bind(at_ms)
     .bind(at_ms)
     .bind(e.version.0)

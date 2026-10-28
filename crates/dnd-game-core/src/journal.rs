@@ -4,7 +4,8 @@
 
 use dnd_protocol::{
     Event, Intent, JournalEntryDto, JournalEntryId, JournalFolderDto, JournalFolderId,
-    MAX_FOLDER_DEPTH, MAX_JOURNAL_BYTES, RejectReason, Version,
+    JournalTable, MAX_CELL_LEN, MAX_COLUMN_WIDTH, MAX_FOLDER_DEPTH, MAX_JOURNAL_BYTES,
+    MAX_TABLE_COLUMNS, MAX_TABLE_ROWS, MIN_COLUMN_WIDTH, RejectReason, Version,
 };
 
 use crate::apply::{bump, valid_name};
@@ -25,8 +26,12 @@ pub(crate) fn apply(
             markdown,
             visibility,
             players_can_edit,
+            table,
         } => (|| {
             known_folder(state, *folder_id, "folder_id")?;
+            if table.is_some() && !markdown.is_empty() {
+                return Err(RejectReason::invalid("markdown"));
+            }
             Ok(vec![Event::JournalEntryCreated {
                 entry: JournalEntryDto {
                     id: *id,
@@ -38,6 +43,7 @@ pub(crate) fn apply(
                     visibility: *visibility,
                     players_can_edit: *players_can_edit,
                     author: Some(actor.user_id),
+                    table: table.as_ref().map(valid_table).transpose()?,
                     version: Version::INITIAL,
                 },
             }])
@@ -48,13 +54,26 @@ pub(crate) fn apply(
             markdown,
             visibility,
             players_can_edit,
+            table,
         } => change(state, *id, |e| {
             if title.is_none()
                 && markdown.is_none()
                 && visibility.is_none()
                 && players_can_edit.is_none()
+                && table.is_none()
             {
                 return Err(RejectReason::invalid("intent"));
+            }
+            // A text stays a text, a table a table (ADR-0026).
+            let is_table = e.table.is_some();
+            if markdown.is_some() && is_table {
+                return Err(RejectReason::invalid("markdown"));
+            }
+            if table.is_some() && !is_table {
+                return Err(RejectReason::invalid("table"));
+            }
+            if let Some(table) = table {
+                e.table = Some(valid_table(table)?);
             }
             if let Some(title) = title {
                 e.title = valid_name(title, "title")?;
@@ -280,6 +299,37 @@ fn next_folder_order(state: &GameState, parent: Option<JournalFolderId>) -> i64 
         .map(|f| f.sort_order)
         .max()
         .map_or(0, |max| max.saturating_add(1))
+}
+
+/// A table within the limits: at least one column, every row as wide as the header.
+fn valid_table(table: &JournalTable) -> Result<JournalTable, RejectReason> {
+    let invalid = || Err(RejectReason::invalid("table"));
+    let columns = table.columns.len();
+    if columns == 0 || columns > MAX_TABLE_COLUMNS || table.rows.len() > MAX_TABLE_ROWS {
+        return invalid();
+    }
+    let bad_text = |s: &str| {
+        s.chars().count() > MAX_CELL_LEN
+            || s.chars().any(|c| c.is_control() && c != '\n' && c != '\t')
+    };
+    if table
+        .columns
+        .iter()
+        .any(|c| bad_text(&c.name) || c.width < MIN_COLUMN_WIDTH || c.width > MAX_COLUMN_WIDTH)
+    {
+        return invalid();
+    }
+    if table
+        .rows
+        .iter()
+        .any(|row| row.len() != columns || row.iter().any(|cell| bad_text(cell)))
+    {
+        return invalid();
+    }
+    if table.text_len() > MAX_JOURNAL_BYTES {
+        return invalid();
+    }
+    Ok(table.clone())
 }
 
 fn valid_markdown(markdown: &str) -> Result<String, RejectReason> {

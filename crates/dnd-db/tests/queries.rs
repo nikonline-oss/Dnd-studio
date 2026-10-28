@@ -701,6 +701,7 @@ async fn journal_entries_are_projected_and_loaded() {
         sort_order: 0,
         visibility: JournalVisibility::Players,
         players_can_edit: true,
+        table: None,
         author: Some(UserId(v7(1))),
         version: Version(1),
     };
@@ -747,15 +748,41 @@ async fn journal_entries_are_projected_and_loaded() {
         .unwrap();
     assert_eq!(times, (100, 200));
 
+    // A table entry keeps its cells (ADR-0026).
+    let sheet = JournalEntryDto {
+        id: JournalEntryId(v7(0x501)),
+        title: "Prices".into(),
+        markdown: String::new(),
+        table: Some(JournalTable {
+            columns: vec![TableColumn {
+                name: "Item".into(),
+                width: 160,
+            }],
+            rows: vec![vec!["Rope".into()], vec!["=A1".into()]],
+        }),
+        ..entry.clone()
+    };
     db.project(&[record(
         3,
+        Some(0x54),
+        vec![Event::JournalEntryCreated {
+            entry: sheet.clone(),
+        }],
+    )])
+    .await
+    .unwrap();
+    let (state, _) = db.load_state().await.unwrap();
+    assert_eq!(state.journal.get(&sheet.id), Some(&sheet));
+
+    db.project(&[record(
+        4,
         Some(0x53),
         vec![Event::JournalEntryDeleted { id: entry.id }],
     )])
     .await
     .unwrap();
     let (state, _) = db.load_state().await.unwrap();
-    assert!(state.journal.is_empty());
+    assert_eq!(state.journal.keys().collect::<Vec<_>>(), [&sheet.id]);
 }
 
 fn chat(n: u128, kind: ChatKind) -> ChatMessageDto {
@@ -1226,6 +1253,7 @@ async fn journal_folders_are_projected_loaded_and_cascade() {
         sort_order: 0,
         visibility: JournalVisibility::Gm,
         players_can_edit: false,
+        table: None,
         author: None,
         version: Version(1),
     };

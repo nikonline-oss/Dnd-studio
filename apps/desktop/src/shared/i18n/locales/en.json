@@ -308,7 +308,9 @@
     "confirmDeleteEmptyFolder": "Delete the empty folder “{{name}}”?",
     "confirmDeleteFolder": "Delete the folder “{{name}}” with everything in it? Entries: {{entries}}, subfolders: {{folders}}.",
     "insertLink": "Link…",
-    "insertPicture": "Picture…"
+    "insertPicture": "Picture…",
+    "addTable": "New table",
+    "tableName": "Table title"
   },
   "chat": {
     "input": "Message",
@@ -624,5 +626,16 @@
     "toJournal": "Copy to the journal",
     "more_one": "{{count}} more",
     "more_other": "{{count}} more"
+  },
+  "table": {
+    "toolbar": "Table",
+    "grid": "Table cells",
+    "addRow": "Add row",
+    "addColumn": "Add column",
+    "deleteRow": "Delete row",
+    "deleteColumn": "Delete column",
+    "columnName": "Name of column {{letter}}",
+    "resize": "Width of column {{letter}}",
+    "empty": "No rows yet"
   }
 }

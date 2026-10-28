@@ -280,6 +280,55 @@ pub enum JournalVisibility {
     Players,
 }
 
+/// What a journal entry holds (ADR-0026).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub enum JournalEntryKind {
+    /// Markdown text.
+    #[default]
+    Text,
+    /// A spreadsheet-like table.
+    Table,
+}
+
+/// A column of a journal table.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct TableColumn {
+    pub name: String,
+    /// Width on screen, in CSS pixels (`MIN_COLUMN_WIDTH..=MAX_COLUMN_WIDTH`).
+    pub width: u16,
+}
+
+/// A table entry of the journal (ADR-0026). Every row has one cell per column. A cell is the text
+/// the user typed; a cell starting with `=` is reserved for formulas (later).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct JournalTable {
+    pub columns: Vec<TableColumn>,
+    pub rows: Vec<Vec<String>>,
+}
+
+/// Most columns of a journal table.
+pub const MAX_TABLE_COLUMNS: usize = 64;
+/// Most rows of a journal table.
+pub const MAX_TABLE_ROWS: usize = 5000;
+/// Longest cell of a journal table, in characters.
+pub const MAX_CELL_LEN: usize = 4000;
+/// Narrowest and widest column, in CSS pixels.
+pub const MIN_COLUMN_WIDTH: u16 = 40;
+pub const MAX_COLUMN_WIDTH: u16 = 2000;
+
+impl JournalTable {
+    /// The text the table holds (names and cells), in bytes: limited like a Markdown text.
+    #[must_use]
+    pub fn text_len(&self) -> usize {
+        self.columns.iter().map(|c| c.name.len()).sum::<usize>()
+            + self.rows.iter().flatten().map(String::len).sum::<usize>()
+    }
+}
+
 /// A journal entry with its Markdown text.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
@@ -296,7 +345,21 @@ pub struct JournalEntryDto {
     /// Players may edit it (only when visible to players).
     pub players_can_edit: bool,
     pub author: Option<UserId>,
+    /// The table of a table entry (`markdown` is then empty); `None` for a text (ADR-0026).
+    #[serde(default)]
+    pub table: Option<JournalTable>,
     pub version: Version,
+}
+
+impl JournalEntryDto {
+    #[must_use]
+    pub fn kind(&self) -> JournalEntryKind {
+        if self.table.is_some() {
+            JournalEntryKind::Table
+        } else {
+            JournalEntryKind::Text
+        }
+    }
 }
 
 /// A folder of the journal (ADR-0021): folders nest; an empty folder exists on its own.
@@ -328,6 +391,8 @@ pub struct JournalEntryMeta {
     pub visibility: JournalVisibility,
     pub players_can_edit: bool,
     pub author: Option<UserId>,
+    #[serde(default)]
+    pub kind: JournalEntryKind,
     pub version: Version,
 }
 
@@ -341,6 +406,7 @@ impl From<&JournalEntryDto> for JournalEntryMeta {
             visibility: e.visibility,
             players_can_edit: e.players_can_edit,
             author: e.author,
+            kind: e.kind(),
             version: e.version,
         }
     }

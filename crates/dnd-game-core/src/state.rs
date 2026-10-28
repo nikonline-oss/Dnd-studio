@@ -5,9 +5,9 @@ use std::collections::BTreeMap;
 use dnd_protocol::{
     AssetDto, AssetId, BoardDto, BoardEdgeDto, BoardEdgeId, BoardId, BoardNodeDto, BoardNodeId,
     CampaignMeta, CharacterDto, CharacterId, CombatDto, CombatId, CombatantDto, CombatantId,
-    FogDto, JournalEntryDto, JournalEntryId, JournalEntryMeta, JournalFolderDto, JournalFolderId,
-    MapDto, MapId, PluginDto, Seq, Snapshot, SystemRulesDto, TokenDto, TokenId, TriggerDto,
-    TriggerId, UserDto, UserId, Version, ZoneDto, ZoneId,
+    FogDto, JournalEntryDto, JournalEntryId, JournalEntryKind, JournalEntryMeta, JournalFolderDto,
+    JournalFolderId, JournalTable, MapDto, MapId, PluginDto, Seq, Snapshot, SystemRulesDto,
+    TokenDto, TokenId, TriggerDto, TriggerId, UserDto, UserId, Version, ZoneDto, ZoneId,
 };
 
 /// The authoritative state the core reasons about. Ordered maps keep iteration (and therefore
@@ -101,6 +101,11 @@ impl GameState {
                         folder_id: m.folder_id,
                         title: m.title,
                         markdown: String::new(),
+                        // The kind survives; the cells come with the entry (texts are fetched too).
+                        table: (m.kind == JournalEntryKind::Table).then(|| JournalTable {
+                            columns: Vec::new(),
+                            rows: Vec::new(),
+                        }),
                         sort_order: m.sort_order,
                         visibility: m.visibility,
                         players_can_edit: m.players_can_edit,

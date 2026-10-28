@@ -1,16 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useCampaign, useJournalEntry, useSubmitIntent } from '@/shared/game/useGame';
-import { IntentRejected, type JournalEntryDto } from '@/shared/ipc/client';
+import { IntentRejected, type JournalEntryDto, type JournalTable } from '@/shared/ipc/client';
 import { useSelection } from '@/shared/state/selection';
 import { CodeEditor, type CodeEditorHandle } from '@/shared/ui/CodeEditor';
 import { ElementPicker } from '@/shared/ui/ElementPicker';
 import { ErrorText } from '@/shared/ui/ErrorText';
 import { InlineEdit } from '@/shared/ui/InlineEdit';
 import { linkMarkdown, Markdown } from '@/shared/ui/Markdown';
+import { TableGrid } from './TableGrid';
 
 /** UI-draft debounce (CLAUDE.md §10): the text is sent 2 s after the last keystroke. */
 export const DRAFT_DEBOUNCE_MS = 2000;
+
+/** What an entry holds: a Markdown text or a table (ADR-0026). */
+type Content = string | JournalTable;
 
 /** Center view of the selected journal entry. */
 export function JournalEditor() {
@@ -27,8 +31,8 @@ function Editor({ entry }: { entry: JournalEntryDto }) {
   const { data: campaign } = useCampaign();
   const submit = useSubmitIntent();
   const closeTab = useSelection((s) => s.closeTab);
-  /** Local text not yet confirmed by the core; `null` = showing the stored text. */
-  const [draft, setDraft] = useState<string | null>(null);
+  /** Local text (or table) not yet confirmed by the core; `null` = showing the stored one. */
+  const [draft, setDraft] = useState<Content | null>(null);
   const [conflict, setConflict] = useState(false);
   const [preview, setPreview] = useState(false);
   /** Which picker is open: a picture or a link to insert at the cursor. */
@@ -39,25 +43,27 @@ function Editor({ entry }: { entry: JournalEntryDto }) {
   const canEditText =
     isGm ||
     (campaign?.role === 'player' && entry.visibility === 'players' && entry.players_can_edit);
-  const text = draft ?? entry.markdown;
+  const content: Content = draft ?? entry.table ?? entry.markdown;
+  const text = typeof content === 'string' ? content : '';
 
-  const saveText = (markdown: string, version: number) => {
+  const saveText = (saved: Content, version: number) => {
     submit.mutate(
       {
         intent: {
           kind: 'update_journal_entry',
           id: entry.id,
           title: null,
-          markdown,
+          markdown: typeof saved === 'string' ? saved : null,
           visibility: null,
           players_can_edit: null,
+          table: typeof saved === 'string' ? null : saved,
         },
         expectedVersion: version,
       },
       {
         onSuccess: () => {
           // Keep typing that happened while the save was in flight.
-          setDraft((current) => (current === markdown ? null : current));
+          setDraft((current) => (current === saved ? null : current));
         },
         onError: (error) => {
           if (error instanceof IntentRejected && error.reason.code === 'stale_version') {
@@ -127,35 +133,39 @@ function Editor({ entry }: { entry: JournalEntryDto }) {
             entry.title
           )}
         </h2>
-        {canEditText && !preview && (
-          <>
+        <div className="inline">
+          {canEditText && !preview && typeof content === 'string' && (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  setPicking('link');
+                }}
+              >
+                {t('journal.insertLink')}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPicking('picture');
+                }}
+              >
+                {t('journal.insertPicture')}
+              </button>
+            </>
+          )}
+          {typeof content === 'string' && (
             <button
               type="button"
+              aria-pressed={preview}
               onClick={() => {
-                setPicking('link');
+                setPreview((p) => !p);
               }}
             >
-              {t('journal.insertLink')}
+              {preview ? t('journal.edit') : t('journal.preview')}
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                setPicking('picture');
-              }}
-            >
-              {t('journal.insertPicture')}
-            </button>
-          </>
-        )}
-        <button
-          type="button"
-          aria-pressed={preview}
-          onClick={() => {
-            setPreview((p) => !p);
-          }}
-        >
-          {preview ? t('journal.edit') : t('journal.preview')}
-        </button>
+          )}
+        </div>
       </header>
       {picking === 'picture' && (
         <ElementPicker
@@ -248,7 +258,9 @@ function Editor({ entry }: { entry: JournalEntryDto }) {
         </div>
       )}
 
-      {preview || !canEditText ? (
+      {typeof content !== 'string' ? (
+        <TableGrid table={content} editable={canEditText} onChange={setDraft} />
+      ) : preview || !canEditText ? (
         <Markdown source={text} />
       ) : (
         <CodeEditor

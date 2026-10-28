@@ -179,4 +179,66 @@ describe('JournalEditor', () => {
     expect(screen.queryByLabelText('Entry text (Markdown)')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Visibility')).not.toBeInTheDocument();
   });
+  it('edits a table entry like a spreadsheet and saves the whole table', async () => {
+    const { fireEvent } = await import('@testing-library/react');
+    renderEditor('gm', {
+      ...entry,
+      markdown: '',
+      table: {
+        columns: [
+          { name: 'Item', width: 140 },
+          { name: 'Price', width: 100 },
+        ],
+        rows: [
+          ['Rope', '1 gp'],
+          ['', ''],
+        ],
+      },
+    });
+    const grid = await screen.findByRole('grid', { name: 'Table cells' });
+    // No text tools on a table.
+    expect(screen.queryByRole('button', { name: 'Preview' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('gridcell', { name: 'Rope' }));
+    fireEvent.keyDown(grid, { key: 'ArrowDown' });
+    // Typing starts editing the selected cell (row 2, column A).
+    fireEvent.keyDown(grid, { key: 'L' });
+    const input = screen.getByLabelText('A2');
+    fireEvent.change(input, { target: { value: 'Lantern' } });
+    fireEvent.keyDown(input, { key: 'Tab' });
+    // A block copied from Excel pastes in at the selection (B2), growing the table.
+    fireEvent.paste(grid, {
+      clipboardData: { getData: () => '5 gp\tlight\n\textra\n' },
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(DRAFT_DEBOUNCE_MS + 10);
+    });
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({
+      expected_version: 3,
+      intent: {
+        kind: 'update_journal_entry',
+        markdown: null,
+        table: {
+          columns: [{ name: 'Item' }, { name: 'Price' }, { name: 'C' }],
+          rows: [
+            ['Rope', '1 gp', ''],
+            ['Lantern', '5 gp', 'light'],
+            ['', '', 'extra'],
+          ],
+        },
+      },
+    });
+  });
+
+  it('players read a table they may not edit', async () => {
+    renderEditor('player', {
+      ...entry,
+      visibility: 'players',
+      markdown: '',
+      table: { columns: [{ name: 'Item', width: 140 }], rows: [['Rope']] },
+    });
+    expect(await screen.findByRole('gridcell', { name: 'Rope' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add row' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Name of column A')).not.toBeInTheDocument();
+  });
 });

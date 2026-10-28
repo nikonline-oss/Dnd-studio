@@ -109,6 +109,7 @@ async fn archive(dir: &Path) -> PathBuf {
             markdown: "# Pantheon".into(),
             visibility: JournalVisibility::Players,
             players_can_edit: false,
+            table: None,
         },
     ] {
         engine

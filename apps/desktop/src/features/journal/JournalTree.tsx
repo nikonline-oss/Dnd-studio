@@ -18,6 +18,7 @@ import { useSelection } from '@/shared/state/selection';
 import { ContextMenu } from '@/shared/ui/ContextMenu';
 import { ErrorText } from '@/shared/ui/ErrorText';
 import { Icon } from '@/shared/ui/Icon';
+import { newTable } from './table';
 import { IconButton } from '@/shared/ui/IconButton';
 import type { MenuItem } from '@/shared/ui/Menu';
 import { NavSection } from '@/shared/ui/NavSection';
@@ -227,6 +228,7 @@ export function JournalTree() {
           markdown: '',
           visibility: 'gm',
           players_can_edit: false,
+          table: target.type === 'table' ? newTable() : null,
         },
       },
       {
@@ -359,6 +361,12 @@ export function JournalTree() {
         },
       },
       {
+        label: t('journal.addTable'),
+        onSelect: () => {
+          startCreate('table', into);
+        },
+      },
+      {
         label: t('journal.addFolder'),
         onSelect: () => {
           startCreate('folder', into);
@@ -468,7 +476,10 @@ export function JournalTree() {
       return (
         <li className="nav-row tree-row" role="none" style={style}>
           <span className="tree-chevron-space" />
-          <Icon name={row.type === 'folder' ? 'folder' : 'book'} className="row-icon" />
+          <Icon
+            name={row.type === 'folder' ? 'folder' : row.type === 'table' ? 'table' : 'book'}
+            className="row-icon"
+          />
           <NameInput
             initial=""
             label={row.type === 'folder' ? t('journal.folderName') : t('journal.entryName')}
@@ -530,7 +541,16 @@ export function JournalTree() {
           <Icon name={row.expanded ? 'folderOpen' : 'folder'} className="row-icon" />
         ) : (
           <span title={t(`journal.visibility.${row.entry.visibility}`)} className="row-icon-box">
-            <Icon name={row.entry.visibility === 'gm' ? 'lock' : 'book'} className="row-icon" />
+            <Icon
+              name={
+                row.entry.visibility === 'gm'
+                  ? 'lock'
+                  : row.entry.kind === 'table'
+                    ? 'table'
+                    : 'book'
+              }
+              className="row-icon"
+            />
           </span>
         )}
         {isRenaming ? (
@@ -563,6 +583,14 @@ export function JournalTree() {
                 label={t('journal.add')}
                 onClick={() => {
                   startCreate('entry', target);
+                }}
+                disabled={submit.isPending}
+              />
+              <IconButton
+                icon="table"
+                label={t('journal.addTable')}
+                onClick={() => {
+                  startCreate('table', target);
                 }}
                 disabled={submit.isPending}
               />

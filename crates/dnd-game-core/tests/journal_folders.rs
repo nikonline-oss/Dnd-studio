@@ -42,6 +42,7 @@ fn put(state: &mut GameState, n: u128, folder_n: Option<u128>) {
             markdown: String::new(),
             visibility: JournalVisibility::Players,
             players_can_edit: false,
+            table: None,
         },
         None,
     )

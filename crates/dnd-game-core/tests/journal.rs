@@ -29,6 +29,7 @@ fn create(
         markdown: "# Hello".into(),
         visibility,
         players_can_edit,
+        table: None,
     }
 }
 
@@ -39,6 +40,7 @@ fn edit_text(n: u128, text: &str) -> Intent {
         markdown: Some(text.into()),
         visibility: None,
         players_can_edit: None,
+        table: None,
     }
 }
 
@@ -147,6 +149,7 @@ fn players_edit_only_shared_editable_entries_and_only_text() {
             markdown: None,
             visibility: Some(JournalVisibility::Gm),
             players_can_edit: None,
+            table: None,
         },
         Intent::UpdateJournalEntry {
             id: entry_id(2),
@@ -154,6 +157,7 @@ fn players_edit_only_shared_editable_entries_and_only_text() {
             markdown: None,
             visibility: None,
             players_can_edit: Some(false),
+            table: None,
         },
     ] {
         assert_eq!(
@@ -181,6 +185,7 @@ fn players_edit_only_shared_editable_entries_and_only_text() {
             markdown: None,
             visibility: Some(JournalVisibility::Gm),
             players_can_edit: None,
+            table: None,
         },
         Some(Version(2)),
     )
@@ -255,6 +260,7 @@ fn invalid_values_are_rejected() {
                 markdown: String::new(),
                 visibility: JournalVisibility::Gm,
                 players_can_edit: false,
+                table: None,
             },
             "title",
         ),
@@ -266,6 +272,7 @@ fn invalid_values_are_rejected() {
                 markdown: "x".repeat(MAX_JOURNAL_BYTES + 1),
                 visibility: JournalVisibility::Gm,
                 players_can_edit: false,
+                table: None,
             },
             "markdown",
         ),
@@ -287,7 +294,8 @@ fn invalid_values_are_rejected() {
                 title: None,
                 markdown: None,
                 visibility: None,
-                players_can_edit: None
+                players_can_edit: None,
+                table: None,
             },
             Some(Version(1))
         ),
@@ -324,4 +332,139 @@ fn delete_removes_the_entry_and_its_id_cannot_collide() {
         ),
         Err(RejectReason::AlreadyExists)
     );
+}
+
+fn table(rows: &[&[&str]]) -> JournalTable {
+    let width = rows.first().map_or(1, |r| r.len());
+    JournalTable {
+        columns: (0..width)
+            .map(|i| TableColumn {
+                name: format!("Col {i}"),
+                width: 120,
+            })
+            .collect(),
+        rows: rows
+            .iter()
+            .map(|r| r.iter().map(|c| (*c).to_owned()).collect())
+            .collect(),
+    }
+}
+
+fn create_table(n: u128, players_can_edit: bool, cells: JournalTable) -> Intent {
+    Intent::CreateJournalEntry {
+        id: entry_id(n),
+        folder_id: None,
+        title: format!("Table {n}"),
+        markdown: String::new(),
+        visibility: JournalVisibility::Players,
+        players_can_edit,
+        table: Some(cells),
+    }
+}
+
+fn edit_table(n: u128, cells: JournalTable) -> Intent {
+    Intent::UpdateJournalEntry {
+        id: entry_id(n),
+        title: None,
+        markdown: None,
+        visibility: None,
+        players_can_edit: None,
+        table: Some(cells),
+    }
+}
+
+#[test]
+fn table_entries_hold_cells_and_stay_tables() {
+    let mut state = journal_state();
+    run(
+        &mut state,
+        Role::Gm,
+        create_table(7, true, table(&[&["Sword", "15 gp"], &["=A1", ""]])),
+        None,
+    )
+    .unwrap();
+    let entry = &state.journal[&entry_id(7)];
+    assert_eq!(entry.kind(), JournalEntryKind::Table);
+    // A formula-looking cell is kept as typed (formulas come later, ADR-0026).
+    assert_eq!(entry.table.as_ref().unwrap().rows[1][0], "=A1");
+    assert_eq!(JournalEntryMeta::from(entry).kind, JournalEntryKind::Table);
+
+    // Players edit the cells of a shared editable table, like the text of an entry.
+    run(
+        &mut state,
+        Role::Player,
+        edit_table(7, table(&[&["Axe", "10 gp"]])),
+        Some(Version(1)),
+    )
+    .unwrap();
+    assert_eq!(
+        state.journal[&entry_id(7)].table.as_ref().unwrap().rows,
+        vec![vec!["Axe".to_owned(), "10 gp".to_owned()]]
+    );
+
+    // A table gets no text, a text gets no table, and a new table has no text.
+    assert_eq!(
+        run(&mut state, Role::Gm, edit_text(7, "x"), Some(Version(2))),
+        Err(RejectReason::invalid("markdown"))
+    );
+    assert_eq!(
+        run(
+            &mut state,
+            Role::Gm,
+            edit_table(2, table(&[&["a"]])),
+            Some(Version(1))
+        ),
+        Err(RejectReason::invalid("table"))
+    );
+    let mut with_text = create_table(8, false, table(&[&["a"]]));
+    if let Intent::CreateJournalEntry { markdown, .. } = &mut with_text {
+        *markdown = "text".into();
+    }
+    assert_eq!(
+        run(&mut state, Role::Gm, with_text, None),
+        Err(RejectReason::invalid("markdown"))
+    );
+}
+
+#[test]
+fn tables_out_of_shape_or_limits_are_rejected() {
+    let ragged = JournalTable {
+        rows: vec![vec!["only one".into()]],
+        ..table(&[&["a", "b"]])
+    };
+    let no_columns = JournalTable {
+        columns: Vec::new(),
+        rows: Vec::new(),
+    };
+    let mut narrow = table(&[&["a"]]);
+    narrow.columns[0].width = MIN_COLUMN_WIDTH - 1;
+    let long_cell = table(&[&["x".repeat(MAX_CELL_LEN + 1).as_str()]]);
+    let control = table(&[&["bell\u{7}"]]);
+    let too_many_rows = JournalTable {
+        rows: vec![vec![String::new()]; MAX_TABLE_ROWS + 1],
+        ..table(&[&["a"]])
+    };
+    for cells in [
+        ragged,
+        no_columns,
+        narrow,
+        long_cell,
+        control,
+        too_many_rows,
+    ] {
+        let mut state = journal_state();
+        assert_eq!(
+            run(&mut state, Role::Gm, create_table(9, false, cells), None),
+            Err(RejectReason::invalid("table"))
+        );
+    }
+    // Line breaks and tabs inside a cell are fine.
+    let mut state = journal_state();
+    run(
+        &mut state,
+        Role::Gm,
+        create_table(9, false, table(&[&["two\nlines\tand a tab"]])),
+        None,
+    )
+    .unwrap();
 }

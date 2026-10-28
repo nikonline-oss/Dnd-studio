@@ -130,6 +130,7 @@ async fn campaign_archive(dir: &Path) -> Vec<u8> {
         markdown: format!("text {n}"),
         visibility,
         players_can_edit: false,
+        table: None,
     };
     for intent in [
         map(SHARED_MAP, &shared_asset, true),

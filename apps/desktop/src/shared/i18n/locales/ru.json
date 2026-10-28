@@ -312,7 +312,9 @@
     "confirmDeleteEmptyFolder": "Удалить пустую папку «{{name}}»?",
     "confirmDeleteFolder": "Удалить папку «{{name}}» со всем содержимым? Записей: {{entries}}, вложенных папок: {{folders}}.",
     "insertLink": "Ссылка…",
-    "insertPicture": "Картинка…"
+    "insertPicture": "Картинка…",
+    "addTable": "Новая таблица",
+    "tableName": "Название таблицы"
   },
   "chat": {
     "input": "Сообщение",
@@ -636,5 +638,16 @@
     "more_few": "Ещё {{count}}",
     "more_many": "Ещё {{count}}",
     "more_other": "Ещё {{count}}"
+  },
+  "table": {
+    "toolbar": "Таблица",
+    "grid": "Ячейки таблицы",
+    "addRow": "Добавить строку",
+    "addColumn": "Добавить колонку",
+    "deleteRow": "Удалить строку",
+    "deleteColumn": "Удалить колонку",
+    "columnName": "Название колонки {{letter}}",
+    "resize": "Ширина колонки {{letter}}",
+    "empty": "Строк пока нет"
   }
 }

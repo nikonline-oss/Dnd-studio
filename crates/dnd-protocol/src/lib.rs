@@ -43,6 +43,10 @@ pub use model::{
     TokenLayer, UserDto,
 };
 pub use model::{
+    JournalEntryKind, JournalTable, MAX_CELL_LEN, MAX_COLUMN_WIDTH, MAX_TABLE_COLUMNS,
+    MAX_TABLE_ROWS, MIN_COLUMN_WIDTH, TableColumn,
+};
+pub use model::{
     MAX_BRUSH_POINTS, MAX_BRUSH_RADIUS, MAX_CELL_SIZE, MAX_COMBATANTS, MAX_FOG_OPS, MAX_FOG_POINTS,
     MAX_FOLDER_DEPTH, MAX_MAP_SIZE, MIN_CELL_SIZE, UNITS16_PER_UNIT,
 };
@@ -65,7 +69,7 @@ pub use zone::{MAX_ZONE_PARTS, MAX_ZONE_POINTS, MAX_ZONES_PER_MAP, ZoneDto, Zone
 
 /// Protocol version. Peers with a different version are refused with
 /// [`RejectReason::ProtocolMismatch`].
-pub const PROTOCOL_VERSION: u32 = 5;
+pub const PROTOCOL_VERSION: u32 = 6;
 
 /// Registers every protocol type that is exported to TypeScript.
 #[cfg(feature = "specta")]

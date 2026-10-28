@@ -43,6 +43,14 @@ const PATHS = {
   zone: 'M4 4h3M10 4h4M17 4h3v3M20 10v4M20 17v3h-3M14 20h-4M7 20H4v-3M4 14v-4M4 7V4',
   grip: 'M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01',
   bolt: 'M13 2L4 14h7l-1 8 9-12h-7z',
+  table: 'M4 5h16v14H4zM4 10h16M4 15h16M10 5v14',
+  download: 'M12 4v11M7 10l5 5 5-5M5 20h14',
+  upload: 'M12 20V9M7 14l5-5 5 5M5 4h14',
+  music: 'M9 18V5l11-2v13M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM20 16a3 3 0 1 1-6 0 3 3 0 0 1 6 0z',
+  volume: 'M4 9h4l5-4v14l-5-4H4zM16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11',
+  volumeOff: 'M4 9h4l5-4v14l-5-4H4zM16 9l5 6M21 9l-5 6',
+  play: 'M7 4l13 8-13 8z',
+  stop: 'M6 6h12v12H6z',
 } as const;
 
 export type IconName = keyof typeof PATHS;
