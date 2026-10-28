@@ -6,6 +6,7 @@ pub mod bundled;
 mod commands;
 pub mod compendia;
 mod error;
+mod journal_files;
 mod local_server;
 pub mod logging;
 pub mod plugins;
@@ -51,6 +52,8 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::campaign_current,
             commands::get_snapshot,
             commands::journal_entry,
+            journal_files::journal_import_read::<tauri::Wry>,
+            journal_files::journal_export_write::<tauri::Wry>,
             commands::chat_history,
             assets::asset_import_map::<tauri::Wry>,
             assets::asset_import_images::<tauri::Wry>,

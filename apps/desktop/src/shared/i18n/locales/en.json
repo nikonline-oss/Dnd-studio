@@ -310,7 +310,13 @@
     "insertLink": "Link…",
     "insertPicture": "Picture…",
     "addTable": "New table",
-    "tableName": "Table title"
+    "tableName": "Table title",
+    "import": "Import from a folder…",
+    "export": "Export to a folder…",
+    "imported": "Imported: {{entries}} entries in {{folders}} folders",
+    "importedSkipped": "Imported: {{entries}} entries in {{folders}} folders; files skipped: {{skipped}}",
+    "exported": "Journal exported to {{folder}}",
+    "importNothing": "No Markdown or CSV files in this folder"
   },
   "chat": {
     "input": "Message",

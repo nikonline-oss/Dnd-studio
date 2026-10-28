@@ -71,6 +71,18 @@ export const commands = {
 	 *  locally the GM sees everything.
 	 */
 	journalEntry: (id: JournalEntryId) => typedError<JournalEntryDto, IpcError>(__TAURI_INVOKE("journal_entry", { id })),
+	/**  Asks for a folder and reads its Markdown and CSV files. `None` if the dialog was cancelled. */
+	journalImportRead: () => typedError<{
+	name: string,
+	files: JournalFile[],
+	/**  Files left out: too large, not UTF-8, or over the file limit. */
+	skipped: number,
+} | null, IpcError>(__TAURI_INVOKE("journal_import_read")),
+	/**
+	 *  Asks for a folder and writes the journal's files into it. Returns the folder, or `None` if the
+	 *  dialog was cancelled.
+	 */
+	journalExportWrite: (files: JournalFile[]) => typedError<string | null, IpcError>(__TAURI_INVOKE("journal_export_write", { files })),
 	/**  Older chat messages (oldest first) before `before`, at most `limit` (capped at 200). */
 	chatHistory: (before: string | null, limit: number) => typedError<ChatMessageDto[], IpcError>(__TAURI_INVOKE("chat_history", { before, limit })),
 	/**
@@ -806,6 +818,12 @@ export type JournalEntryMeta = {
 	version: Version,
 };
 
+/**  A file of a journal tree: folder names, then the file name with its extension. */
+export type JournalFile = {
+	path: string[],
+	text: string,
+};
+
 /**  A folder of the journal (ADR-0021): folders nest; an empty folder exists on its own. */
 export type JournalFolderDto = {
 	id: JournalFolderId,
@@ -819,6 +837,14 @@ export type JournalFolderDto = {
 
 /**  A folder of the journal (ADR-0021). */
 export type JournalFolderId = string;
+
+/**  What an import read: the picked folder's name and its Markdown and CSV files. */
+export type JournalImport = {
+	name: string,
+	files: JournalFile[],
+	/**  Files left out: too large, not UTF-8, or over the file limit. */
+	skipped: number,
+};
 
 /**
  *  A table entry of the journal (ADR-0026). Every row has one cell per column. A cell is the text

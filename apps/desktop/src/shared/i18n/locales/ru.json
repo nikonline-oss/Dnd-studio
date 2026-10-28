@@ -314,7 +314,13 @@
     "insertLink": "Ссылка…",
     "insertPicture": "Картинка…",
     "addTable": "Новая таблица",
-    "tableName": "Название таблицы"
+    "tableName": "Название таблицы",
+    "import": "Импорт из папки…",
+    "export": "Экспорт в папку…",
+    "imported": "Импортировано: записей — {{entries}}, папок — {{folders}}",
+    "importedSkipped": "Импортировано: записей — {{entries}}, папок — {{folders}}; пропущено файлов: {{skipped}}",
+    "exported": "Журнал выгружен в {{folder}}",
+    "importNothing": "В этой папке нет файлов Markdown или CSV"
   },
   "chat": {
     "input": "Сообщение",

@@ -19,6 +19,7 @@ import { ContextMenu } from '@/shared/ui/ContextMenu';
 import { ErrorText } from '@/shared/ui/ErrorText';
 import { Icon } from '@/shared/ui/Icon';
 import { newTable } from './table';
+import { useJournalExchange } from './useJournalExchange';
 import { IconButton } from '@/shared/ui/IconButton';
 import type { MenuItem } from '@/shared/ui/Menu';
 import { NavSection } from '@/shared/ui/NavSection';
@@ -138,6 +139,7 @@ export function JournalTree() {
   const journal = useSnapshotSelect((s) => s.journal);
   const allFolders = useSnapshotSelect((s) => s.journal_folders);
   const submit = useSubmitIntent();
+  const exchange = useJournalExchange();
   const openId = useSelection((s) => s.journalId);
   const openJournal = useSelection((s) => s.openJournal);
   const isGm = campaign?.role === 'gm' || campaign?.role === 'co_gm';
@@ -372,6 +374,9 @@ export function JournalTree() {
           startCreate('folder', into);
         },
       },
+      'separator',
+      { label: t('journal.import'), onSelect: exchange.importJournal },
+      { label: t('journal.export'), onSelect: exchange.exportJournal },
     ];
     if (target) {
       items.push(
@@ -693,7 +698,7 @@ export function JournalTree() {
           onClose={closeMenu}
         />
       )}
-      <ErrorText error={submit.error} />
+      <ErrorText error={submit.error ?? exchange.error} />
     </NavSection>
   );
 }

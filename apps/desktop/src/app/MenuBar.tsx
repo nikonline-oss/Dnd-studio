@@ -1,5 +1,6 @@
 import { useMutation } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
+import { useJournalExchange } from '@/features/journal/useJournalExchange';
 import { useCampaignActions } from '@/shared/game/useCampaignActions';
 import { useCampaign } from '@/shared/game/useGame';
 import { useRemote } from '@/shared/game/useRemote';
@@ -17,6 +18,8 @@ export function MenuBar({ breadcrumbs }: { breadcrumbs: string[] }) {
   const showDialog = useDialogs((s) => s.show);
   const remote = useRemote();
   const { data: campaign } = useCampaign();
+  const isGm = campaign?.role === 'gm' || campaign?.role === 'co_gm';
+  const journal = useJournalExchange();
   const stopSession = useMutation({
     mutationFn: ipc.remoteStop,
     onSuccess: () => {
@@ -76,6 +79,17 @@ export function MenuBar({ breadcrumbs }: { breadcrumbs: string[] }) {
                   onError: failed,
                 });
               },
+            },
+            'separator',
+            {
+              label: t('journal.import'),
+              disabled: !isGm || journal.busy,
+              onSelect: journal.importJournal,
+            },
+            {
+              label: t('journal.export'),
+              disabled: !isGm || journal.busy,
+              onSelect: journal.exportJournal,
             },
             'separator',
             {

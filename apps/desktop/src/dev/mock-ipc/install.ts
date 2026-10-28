@@ -628,6 +628,19 @@ export async function installMockIpc(
           return submit(payload.envelope as IntentEnvelope);
         case 'journal_entry':
           return journal.find((e) => e.id === payload.id);
+        // The real commands open a folder dialog; here a small vault is "picked".
+        case 'journal_import_read':
+          return {
+            name: 'Vault',
+            skipped: 0,
+            files: [
+              { path: ['Index.md'], text: '# Index\n\nSee [[Old map]] and [loot](Loot.csv).' },
+              { path: ['Places', 'Old map.md'], text: 'Back to [the index](../Index.md).' },
+              { path: ['Loot.csv'], text: 'Item;Value\r\nRuby;50 gp\r\n' },
+            ],
+          };
+        case 'journal_export_write':
+          return 'C:\\mock\\journal';
         case 'chat_history':
           return [];
         case 'logs_recent':
