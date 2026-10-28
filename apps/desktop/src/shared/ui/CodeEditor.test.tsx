@@ -4,7 +4,10 @@ import { describe, expect, it, vi } from 'vitest';
 import { CodeEditor } from './CodeEditor';
 
 function editorOf(container: HTMLElement): EditorView {
-  const dom = container.querySelector<HTMLElement>('.cm-editor');
+  // The editor lives in the host's shadow root (CSP, see CodeEditor).
+  const dom = container
+    .querySelector('.code-editor')
+    ?.shadowRoot?.querySelector<HTMLElement>('.cm-editor');
   const view = dom ? EditorView.findFromDOM(dom) : null;
   if (!view) throw new Error('no editor');
   return view;

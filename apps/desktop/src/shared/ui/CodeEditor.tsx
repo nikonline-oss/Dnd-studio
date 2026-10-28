@@ -3,6 +3,23 @@ import { markdown } from '@codemirror/lang-markdown';
 import { EditorView, basicSetup } from 'codemirror';
 import { useEffect, useRef } from 'react';
 
+/** The app's colours (custom properties reach into the shadow root), light and dark alike. */
+const theme = EditorView.theme({
+  '&': { color: 'var(--color-text)', backgroundColor: 'transparent' },
+  '.cm-content': { caretColor: 'var(--color-text)' },
+  '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--color-text)' },
+  '.cm-gutters': {
+    color: 'var(--color-text-muted)',
+    backgroundColor: 'var(--color-surface-alt)',
+    borderRight: '1px solid var(--color-border)',
+  },
+  '.cm-activeLine, .cm-activeLineGutter': { backgroundColor: 'var(--color-hover)' },
+  '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, ::selection': {
+    backgroundColor: 'var(--color-accent-soft)',
+  },
+  '&.cm-focused': { outline: 'none' },
+});
+
 interface Props {
   value: string;
   onChange: (value: string) => void;
@@ -28,13 +45,18 @@ export function CodeEditor({ value, onChange, label, language }: Props) {
 
   useEffect(() => {
     if (!host.current) return;
+    // CodeMirror's own styles: in a document it adds <style> tags, which the release CSP blocks
+    // (no 'unsafe-inline', ADR-0009); in a shadow root it uses constructed style sheets instead.
+    const shadow = host.current.shadowRoot ?? host.current.attachShadow({ mode: 'open' });
     const editor = new EditorView({
-      parent: host.current,
+      parent: shadow,
+      root: shadow,
       doc: value,
       extensions: [
         basicSetup,
         language === 'json' ? json() : markdown(),
         EditorView.lineWrapping,
+        theme,
         EditorView.contentAttributes.of({ 'aria-label': label }),
         EditorView.updateListener.of((update) => {
           if (update.docChanged && !applyingValue.current) {
