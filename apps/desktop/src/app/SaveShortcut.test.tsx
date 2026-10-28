@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it } from 'vitest';
 import { AppShell } from './AppShell';
 import type { CampaignInfo, IpcError, Snapshot } from '@/shared/ipc/client';
+import i18n from '@/shared/i18n';
 import { Toaster, useToast } from '@/shared/ui/Toast';
 
 const snapshot: Snapshot = {
@@ -79,7 +80,7 @@ describe('Ctrl+S', () => {
       throw error;
     });
     await userEvent.keyboard('{Control>}s{/Control}');
-    const toast = await screen.findByText('Could not save data');
+    const toast = await screen.findByText(i18n.t('errors.storage_error'));
     expect(toast).toHaveAttribute('data-tone', 'error');
   });
 });
