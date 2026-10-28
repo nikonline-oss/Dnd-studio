@@ -10,6 +10,7 @@ const TAB_ICONS = {
   character: 'user',
   board: 'board',
   trigger: 'bolt',
+  compendium: 'book',
 } as const;
 
 /**
@@ -45,7 +46,10 @@ export function CenterTabs() {
       board: boards,
       trigger: triggers,
     };
-    pruneTabs((tab) => lists[tab.kind].some((item) => item.id === tab.id));
+    // Compendia are not in the snapshot; their tabs stay until closed.
+    const listed = (tab: TabRef) =>
+      tab.kind === 'compendium' || lists[tab.kind].some((item) => item.id === tab.id);
+    pruneTabs(listed);
   }, [maps, entries, characters, boards, triggers, pruneTabs]);
 
   const title = (tab: TabRef) =>
@@ -57,7 +61,9 @@ export function CenterTabs() {
           ? (characters?.find((c) => c.id === tab.id)?.name ?? t('characters.title'))
           : tab.kind === 'board'
             ? (boards?.find((b) => b.id === tab.id)?.name ?? t('boards.title'))
-            : (triggers?.find((tr) => tr.id === tab.id)?.name ?? t('triggers.title'));
+            : tab.kind === 'trigger'
+              ? (triggers?.find((tr) => tr.id === tab.id)?.name ?? t('triggers.title'))
+              : t('compendia.title');
 
   // No map opened in a tab (always so for players, who have no navigator): the map view keeps a
   // tab of its own, so opening a journal entry does not hide the map.

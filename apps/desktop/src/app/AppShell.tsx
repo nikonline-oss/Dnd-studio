@@ -8,6 +8,8 @@ import { MenuBar } from './MenuBar';
 import { StatusBar } from './StatusBar';
 import { BoardList } from '@/features/boards/BoardList';
 import { BoardView } from '@/features/boards/BoardView';
+import { CompendiumList } from '@/features/compendium/CompendiumList';
+import { CompendiumView } from '@/features/compendium/CompendiumView';
 import { ImageLibrary } from '@/features/images/ImageLibrary';
 import { TriggerEditor } from '@/features/triggers/TriggerEditor';
 import { TriggerList } from '@/features/triggers/TriggerList';
@@ -46,8 +48,9 @@ const GM_VIEWS: SideView[] = [
   'boards',
   'triggers',
   'images',
+  'compendia',
 ];
-const PLAYER_VIEWS: SideView[] = ['characters', 'journal', 'boards'];
+const PLAYER_VIEWS: SideView[] = ['characters', 'journal', 'boards', 'compendia'];
 const VIEW_ICONS = {
   maps: 'map',
   characters: 'users',
@@ -56,6 +59,7 @@ const VIEW_ICONS = {
   boards: 'board',
   triggers: 'bolt',
   images: 'image',
+  compendia: 'book',
 } as const;
 
 /**
@@ -76,6 +80,7 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
   const boardId = active?.kind === 'board' ? active.id : null;
   const boardName = useSnapshotSelect((s) => s.boards.find((b) => b.id === boardId)?.name);
   const triggerId = active?.kind === 'trigger' ? active.id : null;
+  const compendiumKey = active?.kind === 'compendium' ? active.id : null;
   const triggerName = useSnapshotSelect(
     (s) => s.triggers.find((tr) => tr.id === triggerId)?.definition.name,
   );
@@ -87,6 +92,7 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
     character: sheetName,
     board: boardName,
     trigger: triggerName,
+    compendium: t('compendia.title'),
     map: mapName,
   };
   const crumb = crumbs[center];
@@ -204,6 +210,10 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
               <ErrorBoundary name={t('characters.title')}>
                 <CharacterList />
               </ErrorBoundary>
+            ) : sideView === 'compendia' ? (
+              <ErrorBoundary name={t('compendia.title')}>
+                <CompendiumList />
+              </ErrorBoundary>
             ) : sideView === 'images' ? (
               <ErrorBoundary name={t('images.title')}>
                 <ImageLibrary />
@@ -239,6 +249,10 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
                   {center === 'journal' ? (
                     <ErrorBoundary name={t('journal.title')}>
                       <JournalEditor />
+                    </ErrorBoundary>
+                  ) : center === 'compendium' && compendiumKey !== null ? (
+                    <ErrorBoundary name={t('compendia.title')}>
+                      <CompendiumView key={compendiumKey} compendiumKey={compendiumKey} />
                     </ErrorBoundary>
                   ) : center === 'trigger' && triggerId !== null ? (
                     <ErrorBoundary name={t('triggers.title')}>

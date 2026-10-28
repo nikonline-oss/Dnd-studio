@@ -651,6 +651,8 @@ export async function installMockIpc(
           return srdSheetView(String(payload.sheetJson));
         case 'asset_import_images':
           return [];
+        case 'compendium_list':
+          return [];
         case 'asset_import_map':
           // The real command opens a native file dialog; here it behaves as if cancelled.
           return null;

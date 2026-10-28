@@ -361,7 +361,8 @@
     "plugins": "Plugins",
     "boards": "Boards",
     "triggers": "Triggers",
-    "images": "Pictures"
+    "images": "Pictures",
+    "compendia": "Compendia"
   },
   "session": {
     "host": "Invite players…",
@@ -613,5 +614,14 @@
     "openBoardFirst": "Open a board in a tab first",
     "copyForJournal": "Copy for the journal",
     "copied": "Copied: paste it into an entry"
+  },
+  "compendia": {
+    "title": "Compendia",
+    "empty": "The campaign’s plugins have no compendia (not shown in a remote session yet).",
+    "entries": "Entries",
+    "pick": "Pick an entry on the left.",
+    "toJournal": "Copy to the journal",
+    "more_one": "{{count}} more",
+    "more_other": "{{count}} more"
   }
 }

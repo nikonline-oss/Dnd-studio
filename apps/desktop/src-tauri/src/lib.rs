@@ -4,6 +4,7 @@ mod assets;
 mod autosave;
 pub mod bundled;
 mod commands;
+pub mod compendia;
 mod error;
 mod local_server;
 pub mod logging;
@@ -62,6 +63,8 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::remote_stop,
             commands::remote_current,
             commands::plugin_bundled,
+            compendia::compendium_list,
+            compendia::compendium_entries,
             commands::plugin_install_bundled::<tauri::Wry>,
             commands::plugin_install_file::<tauri::Wry>,
             commands::sheet_view,

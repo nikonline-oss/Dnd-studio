@@ -119,6 +119,10 @@ export const commands = {
 } | null, IpcError>(__TAURI_INVOKE("remote_current")),
 	/**  The plugins shipped with the app. */
 	pluginBundled: () => __TAURI_INVOKE<BundledPlugin[]>("plugin_bundled"),
+	/**  The compendia of the campaign's plugins. */
+	compendiumList: () => typedError<CompendiumInfo[], IpcError>(__TAURI_INVOKE("compendium_list")),
+	/**  Entries of a compendium whose name (in any language) contains `query`, ignoring case. */
+	compendiumEntries: (pluginId: string, compendiumId: string, query: string, offset: number, limit: number) => typedError<CompendiumPage, IpcError>(__TAURI_INVOKE("compendium_entries", { pluginId, compendiumId, query, offset, limit })),
 	/**  Installs a bundled plugin into the open campaign. */
 	pluginInstallBundled: (id: string) => typedError<IntentOutcome, IpcError>(__TAURI_INVOKE("plugin_install_bundled", { id })),
 	/**  Asks for a `.dndplugin` file and installs it into the open campaign. `None` if cancelled. */
@@ -391,6 +395,29 @@ export type CombatantDto = {
 
 /**  A participant of a combat. */
 export type CombatantId = string;
+
+export type CompendiumEntryDto = {
+	id: string,
+	name: Label,
+	/**  The entry's fields as the plugin wrote them. */
+	data: unknown,
+};
+
+/**  A compendium of an installed plugin. */
+export type CompendiumInfo = {
+	plugin_id: string,
+	id: string,
+	name: Label,
+	/**  What its entries are (`spell`, `monster`, …), as the plugin calls it. */
+	entry_type: string,
+	count: number,
+};
+
+/**  One page of matching entries and how many match in all. */
+export type CompendiumPage = {
+	entries: CompendiumEntryDto[],
+	total: number,
+};
 
 /**  A condition of the system (poisoned, prone, …), shown on sheets and tokens (ADR-0024). */
 export type ConditionDef = {

@@ -2,7 +2,7 @@ import { create } from 'zustand';
 
 /** What a center tab shows. */
 export interface TabRef {
-  kind: 'map' | 'journal' | 'character' | 'board' | 'trigger';
+  kind: 'map' | 'journal' | 'character' | 'board' | 'trigger' | 'compendium';
   id: string;
 }
 
@@ -34,6 +34,8 @@ interface SelectionState {
   openBoard: (boardId: string) => void;
   /** Opens a trigger in a tab (ADR-0024). */
   openTrigger: (triggerId: string) => void;
+  /** Opens a compendium (`<plugin id>/<compendium id>`) in a tab. */
+  openCompendium: (key: string) => void;
   activate: (tab: TabRef) => void;
   /** Brings the map view to the front without a map tab (the default map; players have no navigator). */
   showMap: () => void;
@@ -112,6 +114,9 @@ export const useSelection = create<SelectionState>()((set) => {
     },
     openTrigger: (triggerId) => {
       open({ kind: 'trigger', id: triggerId });
+    },
+    openCompendium: (key) => {
+      open({ kind: 'compendium', id: key });
     },
     activate: (tab) => {
       set((s) =>
