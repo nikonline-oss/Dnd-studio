@@ -161,6 +161,14 @@ export function applyEvent(snapshot: Snapshot, event: Event): Snapshot {
       return { ...snapshot, zones: upsert(snapshot.zones, event.zone) };
     case 'zone_deleted':
       return { ...snapshot, zones: snapshot.zones.filter((z) => z.id !== event.id) };
+    case 'trigger_created':
+    case 'trigger_updated':
+      return { ...snapshot, triggers: upsert(snapshot.triggers, event.trigger) };
+    case 'trigger_deleted':
+      return { ...snapshot, triggers: snapshot.triggers.filter((t) => t.id !== event.id) };
+    case 'trigger_fired':
+      // The GM's log: shown in the trigger list; the effects are events of their own.
+      return snapshot;
     case 'redacted':
       // Something the server hides from this recipient: only its sequence number counts.
       return snapshot;

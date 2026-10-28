@@ -408,9 +408,37 @@ pub struct DiceRollDto {
 #[serde(tag = "code", rename_all = "snake_case")]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum SystemMessage {
-    CharacterSubmitted { name: String },
-    CharacterApproved { name: String },
-    CharacterReturned { name: String },
+    CharacterSubmitted {
+        name: String,
+    },
+    CharacterApproved {
+        name: String,
+    },
+    CharacterReturned {
+        name: String,
+    },
+    /// A trigger's narration line (ADR-0024).
+    Narration {
+        text: String,
+    },
+    /// A trigger changed a resource of the character `name` by `delta`.
+    ResourceChanged {
+        name: String,
+        resource: String,
+        #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
+        delta: i64,
+    },
+    /// A trigger put a condition on (`added`) or took it off the character `name`.
+    ConditionChanged {
+        name: String,
+        condition: String,
+        added: bool,
+    },
+    /// The character `name` received an item.
+    ItemGiven {
+        name: String,
+        item: String,
+    },
 }
 
 /// A chat message.

@@ -321,7 +321,12 @@
     "system": {
       "character_submitted": "{{name}} was submitted for approval",
       "character_approved": "{{name}} was approved",
-      "character_returned": "{{name}} was returned for changes"
+      "character_returned": "{{name}} was returned for changes",
+      "resource_lost": "{{name}} loses {{amount}} ({{resource}})",
+      "resource_gained": "{{name}} gains {{amount}} ({{resource}})",
+      "condition_added": "{{name}} is now {{condition}}",
+      "condition_removed": "{{name}} is no longer {{condition}}",
+      "item_given": "{{name}} receives {{item}}"
     }
   },
   "initiative": {

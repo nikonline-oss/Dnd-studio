@@ -325,7 +325,12 @@
     "system": {
       "character_submitted": "{{name}} отправлен на одобрение",
       "character_approved": "{{name}} одобрен",
-      "character_returned": "{{name}} возвращён на доработку"
+      "character_returned": "{{name}} возвращён на доработку",
+      "resource_lost": "{{name}}: −{{amount}} ({{resource}})",
+      "resource_gained": "{{name}}: +{{amount}} ({{resource}})",
+      "condition_added": "{{name}}: {{condition}}",
+      "condition_removed": "{{name}} больше не {{condition}}",
+      "item_given": "{{name}} получает: {{item}}"
     }
   },
   "initiative": {

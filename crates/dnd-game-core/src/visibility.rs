@@ -10,7 +10,7 @@
 //! - boards shown to players, their nodes open to players, and edges open to players between two
 //!   visible nodes (ADR-0024); pictures on visible nodes;
 //! - characters, users and campaign metadata as they are;
-//! - never zones (ADR-0024).
+//! - never zones or triggers (ADR-0024).
 //!
 //! A batch reaches players with hidden events replaced by [`Event::Redacted`], so sequence numbers
 //! stay contiguous. When an entity that exists before and after the batch becomes visible or
@@ -180,6 +180,7 @@ pub fn players_state(state: &GameState) -> GameState {
     view.board_edges
         .retain(|id, _| see.board_edges.contains(id));
     view.zones.clear();
+    view.triggers.clear();
     view
 }
 
@@ -367,7 +368,11 @@ pub fn filter_for_players(before: &GameState, after: &GameState, batch: &EventBa
                         // Zones are the GM's tool (ADR-0024).
                         Event::ZoneCreated { .. }
                         | Event::ZoneUpdated { .. }
-                        | Event::ZoneDeleted { .. } => false,
+                        | Event::ZoneDeleted { .. }
+                        | Event::TriggerCreated { .. }
+                        | Event::TriggerUpdated { .. }
+                        | Event::TriggerDeleted { .. }
+                        | Event::TriggerFired { .. } => false,
                         Event::ChatMessagePosted { message } => chat_visible_to_players(message),
                         Event::CampaignMetaUpdated { .. }
                         | Event::CharacterCreated { .. }

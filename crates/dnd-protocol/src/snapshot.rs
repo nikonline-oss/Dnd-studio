@@ -9,6 +9,7 @@ use crate::model::{
     JournalEntryMeta, JournalFolderDto, MapDto, TokenDto, UserDto,
 };
 use crate::plugin::PluginDto;
+use crate::trigger::TriggerDto;
 use crate::zone::ZoneDto;
 
 /// The visible state as of event `seq`.
@@ -44,4 +45,6 @@ pub struct Snapshot {
     pub board_edges: Vec<BoardEdgeDto>,
     /// Zones on maps (GM roles only; empty for players).
     pub zones: Vec<ZoneDto>,
+    /// Triggers (GM roles only; empty for players).
+    pub triggers: Vec<TriggerDto>,
 }

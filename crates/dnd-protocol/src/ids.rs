@@ -91,6 +91,10 @@ define_id!(
     ZoneId
 );
 define_id!(
+    /// A trigger: when → if → then, run by the core (ADR-0024).
+    TriggerId
+);
+define_id!(
     /// Client-chosen identifier of an intent, used to correlate `Rejected`/`Events`.
     IntentId
 );

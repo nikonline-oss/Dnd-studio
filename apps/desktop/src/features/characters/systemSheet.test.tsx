@@ -85,6 +85,7 @@ function setup(role: Role, system: string | null = 'srd5') {
     board_nodes: [],
     board_edges: [],
     zones: [],
+    triggers: [],
   };
   const info: CampaignInfo = { name: 'C', path: '/c', user_id: 'u1', role };
   const sent: IntentEnvelope[] = [];

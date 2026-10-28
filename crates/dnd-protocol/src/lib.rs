@@ -14,6 +14,7 @@ pub mod model;
 pub mod plugin;
 pub mod sheet_schema;
 mod snapshot;
+pub mod trigger;
 pub mod validate;
 pub mod zone;
 
@@ -29,7 +30,7 @@ pub use event::{Event, EventBatch};
 pub use ids::{
     AssetId, BoardEdgeId, BoardId, BoardNodeId, CharacterId, ChatMessageId, CombatId, CombatantId,
     FogOpId, IntentId, JournalEntryId, JournalFolderId, MapId, MessageId, Role, Seq, SessionId,
-    TokenId, UserId, Version, ZoneId, uuid_v7_from_random,
+    TokenId, TriggerId, UserId, Version, ZoneId, uuid_v7_from_random,
 };
 pub use intent::{Intent, IntentEnvelope, IntentOutcome, PayloadHash, VersionPolicy};
 pub use message::{Acceptance, ClientMessage, Envelope, Rejection, ServerMessage};
@@ -50,6 +51,10 @@ pub use plugin::{
     ResourceDef, RollDef, SystemRulesDto,
 };
 pub use snapshot::Snapshot;
+pub use trigger::{
+    MAX_TRIGGER_STEPS, MAX_TRIGGER_TEXT, MAX_TRIGGERS, MAX_TRIGGERS_PER_INTENT, RevealTarget,
+    TriggerAction, TriggerDef, TriggerDto, TriggerEvent, TriggerFiredDto, TriggerStep,
+};
 /// Re-exported so dependants use the exact same UUID type.
 pub use uuid::Uuid;
 pub use validate::{

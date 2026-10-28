@@ -48,6 +48,7 @@ function setup(role: Role) {
     board_nodes: [],
     board_edges: [],
     zones: [],
+    triggers: [],
     assets: [],
     fog: [],
     combats: [],

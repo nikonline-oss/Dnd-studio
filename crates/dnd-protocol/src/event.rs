@@ -8,13 +8,14 @@ use serde::{Deserialize, Serialize};
 use crate::board::{BoardDto, BoardEdgeDto, BoardNodeDto};
 use crate::ids::{
     BoardEdgeId, BoardId, BoardNodeId, CombatId, CombatantId, IntentId, JournalEntryId,
-    JournalFolderId, MapId, Seq, TokenId, ZoneId,
+    JournalFolderId, MapId, Seq, TokenId, TriggerId, ZoneId,
 };
 use crate::model::{
     AssetDto, CampaignMeta, CharacterDto, ChatMessageDto, CombatDto, CombatantDto, FogOp,
     JournalEntryDto, JournalFolderDto, MapDto, TokenDto, UserDto,
 };
 use crate::plugin::PluginDto;
+use crate::trigger::{TriggerDto, TriggerFiredDto};
 use crate::zone::ZoneDto;
 
 /// A fact about a state change.
@@ -192,6 +193,22 @@ pub enum Event {
     },
     ZoneDeleted {
         id: ZoneId,
+    },
+
+    /// A trigger (ADR-0024); GM roles only.
+    TriggerCreated {
+        trigger: TriggerDto,
+    },
+    /// Edited, or a `once` trigger fired.
+    TriggerUpdated {
+        trigger: TriggerDto,
+    },
+    TriggerDeleted {
+        id: TriggerId,
+    },
+    /// A trigger fired; its effects follow as ordinary events. GM roles only.
+    TriggerFired {
+        fired: TriggerFiredDto,
     },
 
     /// Stands in for an event the recipient may not see, so sequence numbers stay contiguous

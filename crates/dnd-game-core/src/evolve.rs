@@ -139,6 +139,14 @@ pub fn evolve(state: &mut GameState, event: &Event) {
         Event::ZoneCreated { zone } | Event::ZoneUpdated { zone } => {
             state.zones.insert(zone.id, zone.clone());
         }
+        Event::TriggerCreated { trigger } | Event::TriggerUpdated { trigger } => {
+            state.triggers.insert(trigger.id, trigger.clone());
+        }
+        Event::TriggerDeleted { id } => {
+            state.triggers.remove(id);
+        }
+        // A log line for the GM; its effects are events of their own.
+        Event::TriggerFired { .. } => {}
         Event::ZoneDeleted { id } => {
             state.zones.remove(id);
         }

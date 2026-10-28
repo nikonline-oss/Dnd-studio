@@ -311,6 +311,16 @@ impl FieldLookup for CharacterFields {
     }
 }
 
+/// The same fields for `dnd-expr` (trigger conditions, ADR-0024): integers and booleans.
+impl Context for CharacterFields {
+    fn lookup(&self, path: &str) -> Result<ExprValue, LookupError> {
+        if let Some(value) = self.computed.get(path) {
+            return Ok(ExprValue::from(*value));
+        }
+        SheetContext(&self.sheet).lookup(path)
+    }
+}
+
 /// What a sheet shows besides its data: the system's computed fields and resources, for a sheet
 /// as it is being edited. Fields or resources that cannot be evaluated (a half-filled draft) are
 /// left out rather than failing the whole view.

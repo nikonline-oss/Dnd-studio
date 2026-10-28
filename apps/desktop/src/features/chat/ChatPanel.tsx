@@ -1,7 +1,16 @@
+import type { TFunction } from 'i18next';
 import { useEffect, useRef, useState, type SyntheticEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useCampaign, useSnapshotSelect, useSubmitIntent } from '@/shared/game/useGame';
-import { commands, unwrap, type ChatMessageDto, type DiceRollDto } from '@/shared/ipc/client';
+import { labelText } from '@/shared/i18n/label';
+import {
+  commands,
+  unwrap,
+  type ChatMessageDto,
+  type DiceRollDto,
+  type SystemMessage,
+  type SystemRulesDto,
+} from '@/shared/ipc/client';
 import { uuidv7 } from '@/shared/ipc/uuid';
 import { useSelection } from '@/shared/state/selection';
 import { ErrorText } from '@/shared/ui/ErrorText';
@@ -136,17 +145,54 @@ export function ChatPanel() {
   );
 }
 
+/** The text of a system message; resources and conditions by their names in the system. */
+function systemText(
+  message: SystemMessage,
+  t: TFunction,
+  rules: SystemRulesDto | null | undefined,
+  lang: string,
+): string {
+  switch (message.code) {
+    case 'character_submitted':
+    case 'character_approved':
+    case 'character_returned':
+      return t(`chat.system.${message.code}`, { name: message.name });
+    case 'narration':
+      return message.text;
+    case 'resource_changed': {
+      const def = rules?.resources.find((r) => r.id === message.resource);
+      return t(message.delta < 0 ? 'chat.system.resource_lost' : 'chat.system.resource_gained', {
+        name: message.name,
+        resource: def ? labelText(def.label, lang) : message.resource,
+        amount: Math.abs(message.delta),
+      });
+    }
+    case 'condition_changed': {
+      const def = rules?.conditions?.find((c) => c.id === message.condition);
+      return t(message.added ? 'chat.system.condition_added' : 'chat.system.condition_removed', {
+        name: message.name,
+        condition: def ? labelText(def.label, lang) : message.condition,
+      });
+    }
+    case 'item_given':
+      return t('chat.system.item_given', { name: message.name, item: message.item });
+  }
+}
+
 function ChatLine({ message: m }: { message: ChatMessageDto }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const rules = useSnapshotSelect(
+    (s) => s.plugins.find((p) => p.id === s.system_plugin)?.system ?? null,
+  );
   const time =
     m.at_ms === null
       ? ''
       : new Date(m.at_ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   if (m.kind === 'system' && m.system) {
     return (
-      <li className="chat-line" data-kind="system">
+      <li className="chat-line" data-kind="system" data-hidden={m.visibility === 'gm'}>
         <Icon name="sparkle" />
-        <em>{t(`chat.system.${m.system.code}`, { name: m.system.name })}</em>
+        <em>{systemText(m.system, t, rules, i18n.resolvedLanguage ?? i18n.language)}</em>
         <time>{time}</time>
       </li>
     );

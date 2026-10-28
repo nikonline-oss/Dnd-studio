@@ -21,6 +21,7 @@ mod plugins;
 mod recent;
 mod rng;
 mod state;
+mod triggers;
 mod users;
 mod visibility;
 mod zones;

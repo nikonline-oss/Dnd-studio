@@ -445,7 +445,7 @@ fn query_inventory_matches_adr_0008() {
         .map(|s| s.matches("sqlx::query").count())
         .sum();
     assert_eq!(
-        count, 69,
+        count, 72,
         "runtime queries changed: add a real-SQLite test and update the table in docs/adr/0008-db-conventions.md"
     );
 }
@@ -1521,4 +1521,79 @@ async fn zones_are_projected_loaded_and_go_with_their_map() {
     .await
     .unwrap();
     assert!(db.load_state().await.unwrap().0.zones.is_empty());
+}
+
+/// Triggers (ADR-0024): stored as their DTO, updated (fired), loaded, deleted; a firing is only
+/// logged.
+#[tokio::test]
+async fn triggers_are_projected_loaded_and_deleted() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = new_campaign(&dir).await;
+    let trigger = TriggerDto {
+        id: TriggerId(v7(0xA00)),
+        definition: TriggerDef {
+            name: "Secret passage".into(),
+            enabled: true,
+            once: true,
+            event: TriggerEvent::Manual,
+            tokens: Vec::new(),
+            condition: Some("@total >= 15".into()),
+            steps: vec![TriggerStep {
+                when: None,
+                action: TriggerAction::Chat {
+                    text: "A draft from the wall.".into(),
+                    gm_only: false,
+                },
+            }],
+        },
+        fired: false,
+        version: Version(1),
+    };
+    db.project(&[record(
+        1,
+        Some(0xA1),
+        vec![Event::TriggerCreated {
+            trigger: trigger.clone(),
+        }],
+    )])
+    .await
+    .unwrap();
+    let spent = TriggerDto {
+        fired: true,
+        version: Version(2),
+        ..trigger.clone()
+    };
+    db.project(&[record(
+        2,
+        Some(0xA2),
+        vec![
+            Event::TriggerFired {
+                fired: TriggerFiredDto {
+                    trigger: trigger.id,
+                    name: "Secret passage".into(),
+                    character: None,
+                    token: None,
+                },
+            },
+            Event::TriggerUpdated {
+                trigger: spent.clone(),
+            },
+        ],
+    )])
+    .await
+    .unwrap();
+    let (state, seq) = db.load_state().await.unwrap();
+    assert_eq!(
+        state.triggers.values().cloned().collect::<Vec<_>>(),
+        vec![spent]
+    );
+    assert_eq!(seq, Seq(3));
+    db.project(&[record(
+        4,
+        Some(0xA3),
+        vec![Event::TriggerDeleted { id: trigger.id }],
+    )])
+    .await
+    .unwrap();
+    assert!(db.load_state().await.unwrap().0.triggers.is_empty());
 }

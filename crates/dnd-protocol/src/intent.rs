@@ -5,10 +5,11 @@ use serde::{Deserialize, Serialize};
 use crate::board::{BoardNodeContent, BoardVisibility};
 use crate::ids::{
     AssetId, BoardEdgeId, BoardId, BoardNodeId, CharacterId, ChatMessageId, CombatId, CombatantId,
-    IntentId, JournalEntryId, JournalFolderId, MapId, TokenId, UserId, Version, ZoneId,
+    IntentId, JournalEntryId, JournalFolderId, MapId, TokenId, TriggerId, UserId, Version, ZoneId,
 };
 use crate::model::{AssetDto, CharacterKind, FogOp, Grid, JournalVisibility, TokenLayer};
 use crate::plugin::PluginDto;
+use crate::trigger::TriggerDef;
 use crate::zone::ZoneShape;
 
 /// An intent together with its correlation id and the version it was based on (ADR-0003).
@@ -363,6 +364,25 @@ pub enum Intent {
     DeleteZone {
         id: ZoneId,
     },
+
+    /// GM / Co-GM: a trigger (ADR-0024).
+    CreateTrigger {
+        id: TriggerId,
+        definition: TriggerDef,
+    },
+    /// Replaces the definition; a fired `once` trigger is armed again.
+    UpdateTrigger {
+        id: TriggerId,
+        definition: TriggerDef,
+    },
+    DeleteTrigger {
+        id: TriggerId,
+    },
+    /// The GM's button: runs a `manual` trigger, for the character of `token` if given.
+    FireTrigger {
+        id: TriggerId,
+        token: Option<TokenId>,
+    },
 }
 
 /// What kind of version handling an intent needs.
@@ -434,6 +454,10 @@ impl Intent {
             Self::CreateZone { .. } => "create_zone",
             Self::UpdateZone { .. } => "update_zone",
             Self::DeleteZone { .. } => "delete_zone",
+            Self::CreateTrigger { .. } => "create_trigger",
+            Self::UpdateTrigger { .. } => "update_trigger",
+            Self::DeleteTrigger { .. } => "delete_trigger",
+            Self::FireTrigger { .. } => "fire_trigger",
         }
     }
 
@@ -455,10 +479,12 @@ impl Intent {
             | Self::CreateBoard { .. }
             | Self::CreateBoardNode { .. }
             | Self::CreateBoardEdge { .. }
-            | Self::CreateZone { .. } => VersionPolicy::Create,
+            | Self::CreateZone { .. }
+            | Self::CreateTrigger { .. } => VersionPolicy::Create,
             // Plugins are configuration the GM owns: the last choice wins.
             Self::MoveToken { .. }
             | Self::MoveBoardNode { .. }
+            | Self::FireTrigger { .. }
             | Self::ResetFog { .. }
             | Self::InstallPlugin { .. }
             | Self::UninstallPlugin { .. }
@@ -494,7 +520,9 @@ impl Intent {
             | Self::UpdateZone { .. }
             | Self::DeleteZone { .. }
             | Self::SetConditions { .. }
-            | Self::GiveItem { .. } => VersionPolicy::Checked,
+            | Self::GiveItem { .. }
+            | Self::UpdateTrigger { .. }
+            | Self::DeleteTrigger { .. } => VersionPolicy::Checked,
         }
     }
 

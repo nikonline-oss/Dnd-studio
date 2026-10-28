@@ -107,6 +107,9 @@ ADR-0002 выбрал SQLite. Нужно зафиксировать, как им
 | `INSERT … ON CONFLICT` `zones`                           | `project_event`                    | `queries.rs::zones_are_projected_loaded_and_go_with_their_map`                     |
 | `DELETE FROM zones` (+ cascade с картой)                 | `project_event`                    | `queries.rs::zones_are_projected_loaded_and_go_with_their_map`                     |
 | `SELECT dto FROM zones`                                  | `load_state`                       | `queries.rs::zones_are_projected_loaded_and_go_with_their_map`                     |
+| `INSERT … ON CONFLICT` `triggers`                        | `project_event`                    | `queries.rs::triggers_are_projected_loaded_and_deleted` (срабатывание `once`)      |
+| `DELETE FROM triggers`                                   | `project_event`                    | `queries.rs::triggers_are_projected_loaded_and_deleted`                            |
+| `SELECT dto FROM triggers`                               | `load_state`                       | `queries.rs::triggers_are_projected_loaded_and_deleted`                            |
 | миграции `server` (`open_server_db`)                     | `connect::open_server_db`          | `queries.rs::server_db_opens_migrates_and_enforces_constraints`                    |
 | `INSERT INTO sessions`                                   | `ServerDb::insert_session`         | `server_index.rs::sessions_are_stored_listed_and_change_state` (уникальность id)   |
 | `SELECT … FROM sessions WHERE id`                        | `ServerDb::session`                | `server_index.rs::sessions_are_stored_listed_and_change_state`                     |

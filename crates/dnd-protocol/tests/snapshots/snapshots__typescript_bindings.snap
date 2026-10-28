@@ -299,6 +299,12 @@ export type Event = { kind: "campaign_meta_updated"; campaign: CampaignMeta } | 
 { kind: "board_node_deleted"; id: BoardNodeId } | { kind: "board_edge_created"; edge: BoardEdgeDto } | { kind: "board_edge_updated"; edge: BoardEdgeDto } | { kind: "board_edge_deleted"; id: BoardEdgeId } | 
 /**  A zone on a map (ADR-0024); GM roles only. */
 { kind: "zone_created"; zone: ZoneDto } | { kind: "zone_updated"; zone: ZoneDto } | { kind: "zone_deleted"; id: ZoneId } | 
+/**  A trigger (ADR-0024); GM roles only. */
+{ kind: "trigger_created"; trigger: TriggerDto } | 
+/**  Edited, or a `once` trigger fired. */
+{ kind: "trigger_updated"; trigger: TriggerDto } | { kind: "trigger_deleted"; id: TriggerId } | 
+/**  A trigger fired; its effects follow as ordinary events. GM roles only. */
+{ kind: "trigger_fired"; fired: TriggerFiredDto } | 
 /**
  *  Stands in for an event the recipient may not see, so sequence numbers stay contiguous
  *  (ADR-0022). Never stored; applying it changes nothing.
@@ -471,7 +477,13 @@ roll: string | null } |
 /**  Deletes the node with its edges. */
 { kind: "delete_board_node"; id: BoardNodeId } | { kind: "create_board_edge"; id: BoardEdgeId; board_id: BoardId; from: BoardNodeId; to: BoardNodeId; label: string; directed: boolean; visibility: BoardVisibility } | { kind: "update_board_edge"; id: BoardEdgeId; label: string | null; directed: boolean | null; visibility: BoardVisibility | null } | { kind: "delete_board_edge"; id: BoardEdgeId } | 
 /**  GM / Co-GM: a named area on a map for triggers (ADR-0024). */
-{ kind: "create_zone"; id: ZoneId; map_id: MapId; name: string; shape: ZoneShape } | { kind: "update_zone"; id: ZoneId; name: string | null; shape: ZoneShape | null } | { kind: "delete_zone"; id: ZoneId };
+{ kind: "create_zone"; id: ZoneId; map_id: MapId; name: string; shape: ZoneShape } | { kind: "update_zone"; id: ZoneId; name: string | null; shape: ZoneShape | null } | { kind: "delete_zone"; id: ZoneId } | 
+/**  GM / Co-GM: a trigger (ADR-0024). */
+{ kind: "create_trigger"; id: TriggerId; definition: TriggerDef } | 
+/**  Replaces the definition; a fired `once` trigger is armed again. */
+{ kind: "update_trigger"; id: TriggerId; definition: TriggerDef } | { kind: "delete_trigger"; id: TriggerId } | 
+/**  The GM's button: runs a `manual` trigger, for the character of `token` if given. */
+{ kind: "fire_trigger"; id: TriggerId; token: TokenId | null };
 
 /**  An intent together with its correlation id and the version it was based on (ADR-0003). */
 export type IntentEnvelope = {
@@ -642,6 +654,17 @@ export type ResourceDef = {
 	max: string,
 };
 
+/**  Something triggers can show to players. */
+export type RevealTarget = 
+/**  A board node becomes open to players. */
+{ kind: "node"; id: BoardNodeId } | 
+/**  A board is shown to players. */
+{ kind: "board"; id: BoardId } | { kind: "map"; id: MapId } | 
+/**  A journal entry is shared with players. */
+{ kind: "journal"; id: JournalEntryId } | 
+/**  A token becomes visible. */
+{ kind: "token"; id: TokenId };
+
 /**  Role of a participant (CLAUDE.md §5). */
 export type Role = "gm" | "co_gm" | "player" | "spectator";
 
@@ -708,10 +731,20 @@ export type Snapshot = {
 	board_edges: BoardEdgeDto[],
 	/**  Zones on maps (GM roles only; empty for players). */
 	zones: ZoneDto[],
+	/**  Triggers (GM roles only; empty for players). */
+	triggers: TriggerDto[],
 };
 
 /**  Messages the core posts; the UI localizes them by `code`. */
-export type SystemMessage = { code: "character_submitted"; name: string } | { code: "character_approved"; name: string } | { code: "character_returned"; name: string };
+export type SystemMessage = { code: "character_submitted"; name: string } | { code: "character_approved"; name: string } | { code: "character_returned"; name: string } | 
+/**  A trigger's narration line (ADR-0024). */
+{ code: "narration"; text: string } | 
+/**  A trigger changed a resource of the character `name` by `delta`. */
+{ code: "resource_changed"; name: string; resource: string; delta: number } | 
+/**  A trigger put a condition on (`added`) or took it off the character `name`. */
+{ code: "condition_changed"; name: string; condition: string; added: boolean } | 
+/**  The character `name` received an item. */
+{ code: "item_given"; name: string; item: string };
 
 /**  The rules of a system plugin, self-contained (no package paths). */
 export type SystemRulesDto = {
@@ -762,6 +795,73 @@ export type TokenLayer =
 "tokens" | 
 /**  Visible to GM / Co-GM only. */
 "gm";
+
+/**  What a trigger does, step by step. Character actions apply to the character who set it off. */
+export type TriggerAction = 
+/**  Shows something to players. */
+{ type: "reveal"; target: RevealTarget } | 
+/**  Hides a board node again (or opens it: any visibility). */
+{ type: "set_node_visibility"; node: BoardNodeId; visibility: BoardVisibility } | 
+/**  A narration line in the chat; `gm_only` keeps it from players. */
+{ type: "chat"; text: string; gm_only: boolean } | 
+/**  Rolls dice (with the character's fields); later steps see the total as `@roll`. */
+{ type: "roll"; dice: string; label: string } | 
+/**  Damage (`heal: false`) or healing by a dice roll, kept within 0..=max of the resource. */
+{ type: "change_resource"; resource: string; dice: string; heal: boolean } | { type: "add_condition"; condition: string } | { type: "remove_condition"; condition: string } | { type: "give_item"; name: string };
+
+/**  What the GM edits: everything of a trigger but its id, state and version. */
+export type TriggerDef = {
+	name: string,
+	enabled: boolean,
+	/**  Fires at most once (until edited again). */
+	once: boolean,
+	event: TriggerEvent,
+	/**  Tokens that may set it off; empty: any token of a character. */
+	tokens: TokenId[],
+	/**  Must hold (`dnd-expr` over the character's fields and `@total`) for the trigger to fire. */
+	condition: string | null,
+	steps: TriggerStep[],
+};
+
+/**  A trigger of the campaign. */
+export type TriggerDto = {
+	id: TriggerId,
+	definition: TriggerDef,
+	/**  A `once` trigger that already fired. */
+	fired: boolean,
+	version: Version,
+};
+
+/**  What sets a trigger off. */
+export type TriggerEvent = 
+/**
+ *  A character whose token stands in `zone` made one of `rolls` (system roll ids; empty:
+ *  any system roll). `@total` is the roll's total.
+ */
+{ type: "roll_in_zone"; zone: ZoneId; rolls: string[] } | 
+/**  A token that was outside `zone` is now inside. */
+{ type: "token_entered_zone"; zone: ZoneId } | 
+/**  The GM's button (`fire_trigger`). */
+{ type: "manual" } | 
+/**  A character's inventory gained an item called `name` (ignoring case). */
+{ type: "item_received"; name: string };
+
+/**  Who set a trigger off (for the GM's log). */
+export type TriggerFiredDto = {
+	trigger: TriggerId,
+	name: string,
+	character: CharacterId | null,
+	token: TokenId | null,
+};
+
+/**  A trigger: when → if → then, run by the core (ADR-0024). */
+export type TriggerId = string;
+
+/**  One action and, optionally, the expression that must hold for it to run. */
+export type TriggerStep = {
+	when: string | null,
+	action: TriggerAction,
+};
 
 /**  A user of the campaign. Read-only in stage 2a (users join through the session server, 2b). */
 export type UserDto = {

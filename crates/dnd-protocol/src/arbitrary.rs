@@ -13,12 +13,15 @@ use crate::board::{
 use crate::event::{Event, EventBatch};
 use crate::ids::{
     BoardEdgeId, BoardId, BoardNodeId, CharacterId, CombatId, CombatantId, FogOpId, IntentId,
-    JournalFolderId, MapId, Role, Seq, TokenId, UserId, Version, ZoneId,
+    JournalFolderId, MapId, Role, Seq, TokenId, TriggerId, UserId, Version, ZoneId,
 };
 use crate::intent::{Intent, IntentEnvelope};
 use crate::model::{
     CampaignMeta, CharacterKind, CombatDto, CombatantDto, FogOp, FogOpKind, FogShape, Grid,
     GridKind, JournalFolderDto, MapDto, TokenDto, TokenLayer, UserDto,
+};
+use crate::trigger::{
+    RevealTarget, TriggerAction, TriggerDef, TriggerDto, TriggerEvent, TriggerFiredDto, TriggerStep,
 };
 use crate::zone::{ZoneDto, ZoneShape};
 
@@ -181,6 +184,63 @@ pub fn zone_dto() -> impl Strategy<Value = ZoneDto> {
             map_id,
             name,
             shape,
+            version,
+        },
+    )
+}
+
+pub fn trigger_id() -> impl Strategy<Value = TriggerId> {
+    (0x5_4000u128..0x5_4003).prop_map(|n| TriggerId(v7(n)))
+}
+
+pub fn trigger_def() -> impl Strategy<Value = TriggerDef> {
+    let event = prop_oneof![
+        Just(TriggerEvent::Manual),
+        zone_id().prop_map(|zone| TriggerEvent::TokenEnteredZone { zone }),
+    ];
+    let step = prop_oneof![
+        name().prop_map(|text| TriggerStep {
+            when: None,
+            action: TriggerAction::Chat {
+                text,
+                gm_only: false
+            },
+        }),
+        map_id().prop_map(|id| TriggerStep {
+            when: None,
+            action: TriggerAction::Reveal {
+                target: RevealTarget::Map { id }
+            },
+        }),
+        (board_node_id(), board_visibility()).prop_map(|(node, visibility)| TriggerStep {
+            when: Some("1 > 0".into()),
+            action: TriggerAction::SetNodeVisibility { node, visibility },
+        }),
+    ];
+    (
+        name(),
+        any::<bool>(),
+        any::<bool>(),
+        event,
+        proptest::collection::vec(step, 1..3),
+    )
+        .prop_map(|(name, enabled, once, event, steps)| TriggerDef {
+            name,
+            enabled,
+            once,
+            event,
+            tokens: Vec::new(),
+            condition: None,
+            steps,
+        })
+}
+
+pub fn trigger_dto() -> impl Strategy<Value = TriggerDto> {
+    (trigger_id(), trigger_def(), any::<bool>(), version()).prop_map(
+        |(id, definition, fired, version)| TriggerDto {
+            id,
+            definition,
+            fired,
             version,
         },
     )
@@ -527,6 +587,13 @@ pub fn intent() -> impl Strategy<Value = Intent> {
         )
             .prop_map(|(id, name, shape)| Intent::UpdateZone { id, name, shape }),
         zone_id().prop_map(|id| Intent::DeleteZone { id }),
+        (trigger_id(), trigger_def())
+            .prop_map(|(id, definition)| Intent::CreateTrigger { id, definition }),
+        (trigger_id(), trigger_def())
+            .prop_map(|(id, definition)| Intent::UpdateTrigger { id, definition }),
+        trigger_id().prop_map(|id| Intent::DeleteTrigger { id }),
+        (trigger_id(), proptest::option::of(token_id()))
+            .prop_map(|(id, token)| Intent::FireTrigger { id, token }),
         (
             token_id(),
             map_id(),
@@ -719,6 +786,17 @@ pub fn event() -> impl Strategy<Value = Event> {
         zone_dto().prop_map(|zone| Event::ZoneCreated { zone }),
         zone_dto().prop_map(|zone| Event::ZoneUpdated { zone }),
         zone_id().prop_map(|id| Event::ZoneDeleted { id }),
+        trigger_dto().prop_map(|trigger| Event::TriggerCreated { trigger }),
+        trigger_dto().prop_map(|trigger| Event::TriggerUpdated { trigger }),
+        trigger_id().prop_map(|id| Event::TriggerDeleted { id }),
+        (trigger_id(), name()).prop_map(|(trigger, name)| Event::TriggerFired {
+            fired: TriggerFiredDto {
+                trigger,
+                name,
+                character: None,
+                token: None,
+            }
+        }),
         Just(Event::Redacted),
     ]
 }

@@ -93,6 +93,7 @@ function renderChat(role: Role, chat: ChatMessageDto[] = []) {
     board_nodes: [],
     board_edges: [],
     zones: [],
+    triggers: [],
     assets: [],
     fog: [],
     combats: [],
@@ -120,6 +121,42 @@ function renderChat(role: Role, chat: ChatMessageDto[] = []) {
 }
 
 describe('ChatPanel', () => {
+  it('shows what triggers did (ADR-0024)', async () => {
+    const system = (id: string, message: ChatMessageDto['system']): ChatMessageDto => ({
+      ...systemMessage,
+      id,
+      system: message,
+    });
+    renderChat('gm', [
+      system('0190a000-0000-7000-8000-0000000000b1', {
+        code: 'narration',
+        text: 'The floor creaks.',
+      }),
+      system('0190a000-0000-7000-8000-0000000000b2', {
+        code: 'resource_changed',
+        name: 'Aria',
+        resource: 'hp',
+        delta: -4,
+      }),
+      system('0190a000-0000-7000-8000-0000000000b3', {
+        code: 'condition_changed',
+        name: 'Aria',
+        condition: 'poisoned',
+        added: true,
+      }),
+      system('0190a000-0000-7000-8000-0000000000b4', {
+        code: 'item_given',
+        name: 'Aria',
+        item: 'Old key',
+      }),
+    ]);
+    expect(await screen.findByText('The floor creaks.')).toBeInTheDocument();
+    // Without a system the ids stand in for the names.
+    expect(screen.getByText('Aria loses 4 (hp)')).toBeInTheDocument();
+    expect(screen.getByText('Aria is now poisoned')).toBeInTheDocument();
+    expect(screen.getByText('Aria receives Old key')).toBeInTheDocument();
+  });
+
   it('shows rolls with every die (dropped ones marked), hidden badge and system messages', async () => {
     renderChat('gm', [rollMessage, systemMessage]);
     expect(await screen.findByText('Aria was approved')).toBeInTheDocument();

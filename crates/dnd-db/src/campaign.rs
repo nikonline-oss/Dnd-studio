@@ -8,8 +8,8 @@ use dnd_protocol::{
     CharacterDto, CharacterId, ChatKind, ChatMessageDto, ChatMessageId, CombatDto, CombatId,
     CombatantDto, CombatantId, DiceRollDto, Event, EventBatch, FogDto, FogOp, Grid, GridKind,
     IntentId, JournalEntryDto, JournalEntryId, JournalFolderDto, JournalFolderId, MapDto, MapId,
-    PayloadHash, PluginDto, Role, Seq, SystemMessage, TokenDto, TokenId, TokenLayer, UserDto,
-    UserId, Version, ZoneDto,
+    PayloadHash, PluginDto, Role, Seq, SystemMessage, TokenDto, TokenId, TokenLayer, TriggerDto,
+    UserDto, UserId, Version, ZoneDto,
 };
 use serde::{Deserialize, Serialize};
 use sqlx::sqlite::SqliteRow;
@@ -516,6 +516,13 @@ impl CampaignDb {
             let zone: ZoneDto = serde_json::from_str(&row.try_get::<String, _>("dto")?)?;
             state.zones.insert(zone.id, zone);
         }
+        for row in sqlx::query("SELECT dto FROM triggers ORDER BY id")
+            .fetch_all(&self.pool)
+            .await?
+        {
+            let trigger: TriggerDto = serde_json::from_str(&row.try_get::<String, _>("dto")?)?;
+            state.triggers.insert(trigger.id, trigger);
+        }
         for row in sqlx::query("SELECT dto FROM installed_plugins ORDER BY id")
             .fetch_all(&self.pool)
             .await?
@@ -824,6 +831,27 @@ async fn project_event(conn: &mut SqliteConnection, event: &Event, at_ms: i64) -
                 .await?;
             Ok(())
         }
+        Event::TriggerCreated { trigger } | Event::TriggerUpdated { trigger } => {
+            sqlx::query(
+                "INSERT INTO triggers (id, dto, version) VALUES (?, ?, ?) \
+                 ON CONFLICT (id) DO UPDATE SET dto = excluded.dto, version = excluded.version",
+            )
+            .bind(trigger.id.to_string())
+            .bind(serde_json::to_string(trigger)?)
+            .bind(trigger.version.0)
+            .execute(conn)
+            .await?;
+            Ok(())
+        }
+        Event::TriggerDeleted { id } => {
+            sqlx::query("DELETE FROM triggers WHERE id = ?")
+                .bind(id.to_string())
+                .execute(conn)
+                .await?;
+            Ok(())
+        }
+        // The GM's log: kept in event_log only; its effects are events of their own.
+        Event::TriggerFired { .. } => Ok(()),
         // Only recipients see placeholders; the authority never commits one.
         Event::Redacted => Err(DbError::InvalidData {
             column: "event_log.event",

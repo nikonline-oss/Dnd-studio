@@ -134,7 +134,11 @@ impl Intent {
             | Self::UpdateZone { shape: None, .. }
             | Self::DeleteZone { .. }
             | Self::SetConditions { .. }
-            | Self::GiveItem { .. } => Vec::new(),
+            | Self::GiveItem { .. }
+            | Self::CreateTrigger { .. }
+            | Self::UpdateTrigger { .. }
+            | Self::DeleteTrigger { .. }
+            | Self::FireTrigger { .. } => Vec::new(),
             Self::RegisterAsset { asset } => vec![("size_bytes", asset.size_bytes)],
             Self::ApplyFog { op, .. } => match &op.shape {
                 FogShape::Rect {
@@ -175,6 +179,7 @@ impl Intent {
             Self::CreateBoardNode { id, .. } => Some(id.0),
             Self::CreateBoardEdge { id, .. } => Some(id.0),
             Self::CreateZone { id, .. } => Some(id.0),
+            Self::CreateTrigger { id, .. } => Some(id.0),
             Self::UpdateCampaignMeta { .. }
             | Self::UpdateMap { .. }
             | Self::DeleteMap { .. }
@@ -212,7 +217,10 @@ impl Intent {
             | Self::UpdateZone { .. }
             | Self::DeleteZone { .. }
             | Self::SetConditions { .. }
-            | Self::GiveItem { .. } => None,
+            | Self::GiveItem { .. }
+            | Self::UpdateTrigger { .. }
+            | Self::DeleteTrigger { .. }
+            | Self::FireTrigger { .. } => None,
         }
     }
 }

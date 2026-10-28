@@ -306,6 +306,9 @@ fn current_version(state: &GameState, intent: &Intent) -> Option<Version> {
         Intent::UpdateZone { id, .. } | Intent::DeleteZone { id } => {
             state.zones.get(id).map(|z| z.version)
         }
+        Intent::UpdateTrigger { id, .. } | Intent::DeleteTrigger { id } => {
+            state.triggers.get(id).map(|t| t.version)
+        }
         other => other
             .character_id()
             .and_then(|id| state.characters.get(&id).map(|c| c.version)),

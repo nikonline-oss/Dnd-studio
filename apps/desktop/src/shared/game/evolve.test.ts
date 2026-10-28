@@ -53,6 +53,7 @@ const empty: Snapshot = {
   board_nodes: [],
   board_edges: [],
   zones: [],
+  triggers: [],
   assets: [],
   fog: [],
   combats: [],

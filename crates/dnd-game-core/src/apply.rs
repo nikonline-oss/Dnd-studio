@@ -21,7 +21,22 @@ pub const MAX_DESCRIPTION_LEN: usize = 20_000;
 ///
 /// Checks run in this order: permissions, existence, version (ADR-0003), value validation.
 /// Apply the returned events with [`crate::evolve`] to obtain the next state.
+///
+/// Triggers that the intent sets off add their events to the same batch (ADR-0024).
 pub fn apply(
+    state: &GameState,
+    envelope: &IntentEnvelope,
+    actor: &Actor,
+    rng: &mut dyn GameRng,
+) -> Result<Vec<Event>, RuleError> {
+    let mut events = decide(state, envelope, actor, rng)?;
+    let reactions = crate::triggers::react(state, &envelope.intent, &events, rng);
+    events.extend(reactions);
+    Ok(events)
+}
+
+/// The events of the intent itself.
+fn decide(
     state: &GameState,
     envelope: &IntentEnvelope,
     actor: &Actor,
@@ -287,6 +302,12 @@ pub fn apply(
             crate::boards::apply(state, intent).unwrap_or(Err(RejectReason::invalid("intent")))
         }
 
+        Intent::CreateTrigger { .. }
+        | Intent::UpdateTrigger { .. }
+        | Intent::DeleteTrigger { .. }
+        | Intent::FireTrigger { .. } => crate::triggers::apply(state, intent, rng)
+            .unwrap_or(Err(RejectReason::invalid("intent"))),
+
         Intent::CreateZone { .. } | Intent::UpdateZone { .. } | Intent::DeleteZone { .. } => {
             crate::zones::apply(state, intent).unwrap_or(Err(RejectReason::invalid("intent")))
         }
@@ -335,6 +356,10 @@ fn current_version(state: &GameState, intent: &Intent) -> Result<Version, Reject
         | Intent::CreateZone { .. } => None,
         Intent::UpdateZone { id, .. } | Intent::DeleteZone { id } => {
             state.zones.get(id).map(|z| z.version)
+        }
+        Intent::CreateTrigger { .. } | Intent::FireTrigger { .. } => None,
+        Intent::UpdateTrigger { id, .. } | Intent::DeleteTrigger { id } => {
+            state.triggers.get(id).map(|t| t.version)
         }
         Intent::MoveBoardNode { .. } => None,
         Intent::UpdateBoard { id, .. } | Intent::DeleteBoard { id } => {
@@ -441,6 +466,7 @@ fn id_in_use(state: &GameState, id: dnd_protocol::Uuid) -> bool {
             .board_edges
             .contains_key(&dnd_protocol::BoardEdgeId(id))
         || state.zones.contains_key(&dnd_protocol::ZoneId(id))
+        || state.triggers.contains_key(&dnd_protocol::TriggerId(id))
 }
 
 /// Next version, rejected once it would leave the JS-safe range (ADR-0015).

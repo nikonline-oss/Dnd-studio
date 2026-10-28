@@ -6,8 +6,8 @@ use dnd_protocol::{
     AssetDto, AssetId, BoardDto, BoardEdgeDto, BoardEdgeId, BoardId, BoardNodeDto, BoardNodeId,
     CampaignMeta, CharacterDto, CharacterId, CombatDto, CombatId, CombatantDto, CombatantId,
     FogDto, JournalEntryDto, JournalEntryId, JournalEntryMeta, JournalFolderDto, JournalFolderId,
-    MapDto, MapId, PluginDto, Seq, Snapshot, SystemRulesDto, TokenDto, TokenId, UserDto, UserId,
-    Version, ZoneDto, ZoneId,
+    MapDto, MapId, PluginDto, Seq, Snapshot, SystemRulesDto, TokenDto, TokenId, TriggerDto,
+    TriggerId, UserDto, UserId, Version, ZoneDto, ZoneId,
 };
 
 /// The authoritative state the core reasons about. Ordered maps keep iteration (and therefore
@@ -39,6 +39,8 @@ pub struct GameState {
     pub board_edges: BTreeMap<BoardEdgeId, BoardEdgeDto>,
     /// Zones on maps, watched by triggers (ADR-0024).
     pub zones: BTreeMap<ZoneId, ZoneDto>,
+    /// Triggers the core runs after intents (ADR-0024).
+    pub triggers: BTreeMap<TriggerId, TriggerDto>,
 }
 
 impl GameState {
@@ -67,6 +69,7 @@ impl GameState {
             board_nodes: BTreeMap::new(),
             board_edges: BTreeMap::new(),
             zones: BTreeMap::new(),
+            triggers: BTreeMap::new(),
         }
     }
 
@@ -134,6 +137,7 @@ impl GameState {
                 .map(|e| (e.id, e))
                 .collect(),
             zones: snapshot.zones.into_iter().map(|z| (z.id, z)).collect(),
+            triggers: snapshot.triggers.into_iter().map(|t| (t.id, t)).collect(),
         }
     }
 
@@ -161,6 +165,7 @@ impl GameState {
             board_nodes: self.board_nodes.values().cloned().collect(),
             board_edges: self.board_edges.values().cloned().collect(),
             zones: self.zones.values().cloned().collect(),
+            triggers: self.triggers.values().cloned().collect(),
         }
     }
 

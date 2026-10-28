@@ -155,7 +155,7 @@ export function boardEvents(snapshot: Snapshot, intent: Intent): Event[] | null 
 /** A sample board: an investigation with a hidden secret. */
 export function sampleBoard(
   id: (n: number) => string,
-): Pick<Snapshot, 'boards' | 'board_nodes' | 'board_edges' | 'zones'> {
+): Pick<Snapshot, 'boards' | 'board_nodes' | 'board_edges' | 'zones' | 'triggers'> {
   const board = id(70);
   const node = (
     n: number,
@@ -184,6 +184,7 @@ export function sampleBoard(
       node(73, '**Secret passage**\n\nBehind the altar, opened by a hidden lever.', 200, 240, 'gm'),
     ],
     zones: [],
+    triggers: [],
     board_edges: [
       {
         id: id(74),
