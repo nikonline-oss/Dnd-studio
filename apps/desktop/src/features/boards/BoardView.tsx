@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type PointerEvent, type WheelEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BoardToolbar } from './BoardToolbar';
+import { cardLine } from './geometry';
 import { useCampaign, useSnapshotSelect, useSubmitIntent } from '@/shared/game/useGame';
 import {
   assetUrl,
@@ -409,9 +410,10 @@ export function BoardView({ boardId }: { boardId: string }) {
               const from = byId.get(edge.from);
               const to = byId.get(edge.to);
               if (!from || !to) return null;
-              const a = center(position(from), sizeOf(from));
-              const b = center(position(to), sizeOf(to));
-              const end = clipToCard(a, b, sizeOf(to));
+              const { start: a, end } = cardLine(
+                { at: position(from), size: sizeOf(from) },
+                { at: position(to), size: sizeOf(to) },
+              );
               const isSelected = selected?.kind === 'edge' && selected.id === edge.id;
               return (
                 <g
@@ -449,9 +451,10 @@ export function BoardView({ boardId }: { boardId: string }) {
             })}
             {/* What triggers on this board open: drawn, not stored. */}
             {triggerLines.map(({ key, from, to }) => {
-              const a = center(position(from), sizeOf(from));
-              const b = center(position(to), sizeOf(to));
-              const end = clipToCard(a, b, sizeOf(to));
+              const { start: a, end } = cardLine(
+                { at: position(from), size: sizeOf(from) },
+                { at: position(to), size: sizeOf(to) },
+              );
               return (
                 <line
                   key={key}
@@ -620,26 +623,6 @@ export function BoardView({ boardId }: { boardId: string }) {
 function without<T>(record: Record<string, T>, key: string): Record<string, T> {
   if (!(key in record)) return record;
   return Object.fromEntries(Object.entries(record).filter(([k]) => k !== key));
-}
-
-const center = (at: { x: number; y: number }, size: { w: number; h: number }) => ({
-  x: at.x + size.w / 2,
-  y: at.y + size.h / 2,
-});
-
-/** Where the line from `a` towards the centre of `to` enters its card, so arrows stay visible. */
-function clipToCard(
-  a: { x: number; y: number },
-  b: { x: number; y: number },
-  to: { w: number; h: number },
-) {
-  const hw = to.w / 2;
-  const hh = to.h / 2;
-  const dx = a.x - b.x;
-  const dy = a.y - b.y;
-  if (dx === 0 && dy === 0) return b;
-  const scale = Math.min(hw / Math.abs(dx || Infinity), hh / Math.abs(dy || Infinity));
-  return { x: b.x + dx * Math.min(scale, 1), y: b.y + dy * Math.min(scale, 1) };
 }
 
 function BoardCard({
