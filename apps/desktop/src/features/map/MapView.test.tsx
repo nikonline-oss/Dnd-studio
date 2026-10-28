@@ -6,6 +6,8 @@ import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GridForm } from './GridForm';
 import { MapView } from './MapView';
+import { ZoneList } from './ZoneList';
+import { useZoneTool } from './zoneTool';
 import type { FogTool, TokenMove } from './MapScene';
 import type { TokenView } from './TokenLayer';
 import type {
@@ -307,6 +309,67 @@ describe('MapView fog (ADR-0019)', () => {
         map_id: id(1),
         name: 'Zone 2',
         shape,
+      });
+    });
+  });
+
+  it('the zone list redraws a zone, adds a part and merges ticked zones', async () => {
+    useSelection.setState({ mapId: id(1) });
+    useZoneTool.setState({ drawing: { mode: 'new' }, ticked: [] });
+    const zone = (n: number, name: string): ZoneDto => ({
+      id: id(n),
+      map_id: id(1),
+      name,
+      shape: { type: 'rect', x: 0, y: 0, width: 160, height: 160 },
+      version: 2,
+    });
+    const sent = setup(
+      <>
+        <MapView />
+        <ZoneList mapId={id(1)} />
+      </>,
+      [map(1)],
+      'gm',
+      [],
+      { zones: [zone(70, 'Altar'), zone(71, 'Crypt')] },
+    );
+    const shape: ZoneShape = { type: 'rect', x: 16, y: 32, width: 320, height: 160 };
+
+    // Redraw: the zone tool is taken for one rectangle, which replaces the shape.
+    const [redraw] = await screen.findAllByRole('button', { name: 'Redraw' });
+    await userEvent.click(redraw as HTMLElement);
+    await waitFor(() => {
+      expect(scene.tools.at(-1)).toMatchObject({ shape: 'zone' });
+    });
+    scene.onZone?.(shape);
+    await waitFor(() => {
+      expect(sent[0]).toMatchObject({
+        expected_version: 2,
+        intent: { kind: 'update_zone', id: id(70), shape },
+      });
+    });
+    expect(useZoneTool.getState().drawing).toEqual({ mode: 'new' });
+
+    // Add a part: a union of the old shape and the new rectangle.
+    const [, addPart] = screen.getAllByRole('button', { name: 'Add a part' });
+    await userEvent.click(addPart as HTMLElement);
+    scene.onZone?.(shape);
+    await waitFor(() => {
+      expect(sent[1]?.intent).toMatchObject({
+        kind: 'update_zone',
+        id: id(71),
+        shape: { type: 'union', parts: [zone(71, 'Crypt').shape, shape] },
+      });
+    });
+
+    // Merge: the first ticked zone stays.
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Tick Crypt' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Tick Altar' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Merge into “Crypt”' }));
+    await waitFor(() => {
+      expect(sent[2]).toMatchObject({
+        expected_version: 2,
+        intent: { kind: 'merge_zones', into: id(71), from: [id(70)] },
       });
     });
   });

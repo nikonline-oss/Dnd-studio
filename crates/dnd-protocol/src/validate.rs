@@ -133,6 +133,7 @@ impl Intent {
             | Self::DeleteBoardEdge { .. }
             | Self::UpdateZone { shape: None, .. }
             | Self::DeleteZone { .. }
+            | Self::MergeZones { .. }
             | Self::SetConditions { .. }
             | Self::GiveItem { .. }
             | Self::CreateTrigger { .. }
@@ -216,6 +217,7 @@ impl Intent {
             | Self::DeleteBoardEdge { .. }
             | Self::UpdateZone { .. }
             | Self::DeleteZone { .. }
+            | Self::MergeZones { .. }
             | Self::SetConditions { .. }
             | Self::GiveItem { .. }
             | Self::UpdateTrigger { .. }
@@ -241,6 +243,7 @@ fn zone_integers(shape: &crate::zone::ZoneShape) -> Vec<(&'static str, i64)> {
         crate::zone::ZoneShape::Polygon { points } => {
             points.iter().map(|p| ("shape.points", *p)).collect()
         }
+        crate::zone::ZoneShape::Union { parts } => parts.iter().flat_map(zone_integers).collect(),
     }
 }
 

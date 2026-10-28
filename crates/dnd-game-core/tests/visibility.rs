@@ -303,9 +303,9 @@ fn current_version(state: &GameState, intent: &Intent) -> Option<Version> {
         Intent::UpdateBoardEdge { id, .. } | Intent::DeleteBoardEdge { id } => {
             state.board_edges.get(id).map(|e| e.version)
         }
-        Intent::UpdateZone { id, .. } | Intent::DeleteZone { id } => {
-            state.zones.get(id).map(|z| z.version)
-        }
+        Intent::UpdateZone { id, .. }
+        | Intent::DeleteZone { id }
+        | Intent::MergeZones { into: id, .. } => state.zones.get(id).map(|z| z.version),
         Intent::UpdateTrigger { id, .. } | Intent::DeleteTrigger { id } => {
             state.triggers.get(id).map(|t| t.version)
         }

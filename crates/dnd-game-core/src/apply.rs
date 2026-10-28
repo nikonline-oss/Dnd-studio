@@ -308,7 +308,10 @@ fn decide(
         | Intent::FireTrigger { .. } => crate::triggers::apply(state, intent, rng)
             .unwrap_or(Err(RejectReason::invalid("intent"))),
 
-        Intent::CreateZone { .. } | Intent::UpdateZone { .. } | Intent::DeleteZone { .. } => {
+        Intent::CreateZone { .. }
+        | Intent::UpdateZone { .. }
+        | Intent::DeleteZone { .. }
+        | Intent::MergeZones { .. } => {
             crate::zones::apply(state, intent).unwrap_or(Err(RejectReason::invalid("intent")))
         }
     }
@@ -354,9 +357,9 @@ fn current_version(state: &GameState, intent: &Intent) -> Result<Version, Reject
         | Intent::CreateBoardNode { .. }
         | Intent::CreateBoardEdge { .. }
         | Intent::CreateZone { .. } => None,
-        Intent::UpdateZone { id, .. } | Intent::DeleteZone { id } => {
-            state.zones.get(id).map(|z| z.version)
-        }
+        Intent::UpdateZone { id, .. }
+        | Intent::DeleteZone { id }
+        | Intent::MergeZones { into: id, .. } => state.zones.get(id).map(|z| z.version),
         Intent::CreateTrigger { .. } | Intent::FireTrigger { .. } => None,
         Intent::UpdateTrigger { id, .. } | Intent::DeleteTrigger { id } => {
             state.triggers.get(id).map(|t| t.version)

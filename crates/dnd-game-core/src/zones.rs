@@ -2,8 +2,8 @@
 //! `permissions::authorize`); players never see zones (`visibility`).
 
 use dnd_protocol::{
-    Event, Intent, MAX_ZONE_POINTS, MAX_ZONES_PER_MAP, MapDto, RejectReason, UNITS16_PER_UNIT,
-    Version, ZoneDto, ZoneShape,
+    Event, Intent, MAX_ZONE_PARTS, MAX_ZONE_POINTS, MAX_ZONES_PER_MAP, MapDto, RejectReason,
+    TriggerEvent, UNITS16_PER_UNIT, Version, ZoneDto, ZoneShape,
 };
 
 use crate::apply::{bump, valid_name};
@@ -57,13 +57,69 @@ pub(crate) fn apply(
             }
             Ok(vec![Event::ZoneDeleted { id: *id }])
         })(),
+        Intent::MergeZones { into, from } => (|| {
+            let mut zone = state
+                .zones
+                .get(into)
+                .cloned()
+                .ok_or(RejectReason::NotFound)?;
+            let mut merged = Vec::with_capacity(from.len());
+            for id in from {
+                let other = state.zones.get(id).ok_or(RejectReason::NotFound)?;
+                if *id == *into || other.map_id != zone.map_id || merged.contains(id) {
+                    return Err(RejectReason::invalid("from"));
+                }
+                merged.push(*id);
+            }
+            if merged.is_empty() {
+                return Err(RejectReason::invalid("from"));
+            }
+            let parts: Vec<ZoneShape> = std::iter::once(&zone)
+                .chain(merged.iter().filter_map(|id| state.zones.get(id)))
+                .flat_map(|z| z.shape.parts())
+                .collect();
+            let map = state.maps.get(&zone.map_id).ok_or(RejectReason::NotFound)?;
+            zone.shape = valid_shape(map, &ZoneShape::of_parts(parts))?;
+            zone.version = bump(zone.version)?;
+            let mut events = vec![Event::ZoneUpdated { zone }];
+            // Triggers watching a merged zone watch the result.
+            for trigger in state.triggers.values() {
+                let mut next = trigger.clone();
+                let watched = match &mut next.definition.event {
+                    TriggerEvent::RollInZone { zone, .. }
+                    | TriggerEvent::TokenEnteredZone { zone } => Some(zone),
+                    TriggerEvent::Manual | TriggerEvent::ItemReceived { .. } => None,
+                };
+                if let Some(zone) = watched
+                    && merged.contains(zone)
+                {
+                    *zone = *into;
+                    next.version = bump(next.version)?;
+                    events.push(Event::TriggerUpdated { trigger: next });
+                }
+            }
+            events.extend(merged.into_iter().map(|id| Event::ZoneDeleted { id }));
+            Ok(events)
+        })(),
         _ => return None,
     };
     Some(result)
 }
 
-/// A rectangle with a positive size or a polygon of 3..=64 corners, all on the map.
+/// A rectangle with a positive size or a polygon of 3..=64 corners, all on the map; or a union of
+/// up to 32 of them (nested unions are flattened).
 fn valid_shape(map: &MapDto, shape: &ZoneShape) -> Result<ZoneShape, RejectReason> {
+    if let ZoneShape::Union { .. } = shape {
+        let parts = shape.parts();
+        if parts.is_empty() || parts.len() > MAX_ZONE_PARTS {
+            return Err(RejectReason::invalid("shape"));
+        }
+        let parts = parts
+            .iter()
+            .map(|p| valid_shape(map, p))
+            .collect::<Result<Vec<_>, _>>()?;
+        return Ok(ZoneShape::of_parts(parts));
+    }
     let invalid = || RejectReason::invalid("shape");
     let width = map.width.saturating_mul(UNITS16_PER_UNIT);
     let height = map.height.saturating_mul(UNITS16_PER_UNIT);
@@ -92,6 +148,8 @@ fn valid_shape(map: &MapDto, shape: &ZoneShape) -> Result<ZoneShape, RejectReaso
                 return Err(invalid());
             }
         }
+        // Flattened above.
+        ZoneShape::Union { .. } => return Err(invalid()),
     }
     Ok(shape.clone())
 }

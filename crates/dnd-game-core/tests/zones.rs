@@ -174,3 +174,101 @@ fn players_never_see_zones() {
         })
     );
 }
+
+#[test]
+fn merging_joins_the_parts_moves_triggers_and_deletes_the_rest() {
+    let mut state = zoned();
+    for (n, x) in [(1, 8000), (2, 16_000)] {
+        run(
+            &mut state,
+            Role::Gm,
+            Intent::CreateZone {
+                id: zone(n),
+                map_id: pooled_map_id(0),
+                name: format!("Room {n}"),
+                shape: rect(x, 0, 1600, 1600),
+            },
+            None,
+        )
+        .unwrap();
+    }
+    run(
+        &mut state,
+        Role::Gm,
+        Intent::CreateTrigger {
+            id: TriggerId(v7(0x7350)),
+            definition: TriggerDef {
+                name: "Draft".into(),
+                enabled: true,
+                once: false,
+                event: TriggerEvent::TokenEnteredZone { zone: zone(2) },
+                tokens: Vec::new(),
+                condition: None,
+                steps: vec![TriggerStep {
+                    when: None,
+                    action: TriggerAction::Chat {
+                        text: "A draft.".into(),
+                        gm_only: true,
+                    },
+                }],
+            },
+        },
+        None,
+    )
+    .unwrap();
+
+    run(
+        &mut state,
+        Role::Gm,
+        Intent::MergeZones {
+            into: zone(0),
+            from: vec![zone(1), zone(2)],
+        },
+        Some(Version::INITIAL),
+    )
+    .unwrap();
+    assert_eq!(state.zones.keys().copied().collect::<Vec<_>>(), [zone(0)]);
+    let merged = &state.zones[&zone(0)].shape;
+    assert_eq!(merged.parts().len(), 3);
+    assert!(
+        merged.contains(2000, 2000) && merged.contains(8800, 800) && merged.contains(16_800, 800)
+    );
+    assert!(!merged.contains(12_000, 800));
+    assert_eq!(
+        state.triggers[&TriggerId(v7(0x7350))].definition.event,
+        TriggerEvent::TokenEnteredZone { zone: zone(0) }
+    );
+
+    // A part can be added by reshaping into a union; merging needs other zones of the same map.
+    let version = state.zones[&zone(0)].version;
+    let mut parts = merged.parts();
+    parts.push(rect(30_000, 0, 160, 160));
+    run(
+        &mut state,
+        Role::Gm,
+        Intent::UpdateZone {
+            id: zone(0),
+            name: None,
+            shape: Some(ZoneShape::Union { parts }),
+        },
+        Some(version),
+    )
+    .unwrap();
+    assert_eq!(state.zones[&zone(0)].shape.parts().len(), 4);
+    let version = state.zones[&zone(0)].version;
+    for from in [vec![], vec![zone(0)], vec![zone(9)]] {
+        assert!(
+            run(
+                &mut state.clone(),
+                Role::Gm,
+                Intent::MergeZones {
+                    into: zone(0),
+                    from: from.clone()
+                },
+                Some(version),
+            )
+            .is_err(),
+            "{from:?}"
+        );
+    }
+}

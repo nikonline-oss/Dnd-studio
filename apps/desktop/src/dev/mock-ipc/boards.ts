@@ -148,6 +148,17 @@ export function boardEvents(snapshot: Snapshot, intent: Intent): Event[] | null 
     }
     case 'delete_zone':
       return [{ kind: 'zone_deleted', id: intent.id }];
+    case 'merge_zones': {
+      const into = snapshot.zones.find((z) => z.id === intent.into);
+      if (!into) return [];
+      const parts = [into, ...snapshot.zones.filter((z) => intent.from.includes(z.id))].flatMap(
+        (z) => (z.shape.type === 'union' ? z.shape.parts : [z.shape]),
+      );
+      return [
+        { kind: 'zone_updated', zone: bump(into, { shape: { type: 'union', parts } }) },
+        ...intent.from.map((id): Event => ({ kind: 'zone_deleted', id })),
+      ];
+    }
     case 'create_trigger':
       return [
         {

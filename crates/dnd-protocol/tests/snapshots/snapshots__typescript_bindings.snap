@@ -478,6 +478,11 @@ roll: string | null } |
 { kind: "delete_board_node"; id: BoardNodeId } | { kind: "create_board_edge"; id: BoardEdgeId; board_id: BoardId; from: BoardNodeId; to: BoardNodeId; label: string; directed: boolean; visibility: BoardVisibility } | { kind: "update_board_edge"; id: BoardEdgeId; label: string | null; directed: boolean | null; visibility: BoardVisibility | null } | { kind: "delete_board_edge"; id: BoardEdgeId } | 
 /**  GM / Co-GM: a named area on a map for triggers (ADR-0024). */
 { kind: "create_zone"; id: ZoneId; map_id: MapId; name: string; shape: ZoneShape } | { kind: "update_zone"; id: ZoneId; name: string | null; shape: ZoneShape | null } | { kind: "delete_zone"; id: ZoneId } | 
+/**
+ *  Joins zones of the same map into `into` (its parts and theirs); the others are deleted and
+ *  triggers watching them watch `into` instead.
+ */
+{ kind: "merge_zones"; into: ZoneId; from: ZoneId[] } | 
 /**  GM / Co-GM: a trigger (ADR-0024). */
 { kind: "create_trigger"; id: TriggerId; definition: TriggerDef } | 
 /**  Replaces the definition; a fired `once` trigger is armed again. */
@@ -929,4 +934,6 @@ export type ZoneShape =
 /**  Axis-aligned rectangle with its top-left corner at (`x`, `y`). */
 { type: "rect"; x: number; y: number; width: number; height: number } | 
 /**  A closed polygon: flat `[x0, y0, x1, y1, …]`, 3..=[`MAX_ZONE_POINTS`] points. */
-{ type: "polygon"; points: number[] };
+{ type: "polygon"; points: number[] } | 
+/**  Several rectangles and polygons (not unions) taken together: a zone added to or merged. */
+{ type: "union"; parts: ZoneShape[] };

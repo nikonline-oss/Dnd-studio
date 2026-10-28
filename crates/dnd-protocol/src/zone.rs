@@ -26,12 +26,16 @@ pub enum ZoneShape {
         #[cfg_attr(feature = "specta", specta(type = Vec<specta_typescript::Number>))]
         points: Vec<i64>,
     },
+    /// Several rectangles and polygons (not unions) taken together: a zone added to or merged.
+    Union { parts: Vec<ZoneShape> },
 }
 
 /// Most corners of a polygon zone.
 pub const MAX_ZONE_POINTS: usize = 64;
 /// Most zones on one map.
 pub const MAX_ZONES_PER_MAP: usize = 200;
+/// Most parts of a union zone.
+pub const MAX_ZONE_PARTS: usize = 32;
 
 impl ZoneShape {
     /// Whether the point (`x`, `y`) lies inside (borders included for rectangles; even-odd rule for
@@ -75,7 +79,28 @@ impl ZoneShape {
                 }
                 inside
             }
+            Self::Union { parts } => parts.iter().any(|p| p.contains(x, y)),
         }
+    }
+
+    /// The rectangles and polygons the shape is made of (a union's parts; else itself).
+    #[must_use]
+    pub fn parts(&self) -> Vec<Self> {
+        match self {
+            Self::Union { parts } => parts.iter().flat_map(Self::parts).collect(),
+            other => vec![other.clone()],
+        }
+    }
+
+    /// One shape of all `parts`: the part itself when there is one, else their union.
+    #[must_use]
+    pub fn of_parts(mut parts: Vec<Self>) -> Self {
+        if parts.len() == 1
+            && let Some(only) = parts.pop()
+        {
+            return only;
+        }
+        Self::Union { parts }
     }
 }
 

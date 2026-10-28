@@ -1,10 +1,11 @@
 import type { Application } from 'pixi.js';
-import { useEffect, useRef, useState, type DragEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DEFAULT_FOG_TOOL, FogToolbar, sceneTool, type FogToolState } from './FogToolbar';
 import { MapScene, type TokenMove } from './MapScene';
 import { snapToGrid, tokenPosition } from './tokenMath';
 import { tokenViews } from './tokenViews';
+import { useZoneTool, zoneParts } from './zoneTool';
 import { CHARACTER_DRAG_TYPE } from '@/shared/dragTypes';
 import {
   useCampaign,
@@ -38,7 +39,13 @@ export function MapView() {
   const fog = map && snapshot?.fog.find((f) => f.map_id === map.id);
   const [scene, setScene] = useState<MapScene | null>(null);
   const [failure, setFailure] = useState<'renderer' | 'images' | null>(null);
-  const [tool, setTool] = useState<FogToolState>(DEFAULT_FOG_TOOL);
+  const [chosenTool, setTool] = useState<FogToolState>(DEFAULT_FOG_TOOL);
+  // The zone list asks to redraw a zone or add a part to it: the zone tool takes the next rectangle.
+  const zoneDrawing = useZoneTool((s) => s.drawing);
+  const tool = useMemo<FogToolState>(
+    () => (zoneDrawing.mode === 'new' ? chosenTool : { ...chosenTool, shape: 'zone' }),
+    [zoneDrawing, chosenTool],
+  );
 
   useEffect(() => {
     scene?.show(map ?? null, background ?? null, fog ?? null, isGm);
@@ -57,6 +64,26 @@ export function MapView() {
   useEffect(() => {
     sendZone.current = (shape) => {
       if (!map) return;
+      const drawing = useZoneTool.getState().drawing;
+      const target =
+        drawing.mode === 'new' ? undefined : zones?.find((z) => z.id === drawing.zoneId);
+      if (drawing.mode !== 'new' && target) {
+        submit.mutate({
+          intent: {
+            kind: 'update_zone',
+            id: target.id,
+            name: null,
+            shape:
+              drawing.mode === 'replace'
+                ? shape
+                : { type: 'union', parts: [...zoneParts(target.shape), shape] },
+          },
+          expectedVersion: target.version,
+        });
+        // One rectangle per request; then back to the tool chosen before.
+        useZoneTool.getState().draw({ mode: 'new' });
+        return;
+      }
       submit.mutate({
         intent: {
           kind: 'create_zone',

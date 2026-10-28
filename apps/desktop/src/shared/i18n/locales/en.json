@@ -475,7 +475,14 @@
     "title": "Zones",
     "empty": "No zones. Draw one with the map tool — only GMs see zones.",
     "rename": "Rename zone",
-    "delete": "Delete zone"
+    "delete": "Delete zone",
+    "tick": "Tick {{name}}",
+    "redraw": "Redraw",
+    "addPart": "Add a part",
+    "drawReplace": "Draw the zone’s new rectangle on the map.",
+    "drawAdd": "Draw a rectangle on the map to add to the zone.",
+    "merge": "Merge into “{{name}}”",
+    "mergeHint": "The first ticked zone stays; the others join it, and their triggers move to it."
   },
   "conditions": {
     "title": "Conditions",

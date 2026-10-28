@@ -364,6 +364,12 @@ pub enum Intent {
     DeleteZone {
         id: ZoneId,
     },
+    /// Joins zones of the same map into `into` (its parts and theirs); the others are deleted and
+    /// triggers watching them watch `into` instead.
+    MergeZones {
+        into: ZoneId,
+        from: Vec<ZoneId>,
+    },
 
     /// GM / Co-GM: a trigger (ADR-0024).
     CreateTrigger {
@@ -454,6 +460,7 @@ impl Intent {
             Self::CreateZone { .. } => "create_zone",
             Self::UpdateZone { .. } => "update_zone",
             Self::DeleteZone { .. } => "delete_zone",
+            Self::MergeZones { .. } => "merge_zones",
             Self::CreateTrigger { .. } => "create_trigger",
             Self::UpdateTrigger { .. } => "update_trigger",
             Self::DeleteTrigger { .. } => "delete_trigger",
@@ -519,6 +526,7 @@ impl Intent {
             | Self::DeleteBoardEdge { .. }
             | Self::UpdateZone { .. }
             | Self::DeleteZone { .. }
+            | Self::MergeZones { .. }
             | Self::SetConditions { .. }
             | Self::GiveItem { .. }
             | Self::UpdateTrigger { .. }
