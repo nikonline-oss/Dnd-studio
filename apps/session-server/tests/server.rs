@@ -822,3 +822,242 @@ async fn the_root_says_the_server_works() {
     assert!(!text.contains("{version}"));
     h.server.stop().await.unwrap();
 }
+
+/// The next message `pick` accepts; others are skipped.
+async fn until<T>(ws: &mut Ws, mut pick: impl FnMut(ServerMessage) -> Option<T>) -> T {
+    loop {
+        if let Some(found) = pick(ws.next().await) {
+            return found;
+        }
+    }
+}
+
+fn secret_trigger(zone: ZoneId, node: BoardNodeId, condition: &str) -> TriggerDef {
+    TriggerDef {
+        name: "Secret passage".into(),
+        enabled: true,
+        once: true,
+        event: TriggerEvent::RollInZone {
+            zone,
+            rolls: vec!["perception".into()],
+        },
+        tokens: Vec::new(),
+        condition: Some(condition.into()),
+        steps: vec![TriggerStep {
+            when: None,
+            action: TriggerAction::Reveal {
+                target: RevealTarget::Node { id: node },
+            },
+        }],
+    }
+}
+
+/// The scenario of ADR-0024 through the server: a perception check in a zone opens the secret
+/// passage card for everyone, only on a success; players never see the zone or the trigger.
+#[tokio::test]
+async fn a_trigger_reveals_a_secret_through_the_server() {
+    let h = Harness::default().await;
+    let created = h.create().await;
+    let gm = h.join_gm(&created).await;
+    let mira = h.join_player(&created, "Mira").await;
+    let mut gm_ws = h.connect(created.session_id, &gm.token).await;
+    let mut mira_ws = h.connect(created.session_id, &mira.token).await;
+    gm_ws.snapshot().await;
+    mira_ws.snapshot().await;
+
+    let srd = {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../plugins/system-srd5");
+        let bytes = dnd_plugin::pack_directory(&path).unwrap();
+        dnd_plugin::read_package(&bytes, dnd_plugin::PackageLimits::default())
+            .unwrap()
+            .to_dto()
+    };
+    let (hero, token, zone, board, node, trigger) = (
+        CharacterId(v7(0x60)),
+        TokenId(v7(0x61)),
+        ZoneId(v7(0x62)),
+        BoardId(v7(0x63)),
+        BoardNodeId(v7(0x64)),
+        TriggerId(v7(0x65)),
+    );
+    let setup = [
+        (
+            Intent::InstallPlugin {
+                plugin: Box::new(srd),
+            },
+            None,
+        ),
+        (
+            Intent::SetSystemPlugin {
+                id: Some("srd5".into()),
+            },
+            None,
+        ),
+        (
+            Intent::CreateCharacter {
+                id: hero,
+                character_kind: CharacterKind::Pc,
+                name: "Mira".into(),
+                owner: Some(mira.user_id),
+                sheet_json: "{}".into(),
+            },
+            None,
+        ),
+        (
+            Intent::CreateToken {
+                id: token,
+                map_id: MapId(v7(SHARED_MAP)),
+                character_id: Some(hero),
+                asset_id: None,
+                name: "Mira".into(),
+                x: 320,
+                y: 320,
+                rotation: 0.0,
+                scale: 1.0,
+                layer: TokenLayer::Tokens,
+                visible: true,
+            },
+            None,
+        ),
+        (
+            Intent::CreateZone {
+                id: zone,
+                map_id: MapId(v7(SHARED_MAP)),
+                name: "Altar".into(),
+                shape: ZoneShape::Rect {
+                    x: 0,
+                    y: 0,
+                    width: 1600,
+                    height: 1600,
+                },
+            },
+            None,
+        ),
+        (
+            Intent::CreateBoard {
+                id: board,
+                name: "Plot".into(),
+            },
+            None,
+        ),
+        (
+            Intent::UpdateBoard {
+                id: board,
+                name: None,
+                visible_to_players: Some(true),
+            },
+            Some(Version(1)),
+        ),
+        (
+            Intent::CreateBoardNode {
+                id: node,
+                board_id: board,
+                content: BoardNodeContent::Note {
+                    markdown: "Secret passage".into(),
+                },
+                x: 0,
+                y: 0,
+                width: 3200,
+                height: 1600,
+                visibility: BoardVisibility::Gm,
+            },
+            None,
+        ),
+        (
+            Intent::CreateTrigger {
+                id: trigger,
+                // Impossible first; made easy below.
+                definition: secret_trigger(zone, node, "@total >= 100"),
+            },
+            None,
+        ),
+    ];
+    for (intent, expected_version) in setup {
+        let intent_id = IntentId::new_v7();
+        gm_ws
+            .send(ClientMessage::Intent(IntentEnvelope {
+                intent_id,
+                expected_version,
+                intent: intent.clone(),
+            }))
+            .await;
+        until(&mut gm_ws, |m| match m {
+            ServerMessage::Accepted(a) if a.intent_id == intent_id => Some(()),
+            ServerMessage::Rejected(r) if r.intent_id == intent_id => {
+                panic!("{intent:?} rejected: {:?}", r.reason)
+            }
+            _ => None,
+        })
+        .await;
+    }
+
+    let roll = |n: u128| {
+        ClientMessage::Intent(IntentEnvelope {
+            intent_id: IntentId(v7(0x70 + n)),
+            expected_version: None,
+            intent: Intent::RollDice {
+                id: ChatMessageId(v7(0x80 + n)),
+                expression: "1d20 + @perception".into(),
+                hidden: false,
+                character_id: Some(hero),
+                roll: Some("perception".into()),
+            },
+        })
+    };
+
+    // A failed check: the roll, and nothing else.
+    mira_ws.send(roll(0)).await;
+    let batch = until(&mut gm_ws, |m| match m {
+        ServerMessage::Events(b) if b.caused_by == Some(IntentId(v7(0x70))) => Some(b),
+        _ => None,
+    })
+    .await;
+    assert_eq!(batch.events.len(), 1, "{batch:?}");
+
+    // Easier now: the next check opens the card.
+    let update = IntentId::new_v7();
+    gm_ws
+        .send(ClientMessage::Intent(IntentEnvelope {
+            intent_id: update,
+            expected_version: Some(Version(1)),
+            intent: Intent::UpdateTrigger {
+                id: trigger,
+                definition: secret_trigger(zone, node, "@total >= 1"),
+            },
+        }))
+        .await;
+    until(&mut gm_ws, |m| match m {
+        ServerMessage::Accepted(a) if a.intent_id == update => Some(()),
+        _ => None,
+    })
+    .await;
+    mira_ws.send(roll(1)).await;
+    let batch = until(&mut gm_ws, |m| match m {
+        ServerMessage::Events(b) if b.caused_by == Some(IntentId(v7(0x71))) => Some(b),
+        _ => None,
+    })
+    .await;
+    assert!(
+        batch
+            .events
+            .iter()
+            .any(|e| matches!(e, Event::TriggerFired { .. })),
+        "{batch:?}"
+    );
+
+    // The player is sent a fresh view: the card is open, no zone or trigger in sight.
+    let view = until(&mut mira_ws, |m| match m {
+        ServerMessage::Snapshot(s) if s.board_nodes.iter().any(|n| n.id == node) => Some(*s),
+        _ => None,
+    })
+    .await;
+    assert_eq!(
+        view.board_nodes
+            .iter()
+            .find(|n| n.id == node)
+            .map(|n| n.visibility),
+        Some(BoardVisibility::Players)
+    );
+    assert!(view.zones.is_empty() && view.triggers.is_empty());
+    h.server.stop().await.unwrap();
+}

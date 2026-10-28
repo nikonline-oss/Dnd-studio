@@ -1409,6 +1409,7 @@ dependencies = [
  "axum",
  "dnd-db",
  "dnd-game-core",
+ "dnd-plugin",
  "dnd-protocol",
  "futures-util",
  "getrandom 0.4.3",

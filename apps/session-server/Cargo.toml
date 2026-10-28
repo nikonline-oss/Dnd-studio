@@ -37,6 +37,7 @@ getrandom.workspace = true
 
 [dev-dependencies]
 dnd-protocol = { workspace = true, features = ["arbitrary"] }
+dnd-plugin.workspace = true
 tempfile.workspace = true
 reqwest.workspace = true
 rustls.workspace = true
