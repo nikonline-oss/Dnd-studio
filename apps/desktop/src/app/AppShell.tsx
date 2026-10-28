@@ -11,6 +11,7 @@ import { BoardView } from '@/features/boards/BoardView';
 import { CompendiumList } from '@/features/compendium/CompendiumList';
 import { CompendiumView } from '@/features/compendium/CompendiumView';
 import { ImageLibrary } from '@/features/images/ImageLibrary';
+import { AudioLibrary } from '@/features/images/AudioLibrary';
 import { TriggerEditor } from '@/features/triggers/TriggerEditor';
 import { TriggerList } from '@/features/triggers/TriggerList';
 import { CharacterEditor } from '@/features/characters/CharacterEditor';
@@ -48,6 +49,7 @@ const GM_VIEWS: SideView[] = [
   'boards',
   'triggers',
   'images',
+  'audio',
   'compendia',
 ];
 const PLAYER_VIEWS: SideView[] = ['characters', 'journal', 'boards', 'compendia'];
@@ -59,6 +61,7 @@ const VIEW_ICONS = {
   boards: 'board',
   triggers: 'bolt',
   images: 'image',
+  audio: 'music',
   compendia: 'book',
 } as const;
 
@@ -217,6 +220,10 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
             ) : sideView === 'images' ? (
               <ErrorBoundary name={t('images.title')}>
                 <ImageLibrary />
+              </ErrorBoundary>
+            ) : sideView === 'audio' ? (
+              <ErrorBoundary name={t('audio.title')}>
+                <AudioLibrary />
               </ErrorBoundary>
             ) : sideView === 'triggers' ? (
               <ErrorBoundary name={t('triggers.title')}>

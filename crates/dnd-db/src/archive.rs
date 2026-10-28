@@ -250,7 +250,7 @@ fn extract(
 enum Entry {
     Manifest,
     Database,
-    /// `assets/<sha256>.webp`
+    /// `assets/<sha256>.webp` or `assets/<sha256>.audio`
     Served(String),
     /// `assets/originals/<sha256>.<png|jpg|jpeg|webp>`
     Original(String),
@@ -276,8 +276,11 @@ fn classify(name: &str) -> Option<Entry> {
     is_served_name(file).then(|| Entry::Served(file[..64].to_owned()))
 }
 
+/// Served files: `<sha256>.webp` pictures and `<sha256>.audio` sounds (ADR-0026).
 fn is_served_name(file: &str) -> bool {
-    file.strip_suffix(".webp").is_some_and(is_sha256_hex)
+    file.strip_suffix(".webp")
+        .or_else(|| file.strip_suffix(".audio"))
+        .is_some_and(is_sha256_hex)
 }
 
 fn is_plugin_name(file: &str) -> bool {

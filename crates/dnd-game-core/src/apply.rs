@@ -314,6 +314,17 @@ fn decide(
         | Intent::MergeZones { .. } => {
             crate::zones::apply(state, intent).unwrap_or(Err(RejectReason::invalid("intent")))
         }
+
+        Intent::CreateLibraryFolder { .. }
+        | Intent::RenameLibraryFolder { .. }
+        | Intent::MoveLibraryFolder { .. }
+        | Intent::DeleteLibraryFolder { .. }
+        | Intent::MoveAsset { .. }
+        | Intent::RenameAsset { .. }
+        | Intent::PlaySound { .. }
+        | Intent::StopSound { .. } => {
+            crate::library::apply(state, intent).unwrap_or(Err(RejectReason::invalid("intent")))
+        }
     }
 }
 
@@ -361,6 +372,15 @@ fn current_version(state: &GameState, intent: &Intent) -> Result<Version, Reject
         | Intent::DeleteZone { id }
         | Intent::MergeZones { into: id, .. } => state.zones.get(id).map(|z| z.version),
         Intent::CreateTrigger { .. } | Intent::FireTrigger { .. } => None,
+        Intent::CreateLibraryFolder { .. }
+        | Intent::PlaySound { .. }
+        | Intent::StopSound { .. } => None,
+        Intent::RenameLibraryFolder { id, .. }
+        | Intent::MoveLibraryFolder { id, .. }
+        | Intent::DeleteLibraryFolder { id } => state.library_folders.get(id).map(|f| f.version),
+        Intent::MoveAsset { id, .. } | Intent::RenameAsset { id, .. } => {
+            state.assets.get(id).map(|a| a.version)
+        }
         Intent::UpdateTrigger { id, .. } | Intent::DeleteTrigger { id } => {
             state.triggers.get(id).map(|t| t.version)
         }

@@ -169,6 +169,32 @@ export function applyEvent(snapshot: Snapshot, event: Event): Snapshot {
     case 'trigger_fired':
       // The GM's log: shown in the trigger list; the effects are events of their own.
       return snapshot;
+    case 'library_folder_created':
+    case 'library_folder_updated':
+      return {
+        ...snapshot,
+        library_folders: upsert(snapshot.library_folders ?? [], event.folder),
+      };
+    case 'library_folder_deleted':
+      return {
+        ...snapshot,
+        library_folders: (snapshot.library_folders ?? []).filter((f) => f.id !== event.id),
+      };
+    case 'asset_updated':
+      return { ...snapshot, assets: upsert(snapshot.assets, event.asset) };
+    case 'sound_played': {
+      // Only looping sounds stay (as in the core); one played once replaces a looping copy.
+      const rest = (snapshot.sounds ?? []).filter((s) => s.asset_id !== event.sound.asset_id);
+      return { ...snapshot, sounds: event.sound.looped ? [...rest, event.sound] : rest };
+    }
+    case 'sound_stopped':
+      return {
+        ...snapshot,
+        sounds:
+          event.asset_id === null
+            ? []
+            : (snapshot.sounds ?? []).filter((s) => s.asset_id !== event.asset_id),
+      };
     case 'redacted':
       // Something the server hides from this recipient: only its sequence number counts.
       return snapshot;

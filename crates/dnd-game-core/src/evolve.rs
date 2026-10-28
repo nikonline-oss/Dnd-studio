@@ -150,6 +150,29 @@ pub fn evolve(state: &mut GameState, event: &Event) {
         Event::ZoneDeleted { id } => {
             state.zones.remove(id);
         }
+        Event::LibraryFolderCreated { folder } | Event::LibraryFolderUpdated { folder } => {
+            state.library_folders.insert(folder.id, folder.clone());
+        }
+        Event::LibraryFolderDeleted { id } => {
+            state.library_folders.remove(id);
+        }
+        Event::AssetUpdated { asset } => {
+            state.assets.insert(asset.id, asset.as_ref().clone());
+        }
+        Event::SoundPlayed { sound } => {
+            if sound.looped {
+                state.sounds.insert(sound.asset_id, sound.clone());
+            } else {
+                // Played once over a looping copy of the same file: that one stops.
+                state.sounds.remove(&sound.asset_id);
+            }
+        }
+        Event::SoundStopped { asset_id } => match asset_id {
+            Some(id) => {
+                state.sounds.remove(id);
+            }
+            None => state.sounds.clear(),
+        },
         Event::UserJoined { user } => {
             state.users.insert(user.id, user.clone());
         }

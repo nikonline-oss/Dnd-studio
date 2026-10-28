@@ -6,7 +6,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::board::BoardVisibility;
 use crate::ids::{
-    BoardId, BoardNodeId, CharacterId, JournalEntryId, MapId, TokenId, TriggerId, Version, ZoneId,
+    AssetId, BoardId, BoardNodeId, CharacterId, JournalEntryId, MapId, TokenId, TriggerId, Version,
+    ZoneId,
 };
 
 /// What sets a trigger off.
@@ -89,6 +90,16 @@ pub enum TriggerAction {
     },
     GiveItem {
         name: String,
+    },
+    /// Plays an audio asset to everyone (ADR-0026).
+    PlaySound {
+        asset: AssetId,
+        volume: u8,
+        looped: bool,
+    },
+    /// Stops a looping sound; `None`: all sounds.
+    StopSound {
+        asset: Option<AssetId>,
     },
 }
 

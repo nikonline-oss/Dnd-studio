@@ -445,7 +445,7 @@ fn query_inventory_matches_adr_0008() {
         .map(|s| s.matches("sqlx::query").count())
         .sum();
     assert_eq!(
-        count, 72,
+        count, 76,
         "runtime queries changed: add a real-SQLite test and update the table in docs/adr/0008-db-conventions.md"
     );
 }
@@ -925,6 +925,7 @@ async fn assets_are_registered_and_loaded() {
             height: 2048,
             sha256: hex(3),
         }],
+        folder_id: None,
         version: Version(1),
     };
     db.project(&[record(
@@ -957,6 +958,99 @@ async fn assets_are_registered_and_loaded() {
         .await
         .is_err()
     );
+}
+
+/// Library folders and audio assets (ADR-0026): a sound loads back as audio; moving and renaming
+/// are stored; deleting a folder returns its assets to the root (`ON DELETE SET NULL`); sounds
+/// are never stored.
+#[tokio::test]
+async fn library_folders_and_sounds_are_projected() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = new_campaign(&dir).await;
+    let hex = |n: u8| format!("{n:02x}").repeat(32);
+    let music = LibraryFolderDto {
+        id: LibraryFolderId(v7(0x7a0)),
+        library: Library::Audio,
+        parent: None,
+        name: "Music".into(),
+        version: Version(1),
+    };
+    let battle = LibraryFolderDto {
+        id: LibraryFolderId(v7(0x7a1)),
+        parent: Some(music.id),
+        name: "Battle".into(),
+        ..music.clone()
+    };
+    let mut sound = AssetDto {
+        id: AssetId(v7(0x7a2)),
+        usage: AssetUsage::Audio,
+        sha256: hex(9),
+        mime: "audio/ogg".into(),
+        size_bytes: 99,
+        original_name: Some("drums.ogg".into()),
+        width: 0,
+        height: 0,
+        display_sha256: Some(hex(9)),
+        thumbnail_sha256: hex(9),
+        tiles: Vec::new(),
+        folder_id: None,
+        version: Version(1),
+    };
+    db.project(&[record(
+        1,
+        Some(0x91),
+        vec![
+            Event::AssetRegistered {
+                asset: Box::new(sound.clone()),
+            },
+            Event::LibraryFolderCreated {
+                folder: music.clone(),
+            },
+            Event::LibraryFolderCreated {
+                folder: battle.clone(),
+            },
+        ],
+    )])
+    .await
+    .unwrap();
+    sound.folder_id = Some(battle.id);
+    sound.original_name = Some("War drums".into());
+    sound.version = Version(2);
+    db.project(&[record(
+        4,
+        Some(0x92),
+        vec![
+            Event::AssetUpdated {
+                asset: Box::new(sound.clone()),
+            },
+            Event::SoundPlayed {
+                sound: SoundDto {
+                    asset_id: sound.id,
+                    sha256: hex(9),
+                    mime: "audio/ogg".into(),
+                    volume: 50,
+                    looped: true,
+                },
+            },
+        ],
+    )])
+    .await
+    .unwrap();
+    let (state, _) = db.load_state().await.unwrap();
+    assert_eq!(state.assets.get(&sound.id), Some(&sound));
+    assert_eq!(state.library_folders.len(), 2);
+    assert!(state.sounds.is_empty(), "a campaign opens in silence");
+
+    db.project(&[record(
+        6,
+        Some(0x93),
+        vec![Event::LibraryFolderDeleted { id: music.id }],
+    )])
+    .await
+    .unwrap();
+    let (state, _) = db.load_state().await.unwrap();
+    assert!(state.library_folders.is_empty(), "subfolders go with it");
+    assert_eq!(state.assets[&sound.id].folder_id, None);
 }
 
 /// Fog (ADR-0019): operations are appended to `maps.fog` in order, a reset replaces them, a map

@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next';
+import { useSnapshotSelect } from '@/shared/game/useGame';
 import { labelText } from '@/shared/i18n/label';
 import type { RevealTarget, SystemRulesDto, TriggerAction, TriggerStep } from '@/shared/ipc/client';
 import { ElementField, type ElementKind } from '@/shared/ui/ElementPicker';
@@ -15,6 +16,8 @@ export const ACTION_TYPES: ActionType[] = [
   'add_condition',
   'remove_condition',
   'give_item',
+  'play_sound',
+  'stop_sound',
 ];
 
 /** A fresh action of `type`, with the first sensible choices filled in. */
@@ -35,6 +38,10 @@ export function newAction(type: ActionType, rules: SystemRulesDto | null): Trigg
       return { type, condition: rules?.conditions?.[0]?.id ?? '' };
     case 'give_item':
       return { type, name: '' };
+    case 'play_sound':
+      return { type, asset: '', volume: 80, looped: false };
+    case 'stop_sound':
+      return { type, asset: null };
   }
 }
 
@@ -67,6 +74,9 @@ export function StepEditor({
   const { t, i18n } = useTranslation();
   const lang = i18n.resolvedLanguage ?? i18n.language;
   const action = step.action;
+  const sounds = (useSnapshotSelect((s) => s.assets) ?? [])
+    .filter((a) => a.usage === 'audio')
+    .sort((a, b) => (a.original_name ?? '').localeCompare(b.original_name ?? ''));
   const set = (next: TriggerAction) => {
     onChange({ ...step, action: next });
   };
@@ -292,6 +302,68 @@ export function StepEditor({
                 set({ ...action, name: e.target.value });
               }}
             />
+          </label>
+        )}
+        {action.type === 'play_sound' && (
+          <>
+            <label className="trigger-field">
+              <span>{t('sounds.sound')}</span>
+              <select
+                value={action.asset}
+                onChange={(e) => {
+                  set({ ...action, asset: e.target.value });
+                }}
+              >
+                <option value="" disabled>
+                  {t('sounds.choose')}
+                </option>
+                {sounds.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.original_name ?? a.sha256.slice(0, 8)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="trigger-field">
+              <span>{t('sounds.volume')}</span>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                value={action.volume}
+                onChange={(e) => {
+                  set({ ...action, volume: Number(e.target.value) });
+                }}
+              />
+            </label>
+            <label className="inline">
+              <input
+                type="checkbox"
+                checked={action.looped}
+                onChange={(e) => {
+                  set({ ...action, looped: e.target.checked });
+                }}
+              />
+              {t('sounds.loop')}
+            </label>
+          </>
+        )}
+        {action.type === 'stop_sound' && (
+          <label className="trigger-field">
+            <span>{t('sounds.sound')}</span>
+            <select
+              value={action.asset ?? ''}
+              onChange={(e) => {
+                set({ ...action, asset: e.target.value || null });
+              }}
+            >
+              <option value="">{t('sounds.allSounds')}</option>
+              {sounds.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.original_name ?? a.sha256.slice(0, 8)}
+                </option>
+              ))}
+            </select>
           </label>
         )}
         <label className="trigger-field">

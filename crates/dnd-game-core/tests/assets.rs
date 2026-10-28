@@ -40,6 +40,7 @@ fn map_asset(n: u128, sha: u8) -> AssetDto {
                 sha256: hex(0xA2),
             },
         ],
+        folder_id: None,
         version: Version(1),
     }
 }
@@ -104,6 +105,7 @@ fn malformed_records_are_rejected() {
         (
             AssetDto {
                 tiles: vec![],
+                folder_id: None,
                 ..map_asset(1, 1)
             },
             "tiles",
@@ -146,6 +148,7 @@ fn map_backgrounds_must_be_map_images() {
         height: 256,
         display_sha256: Some(hex(0xD1)),
         tiles: vec![],
+        folder_id: None,
         ..map_asset(2, 2)
     };
     run(&mut state, Role::Gm, register(token), None).unwrap();

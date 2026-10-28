@@ -76,6 +76,7 @@ async fn archive(dir: &Path) -> PathBuf {
         display_sha256: None,
         thumbnail_sha256: sha(IMAGE),
         tiles: Vec::new(),
+        folder_id: None,
         version: Version::INITIAL,
     };
     engine

@@ -13,7 +13,7 @@ use dnd_game_core::{
     sees_everything, snapshot_for,
 };
 use dnd_protocol::{
-    EventBatch, Intent, IntentEnvelope, IntentOutcome, JournalEntryDto, JournalEntryId,
+    AssetUsage, EventBatch, Intent, IntentEnvelope, IntentOutcome, JournalEntryDto, JournalEntryId,
     JournalVisibility, RejectReason, Role, SessionId, Snapshot, UserDto, UserId,
 };
 use tokio::sync::{broadcast, mpsc, oneshot, watch};
@@ -349,15 +349,22 @@ async fn run(
                 } else {
                     Some(PlayersSee::of(state).assets)
                 };
-                let visible = state
+                // A sound's hash is the right to fetch it: players learn it only from a
+                // `SoundPlayed` event (ADR-0026).
+                let sound = state
                     .assets
                     .values()
-                    .filter(|a| ids.as_ref().is_none_or(|ids| ids.contains(&a.id)))
-                    .any(|a| {
-                        a.thumbnail_sha256 == sha256
-                            || a.display_sha256.as_deref() == Some(sha256.as_str())
-                            || a.tiles.iter().any(|t| t.sha256 == sha256)
-                    });
+                    .any(|a| a.usage == AssetUsage::Audio && a.sha256 == sha256);
+                let visible = sound
+                    || state
+                        .assets
+                        .values()
+                        .filter(|a| ids.as_ref().is_none_or(|ids| ids.contains(&a.id)))
+                        .any(|a| {
+                            a.thumbnail_sha256 == sha256
+                                || a.display_sha256.as_deref() == Some(sha256.as_str())
+                                || a.tiles.iter().any(|t| t.sha256 == sha256)
+                        });
                 let _ = reply.send(visible);
             }
             Command::Export { out, reply } => {

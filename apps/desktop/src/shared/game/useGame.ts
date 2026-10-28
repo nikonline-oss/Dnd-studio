@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { applyBatch } from './evolve';
+import { playSound, stopSound, syncLoopingSounds } from './soundPlayback';
 import {
   events,
   IntentRejected,
@@ -43,26 +44,31 @@ export function useGameEventsSync() {
   useEffect(() => {
     // A session server replaces the whole state (connect, reconnect, visibility change).
     const unlistenSnapshot = events.gameSnapshotReplaced.listen(({ payload }) => {
+      syncLoopingSounds(payload.sounds ?? []);
       queryClient.setQueryData(queryKeys.snapshot, payload);
       void queryClient.invalidateQueries({ queryKey: ['journal'] });
     });
     const unlisten = events.gameEventsEmitted.listen(({ payload }) => {
+      const current = queryClient.getQueryData<Snapshot>(queryKeys.snapshot);
+      if (!current) return;
+      const next = applyBatch(current, payload);
+      if (!next) {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.snapshot });
+        return;
+      }
+      // Do side effects only for a newly applied batch: duplicate delivery must not replay sound.
+      if (next === current) return;
       // Journal texts live in their own cache entries (the snapshot has only the index).
       for (const event of payload.events) {
+        if (event.kind === 'sound_played') playSound(event.sound);
+        else if (event.kind === 'sound_stopped') stopSound(event.asset_id);
         if (event.kind === 'journal_entry_created' || event.kind === 'journal_entry_updated') {
           queryClient.setQueryData(queryKeys.journalEntry(event.entry.id), event.entry);
         } else if (event.kind === 'journal_entry_deleted') {
           queryClient.removeQueries({ queryKey: queryKeys.journalEntry(event.id) });
         }
       }
-      const current = queryClient.getQueryData<Snapshot>(queryKeys.snapshot);
-      if (!current) return;
-      const next = applyBatch(current, payload);
-      if (next) {
-        queryClient.setQueryData(queryKeys.snapshot, next);
-      } else {
-        void queryClient.invalidateQueries({ queryKey: queryKeys.snapshot });
-      }
+      queryClient.setQueryData(queryKeys.snapshot, next);
     });
     return () => {
       for (const listener of [unlisten, unlistenSnapshot]) {

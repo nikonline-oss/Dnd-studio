@@ -16,6 +16,7 @@ mod combat;
 mod evolve;
 mod fog;
 mod journal;
+mod library;
 mod permissions;
 mod plugins;
 mod recent;

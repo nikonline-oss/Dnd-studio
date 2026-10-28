@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::ids::{
     AssetId, CharacterId, ChatMessageId, CombatId, CombatantId, FogOpId, JournalEntryId,
-    JournalFolderId, MapId, TokenId, UserId, Version,
+    JournalFolderId, LibraryFolderId, MapId, TokenId, UserId, Version,
 };
 
 /// Campaign-wide metadata (singleton entity).
@@ -541,6 +541,9 @@ pub enum AssetUsage {
     Map,
     /// Token or portrait: one WebP, at most 2048 px per side.
     Token,
+    /// Music or a sound (ADR-0026): the file as imported, served as `<sha256>.audio`; no pixels,
+    /// no tiles, `display_sha256` and `thumbnail_sha256` are its own hash.
+    Audio,
 }
 
 /// One 2048² (or smaller, at the edges) tile of a map image, in image pixels.
@@ -575,5 +578,8 @@ pub struct AssetDto {
     pub thumbnail_sha256: String,
     /// Map tiles, row by row; empty for tokens.
     pub tiles: Vec<AssetTileDto>,
+    /// Its folder in the library (ADR-0026); `None`: the library's root.
+    #[serde(default)]
+    pub folder_id: Option<LibraryFolderId>,
     pub version: Version,
 }

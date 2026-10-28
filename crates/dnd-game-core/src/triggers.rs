@@ -320,6 +320,17 @@ fn perform(
         .and_then(|id| work.characters.get(&id))
         .cloned();
     match action {
+        TriggerAction::PlaySound {
+            asset,
+            volume,
+            looped,
+        } => work
+            .assets
+            .get(asset)
+            .and_then(|a| crate::library::sound(work, a, *volume, *looped).ok())
+            .map(|sound| vec![Event::SoundPlayed { sound }])
+            .unwrap_or_default(),
+        TriggerAction::StopSound { asset } => vec![Event::SoundStopped { asset_id: *asset }],
         TriggerAction::Reveal { target } => reveal(work, *target),
         TriggerAction::SetNodeVisibility { node, visibility } => work
             .board_nodes
@@ -684,6 +695,19 @@ fn valid_action(state: &GameState, action: &mut TriggerAction) -> Result<(), Rej
             RevealTarget::Token { id } => state.tokens.contains_key(id),
         },
         TriggerAction::SetNodeVisibility { node, .. } => state.board_nodes.contains_key(node),
+        TriggerAction::PlaySound { asset, volume, .. } => {
+            *volume <= dnd_protocol::MAX_VOLUME
+                && state
+                    .assets
+                    .get(asset)
+                    .is_some_and(|a| a.usage == dnd_protocol::AssetUsage::Audio)
+        }
+        TriggerAction::StopSound { asset } => asset.is_none_or(|a| {
+            state
+                .assets
+                .get(&a)
+                .is_some_and(|a| a.usage == dnd_protocol::AssetUsage::Audio)
+        }),
         TriggerAction::Chat { text, .. } => {
             *text = text.trim().to_owned();
             !text.is_empty() && text.chars().count() <= MAX_TRIGGER_TEXT

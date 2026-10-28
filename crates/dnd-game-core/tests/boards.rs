@@ -401,6 +401,7 @@ fn players_see_the_pictures_of_journal_entries_open_to_them() {
         display_sha256: Some(format!("{n:064x}")),
         thumbnail_sha256: format!("{n:064x}"),
         tiles: Vec::new(),
+        folder_id: None,
         version: Version::INITIAL,
     };
     let mut state = table_state();

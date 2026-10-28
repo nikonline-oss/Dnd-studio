@@ -160,3 +160,38 @@ fn sha256_hex_shape() {
     assert!(!is_sha256_hex("../../etc/passwd"));
     assert!(!is_sha256_hex(&h.to_uppercase()));
 }
+
+#[test]
+fn sounds_are_recognised_by_their_signature_not_their_name() {
+    let mut wav = b"RIFF\0\0\0\0WAVEfmt ".to_vec();
+    wav.extend([0u8; 16]);
+    for (bytes, mime) in [
+        (b"ID3\x04\0\0\0\0\0\0rest".to_vec(), "audio/mpeg"),
+        (vec![0xff, 0xfb, 0x90, 0x64, 0], "audio/mpeg"),
+        (b"OggS\0\x02rest".to_vec(), "audio/ogg"),
+        (wav, "audio/wav"),
+        (b"fLaC\0\0\0\x22".to_vec(), "audio/flac"),
+        (b"\0\0\0\x20ftypM4A ".to_vec(), "audio/mp4"),
+        (vec![0x1a, 0x45, 0xdf, 0xa3, 1], "audio/webm"),
+    ] {
+        let audio = dnd_assets::import_audio(&bytes).unwrap();
+        assert_eq!(audio.mime, mime);
+        assert_eq!(audio.file.sha256, dnd_assets::sha256_hex(&bytes));
+    }
+    assert_eq!(
+        dnd_assets::import_audio(b"\x89PNG\r\n\x1a\n"),
+        Err(dnd_assets::AssetError::UnsupportedFormat)
+    );
+    assert_eq!(
+        dnd_assets::import_audio(b""),
+        Err(dnd_assets::AssetError::Empty)
+    );
+
+    let dir = tempfile::tempdir().unwrap();
+    let audio = dnd_assets::import_audio(b"OggS sound").unwrap();
+    dnd_assets::store_audio(dir.path(), &audio).unwrap();
+    assert_eq!(
+        std::fs::read(dnd_assets::audio_path(dir.path(), &audio.file.sha256)).unwrap(),
+        b"OggS sound"
+    );
+}

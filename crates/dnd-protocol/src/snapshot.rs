@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::board::{BoardDto, BoardEdgeDto, BoardNodeDto};
 use crate::ids::Seq;
+use crate::library::{LibraryFolderDto, SoundDto};
 use crate::model::{
     AssetDto, CampaignMeta, CharacterDto, ChatMessageDto, CombatDto, CombatantDto, FogDto,
     JournalEntryMeta, JournalFolderDto, MapDto, TokenDto, UserDto,
@@ -47,4 +48,10 @@ pub struct Snapshot {
     pub zones: Vec<ZoneDto>,
     /// Triggers (GM roles only; empty for players).
     pub triggers: Vec<TriggerDto>,
+    /// Folders of the image and audio libraries (GM roles only; empty for players, ADR-0026).
+    #[serde(default)]
+    pub library_folders: Vec<LibraryFolderDto>,
+    /// Looping sounds playing now, so a client that (re)connects hears the same music.
+    #[serde(default)]
+    pub sounds: Vec<SoundDto>,
 }

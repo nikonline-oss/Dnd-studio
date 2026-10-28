@@ -5,8 +5,10 @@ use serde::{Deserialize, Serialize};
 use crate::board::{BoardNodeContent, BoardVisibility};
 use crate::ids::{
     AssetId, BoardEdgeId, BoardId, BoardNodeId, CharacterId, ChatMessageId, CombatId, CombatantId,
-    IntentId, JournalEntryId, JournalFolderId, MapId, TokenId, TriggerId, UserId, Version, ZoneId,
+    IntentId, JournalEntryId, JournalFolderId, LibraryFolderId, MapId, TokenId, TriggerId, UserId,
+    Version, ZoneId,
 };
+use crate::library::Library;
 use crate::model::{
     AssetDto, CharacterKind, FogOp, Grid, JournalTable, JournalVisibility, TokenLayer,
 };
@@ -397,6 +399,48 @@ pub enum Intent {
         id: TriggerId,
         token: Option<TokenId>,
     },
+
+    /// GM / Co-GM (ADR-0026). A folder in `parent` of the same library (`None`: its root).
+    CreateLibraryFolder {
+        id: LibraryFolderId,
+        library: Library,
+        parent: Option<LibraryFolderId>,
+        name: String,
+    },
+    /// GM / Co-GM.
+    RenameLibraryFolder {
+        id: LibraryFolderId,
+        name: String,
+    },
+    /// GM / Co-GM: into `parent` of the same library, never into itself.
+    MoveLibraryFolder {
+        id: LibraryFolderId,
+        parent: Option<LibraryFolderId>,
+    },
+    /// GM / Co-GM: the folder and its subfolders; their assets go back to the library's root.
+    DeleteLibraryFolder {
+        id: LibraryFolderId,
+    },
+    /// GM / Co-GM: into a folder of the asset's library (`None`: its root).
+    MoveAsset {
+        id: AssetId,
+        folder_id: Option<LibraryFolderId>,
+    },
+    /// GM / Co-GM: the name shown in the library.
+    RenameAsset {
+        id: AssetId,
+        name: String,
+    },
+    /// GM / Co-GM: plays an audio asset to everyone.
+    PlaySound {
+        asset_id: AssetId,
+        volume: u8,
+        looped: bool,
+    },
+    /// GM / Co-GM: stops a looping sound (`None`: all).
+    StopSound {
+        asset_id: Option<AssetId>,
+    },
 }
 
 /// What kind of version handling an intent needs.
@@ -473,6 +517,14 @@ impl Intent {
             Self::UpdateTrigger { .. } => "update_trigger",
             Self::DeleteTrigger { .. } => "delete_trigger",
             Self::FireTrigger { .. } => "fire_trigger",
+            Self::CreateLibraryFolder { .. } => "create_library_folder",
+            Self::RenameLibraryFolder { .. } => "rename_library_folder",
+            Self::MoveLibraryFolder { .. } => "move_library_folder",
+            Self::DeleteLibraryFolder { .. } => "delete_library_folder",
+            Self::MoveAsset { .. } => "move_asset",
+            Self::RenameAsset { .. } => "rename_asset",
+            Self::PlaySound { .. } => "play_sound",
+            Self::StopSound { .. } => "stop_sound",
         }
     }
 
@@ -495,11 +547,14 @@ impl Intent {
             | Self::CreateBoardNode { .. }
             | Self::CreateBoardEdge { .. }
             | Self::CreateZone { .. }
-            | Self::CreateTrigger { .. } => VersionPolicy::Create,
+            | Self::CreateTrigger { .. }
+            | Self::CreateLibraryFolder { .. } => VersionPolicy::Create,
             // Plugins are configuration the GM owns: the last choice wins.
             Self::MoveToken { .. }
             | Self::MoveBoardNode { .. }
             | Self::FireTrigger { .. }
+            | Self::PlaySound { .. }
+            | Self::StopSound { .. }
             | Self::ResetFog { .. }
             | Self::InstallPlugin { .. }
             | Self::UninstallPlugin { .. }
@@ -538,7 +593,12 @@ impl Intent {
             | Self::SetConditions { .. }
             | Self::GiveItem { .. }
             | Self::UpdateTrigger { .. }
-            | Self::DeleteTrigger { .. } => VersionPolicy::Checked,
+            | Self::DeleteTrigger { .. }
+            | Self::RenameLibraryFolder { .. }
+            | Self::MoveLibraryFolder { .. }
+            | Self::DeleteLibraryFolder { .. }
+            | Self::MoveAsset { .. }
+            | Self::RenameAsset { .. } => VersionPolicy::Checked,
         }
     }
 

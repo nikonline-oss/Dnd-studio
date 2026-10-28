@@ -95,6 +95,10 @@ define_id!(
     TriggerId
 );
 define_id!(
+    /// A folder of the image or audio library (ADR-0026).
+    LibraryFolderId
+);
+define_id!(
     /// Client-chosen identifier of an intent, used to correlate `Rejected`/`Events`.
     IntentId
 );

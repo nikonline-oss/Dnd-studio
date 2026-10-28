@@ -3045,6 +3045,57 @@ input.table-column-name {
   margin: 0 var(--space-2) var(--space-2);
 }
 
+.library-folders {
+  padding: 0 var(--space-2) var(--space-2);
+}
+.library-folder-toolbar,
+.library-folder-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.library-folder-toolbar {
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+.library-folder-row {
+  min-height: 28px;
+}
+.library-folder-row > button:first-child {
+  flex: 1;
+  text-align: start;
+}
+.library-folders button[aria-pressed='true'],
+.audio-row[aria-selected='true'] {
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+.audio-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0 var(--space-2);
+  list-style: none;
+}
+.audio-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 34px;
+  padding: 4px;
+  border-radius: var(--radius);
+}
+.audio-row-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.audio-row select {
+  max-width: 100px;
+}
+
 .image-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));

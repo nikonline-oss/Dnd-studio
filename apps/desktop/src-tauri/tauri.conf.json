@@ -21,7 +21,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' dnd-asset: http://dnd-asset.localhost data: blob:; font-src 'self' data:; connect-src ipc: http://ipc.localhost dnd-asset: http://dnd-asset.localhost; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' dnd-asset: http://dnd-asset.localhost data: blob:; media-src 'self' dnd-asset: http://dnd-asset.localhost; font-src 'self' data:; connect-src ipc: http://ipc.localhost dnd-asset: http://dnd-asset.localhost; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
       "devCsp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' dnd-asset: http://dnd-asset.localhost data: blob:; font-src 'self' data:; connect-src ipc: http://ipc.localhost dnd-asset: http://dnd-asset.localhost ws://127.0.0.1:1420; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
       "freezePrototype": true
     }

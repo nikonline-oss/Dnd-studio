@@ -371,6 +371,7 @@
     "boards": "Boards",
     "triggers": "Triggers",
     "images": "Pictures",
+    "audio": "Music and sounds",
     "compendia": "Compendia"
   },
   "session": {
@@ -623,6 +624,24 @@
     "openBoardFirst": "Open a board in a tab first",
     "copyForJournal": "Copy for the journal",
     "copied": "Copied: paste it into an entry"
+  },
+  "audio": {
+    "title": "Music and sounds",
+    "import": "Import audio",
+    "empty": "No audio files in this folder yet",
+    "playOnce": "Play once for everyone",
+    "playLoop": "Play music for everyone",
+    "stop": "Stop for everyone"
+  },
+  "library": {
+    "folders": "Library folders",
+    "root": "Root",
+    "addFolder": "Create folder",
+    "folderName": "Folder name",
+    "renameFolder": "Rename “{{name}}”",
+    "deleteFolder": "Delete “{{name}}”",
+    "confirmDeleteFolder": "Delete folder “{{name}}” and its subfolders? Its {{count}} files will move to the library root.",
+    "moveAsset": "Folder for “{{name}}”"
   },
   "compendia": {
     "title": "Compendia",

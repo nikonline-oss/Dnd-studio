@@ -73,6 +73,7 @@ export const ipc = {
   getSnapshot: () => unwrap(commands.getSnapshot()),
   assetImportMap: () => unwrap(commands.assetImportMap()),
   assetImportImages: () => unwrap(commands.assetImportImages()),
+  assetImportAudio: () => unwrap(commands.assetImportAudio()),
 };
 
 /** Writes to the application log file; never throws (logging must not break the caller). */

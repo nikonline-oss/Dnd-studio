@@ -10,6 +10,7 @@ import { ErrorText } from '@/shared/ui/ErrorText';
 import { IconButton } from '@/shared/ui/IconButton';
 import { NavSection } from '@/shared/ui/NavSection';
 import { useToast } from '@/shared/ui/Toast';
+import { LibraryFolderNav } from './LibraryFolderNav';
 
 /** How a picture is written into a journal text (ADR-0024). */
 export function pictureMarkdown(asset: AssetDto): string {
@@ -24,16 +25,22 @@ export function pictureMarkdown(asset: AssetDto): string {
 export function ImageLibrary() {
   const { t } = useTranslation();
   const assets = useSnapshotSelect((s) => s.assets) ?? [];
+  const imageAssets = assets.filter((a) => a.usage !== 'audio');
+  const folders = (useSnapshotSelect((s) => s.library_folders) ?? []).filter(
+    (f) => f.library === 'images',
+  );
   const active = useSelection((s) => s.active);
   const submit = useSubmitIntent();
   const remote = useRemote();
   const showToast = useToast((s) => s.show);
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<string | null>(null);
+  const [folder, setFolder] = useState<string | null>(null);
   const importImages = useMutation({ mutationFn: ipc.assetImportImages });
 
   const q = query.trim().toLowerCase();
-  const shown = assets
+  const shown = imageAssets
+    .filter((a) => (a.folder_id ?? null) === folder)
     .filter((a) => !q || (a.original_name ?? '').toLowerCase().includes(q))
     .sort((a, b) => (a.original_name ?? '').localeCompare(b.original_name ?? ''));
   const picture = assets.find((a) => a.id === selected);
@@ -43,7 +50,7 @@ export function ImageLibrary() {
     <NavSection
       icon="image"
       title={t('images.title')}
-      count={assets.length}
+      count={imageAssets.length}
       actions={
         // Pictures are imported into the local campaign; uploading to a session comes later.
         remote === null && (
@@ -68,7 +75,8 @@ export function ImageLibrary() {
           setQuery(e.target.value);
         }}
       />
-      {assets.length === 0 && <p className="nav-empty">{t('images.empty')}</p>}
+      <LibraryFolderNav library="images" selected={folder} onSelect={setFolder} />
+      {imageAssets.length === 0 && <p className="nav-empty">{t('images.empty')}</p>}
       <ul className="image-grid" role="listbox" aria-label={t('images.title')}>
         {shown.map((asset) => (
           <li
@@ -87,6 +95,29 @@ export function ImageLibrary() {
       </ul>
       {picture && (
         <div className="image-actions">
+          <select
+            aria-label={t('library.moveAsset', {
+              name: picture.original_name ?? picture.sha256.slice(0, 8),
+            })}
+            value={picture.folder_id ?? ''}
+            onChange={(event) => {
+              submit.mutate({
+                intent: {
+                  kind: 'move_asset',
+                  id: picture.id,
+                  folder_id: event.target.value || null,
+                },
+                expectedVersion: picture.version,
+              });
+            }}
+          >
+            <option value="">{t('library.root')}</option>
+            {folders.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.name}
+              </option>
+            ))}
+          </select>
           <button
             type="button"
             disabled={boardId === null || submit.isPending}

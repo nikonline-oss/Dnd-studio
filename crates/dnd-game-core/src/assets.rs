@@ -10,6 +10,7 @@ fn max_side(usage: AssetUsage) -> u32 {
     match usage {
         AssetUsage::Map => 16_384,
         AssetUsage::Token => 2048,
+        AssetUsage::Audio => 0,
     }
 }
 
@@ -47,6 +48,13 @@ fn validate(state: &GameState, asset: &AssetDto) -> Result<AssetDto, RejectReaso
         .is_some_and(|s| !is_sha256_hex(s))
     {
         return invalid("display_sha256");
+    }
+    if asset.folder_id.is_some() {
+        // A new asset starts at the root of its library; `MoveAsset` files it.
+        return invalid("folder_id");
+    }
+    if asset.usage == AssetUsage::Audio {
+        return valid_audio(asset);
     }
     let max = max_side(asset.usage);
     if asset.width == 0 || asset.height == 0 || asset.width > max || asset.height > max {
@@ -97,6 +105,40 @@ fn validate(state: &GameState, asset: &AssetDto) -> Result<AssetDto, RejectReaso
                 return invalid("tiles");
             }
         }
+        AssetUsage::Audio => return invalid("usage"),
+    }
+    Ok(AssetDto {
+        version: Version::INITIAL,
+        ..asset.clone()
+    })
+}
+
+/// A sound (ADR-0026): served as it was imported, so every hash is the file's own; no pixels.
+fn valid_audio(asset: &AssetDto) -> Result<AssetDto, RejectReason> {
+    let invalid = |field: &str| Err(RejectReason::invalid(field));
+    if !matches!(
+        asset.mime.as_str(),
+        "audio/mpeg" | "audio/ogg" | "audio/wav" | "audio/flac" | "audio/mp4" | "audio/webm"
+    ) {
+        return invalid("mime");
+    }
+    if asset.width != 0 || asset.height != 0 || !asset.tiles.is_empty() {
+        return invalid("width");
+    }
+    if asset.display_sha256.as_deref() != Some(asset.sha256.as_str())
+        || asset.thumbnail_sha256 != asset.sha256
+    {
+        return invalid("display_sha256");
+    }
+    if asset.size_bytes <= 0 {
+        return invalid("size_bytes");
+    }
+    if asset
+        .original_name
+        .as_deref()
+        .is_some_and(|n| n.chars().count() > 255 || n.chars().any(char::is_control))
+    {
+        return invalid("original_name");
     }
     Ok(AssetDto {
         version: Version::INITIAL,

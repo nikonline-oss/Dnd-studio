@@ -559,8 +559,18 @@ impl RemoteSession {
 
     /// An asset file from the session, through `cache` (files are content-addressed, so a cached
     /// one never goes stale).
-    pub async fn asset(&self, sha256: &str, cache: &Path) -> Result<Vec<u8>, IpcError> {
-        let path = cache.join(format!("{sha256}.webp"));
+    pub async fn asset(&self, sha256: &str, cache: &Path, mime: &str) -> Result<Vec<u8>, IpcError> {
+        let extension = match mime {
+            "audio/mpeg" => "mp3",
+            "audio/ogg" => "ogg",
+            "audio/wav" | "audio/x-wav" => "wav",
+            "audio/flac" => "flac",
+            "audio/mp4" => "m4a",
+            "audio/webm" => "webm",
+            "image/webp" => "webp",
+            _ => return Err(IpcError::user("invalid_asset", "unsupported asset type")),
+        };
+        let path = cache.join(format!("{sha256}.{extension}"));
         if let Ok(bytes) = tokio::fs::read(&path).await {
             return Ok(bytes);
         }

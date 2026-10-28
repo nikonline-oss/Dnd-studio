@@ -4,12 +4,12 @@ use std::path::{Path, PathBuf};
 
 use dnd_game_core::GameState;
 use dnd_protocol::{
-    AssetDto, AssetId, AssetTileDto, BoardDto, BoardEdgeDto, BoardNodeDto, CampaignMeta,
-    CharacterDto, CharacterId, ChatKind, ChatMessageDto, ChatMessageId, CombatDto, CombatId,
-    CombatantDto, CombatantId, DiceRollDto, Event, EventBatch, FogDto, FogOp, Grid, GridKind,
-    IntentId, JournalEntryDto, JournalEntryId, JournalFolderDto, JournalFolderId, MapDto, MapId,
-    PayloadHash, PluginDto, Role, Seq, SystemMessage, TokenDto, TokenId, TokenLayer, TriggerDto,
-    UserDto, UserId, Version, ZoneDto,
+    AssetDto, AssetId, AssetTileDto, AssetUsage, BoardDto, BoardEdgeDto, BoardNodeDto,
+    CampaignMeta, CharacterDto, CharacterId, ChatKind, ChatMessageDto, ChatMessageId, CombatDto,
+    CombatId, CombatantDto, CombatantId, DiceRollDto, Event, EventBatch, FogDto, FogOp, Grid,
+    GridKind, IntentId, JournalEntryDto, JournalEntryId, JournalFolderDto, JournalFolderId,
+    LibraryFolderDto, LibraryFolderId, MapDto, MapId, PayloadHash, PluginDto, Role, Seq,
+    SystemMessage, TokenDto, TokenId, TokenLayer, TriggerDto, UserDto, UserId, Version, ZoneDto,
 };
 use serde::{Deserialize, Serialize};
 use sqlx::sqlite::SqliteRow;
@@ -513,6 +513,13 @@ impl CampaignDb {
             let edge: BoardEdgeDto = serde_json::from_str(&row.try_get::<String, _>("dto")?)?;
             state.board_edges.insert(edge.id, edge);
         }
+        for row in sqlx::query("SELECT dto FROM library_folders ORDER BY id")
+            .fetch_all(&self.pool)
+            .await?
+        {
+            let folder: LibraryFolderDto = serde_json::from_str(&row.try_get::<String, _>("dto")?)?;
+            state.library_folders.insert(folder.id, folder);
+        }
         for row in sqlx::query("SELECT dto FROM zones ORDER BY id")
             .fetch_all(&self.pool)
             .await?
@@ -538,7 +545,8 @@ impl CampaignDb {
             .await?
             .filter(|id| !id.is_empty());
         for row in sqlx::query(
-            "SELECT id, usage, sha256, mime, size_bytes, original_name, width, height, \n             display_sha256, thumbnail_sha256, tiles, version FROM assets ORDER BY id",
+            "SELECT id, type, usage, sha256, mime, size_bytes, original_name, width, height, \
+             display_sha256, thumbnail_sha256, tiles, folder_id, version FROM assets ORDER BY id",
         )
         .fetch_all(&self.pool)
         .await?
@@ -551,8 +559,16 @@ impl CampaignDb {
                 })
             };
             let asset = AssetDto {
-                id: AssetId(uuid_from_str("assets.id", &row.try_get::<String, _>("id")?)?),
-                usage: enum_from_str("assets.usage", &row.try_get::<String, _>("usage")?)?,
+                id: AssetId(uuid_from_str(
+                    "assets.id",
+                    &row.try_get::<String, _>("id")?,
+                )?),
+                // Audio rows are told apart by `type` (migration 0016).
+                usage: if row.try_get::<String, _>("type")? == "audio" {
+                    AssetUsage::Audio
+                } else {
+                    enum_from_str("assets.usage", &row.try_get::<String, _>("usage")?)?
+                },
                 sha256: row.try_get("sha256")?,
                 mime: row.try_get("mime")?,
                 size_bytes: row.try_get("size_bytes")?,
@@ -560,8 +576,14 @@ impl CampaignDb {
                 width: size("width")?,
                 height: size("height")?,
                 display_sha256: row.try_get("display_sha256")?,
-                thumbnail_sha256: row.try_get::<Option<String>, _>("thumbnail_sha256")?.unwrap_or_default(),
-                tiles: serde_json::from_str::<Vec<AssetTileDto>>(&row.try_get::<String, _>("tiles")?)?,
+                thumbnail_sha256: row
+                    .try_get::<Option<String>, _>("thumbnail_sha256")?
+                    .unwrap_or_default(),
+                tiles: serde_json::from_str::<Vec<AssetTileDto>>(
+                    &row.try_get::<String, _>("tiles")?,
+                )?,
+                folder_id: opt_uuid_from_str("assets.folder_id", row.try_get("folder_id")?)?
+                    .map(LibraryFolderId),
                 version: Version(row.try_get("version")?),
             };
             state.assets.insert(asset.id, asset);
@@ -856,6 +878,41 @@ async fn project_event(conn: &mut SqliteConnection, event: &Event, at_ms: i64) -
         }
         // The GM's log: kept in event_log only; its effects are events of their own.
         Event::TriggerFired { .. } => Ok(()),
+        Event::LibraryFolderCreated { folder } | Event::LibraryFolderUpdated { folder } => {
+            sqlx::query(
+                "INSERT INTO library_folders (id, parent_id, dto, version) VALUES (?, ?, ?, ?) \
+                 ON CONFLICT (id) DO UPDATE SET parent_id = excluded.parent_id, \
+                     dto = excluded.dto, version = excluded.version",
+            )
+            .bind(folder.id.to_string())
+            .bind(folder.parent.map(|p| p.to_string()))
+            .bind(serde_json::to_string(folder)?)
+            .bind(folder.version.0)
+            .execute(conn)
+            .await?;
+            Ok(())
+        }
+        Event::LibraryFolderDeleted { id } => {
+            sqlx::query("DELETE FROM library_folders WHERE id = ?")
+                .bind(id.to_string())
+                .execute(conn)
+                .await?;
+            Ok(())
+        }
+        Event::AssetUpdated { asset } => {
+            sqlx::query(
+                "UPDATE assets SET folder_id = ?, original_name = ?, version = ? WHERE id = ?",
+            )
+            .bind(asset.folder_id.map(|f| f.to_string()))
+            .bind(&asset.original_name)
+            .bind(asset.version.0)
+            .bind(asset.id.to_string())
+            .execute(conn)
+            .await?;
+            Ok(())
+        }
+        // Sounds play and stop; nothing of them is stored (a campaign opens in silence).
+        Event::SoundPlayed { .. } | Event::SoundStopped { .. } => Ok(()),
         // Only recipients see placeholders; the authority never commits one.
         Event::Redacted => Err(DbError::InvalidData {
             column: "event_log.event",
@@ -1153,11 +1210,21 @@ async fn upsert_journal_entry(
 async fn insert_asset(conn: &mut SqliteConnection, a: &AssetDto, at_ms: i64) -> DbResult<()> {
     sqlx::query(
         "INSERT INTO assets (id, type, usage, sha256, mime, size_bytes, original_name, width, \
-             height, display_sha256, thumbnail_sha256, tiles, created_at, version) \
-         VALUES (?, 'image', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+             height, display_sha256, thumbnail_sha256, tiles, folder_id, created_at, version) \
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(a.id.to_string())
-    .bind(enum_to_str(&a.usage)?)
+    .bind(if a.usage == AssetUsage::Audio {
+        "audio"
+    } else {
+        "image"
+    })
+    // The `usage` CHECK knows only images (see migration 0016).
+    .bind(if a.usage == AssetUsage::Audio {
+        "token".to_owned()
+    } else {
+        enum_to_str(&a.usage)?
+    })
     .bind(&a.sha256)
     .bind(&a.mime)
     .bind(a.size_bytes)
@@ -1167,6 +1234,7 @@ async fn insert_asset(conn: &mut SqliteConnection, a: &AssetDto, at_ms: i64) -> 
     .bind(&a.display_sha256)
     .bind(&a.thumbnail_sha256)
     .bind(serde_json::to_string(&a.tiles)?)
+    .bind(a.folder_id.map(|f| f.to_string()))
     .bind(at_ms)
     .bind(a.version.0)
     .execute(conn)

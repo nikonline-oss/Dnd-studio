@@ -9,6 +9,7 @@ pub mod error;
 pub mod event;
 pub mod ids;
 pub mod intent;
+pub mod library;
 pub mod message;
 pub mod model;
 pub mod plugin;
@@ -29,10 +30,13 @@ pub use error::RejectReason;
 pub use event::{Event, EventBatch};
 pub use ids::{
     AssetId, BoardEdgeId, BoardId, BoardNodeId, CharacterId, ChatMessageId, CombatId, CombatantId,
-    FogOpId, IntentId, JournalEntryId, JournalFolderId, MapId, MessageId, Role, Seq, SessionId,
-    TokenId, TriggerId, UserId, Version, ZoneId, uuid_v7_from_random,
+    FogOpId, IntentId, JournalEntryId, JournalFolderId, LibraryFolderId, MapId, MessageId, Role,
+    Seq, SessionId, TokenId, TriggerId, UserId, Version, ZoneId, uuid_v7_from_random,
 };
 pub use intent::{Intent, IntentEnvelope, IntentOutcome, PayloadHash, VersionPolicy};
+pub use library::{
+    Library, LibraryFolderDto, MAX_LIBRARY_FOLDERS, MAX_LOOPING_SOUNDS, MAX_VOLUME, SoundDto,
+};
 pub use message::{Acceptance, ClientMessage, Envelope, Rejection, ServerMessage};
 pub use model::{
     AssetDto, AssetTileDto, AssetUsage, CHAT_SNAPSHOT_LEN, CampaignMeta, CharacterDto,

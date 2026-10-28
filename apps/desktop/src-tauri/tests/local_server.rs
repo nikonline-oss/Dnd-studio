@@ -512,7 +512,9 @@ fn png(width: u32, height: u32) -> Vec<u8> {
 /// by a valid hash of the open campaign.
 #[tokio::test]
 async fn importing_a_map_image_creates_asset_and_map() {
-    use dnd_desktop_lib::assets_api::{read_and_import, register_map, response_for};
+    use dnd_desktop_lib::assets_api::{
+        read_and_import, register_map, response_for, response_for_mime,
+    };
 
     let dir = tempfile::tempdir().unwrap();
     let mut server = LocalServer::create(dir.path(), "Maps").await.unwrap();
@@ -580,6 +582,18 @@ async fn importing_a_map_image_creates_asset_and_map() {
         assert_eq!(response_for(Some(&folder), bad).status(), 404, "{bad}");
     }
     assert_eq!(response_for(None, &asset.tiles[0].sha256).status(), 404);
+
+    // Audio uses the same scheme with a content type browsers can play.
+    let audio_sha = "a".repeat(64);
+    std::fs::write(
+        folder.join("assets").join(format!("{audio_sha}.audio")),
+        b"sound",
+    )
+    .unwrap();
+    let audio = response_for_mime(Some(&folder), &audio_sha, "audio/mpeg");
+    assert_eq!(audio.status(), 200);
+    assert_eq!(audio.headers()["content-type"], "audio/mpeg");
+    assert_eq!(audio.body(), b"sound");
 }
 
 /// CLAUDE.md §6: export writes an archive; import unpacks it into a new folder named after the

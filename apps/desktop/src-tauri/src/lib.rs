@@ -19,7 +19,9 @@ pub use error::{IpcError, IpcErrorKind};
 pub use local_server::{CampaignInfo, LocalServer, folder_name, import};
 pub mod assets_api {
     //! Re-exports for integration tests.
-    pub use crate::assets::{MapImported, read_and_import, register_map, response_for};
+    pub use crate::assets::{
+        MapImported, read_and_import, register_map, response_for, response_for_mime,
+    };
 }
 
 use std::sync::Mutex as StdMutex;
@@ -57,6 +59,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::chat_history,
             assets::asset_import_map::<tauri::Wry>,
             assets::asset_import_images::<tauri::Wry>,
+            assets::asset_import_audio::<tauri::Wry>,
             commands::submit_intent::<tauri::Wry>,
             commands::remote_host,
             commands::remote_join::<tauri::Wry>,

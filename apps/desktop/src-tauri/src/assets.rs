@@ -4,7 +4,10 @@
 
 use std::path::{Path, PathBuf};
 
-use dnd_assets::{AssetUsage, Imported, MAX_FILE_BYTES, import_image, is_sha256_hex, served_path};
+use dnd_assets::{
+    AssetUsage, Imported, MAX_AUDIO_BYTES, MAX_FILE_BYTES, audio_path, import_audio, import_image,
+    is_sha256_hex, served_path,
+};
 use dnd_protocol::{
     AssetDto, AssetId, AssetTileDto, EventBatch, Grid, Intent, IntentEnvelope, IntentId,
     IntentOutcome, MapId, Version,
@@ -103,6 +106,95 @@ pub async fn asset_import_images<R: Runtime>(
         ids.push(id);
     }
     Ok(ids)
+}
+
+/// Asks for sounds and music (several at once) and imports them into the campaign's audio
+/// library (ADR-0026): kept as they are, at most 50 MiB each. The same file imported again is
+/// reused. Returns the assets in the order picked (empty if cancelled).
+#[tauri::command]
+#[specta::specta]
+pub async fn asset_import_audio<R: Runtime>(
+    app: AppHandle<R>,
+    state: State<'_, AppState>,
+) -> Result<Vec<AssetId>, IpcError> {
+    let paths = pick_audio(&app).await;
+    let assets_dir = {
+        let guard = state.server.lock().await;
+        let server = guard.as_ref().ok_or_else(IpcError::no_campaign)?;
+        server.folder().join(ASSETS_DIR)
+    };
+    let mut ids = Vec::with_capacity(paths.len());
+    for path in paths {
+        let original_name = path.file_name().map(|s| s.to_string_lossy().into_owned());
+        let dir = assets_dir.clone();
+        let audio = tauri::async_runtime::spawn_blocking(move || {
+            let size = std::fs::metadata(&path)?.len();
+            if size > MAX_AUDIO_BYTES as u64 {
+                return Err(asset_error(&dnd_assets::AssetError::TooLarge {
+                    bytes: usize::try_from(size).unwrap_or(usize::MAX),
+                }));
+            }
+            let audio = import_audio(&std::fs::read(&path)?).map_err(|e| asset_error(&e))?;
+            dnd_assets::store_audio(&dir, &audio)?;
+            Ok(audio)
+        })
+        .await
+        .map_err(|e| IpcError::internal("import_failed", e.to_string()))??;
+        let mut guard = state.server.lock().await;
+        let server = guard.as_mut().ok_or_else(IpcError::no_campaign)?;
+        if let Some(existing) = server.asset_by_sha(&audio.file.sha256) {
+            ids.push(existing);
+            continue;
+        }
+        let sha = audio.file.sha256.clone();
+        let asset = AssetDto {
+            id: AssetId::new_v7(),
+            usage: dnd_protocol::AssetUsage::Audio,
+            sha256: sha.clone(),
+            mime: audio.mime.to_owned(),
+            size_bytes: i64::try_from(audio.file.bytes.len()).unwrap_or(i64::MAX),
+            original_name,
+            width: 0,
+            height: 0,
+            display_sha256: Some(sha.clone()),
+            thumbnail_sha256: sha,
+            tiles: Vec::new(),
+            folder_id: None,
+            version: Version::INITIAL,
+        };
+        let id = asset.id;
+        let batch = submit(
+            server,
+            Intent::RegisterAsset {
+                asset: Box::new(asset),
+            },
+        )
+        .await?;
+        if let Err(e) = GameEventsEmitted(batch).emit(&app) {
+            tracing::error!(error = %e, "failed to emit game events");
+        }
+        ids.push(id);
+    }
+    Ok(ids)
+}
+
+async fn pick_audio<R: Runtime>(app: &AppHandle<R>) -> Vec<PathBuf> {
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    app.dialog()
+        .file()
+        .add_filter(
+            "Audio",
+            &["mp3", "ogg", "oga", "opus", "wav", "flac", "m4a", "webm"],
+        )
+        .pick_files(move |files| {
+            let paths = files
+                .unwrap_or_default()
+                .into_iter()
+                .filter_map(|f| f.into_path().ok())
+                .collect();
+            let _ = tx.send(paths);
+        });
+    rx.await.unwrap_or_default()
 }
 
 /// Registers an imported picture unless the same original exists; returns its asset.
@@ -227,6 +319,7 @@ fn asset_dto(imported: &Imported, original_name: Option<String>) -> AssetDto {
                 sha256: t.webp.sha256.clone(),
             })
             .collect(),
+        folder_id: None,
         version: Version::INITIAL,
     }
 }
@@ -291,23 +384,49 @@ pub fn serve<R: Runtime>(
         if let Some(remote) = remote {
             // On a session server: fetched once (hash checked), then from the cache.
             let cache = state.dirs.get().map(|d| d.asset_cache.clone());
+            let mime = remote
+                .with_state(|game| {
+                    game.assets
+                        .values()
+                        .find(|asset| asset.sha256 == sha)
+                        .map(|asset| asset.mime.clone())
+                })
+                .flatten()
+                .unwrap_or_else(|| "image/webp".to_owned());
             let bytes = match cache {
-                Some(cache) if is_sha256_hex(&sha) => remote.asset(&sha, &cache).await.ok(),
+                Some(cache) if is_sha256_hex(&sha) => remote.asset(&sha, &cache, &mime).await.ok(),
                 _ => None,
             };
-            responder.respond(webp_response(bytes));
+            responder.respond(file_response(bytes, &mime));
             return;
         }
-        let folder = {
+        let (folder, mime) = {
             let guard = state.server.lock().await;
-            guard.as_ref().map(|s| s.folder().to_owned())
+            guard.as_ref().map_or((None, "image/webp".to_owned()), |s| {
+                let mime = s
+                    .state()
+                    .assets
+                    .values()
+                    .find(|asset| asset.sha256 == sha)
+                    .map_or_else(|| "image/webp".to_owned(), |asset| asset.mime.clone());
+                (Some(s.folder().to_owned()), mime)
+            })
         };
-        responder.respond(response_for(folder.as_deref(), &sha));
+        responder.respond(response_for_mime(folder.as_deref(), &sha, &mime));
     });
 }
 
 /// Builds the response for a request path. Pure enough to test without a webview.
 pub fn response_for(campaign_folder: Option<&Path>, sha: &str) -> Response<Vec<u8>> {
+    response_for_mime(campaign_folder, sha, "image/webp")
+}
+
+/// Builds the response for an asset when the caller knows its validated MIME type.
+pub fn response_for_mime(
+    campaign_folder: Option<&Path>,
+    sha: &str,
+    mime: &str,
+) -> Response<Vec<u8>> {
     let not_found = || {
         Response::builder()
             .status(StatusCode::NOT_FOUND)
@@ -320,11 +439,17 @@ pub fn response_for(campaign_folder: Option<&Path>, sha: &str) -> Response<Vec<u
     if !is_sha256_hex(sha) {
         return not_found();
     }
-    webp_response(std::fs::read(served_path(&folder.join(ASSETS_DIR), sha)).ok())
+    let dir = folder.join(ASSETS_DIR);
+    let (path, content_type) = if mime.starts_with("audio/") {
+        (audio_path(&dir, sha), mime)
+    } else {
+        (served_path(&dir, sha), "image/webp")
+    };
+    file_response(std::fs::read(path).ok(), content_type)
 }
 
-/// A WebP file, or 404.
-fn webp_response(bytes: Option<Vec<u8>>) -> Response<Vec<u8>> {
+/// A served file of `content_type`, or 404.
+fn file_response(bytes: Option<Vec<u8>>, content_type: &str) -> Response<Vec<u8>> {
     let not_found = || {
         Response::builder()
             .status(StatusCode::NOT_FOUND)
@@ -334,7 +459,7 @@ fn webp_response(bytes: Option<Vec<u8>>) -> Response<Vec<u8>> {
     match bytes {
         Some(bytes) => Response::builder()
             .status(StatusCode::OK)
-            .header(header::CONTENT_TYPE, "image/webp")
+            .header(header::CONTENT_TYPE, content_type)
             // The page is another origin (`tauri.localhost`, or the dev server), and tiles are
             // read with `fetch`, which needs CORS. Only this webview can reach the scheme, and
             // the files are public within the campaign, so any origin is fine.

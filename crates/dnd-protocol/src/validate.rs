@@ -139,7 +139,15 @@ impl Intent {
             | Self::CreateTrigger { .. }
             | Self::UpdateTrigger { .. }
             | Self::DeleteTrigger { .. }
-            | Self::FireTrigger { .. } => Vec::new(),
+            | Self::FireTrigger { .. }
+            | Self::CreateLibraryFolder { .. }
+            | Self::RenameLibraryFolder { .. }
+            | Self::MoveLibraryFolder { .. }
+            | Self::DeleteLibraryFolder { .. }
+            | Self::MoveAsset { .. }
+            | Self::RenameAsset { .. }
+            | Self::PlaySound { .. }
+            | Self::StopSound { .. } => Vec::new(),
             Self::RegisterAsset { asset } => vec![("size_bytes", asset.size_bytes)],
             Self::ApplyFog { op, .. } => match &op.shape {
                 FogShape::Rect {
@@ -176,6 +184,7 @@ impl Intent {
             Self::StartCombat { id, .. } => Some(id.0),
             Self::AddCombatant { id, .. } => Some(id.0),
             Self::CreateJournalFolder { id, .. } => Some(id.0),
+            Self::CreateLibraryFolder { id, .. } => Some(id.0),
             Self::CreateBoard { id, .. } => Some(id.0),
             Self::CreateBoardNode { id, .. } => Some(id.0),
             Self::CreateBoardEdge { id, .. } => Some(id.0),
@@ -222,7 +231,14 @@ impl Intent {
             | Self::GiveItem { .. }
             | Self::UpdateTrigger { .. }
             | Self::DeleteTrigger { .. }
-            | Self::FireTrigger { .. } => None,
+            | Self::FireTrigger { .. }
+            | Self::RenameLibraryFolder { .. }
+            | Self::MoveLibraryFolder { .. }
+            | Self::DeleteLibraryFolder { .. }
+            | Self::MoveAsset { .. }
+            | Self::RenameAsset { .. }
+            | Self::PlaySound { .. }
+            | Self::StopSound { .. } => None,
         }
     }
 }

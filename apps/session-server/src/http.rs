@@ -488,14 +488,20 @@ pub async fn asset(
     {
         return Err(not_found());
     }
-    let path = app
-        .session_dir(id)
-        .join("assets")
-        .join(format!("{sha256}.webp"));
-    let bytes = tokio::fs::read(path).await.map_err(|_| not_found())?;
+    // A picture (`.webp`) or a sound (`.audio`, ADR-0026); the client knows the sound's type.
+    let dir = app.session_dir(id).join("assets");
+    let (bytes, content_type) = match tokio::fs::read(dir.join(format!("{sha256}.webp"))).await {
+        Ok(bytes) => (bytes, "image/webp"),
+        Err(_) => (
+            tokio::fs::read(dir.join(format!("{sha256}.audio")))
+                .await
+                .map_err(|_| not_found())?,
+            "application/octet-stream",
+        ),
+    };
     Ok((
         [
-            (header::CONTENT_TYPE, "image/webp"),
+            (header::CONTENT_TYPE, content_type),
             // Content-addressed: a hash never changes its bytes.
             (
                 header::CACHE_CONTROL,

@@ -33,6 +33,7 @@ pub fn max_side(usage: AssetUsage) -> u32 {
     match usage {
         AssetUsage::Map => 16_384,
         AssetUsage::Token => 2048,
+        AssetUsage::Audio => 0,
     }
 }
 
@@ -160,6 +161,9 @@ pub fn import_image(bytes: &[u8], usage: AssetUsage) -> Result<Imported, AssetEr
     if looks_like_svg(bytes) {
         return Err(AssetError::Svg);
     }
+    if usage == AssetUsage::Audio {
+        return Err(AssetError::UnsupportedFormat);
+    }
     let format = image::guess_format(bytes).map_err(|_| AssetError::UnsupportedFormat)?;
     let (mime, extension) = match format {
         ImageFormat::Png => ("image/png", "png"),
@@ -204,7 +208,7 @@ pub fn import_image(bytes: &[u8], usage: AssetUsage) -> Result<Imported, AssetEr
 
     let thumbnail = encode_webp(&fit_rgba(&rgba, THUMBNAIL));
     let (display, tiles) = match usage {
-        AssetUsage::Token => (Some(encode_webp(&rgba)), Vec::new()),
+        AssetUsage::Token | AssetUsage::Audio => (Some(encode_webp(&rgba)), Vec::new()),
         AssetUsage::Map => (None, tiles(&rgba)),
     };
 
@@ -295,6 +299,71 @@ pub fn store(assets_dir: &Path, imported: &Imported) -> io::Result<()> {
         write_once(&served_path(assets_dir, &file.sha256), &file.bytes)?;
     }
     Ok(())
+}
+
+// ---------- Audio (ADR-0026) ----------
+
+/// Largest audio file accepted.
+pub const MAX_AUDIO_BYTES: usize = 50 * 1024 * 1024;
+
+/// An imported sound: kept as it is, addressed by its hash.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ImportedAudio {
+    pub file: Encoded,
+    pub mime: &'static str,
+}
+
+/// The audio container, from the file's signature (never from its name).
+fn audio_mime(bytes: &[u8]) -> Option<&'static str> {
+    let at = |offset: usize, magic: &[u8]| bytes.get(offset..offset + magic.len()) == Some(magic);
+    if at(0, b"ID3") || (bytes.len() > 1 && bytes[0] == 0xff && bytes[1] & 0xe0 == 0xe0) {
+        Some("audio/mpeg")
+    } else if at(0, b"OggS") {
+        Some("audio/ogg")
+    } else if at(0, b"RIFF") && at(8, b"WAVE") {
+        Some("audio/wav")
+    } else if at(0, b"fLaC") {
+        Some("audio/flac")
+    } else if at(4, b"ftyp") {
+        Some("audio/mp4")
+    } else if at(0, &[0x1a, 0x45, 0xdf, 0xa3]) {
+        Some("audio/webm")
+    } else {
+        None
+    }
+}
+
+/// Checks a sound file (MP3, Ogg, WAV, FLAC, M4A, WebM) by its signature.
+///
+/// # Errors
+/// `Empty`, `TooLarge` (over [`MAX_AUDIO_BYTES`]) or `UnsupportedFormat`.
+pub fn import_audio(bytes: &[u8]) -> Result<ImportedAudio, AssetError> {
+    if bytes.is_empty() {
+        return Err(AssetError::Empty);
+    }
+    if bytes.len() > MAX_AUDIO_BYTES {
+        return Err(AssetError::TooLarge { bytes: bytes.len() });
+    }
+    let mime = audio_mime(bytes).ok_or(AssetError::UnsupportedFormat)?;
+    Ok(ImportedAudio {
+        file: Encoded::new(bytes.to_vec()),
+        mime,
+    })
+}
+
+/// Where a served sound lives: `assets/<sha256>.audio`.
+#[must_use]
+pub fn audio_path(assets_dir: &Path, sha256: &str) -> PathBuf {
+    assets_dir.join(format!("{sha256}.audio"))
+}
+
+/// Writes a sound into `assets_dir` (once: files are content-addressed).
+pub fn store_audio(assets_dir: &Path, audio: &ImportedAudio) -> io::Result<()> {
+    std::fs::create_dir_all(assets_dir)?;
+    write_once(
+        &audio_path(assets_dir, &audio.file.sha256),
+        &audio.file.bytes,
+    )
 }
 
 fn write_once(path: &Path, bytes: &[u8]) -> io::Result<()> {

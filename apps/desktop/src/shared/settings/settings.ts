@@ -16,6 +16,7 @@ export const settingsSchema = z.object({
     'boards',
     'triggers',
     'images',
+    'audio',
     'compendia',
   ]),
 });

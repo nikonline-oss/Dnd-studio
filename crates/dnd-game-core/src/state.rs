@@ -6,8 +6,9 @@ use dnd_protocol::{
     AssetDto, AssetId, BoardDto, BoardEdgeDto, BoardEdgeId, BoardId, BoardNodeDto, BoardNodeId,
     CampaignMeta, CharacterDto, CharacterId, CombatDto, CombatId, CombatantDto, CombatantId,
     FogDto, JournalEntryDto, JournalEntryId, JournalEntryKind, JournalEntryMeta, JournalFolderDto,
-    JournalFolderId, JournalTable, MapDto, MapId, PluginDto, Seq, Snapshot, SystemRulesDto,
-    TokenDto, TokenId, TriggerDto, TriggerId, UserDto, UserId, Version, ZoneDto, ZoneId,
+    JournalFolderId, JournalTable, LibraryFolderDto, LibraryFolderId, MapDto, MapId, PluginDto,
+    Seq, Snapshot, SoundDto, SystemRulesDto, TokenDto, TokenId, TriggerDto, TriggerId, UserDto,
+    UserId, Version, ZoneDto, ZoneId,
 };
 
 /// The authoritative state the core reasons about. Ordered maps keep iteration (and therefore
@@ -41,6 +42,10 @@ pub struct GameState {
     pub zones: BTreeMap<ZoneId, ZoneDto>,
     /// Triggers the core runs after intents (ADR-0024).
     pub triggers: BTreeMap<TriggerId, TriggerDto>,
+    /// Folders of the image and audio libraries (ADR-0026).
+    pub library_folders: BTreeMap<LibraryFolderId, LibraryFolderDto>,
+    /// Looping sounds playing now (not stored: a campaign opens in silence).
+    pub sounds: BTreeMap<AssetId, SoundDto>,
 }
 
 impl GameState {
@@ -70,6 +75,8 @@ impl GameState {
             board_edges: BTreeMap::new(),
             zones: BTreeMap::new(),
             triggers: BTreeMap::new(),
+            library_folders: BTreeMap::new(),
+            sounds: BTreeMap::new(),
         }
     }
 
@@ -143,6 +150,16 @@ impl GameState {
                 .collect(),
             zones: snapshot.zones.into_iter().map(|z| (z.id, z)).collect(),
             triggers: snapshot.triggers.into_iter().map(|t| (t.id, t)).collect(),
+            library_folders: snapshot
+                .library_folders
+                .into_iter()
+                .map(|f| (f.id, f))
+                .collect(),
+            sounds: snapshot
+                .sounds
+                .into_iter()
+                .map(|s| (s.asset_id, s))
+                .collect(),
         }
     }
 
@@ -171,6 +188,8 @@ impl GameState {
             board_edges: self.board_edges.values().cloned().collect(),
             zones: self.zones.values().cloned().collect(),
             triggers: self.triggers.values().cloned().collect(),
+            library_folders: self.library_folders.values().cloned().collect(),
+            sounds: self.sounds.values().cloned().collect(),
         }
     }
 

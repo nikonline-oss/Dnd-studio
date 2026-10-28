@@ -200,6 +200,10 @@ pub fn players_state(state: &GameState) -> GameState {
         .retain(|id, _| see.board_edges.contains(id));
     view.zones.clear();
     view.triggers.clear();
+    view.library_folders.clear();
+    for asset in view.assets.values_mut() {
+        asset.folder_id = None;
+    }
     view
 }
 
@@ -391,7 +395,16 @@ pub fn filter_for_players(before: &GameState, after: &GameState, batch: &EventBa
                         | Event::TriggerCreated { .. }
                         | Event::TriggerUpdated { .. }
                         | Event::TriggerDeleted { .. }
-                        | Event::TriggerFired { .. } => false,
+                        | Event::TriggerFired { .. }
+                        // Libraries are the GM's (ADR-0026).
+                        | Event::LibraryFolderCreated { .. }
+                        | Event::LibraryFolderUpdated { .. }
+                        | Event::LibraryFolderDeleted { .. } => false,
+                        Event::AssetUpdated { asset } => shown(
+                            after.assets.contains_key(&asset.id),
+                            now.assets.contains(&asset.id),
+                            was.assets.contains(&asset.id),
+                        ),
                         Event::ChatMessagePosted { message } => chat_visible_to_players(message),
                         Event::CampaignMetaUpdated { .. }
                         | Event::CharacterCreated { .. }
@@ -401,6 +414,9 @@ pub fn filter_for_players(before: &GameState, after: &GameState, batch: &EventBa
                         | Event::PluginInstalled { .. }
                         | Event::PluginUninstalled { .. }
                         | Event::SystemPluginSet { .. }
+                        // Everyone hears the table's sounds.
+                        | Event::SoundPlayed { .. }
+                        | Event::SoundStopped { .. }
                         | Event::Redacted => true,
                     };
             if visible {

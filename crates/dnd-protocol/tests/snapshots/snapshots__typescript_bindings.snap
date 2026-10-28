@@ -28,6 +28,8 @@ export type AssetDto = {
 	thumbnail_sha256: string,
 	/**  Map tiles, row by row; empty for tokens. */
 	tiles: AssetTileDto[],
+	/**  Its folder in the library (ADR-0026); `None`: the library's root. */
+	folder_id?: LibraryFolderId | null,
 	version: Version,
 };
 
@@ -49,7 +51,12 @@ export type AssetUsage =
 /**  Map background: cut into 2048² WebP tiles, at most 16 384 px per side. */
 "map" | 
 /**  Token or portrait: one WebP, at most 2048 px per side. */
-"token";
+"token" | 
+/**
+ *  Music or a sound (ADR-0026): the file as imported, served as `<sha256>.audio`; no pixels,
+ *  no tiles, `display_sha256` and `thumbnail_sha256` are its own hash.
+ */
+"audio";
 
 /**  A board: one center tab of elements. */
 export type BoardDto = {
@@ -307,6 +314,14 @@ export type Event = { kind: "campaign_meta_updated"; campaign: CampaignMeta } | 
 { kind: "trigger_updated"; trigger: TriggerDto } | { kind: "trigger_deleted"; id: TriggerId } | 
 /**  A trigger fired; its effects follow as ordinary events. GM roles only. */
 { kind: "trigger_fired"; fired: TriggerFiredDto } | 
+/**  Library folders (ADR-0026). GM roles only. */
+{ kind: "library_folder_created"; folder: LibraryFolderDto } | { kind: "library_folder_updated"; folder: LibraryFolderDto } | { kind: "library_folder_deleted"; id: LibraryFolderId } | 
+/**  An asset was moved to another folder or renamed. */
+{ kind: "asset_updated"; asset: AssetDto } | 
+/**  A sound starts for everyone (a looping one stays in `sounds` until stopped). */
+{ kind: "sound_played"; sound: SoundDto } | 
+/**  A looping sound stops; `None`: every sound stops. */
+{ kind: "sound_stopped"; asset_id: AssetId | null } | 
 /**
  *  Stands in for an event the recipient may not see, so sequence numbers stay contiguous
  *  (ADR-0022). Never stored; applying it changes nothing.
@@ -495,7 +510,23 @@ roll: string | null } |
 /**  Replaces the definition; a fired `once` trigger is armed again. */
 { kind: "update_trigger"; id: TriggerId; definition: TriggerDef } | { kind: "delete_trigger"; id: TriggerId } | 
 /**  The GM's button: runs a `manual` trigger, for the character of `token` if given. */
-{ kind: "fire_trigger"; id: TriggerId; token: TokenId | null };
+{ kind: "fire_trigger"; id: TriggerId; token: TokenId | null } | 
+/**  GM / Co-GM (ADR-0026). A folder in `parent` of the same library (`None`: its root). */
+{ kind: "create_library_folder"; id: LibraryFolderId; library: Library; parent: LibraryFolderId | null; name: string } | 
+/**  GM / Co-GM. */
+{ kind: "rename_library_folder"; id: LibraryFolderId; name: string } | 
+/**  GM / Co-GM: into `parent` of the same library, never into itself. */
+{ kind: "move_library_folder"; id: LibraryFolderId; parent: LibraryFolderId | null } | 
+/**  GM / Co-GM: the folder and its subfolders; their assets go back to the library's root. */
+{ kind: "delete_library_folder"; id: LibraryFolderId } | 
+/**  GM / Co-GM: into a folder of the asset's library (`None`: its root). */
+{ kind: "move_asset"; id: AssetId; folder_id: LibraryFolderId | null } | 
+/**  GM / Co-GM: the name shown in the library. */
+{ kind: "rename_asset"; id: AssetId; name: string } | 
+/**  GM / Co-GM: plays an audio asset to everyone. */
+{ kind: "play_sound"; asset_id: AssetId; volume: number; looped: boolean } | 
+/**  GM / Co-GM: stops a looping sound (`None`: all). */
+{ kind: "stop_sound"; asset_id: AssetId | null };
 
 /**  An intent together with its correlation id and the version it was based on (ADR-0003). */
 export type IntentEnvelope = {
@@ -601,6 +632,25 @@ export type JournalVisibility =
 
 /**  A user-visible text: one string for every language, or per language. */
 export type Label = string | LocalizedText;
+
+/**  Which library a folder belongs to: pictures (map and token images) or audio. */
+export type Library = "images" | "audio";
+
+/**
+ *  A folder of a library. Folders nest; sibling names differ in more than case; they are sorted by
+ *  name. GM roles only.
+ */
+export type LibraryFolderDto = {
+	id: LibraryFolderId,
+	library: Library,
+	/**  `None` for a folder at the root of its library. */
+	parent: LibraryFolderId | null,
+	name: string,
+	version: Version,
+};
+
+/**  A folder of the image or audio library (ADR-0026). */
+export type LibraryFolderId = string;
 
 /**  At least one of the languages is present. */
 export type LocalizedText = {
@@ -766,6 +816,24 @@ export type Snapshot = {
 	zones: ZoneDto[],
 	/**  Triggers (GM roles only; empty for players). */
 	triggers: TriggerDto[],
+	/**  Folders of the image and audio libraries (GM roles only; empty for players, ADR-0026). */
+	library_folders?: LibraryFolderDto[],
+	/**  Looping sounds playing now, so a client that (re)connects hears the same music. */
+	sounds?: SoundDto[],
+};
+
+/**
+ *  A sound being played to everyone. The file is the audio asset's own (`sha256`), named neither
+ *  here nor to players: the hash is enough to fetch it (ADR-0026).
+ */
+export type SoundDto = {
+	asset_id: AssetId,
+	sha256: string,
+	mime: string,
+	/**  0..=`MAX_VOLUME`, scaled by each listener's own volume. */
+	volume: number,
+	/**  Plays until stopped (music); a sound that does not loop plays once. */
+	looped: boolean,
 };
 
 /**  Messages the core posts; the UI localizes them by `code`. */
@@ -863,7 +931,11 @@ export type TriggerAction =
 /**  Rolls dice (with the character's fields); later steps see the total as `@roll`. */
 { type: "roll"; dice: string; label: string } | 
 /**  Damage (`heal: false`) or healing by a dice roll, kept within 0..=max of the resource. */
-{ type: "change_resource"; resource: string; dice: string; heal: boolean } | { type: "add_condition"; condition: string } | { type: "remove_condition"; condition: string } | { type: "give_item"; name: string };
+{ type: "change_resource"; resource: string; dice: string; heal: boolean } | { type: "add_condition"; condition: string } | { type: "remove_condition"; condition: string } | { type: "give_item"; name: string } | 
+/**  Plays an audio asset to everyone (ADR-0026). */
+{ type: "play_sound"; asset: AssetId; volume: number; looped: boolean } | 
+/**  Stops a looping sound; `None`: all sounds. */
+{ type: "stop_sound"; asset: AssetId | null };
 
 /**  What the GM edits: everything of a trigger but its id, state and version. */
 export type TriggerDef = {

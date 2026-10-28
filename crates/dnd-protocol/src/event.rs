@@ -7,9 +7,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::board::{BoardDto, BoardEdgeDto, BoardNodeDto};
 use crate::ids::{
-    BoardEdgeId, BoardId, BoardNodeId, CombatId, CombatantId, IntentId, JournalEntryId,
-    JournalFolderId, MapId, Seq, TokenId, TriggerId, ZoneId,
+    AssetId, BoardEdgeId, BoardId, BoardNodeId, CombatId, CombatantId, IntentId, JournalEntryId,
+    JournalFolderId, LibraryFolderId, MapId, Seq, TokenId, TriggerId, ZoneId,
 };
+use crate::library::{LibraryFolderDto, SoundDto};
 use crate::model::{
     AssetDto, CampaignMeta, CharacterDto, ChatMessageDto, CombatDto, CombatantDto, FogOp,
     JournalEntryDto, JournalFolderDto, MapDto, TokenDto, UserDto,
@@ -209,6 +210,29 @@ pub enum Event {
     /// A trigger fired; its effects follow as ordinary events. GM roles only.
     TriggerFired {
         fired: TriggerFiredDto,
+    },
+
+    /// Library folders (ADR-0026). GM roles only.
+    LibraryFolderCreated {
+        folder: LibraryFolderDto,
+    },
+    LibraryFolderUpdated {
+        folder: LibraryFolderDto,
+    },
+    LibraryFolderDeleted {
+        id: LibraryFolderId,
+    },
+    /// An asset was moved to another folder or renamed.
+    AssetUpdated {
+        asset: Box<AssetDto>,
+    },
+    /// A sound starts for everyone (a looping one stays in `sounds` until stopped).
+    SoundPlayed {
+        sound: SoundDto,
+    },
+    /// A looping sound stops; `None`: every sound stops.
+    SoundStopped {
+        asset_id: Option<AssetId>,
     },
 
     /// Stands in for an event the recipient may not see, so sequence numbers stay contiguous

@@ -59,6 +59,7 @@ fn asset(n: u128, image: &[u8]) -> AssetDto {
         display_sha256: None,
         thumbnail_sha256: sha(image),
         tiles: Vec::new(),
+        folder_id: None,
         version: Version::INITIAL,
     }
 }
