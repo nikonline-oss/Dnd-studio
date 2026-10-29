@@ -312,8 +312,31 @@ async fn run(
                 reply,
             } => {
                 last_activity.fetch_max(now_ms(), Ordering::SeqCst);
+                if matches!(&envelope.intent, Intent::InstallPlugin { .. }) {
+                    match engine.recall_intent(&envelope, now_ms()).await {
+                        Ok(Some(outcome)) => {
+                            let _ = reply.send(Ok(outcome));
+                            continue;
+                        }
+                        Ok(None) => {}
+                        Err(error) => {
+                            let _ = reply.send(Err(error.into()));
+                            continue;
+                        }
+                    }
+                }
                 let before = (!keeps_visibility(&envelope.intent)).then(|| engine.state().clone());
-                let result = engine.submit(&envelope, &actor, now_ms()).await;
+                let precondition =
+                    match plugin_precondition(&engine, &assets, &envelope, actor.role).await {
+                        Ok(result) => result,
+                        Err(error) => {
+                            let _ = reply.send(Err(error));
+                            continue;
+                        }
+                    };
+                let result = engine
+                    .submit_with_precondition(&envelope, &actor, now_ms(), precondition)
+                    .await;
                 let outcome = match result {
                     Ok((outcome, Some(batch))) => {
                         let players = match &before {
@@ -434,6 +457,74 @@ async fn run(
     // Every handle is gone without a stop (server shutting down).
     engine.close().await.ok();
     SERVER_RESTART
+}
+
+/// Package I/O stays in the adapter. The engine records validation rejections after checking
+/// receipts, while all permission/rule checks still run in the deterministic core.
+async fn plugin_precondition(
+    engine: &CampaignEngine,
+    assets: &Path,
+    envelope: &IntentEnvelope,
+    role: Role,
+) -> anyhow::Result<Result<(), RejectReason>> {
+    let Intent::InstallPlugin { plugin } = &envelope.intent else {
+        return Ok(Ok(()));
+    };
+    if !sees_everything(role) {
+        return Ok(Ok(()));
+    }
+    if !dnd_assets::is_sha256_hex(&plugin.archive_sha256) {
+        return Ok(Err(RejectReason::invalid("archive_sha256")));
+    }
+    let expected = plugin.as_ref().clone();
+    let versions: Vec<_> = engine
+        .state()
+        .plugins
+        .values()
+        .map(|p| (p.id.clone(), p.version.clone()))
+        .collect();
+    let path = assets
+        .join("plugins")
+        .join(format!("{}.dndplugin", plugin.archive_sha256));
+    tokio::task::spawn_blocking(move || -> anyhow::Result<Result<(), RejectReason>> {
+        let invalid = || Ok(Err(RejectReason::invalid("plugin.package")));
+        let metadata = match std::fs::metadata(&path) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return invalid(),
+            Err(error) => return Err(error.into()),
+        };
+        if metadata.len() > dnd_plugin::PackageLimits::DEFAULT.max_package_bytes {
+            return invalid();
+        }
+        let bytes = match std::fs::read(path) {
+            Ok(bytes) => bytes,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return invalid(),
+            Err(error) => return Err(error.into()),
+        };
+        let package = match dnd_plugin::read_package(&bytes, dnd_plugin::PackageLimits::default()) {
+            Ok(package) => package,
+            Err(_) => return invalid(),
+        };
+        if package.to_dto() != expected {
+            return invalid();
+        }
+        let app = dnd_plugin::semver::Version::parse(env!("CARGO_PKG_VERSION"))?;
+        if let Err(error) = dnd_plugin::check_app_compat(&package.manifest, &app).and_then(|()| {
+            dnd_plugin::check_dependency_versions(
+                &package.manifest,
+                versions
+                    .iter()
+                    .map(|(id, version)| (id.as_str(), version.as_str())),
+            )
+        }) {
+            return Ok(Err(RejectReason::invalid(&format!(
+                "plugin.{}",
+                error.code()
+            ))));
+        }
+        Ok(Ok(()))
+    })
+    .await?
 }
 
 async fn export(engine: &CampaignEngine, assets: &Path, out: &Path) -> anyhow::Result<()> {

@@ -23,6 +23,28 @@ fn v(s: &str) -> Version {
 }
 
 #[test]
+fn dependencies_can_be_checked_against_authoritative_dto_versions() {
+    let candidate = plugin("addon", "content", "1.0.0", "*", &[("base", "^1.0")]);
+    assert_eq!(
+        check_dependency_versions(&candidate, [])
+            .unwrap_err()
+            .code(),
+        "missing_dependency"
+    );
+    for version in ["2.0.0", "broken"] {
+        assert_eq!(
+            check_dependency_versions(&candidate, [("base", version)])
+                .unwrap_err()
+                .code(),
+            "dependency_version_mismatch"
+        );
+    }
+    assert!(check_dependency_versions(&candidate, [("base", "1.8.0")]).is_ok());
+    let self_dependent = plugin("base", "content", "1.0.0", "*", &[("base", "*")]);
+    assert!(check_dependency_versions(&self_dependent, [("base", "1.0.0")]).is_err());
+}
+
+#[test]
 fn app_compat_ranges() {
     let caret = plugin("p", "content", "1.0.0", "^0.1", &[]);
     assert!(check_app_compat(&caret, &v("0.1.0")).is_ok());

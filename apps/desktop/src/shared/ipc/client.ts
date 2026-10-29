@@ -46,6 +46,11 @@ export class IntentRejected extends Error {
   }
 }
 
+function requireAccepted(outcome: IntentOutcome) {
+  if (outcome.status === 'rejected') throw new IntentRejected(outcome.reason);
+  return outcome;
+}
+
 export const ipc = {
   appInfo: () => commands.appInfo(),
   campaignCreate: ({ name, system }: { name: string; system: string | null }) =>
@@ -65,8 +70,12 @@ export const ipc = {
     unwrap(commands.remoteForget(server, sessionId)),
   remoteStop: () => unwrap(commands.remoteStop()),
   pluginBundled: () => commands.pluginBundled(),
-  pluginInstallBundled: (id: string) => unwrap(commands.pluginInstallBundled(id)),
-  pluginInstallFile: () => unwrap(commands.pluginInstallFile()),
+  pluginInstallBundled: (id: string) =>
+    unwrap(commands.pluginInstallBundled(id)).then(requireAccepted),
+  pluginInstallFile: () =>
+    unwrap(commands.pluginInstallFile()).then((outcome) =>
+      outcome === null ? null : requireAccepted(outcome),
+    ),
   sheetView: (sheetJson: string) => unwrap(commands.sheetView(sheetJson)),
   campaignCheckpoint: () => unwrap(commands.campaignCheckpoint()),
   campaignCurrent: () => unwrap(commands.campaignCurrent()),

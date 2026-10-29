@@ -776,6 +776,60 @@ impl RemoteSession {
             .await?)
     }
 
+    /// Installs a checked package through the same authoritative intent pipeline as local play.
+    pub async fn install_plugin(
+        &self,
+        bytes: Vec<u8>,
+        directory: &Path,
+    ) -> Result<IntentOutcome, IpcError> {
+        if !matches!(self.role, Role::Gm | Role::CoGm) {
+            return Err(IpcError::user("forbidden", "only GM roles install plugins"));
+        }
+        if self.status() != RemoteStatus::Online {
+            return Err(IpcError::user("offline", "the session is not connected"));
+        }
+        let (bytes, package) = tokio::task::spawn_blocking(move || {
+            crate::plugins::prepare(&bytes).map(|package| (bytes, package))
+        })
+        .await
+        .map_err(|e| IpcError::internal("plugin_failed", e.to_string()))??;
+        self.with_state(|state| crate::plugins::check_dependencies(state, &package.manifest))
+            .ok_or_else(|| IpcError::user("connecting", "waiting for the server"))??;
+        let sha = package.sha256.clone();
+        let plugin = Box::new(package.to_dto());
+        drop(package);
+        crate::plugins::keep_package(directory, &sha, &bytes).await?;
+        self.http
+            .upload_asset(self.entry.session_id, &self.token, &sha, "plugin", bytes)
+            .await?;
+        let outcome = self
+            .submit(IntentEnvelope {
+                intent_id: dnd_protocol::IntentId::new_v7(),
+                expected_version: None,
+                intent: dnd_protocol::Intent::InstallPlugin { plugin },
+            })
+            .await?;
+        if let IntentOutcome::Rejected {
+            reason: dnd_protocol::RejectReason::Invalid { field },
+        } = &outcome
+        {
+            let code = match field.as_str() {
+                "plugin.incompatible_app" => Some("incompatible_app"),
+                "plugin.missing_dependency" => Some("missing_dependency"),
+                "plugin.dependency_version_mismatch" => Some("dependency_version_mismatch"),
+                "plugin.package" => Some("invalid_archive"),
+                _ => None,
+            };
+            if let Some(code) = code {
+                return Err(IpcError::user(
+                    code,
+                    "the server rejected the plugin package",
+                ));
+            }
+        }
+        Ok(outcome)
+    }
+
     /// An installed plugin's immutable package, verified even when read from the disk cache.
     pub async fn plugin_package(&self, sha256: &str, cache: &Path) -> Result<Vec<u8>, IpcError> {
         if !dnd_assets::is_sha256_hex(sha256) {

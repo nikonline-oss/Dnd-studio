@@ -15,7 +15,9 @@ mod pack;
 mod package;
 mod sheet;
 
-pub use compat::{Deactivated, Resolution, check_app_compat, check_install, resolve};
+pub use compat::{
+    Deactivated, Resolution, check_app_compat, check_dependency_versions, check_install, resolve,
+};
 pub use dto::{InstalledPluginDto, SystemRulesDto};
 pub use error::{PluginError, PluginResult};
 pub use model::{

@@ -203,6 +203,35 @@ async fn host_join_and_play_through_the_server() {
         dnd_desktop_lib::compendia::page(&installed, "srd5", "srd5-spells", "FIRE", 0, 20).unwrap();
     assert_eq!(spells.total, 1);
     assert!(!spells.entries.is_empty());
+    assert_eq!(
+        player
+            .install_plugin(
+                dnd_desktop_lib::bundled::package("generic-d6")
+                    .unwrap()
+                    .to_vec(),
+                &dir.path().join("install-cache")
+            )
+            .await
+            .unwrap_err()
+            .code,
+        "forbidden"
+    );
+    let installed_live = gm
+        .install_plugin(
+            dnd_desktop_lib::bundled::package("generic-d6")
+                .unwrap()
+                .to_vec(),
+            &dir.path().join("install-cache"),
+        )
+        .await
+        .unwrap();
+    assert!(matches!(installed_live, IntentOutcome::Accepted { .. }));
+    let active = dnd_net::HttpClient::new(&base)
+        .unwrap()
+        .session_info(hosted.session_id)
+        .await
+        .unwrap();
+    assert_eq!(active.state, "active");
     let plugin_sha = player
         .snapshot()
         .unwrap()

@@ -594,7 +594,7 @@ pub async fn plugin_package(
         .into_response())
 }
 
-/// A GM uploads a content-addressed derived file before registering it through an intent.
+/// GM roles upload a content-addressed derived file before registering it through an intent.
 pub async fn upload_asset(
     State(app): State<App>,
     Path(id): Path<SessionId>,
@@ -602,7 +602,7 @@ pub async fn upload_asset(
     request: axum::extract::Request,
 ) -> Result<StatusCode, ApiError> {
     let participant = app.participant(id, &headers).await?;
-    if participant.role != Role::Gm {
+    if !matches!(participant.role, Role::Gm | Role::CoGm) {
         return Err(ApiError::forbidden());
     }
     let _active = app.session(id).await?;
@@ -699,9 +699,9 @@ pub async fn upload_asset(
     app.db
         .audit(
             Some(id),
-            "gm",
+            &participant.user_id.to_string(),
             "asset_uploaded",
-            &serde_json::json!({ "sha256": sha, "kind": audit_kind, "bytes": validated.len() }),
+            &serde_json::json!({ "sha256": sha, "kind": audit_kind, "bytes": validated.len(), "role": participant.role }),
             now_ms(),
         )
         .await?;

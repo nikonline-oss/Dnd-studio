@@ -153,6 +153,55 @@ async fn each_submit_is_judged_for_its_own_actor() {
 }
 
 #[tokio::test]
+async fn adapter_checks_cannot_bypass_core_rules_or_change_a_retry() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut engine, gm) = engine(dir.path()).await;
+    let player = Actor {
+        user_id: UserId::new_v7(),
+        role: Role::Player,
+    };
+    assert!(matches!(
+        engine
+            .submit_with_precondition(&create_map(), &player, 0, Ok(()))
+            .await
+            .unwrap()
+            .0,
+        IntentOutcome::Rejected {
+            reason: RejectReason::Forbidden
+        }
+    ));
+    let rejected = create_map();
+    let denied = engine
+        .submit_with_precondition(&rejected, &gm, 1, Err(RejectReason::invalid("upload")))
+        .await
+        .unwrap();
+    assert!(denied.1.is_none());
+    assert_eq!(engine.last_seq(), Seq(0));
+    assert_eq!(
+        engine
+            .submit_with_precondition(&rejected, &gm, 2, Ok(()))
+            .await
+            .unwrap()
+            .0,
+        denied.0
+    );
+    let allowed = create_map();
+    let accepted = engine
+        .submit_with_precondition(&allowed, &gm, 3, Ok(()))
+        .await
+        .unwrap()
+        .0;
+    assert!(matches!(accepted, IntentOutcome::Accepted { .. }));
+    let (retry, batch) = engine
+        .submit_with_precondition(&allowed, &gm, 4, Err(RejectReason::invalid("upload")))
+        .await
+        .unwrap();
+    assert_eq!(retry, accepted);
+    assert!(batch.is_none());
+    engine.close().await.unwrap();
+}
+
+#[tokio::test]
 async fn events_without_an_intent_are_committed_and_numbered() {
     let dir = tempfile::tempdir().unwrap();
     let (mut engine, gm) = engine(dir.path()).await;

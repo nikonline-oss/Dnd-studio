@@ -120,7 +120,13 @@ fn compendia_of(campaign: &Path, sha256: &str) -> Parsed {
 /// `(plugin id, compendia)` of every plugin installed in the open campaign.
 async fn installed(state: &AppState) -> Result<Vec<(String, Parsed)>, IpcError> {
     let remote = state.remote.lock().await.clone();
-    if let Some(remote) = remote {
+    if let Some(remote) = remote
+        && !(remote.info().hosted
+            && matches!(
+                remote.status(),
+                crate::remote::RemoteStatus::Reconnecting { .. }
+            ))
+    {
         let dirs = state.dirs.get().ok_or_else(|| {
             IpcError::internal("not_ready", "app directories are not initialized")
         })?;

@@ -87,6 +87,36 @@ fn check_dependency(
     }
 }
 
+/// Dependency checks against installed DTO versions; several systems may be installed while
+/// exactly one is selected by the campaign. This does not select or replace a rule system.
+pub fn check_dependency_versions<'a>(
+    candidate: &Manifest,
+    installed: impl IntoIterator<Item = (&'a str, &'a str)>,
+) -> PluginResult<()> {
+    let installed: BTreeMap<_, _> = installed
+        .into_iter()
+        .filter(|(id, _)| *id != candidate.id)
+        .collect();
+    for (dependency, required) in &candidate.dependencies {
+        let Some(found) = installed.get(dependency.as_str()) else {
+            return Err(PluginError::MissingDependency {
+                id: candidate.id.clone(),
+                dependency: dependency.clone(),
+                required: required.to_string(),
+            });
+        };
+        if !Version::parse(found).is_ok_and(|version| required.matches(&version)) {
+            return Err(PluginError::DependencyVersionMismatch {
+                id: candidate.id.clone(),
+                dependency: dependency.clone(),
+                required: required.to_string(),
+                found: (*found).to_owned(),
+            });
+        }
+    }
+    Ok(())
+}
+
 /// Which of a campaign's plugins can be active.
 #[derive(Debug, Default)]
 pub struct Resolution {

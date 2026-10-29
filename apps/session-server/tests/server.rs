@@ -574,6 +574,180 @@ async fn only_installed_plugin_packages_are_shared_with_session_participants() {
 }
 
 #[tokio::test]
+async fn plugin_installs_require_uploaded_matching_packages_and_preserve_receipts() {
+    let h = Harness::default().await;
+    let created = h.create().await;
+    let gm = h.join_gm(&created).await;
+    let session = h.server.app.session(created.session_id).await.unwrap();
+    let actor = Actor {
+        user_id: gm.user_id,
+        role: gm.role,
+    };
+    let bytes = dnd_plugin::pack_directory(
+        &Path::new(env!("CARGO_MANIFEST_DIR")).join("../../plugins/system-generic-d6"),
+    )
+    .unwrap();
+    let package = dnd_plugin::read_package(&bytes, dnd_plugin::PackageLimits::default()).unwrap();
+    let envelope = gm_intent(Intent::InstallPlugin {
+        plugin: Box::new(package.to_dto()),
+    });
+    let missing = session
+        .submit(envelope.clone(), actor)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(matches!(
+        missing,
+        IntentOutcome::Rejected {
+            reason: RejectReason::Invalid { .. }
+        }
+    ));
+    let blocked = h
+        .server
+        .app
+        .session_dir(created.session_id)
+        .join(format!("assets/plugins/{}.dndplugin", package.sha256));
+    std::fs::create_dir_all(&blocked).unwrap();
+    assert_eq!(
+        session
+            .submit(envelope.clone(), actor)
+            .await
+            .unwrap()
+            .unwrap(),
+        missing
+    );
+    let after_io = gm_intent(Intent::InstallPlugin {
+        plugin: Box::new(package.to_dto()),
+    });
+    assert!(
+        session
+            .submit(after_io.clone(), actor)
+            .await
+            .unwrap()
+            .is_err()
+    );
+    std::fs::remove_dir(&blocked).unwrap();
+    let uploaded = h
+        .http
+        .post(h.url(&format!("/api/sessions/{}/assets", created.session_id)))
+        .bearer_auth(&gm.token)
+        .header("x-asset-sha256", &package.sha256)
+        .header("x-asset-kind", "plugin")
+        .body(bytes)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(uploaded.status(), 204);
+    assert_eq!(
+        session.submit(envelope, actor).await.unwrap().unwrap(),
+        missing
+    );
+    assert!(matches!(
+        session.submit(after_io, actor).await.unwrap().unwrap(),
+        IntentOutcome::Accepted { .. }
+    ));
+    let mut forged = package.to_dto();
+    forged.name = Label::Text("Forged description".into());
+    assert!(matches!(
+        session
+            .submit(
+                gm_intent(Intent::InstallPlugin {
+                    plugin: Box::new(forged)
+                }),
+                actor
+            )
+            .await
+            .unwrap()
+            .unwrap(),
+        IntentOutcome::Rejected {
+            reason: RejectReason::Invalid { .. }
+        }
+    ));
+    let valid = gm_intent(Intent::InstallPlugin {
+        plugin: Box::new(package.to_dto()),
+    });
+    let accepted = session.submit(valid.clone(), actor).await.unwrap().unwrap();
+    assert!(matches!(accepted, IntentOutcome::Accepted { .. }));
+    session
+        .submit(
+            gm_intent(Intent::UninstallPlugin {
+                id: package.manifest.id,
+            }),
+            actor,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    std::fs::remove_file(
+        h.server
+            .app
+            .session_dir(created.session_id)
+            .join(format!("assets/plugins/{}.dndplugin", package.sha256)),
+    )
+    .unwrap();
+    assert_eq!(
+        session.submit(valid, actor).await.unwrap().unwrap(),
+        accepted
+    );
+    assert!(session.snapshot(Role::Gm).await.unwrap().plugins.is_empty());
+    let before = session.snapshot(Role::Gm).await.unwrap().seq;
+    for (id, app, dependencies, field) in [
+        (
+            "future",
+            ">=999.0.0",
+            serde_json::json!({}),
+            "plugin.incompatible_app",
+        ),
+        (
+            "needs-base",
+            "*",
+            serde_json::json!({"missing-base": "^1.0"}),
+            "plugin.missing_dependency",
+        ),
+    ] {
+        use std::io::Write;
+        let mut zip = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+        zip.start_file("manifest.json", zip::write::SimpleFileOptions::default())
+            .unwrap();
+        zip.write_all(&serde_json::to_vec(&serde_json::json!({
+            "format": 1, "id": id, "name": id, "version": "1.0.0", "kind": "content",
+            "authors": ["test"], "license": "MIT", "app_compat": app, "dependencies": dependencies,
+        })).unwrap()).unwrap();
+        let bytes = zip.finish().unwrap().into_inner();
+        let package =
+            dnd_plugin::read_package(&bytes, dnd_plugin::PackageLimits::default()).unwrap();
+        let uploaded = h
+            .http
+            .post(h.url(&format!("/api/sessions/{}/assets", created.session_id)))
+            .bearer_auth(&gm.token)
+            .header("x-asset-sha256", &package.sha256)
+            .header("x-asset-kind", "plugin")
+            .body(bytes)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(uploaded.status(), 204);
+        assert_eq!(
+            session
+                .submit(
+                    gm_intent(Intent::InstallPlugin {
+                        plugin: Box::new(package.to_dto())
+                    }),
+                    actor
+                )
+                .await
+                .unwrap()
+                .unwrap(),
+            IntentOutcome::Rejected {
+                reason: RejectReason::invalid(field)
+            }
+        );
+    }
+    assert_eq!(session.snapshot(Role::Gm).await.unwrap().seq, before);
+    h.server.stop().await.unwrap();
+}
+
+#[tokio::test]
 async fn gm_and_player_play_through_the_server() {
     let h = Harness::default().await;
     assert_eq!(
@@ -808,6 +982,30 @@ async fn asset_upload_checks_gm_hash_format_and_registration_visibility() {
             .status(),
         403
     );
+    for (role, expected) in [(Role::CoGm, 204), (Role::Spectator, 403)] {
+        let token = format!("test-upload-{role:?}");
+        h.server
+            .app
+            .db
+            .insert_participant(
+                &dnd_db::ParticipantRow {
+                    id: uuid::Uuid::now_v7(),
+                    session_id: created.session_id,
+                    role,
+                    name: "Upload fixture".into(),
+                    user_id: gm.user_id,
+                    status: dnd_db::ParticipantStatus::Disconnected,
+                },
+                &sha(token.as_bytes()),
+                0,
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            upload(token, hash.clone(), "audio").await.unwrap().status(),
+            expected
+        );
+    }
     assert_eq!(
         upload(gm.token.clone(), "0".repeat(64), "audio")
             .await
@@ -1188,9 +1386,20 @@ async fn a_trigger_reveals_a_secret_through_the_server() {
     let srd = {
         let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../plugins/system-srd5");
         let bytes = dnd_plugin::pack_directory(&path).unwrap();
-        dnd_plugin::read_package(&bytes, dnd_plugin::PackageLimits::default())
-            .unwrap()
-            .to_dto()
+        let package =
+            dnd_plugin::read_package(&bytes, dnd_plugin::PackageLimits::default()).unwrap();
+        let uploaded = h
+            .http
+            .post(h.url(&format!("/api/sessions/{}/assets", created.session_id)))
+            .bearer_auth(&gm.token)
+            .header("x-asset-sha256", &package.sha256)
+            .header("x-asset-kind", "plugin")
+            .body(bytes)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(uploaded.status(), 204);
+        package.to_dto()
     };
     let (hero, token, zone, board, node, trigger) = (
         CharacterId(v7(0x60)),

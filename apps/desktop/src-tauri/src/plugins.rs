@@ -4,10 +4,11 @@
 //! resources), evaluated by the core's own rules.
 
 use std::collections::BTreeMap;
+use std::path::Path;
 
 use dnd_game_core::{GameState, sheet_values};
 use dnd_plugin::semver::Version;
-use dnd_plugin::{PackageLimits, PluginError, check_app_compat, read_package};
+use dnd_plugin::{PackageLimits, PluginError, PluginPackage, check_app_compat, read_package};
 use dnd_protocol::{
     EventBatch, Intent, IntentEnvelope, IntentId, IntentOutcome, Label, PluginKind,
 };
@@ -61,20 +62,14 @@ pub async fn install(
     server: &mut LocalServer,
     bytes: &[u8],
 ) -> Result<(IntentOutcome, Option<EventBatch>), IpcError> {
-    let package = read_package(bytes, PackageLimits::default())?;
-    let app = Version::parse(env!("CARGO_PKG_VERSION"))
-        .map_err(|e| IpcError::internal("app_version", e.to_string()))?;
-    check_app_compat(&package.manifest, &app)?;
+    let package = prepare(bytes)?;
     check_dependencies(server.state(), &package.manifest)?;
-
-    let dir = server.folder().join(ASSETS_DIR).join("plugins");
-    std::fs::create_dir_all(&dir)?;
-    let path = dir.join(format!("{}.dndplugin", package.sha256));
-    if !path.exists() {
-        let partial = dir.join(format!("{}.partial", package.sha256));
-        std::fs::write(&partial, bytes)?;
-        std::fs::rename(&partial, &path)?;
-    }
+    keep_package(
+        &server.folder().join(ASSETS_DIR).join("plugins"),
+        &package.sha256,
+        bytes,
+    )
+    .await?;
     let envelope = IntentEnvelope {
         intent_id: IntentId::new_v7(),
         expected_version: None,
@@ -87,26 +82,50 @@ pub async fn install(
     Ok(result)
 }
 
-/// Every dependency is installed in a matching version.
-fn check_dependencies(state: &GameState, manifest: &dnd_plugin::Manifest) -> Result<(), IpcError> {
-    for (dependency, required) in &manifest.dependencies {
-        let installed = state.plugins.get(dependency).ok_or_else(|| {
-            IpcError::user(
-                "missing_dependency",
-                format!("{} requires {dependency} {required}", manifest.id),
-            )
-        })?;
-        let fits = Version::parse(&installed.version).is_ok_and(|v| required.matches(&v));
-        if !fits {
-            return Err(IpcError::user(
-                "dependency_version_mismatch",
-                format!(
-                    "{} requires {dependency} {required}, installed is {}",
-                    manifest.id, installed.version
-                ),
-            ));
-        }
+pub(crate) fn prepare(bytes: &[u8]) -> Result<PluginPackage, IpcError> {
+    let package = read_package(bytes, PackageLimits::default())?;
+    let app = Version::parse(env!("CARGO_PKG_VERSION"))
+        .map_err(|e| IpcError::internal("app_version", e.to_string()))?;
+    check_app_compat(&package.manifest, &app)?;
+    Ok(package)
+}
+
+pub(crate) async fn keep_package(dir: &Path, sha: &str, bytes: &[u8]) -> Result<(), IpcError> {
+    tokio::fs::create_dir_all(dir).await?;
+    let path = dir.join(format!("{sha}.dndplugin"));
+    if tokio::fs::metadata(&path)
+        .await
+        .is_ok_and(|m| m.len() <= PackageLimits::DEFAULT.max_package_bytes)
+        && let Ok(existing) = tokio::fs::read(&path).await
+        && dnd_assets::sha256_hex(&existing) == sha
+    {
+        return Ok(());
     }
+    let partial = dir.join(format!("{sha}.{}.partial", uuid::Uuid::now_v7()));
+    let result: Result<(), std::io::Error> = async {
+        tokio::fs::write(&partial, bytes).await?;
+        tokio::fs::rename(&partial, path).await
+    }
+    .await;
+    if result.is_err() {
+        tokio::fs::remove_file(partial).await.ok();
+    }
+    result?;
+    Ok(())
+}
+
+/// Every dependency is installed in a matching version.
+pub(crate) fn check_dependencies(
+    state: &GameState,
+    manifest: &dnd_plugin::Manifest,
+) -> Result<(), IpcError> {
+    dnd_plugin::check_dependency_versions(
+        manifest,
+        state
+            .plugins
+            .values()
+            .map(|p| (p.id.as_str(), p.version.as_str())),
+    )?;
     Ok(())
 }
 

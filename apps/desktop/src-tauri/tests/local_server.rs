@@ -832,3 +832,44 @@ async fn bundled_system_plugin_governs_the_campaign() {
     imported.close().await.unwrap();
     server.close().await.unwrap();
 }
+
+#[tokio::test]
+async fn an_offline_plugin_is_kept_with_the_durable_install_intent() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut local = LocalServer::create(dir.path(), "Offline plugins")
+        .await
+        .unwrap();
+    let folder = local.folder().to_owned();
+    local
+        .db()
+        .set_remote_binding(Some("https://server/session"))
+        .await
+        .unwrap();
+    let bytes = dnd_desktop_lib::bundled::package("generic-d6").unwrap();
+    let (outcome, _) = dnd_desktop_lib::plugins::install(&mut local, bytes)
+        .await
+        .unwrap();
+    assert!(matches!(outcome, IntentOutcome::Accepted { .. }));
+    let sha = local.state().plugins["generic-d6"].archive_sha256.clone();
+    let file = folder.join(format!("assets/plugins/{sha}.dndplugin"));
+    assert_eq!(std::fs::read(&file).unwrap(), bytes);
+    let pending = local.db().pending_ops().await.unwrap();
+    assert_eq!(pending.len(), 1);
+    assert!(
+        matches!(&pending[0].envelope.intent, Intent::InstallPlugin { plugin } if plugin.id == "generic-d6")
+    );
+    local.close().await.unwrap();
+    let mut reopened = LocalServer::open(&folder).await.unwrap();
+    assert!(reopened.state().plugins.contains_key("generic-d6"));
+    assert_eq!(reopened.db().pending_ops().await.unwrap().len(), 1);
+    std::fs::write(&file, b"broken package").unwrap();
+    dnd_desktop_lib::plugins::install(&mut reopened, bytes)
+        .await
+        .unwrap();
+    assert_eq!(std::fs::read(&file).unwrap(), bytes);
+    assert_eq!(
+        std::fs::read_dir(file.parent().unwrap()).unwrap().count(),
+        1
+    );
+    reopened.close().await.unwrap();
+}

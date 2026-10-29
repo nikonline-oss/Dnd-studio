@@ -19,7 +19,11 @@ export function PluginsView() {
   const { data: campaign } = useCampaign();
   const remote = useRemote();
   const isGm = campaign?.role === 'gm' || campaign?.role === 'co_gm';
-  const canManage = isGm && remote === null;
+  const canManage =
+    isGm &&
+    (remote === null ||
+      remote.status.state === 'online' ||
+      (remote.hosted && remote.status.state === 'reconnecting'));
   const plugins = useSnapshotSelect((s) => s.plugins) ?? [];
   const system = useSnapshotSelect((s) => s.system_plugin) ?? null;
   const bundled = useQuery({ queryKey: ['pluginBundled'], queryFn: ipc.pluginBundled });
@@ -123,7 +127,7 @@ export function PluginsView() {
           </ul>
         </section>
       )}
-      {isGm && remote !== null && <p className="nav-empty">{t('plugins.remote')}</p>}
+      {isGm && !canManage && <p className="nav-empty">{t('plugins.remote')}</p>}
       <ErrorText error={installFile.error ?? installBundled.error ?? submit.error} />
     </NavSection>
   );

@@ -443,7 +443,7 @@
       "ui": "Interface"
     },
     "license": "License",
-    "remote": "Plugins are installed into the local campaign."
+    "remote": "Connect to the server to manage plugins."
   },
   "boards": {
     "addMap": "New map",

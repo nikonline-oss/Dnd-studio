@@ -8,8 +8,10 @@ import type {
   BundledPlugin,
   CampaignInfo,
   IntentEnvelope,
+  IntentOutcome,
   PluginDto,
   Role,
+  RemoteInfo,
   Snapshot,
 } from '@/shared/ipc/client';
 
@@ -29,7 +31,11 @@ const BUNDLED: BundledPlugin[] = [
   { id: 'generic-d6', name: 'Generic 2d6', version: '0.1.0', kind: 'system', license: 'MIT' },
 ];
 
-function setup(role: Role = 'gm') {
+function setup(
+  role: Role = 'gm',
+  remote: RemoteInfo | null = null,
+  installResult: IntentOutcome = { status: 'accepted', seq: 2 },
+) {
   const snapshot: Snapshot = {
     seq: 1,
     campaign: { name: 'C', description: '', version: 1 },
@@ -63,11 +69,11 @@ function setup(role: Role = 'gm') {
       case 'campaign_current':
         return info;
       case 'remote_current':
-        return null;
+        return remote;
       case 'plugin_bundled':
         return BUNDLED;
       case 'plugin_install_bundled':
-        return { status: 'accepted', seq: 2 };
+        return installResult;
       case 'submit_intent':
         sent.push((args as { envelope: IntentEnvelope }).envelope);
         return { status: 'accepted', seq: 2 };
@@ -84,6 +90,50 @@ function setup(role: Role = 'gm') {
 }
 
 describe('PluginsView', () => {
+  it('shows an authoritative install rejection instead of silently treating it as success', async () => {
+    setup('gm', null, { status: 'rejected', reason: { code: 'invalid', field: 'plugin' } });
+    const bundled = await screen.findByRole('region', { name: 'Bundled' });
+    await userEvent.click(within(bundled).getByRole('button', { name: 'Install' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Invalid value');
+  });
+
+  it.each(['gm', 'co_gm'] as const)(
+    'lets a connected %s install a bundled plugin without leaving the session',
+    async (role) => {
+      const { calls } = setup(role, {
+        server: 'http://localhost',
+        session_id: 's',
+        session_name: 'C',
+        role,
+        hosted: true,
+        status: { state: 'online' },
+      });
+      const bundled = await screen.findByRole('region', { name: 'Bundled' });
+      await userEvent.click(within(bundled).getByRole('button', { name: 'Install' }));
+      await waitFor(() => {
+        expect(calls.some((c) => c.cmd === 'plugin_install_bundled')).toBe(true);
+      });
+      expect(screen.getByRole('button', { name: 'Install from file…' })).toBeInTheDocument();
+    },
+  );
+
+  it.each(['player', 'spectator'] as const)(
+    'keeps remote plugin management unavailable to %s',
+    async (role) => {
+      setup(role, {
+        server: 'http://localhost',
+        session_id: 's',
+        session_name: 'C',
+        role,
+        hosted: false,
+        status: { state: 'online' },
+      });
+      await screen.findByText('SRD 5.2');
+      expect(screen.queryByRole('region', { name: 'Bundled' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Install from file…' })).not.toBeInTheDocument();
+    },
+  );
+
   it('lists plugins with the system and the unsigned trust level', async () => {
     setup();
     const list = await screen.findByRole('list', { name: 'Plugins' });

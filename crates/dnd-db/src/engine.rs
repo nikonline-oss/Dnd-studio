@@ -157,7 +157,21 @@ impl CampaignEngine {
         actor: &Actor,
         now_ms: i64,
     ) -> Result<(IntentOutcome, Option<EventBatch>), EngineError> {
-        self.submit_recording(envelope, actor, now_ms, false).await
+        self.submit_recording(envelope, actor, now_ms, false, Ok(()))
+            .await
+    }
+
+    /// Adapter checks (e.g. an uploaded package) can reject a new intent, never bypass core rules.
+    /// Cached/durable receipts take precedence so external changes cannot alter a retry's result.
+    pub async fn submit_with_precondition(
+        &mut self,
+        envelope: &IntentEnvelope,
+        actor: &Actor,
+        now_ms: i64,
+        precondition: Result<(), RejectReason>,
+    ) -> Result<(IntentOutcome, Option<EventBatch>), EngineError> {
+        self.submit_recording(envelope, actor, now_ms, false, precondition)
+            .await
     }
 
     /// Same pipeline with the replay operation committed in the event transaction.
@@ -167,27 +181,27 @@ impl CampaignEngine {
         actor: &Actor,
         now_ms: i64,
     ) -> Result<(IntentOutcome, Option<EventBatch>), EngineError> {
-        self.submit_recording(envelope, actor, now_ms, true).await
+        self.submit_recording(envelope, actor, now_ms, true, Ok(()))
+            .await
     }
 
-    async fn submit_recording(
+    /// Look up an original outcome before adapter I/O, preserving the payload-hash check.
+    pub async fn recall_intent(
         &mut self,
         envelope: &IntentEnvelope,
-        actor: &Actor,
         now_ms: i64,
-        offline: bool,
-    ) -> Result<(IntentOutcome, Option<EventBatch>), EngineError> {
+    ) -> Result<Option<IntentOutcome>, EngineError> {
         let hash = envelope.payload_hash();
         match self.recent.recall(&envelope.intent_id, &hash, now_ms) {
             Recall::New => {}
             Recall::Repeat(outcome) => {
                 tracing::debug!(intent_id = %envelope.intent_id, "duplicate intent");
-                return Ok((outcome.clone(), None));
+                return Ok(Some(outcome.clone()));
             }
             Recall::Reused => {
                 tracing::warn!(intent_id = %envelope.intent_id, "intent_id reused with other data");
                 let reason = RejectReason::IntentIdReused;
-                return Ok((IntentOutcome::Rejected { reason }, None));
+                return Ok(Some(IntentOutcome::Rejected { reason }));
             }
         }
         if let Some(receipt) = self.db.accepted_intent(envelope.intent_id).await? {
@@ -201,29 +215,42 @@ impl CampaignEngine {
                 now_ms,
             );
             if receipt.intent_hash.is_some_and(|stored| stored != hash) {
-                return Ok((
-                    IntentOutcome::Rejected {
-                        reason: RejectReason::IntentIdReused,
-                    },
-                    None,
-                ));
+                return Ok(Some(IntentOutcome::Rejected {
+                    reason: RejectReason::IntentIdReused,
+                }));
             }
-            return Ok((accepted, None));
+            return Ok(Some(accepted));
         }
-        let events = match apply(&self.state, envelope, actor, &mut self.rng) {
-            Ok(events) => events,
-            Err(reason) => {
-                tracing::debug!(
-                    intent = envelope.intent.kind(),
-                    code = reason.code(),
-                    "intent rejected"
-                );
-                let outcome = IntentOutcome::Rejected { reason };
-                self.recent
-                    .insert(envelope.intent_id, Some(hash), outcome.clone(), now_ms);
-                return Ok((outcome, None));
-            }
-        };
+        Ok(None)
+    }
+
+    async fn submit_recording(
+        &mut self,
+        envelope: &IntentEnvelope,
+        actor: &Actor,
+        now_ms: i64,
+        offline: bool,
+        precondition: Result<(), RejectReason>,
+    ) -> Result<(IntentOutcome, Option<EventBatch>), EngineError> {
+        let hash = envelope.payload_hash();
+        if let Some(outcome) = self.recall_intent(envelope, now_ms).await? {
+            return Ok((outcome, None));
+        }
+        let events =
+            match precondition.and_then(|()| apply(&self.state, envelope, actor, &mut self.rng)) {
+                Ok(events) => events,
+                Err(reason) => {
+                    tracing::debug!(
+                        intent = envelope.intent.kind(),
+                        code = reason.code(),
+                        "intent rejected"
+                    );
+                    let outcome = IntentOutcome::Rejected { reason };
+                    self.recent
+                        .insert(envelope.intent_id, Some(hash), outcome.clone(), now_ms);
+                    return Ok((outcome, None));
+                }
+            };
         let batch = EventBatch {
             seq: self.next_seq,
             caused_by: Some(envelope.intent_id),

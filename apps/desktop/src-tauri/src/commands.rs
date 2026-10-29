@@ -802,7 +802,7 @@ pub async fn plugin_install_bundled<R: Runtime>(
 ) -> Result<IntentOutcome, IpcError> {
     let package = crate::bundled::package(&id)
         .ok_or_else(|| IpcError::user("not_found", format!("no bundled plugin {id}")))?;
-    install_package(&app, &state, package).await
+    install_package(&app, &state, package.to_vec()).await
 }
 
 /// Asks for a `.dndplugin` file and installs it into the open campaign. `None` if cancelled.
@@ -830,24 +830,61 @@ pub async fn plugin_install_file<R: Runtime>(
         ));
     }
     let bytes = std::fs::read(&path)?;
-    install_package(&app, &state, &bytes).await.map(Some)
+    install_package(&app, &state, bytes).await.map(Some)
 }
 
 async fn install_package<R: Runtime>(
     app: &AppHandle<R>,
     state: &AppState,
-    package: &[u8],
+    package: Vec<u8>,
 ) -> Result<IntentOutcome, IpcError> {
-    // Packages travel with the campaign file; uploading them to a running session: stage 4.
-    if state.remote.lock().await.is_some() {
-        return Err(IpcError::user(
-            "not_in_remote_session",
-            "plugins are installed in the local campaign",
-        ));
+    let remote = state.remote.lock().await.clone();
+    if let Some(remote) = remote {
+        let info = remote.info();
+        let binding = format!("{}/{}", info.server, info.session_id);
+        let owner = remote.campaign_info().user_id;
+        if info.hosted && matches!(remote.status(), RemoteStatus::Reconnecting { .. }) {
+            let mut guard = state.server.lock().await;
+            let local = guard.as_mut().ok_or_else(IpcError::no_campaign)?;
+            crate::remote::check_replica(local.db(), owner, &binding).await?;
+            let (outcome, _) = crate::plugins::install(local, &package).await?;
+            if let Err(error) = GameSnapshotReplaced(local.snapshot()).emit(app) {
+                tracing::error!(%error, "failed to emit offline plugin snapshot");
+            }
+            return Ok(outcome);
+        }
+        let replica = if info.hosted {
+            let guard = state.server.lock().await;
+            if let Some(local) = guard.as_ref() {
+                crate::remote::check_replica(local.db(), owner, &binding).await?;
+                Some(
+                    local
+                        .folder()
+                        .join(crate::local_server::ASSETS_DIR)
+                        .join("plugins"),
+                )
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        let directory = match replica {
+            Some(directory) => directory,
+            None => state
+                .dirs
+                .get()
+                .ok_or_else(|| {
+                    IpcError::internal("not_ready", "app directories are not initialized")
+                })?
+                .asset_cache
+                .clone(),
+        };
+        return remote.install_plugin(package, &directory).await;
     }
     let mut guard = state.server.lock().await;
     let server = guard.as_mut().ok_or_else(IpcError::no_campaign)?;
-    let (outcome, batch) = crate::plugins::install(server, package).await?;
+    let (outcome, batch) = crate::plugins::install(server, &package).await?;
     if let Some(batch) = batch
         && let Err(e) = GameEventsEmitted(batch).emit(app)
     {
