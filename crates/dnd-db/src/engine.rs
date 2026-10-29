@@ -157,6 +157,26 @@ impl CampaignEngine {
         actor: &Actor,
         now_ms: i64,
     ) -> Result<(IntentOutcome, Option<EventBatch>), EngineError> {
+        self.submit_recording(envelope, actor, now_ms, false).await
+    }
+
+    /// Same pipeline with the replay operation committed in the event transaction.
+    pub async fn submit_offline(
+        &mut self,
+        envelope: &IntentEnvelope,
+        actor: &Actor,
+        now_ms: i64,
+    ) -> Result<(IntentOutcome, Option<EventBatch>), EngineError> {
+        self.submit_recording(envelope, actor, now_ms, true).await
+    }
+
+    async fn submit_recording(
+        &mut self,
+        envelope: &IntentEnvelope,
+        actor: &Actor,
+        now_ms: i64,
+        offline: bool,
+    ) -> Result<(IntentOutcome, Option<EventBatch>), EngineError> {
         let hash = envelope.payload_hash();
         match self.recent.recall(&envelope.intent_id, &hash, now_ms) {
             Recall::New => {}
@@ -169,6 +189,26 @@ impl CampaignEngine {
                 let reason = RejectReason::IntentIdReused;
                 return Ok((IntentOutcome::Rejected { reason }, None));
             }
+        }
+        if let Some(receipt) = self.db.accepted_intent(envelope.intent_id).await? {
+            let accepted = IntentOutcome::Accepted {
+                seq: receipt.last_seq,
+            };
+            self.recent.insert(
+                envelope.intent_id,
+                receipt.intent_hash,
+                accepted.clone(),
+                now_ms,
+            );
+            if receipt.intent_hash.is_some_and(|stored| stored != hash) {
+                return Ok((
+                    IntentOutcome::Rejected {
+                        reason: RejectReason::IntentIdReused,
+                    },
+                    None,
+                ));
+            }
+            return Ok((accepted, None));
         }
         let events = match apply(&self.state, envelope, actor, &mut self.rng) {
             Ok(events) => events,
@@ -189,14 +229,78 @@ impl CampaignEngine {
             caused_by: Some(envelope.intent_id),
             events,
         };
-        self.commit(batch.clone(), Some(hash), Some(actor.user_id), now_ms)
-            .await?;
+        self.commit(
+            batch.clone(),
+            Some(hash),
+            Some(actor.user_id),
+            now_ms,
+            offline.then_some(envelope),
+            None,
+        )
+        .await?;
         let outcome = IntentOutcome::Accepted {
             seq: batch.last_seq(),
         };
         self.recent
             .insert(envelope.intent_id, Some(hash), outcome.clone(), now_ms);
         Ok((outcome, Some(batch)))
+    }
+
+    /// Rebuild the provisional local view without changing the envelopes sent to the server.
+    pub async fn materialize_pending(
+        &mut self,
+        actor: &Actor,
+        now_ms: i64,
+    ) -> Result<(), EngineError> {
+        for operation in self.db.pending_ops().await? {
+            if operation.projected {
+                continue;
+            }
+            let original = operation.envelope;
+            if let Some(receipt) = self.db.accepted_intent(original.intent_id).await? {
+                if receipt
+                    .intent_hash
+                    .is_none_or(|hash| hash == original.payload_hash())
+                {
+                    self.db.mark_pending_projected(operation.id).await?;
+                }
+                continue;
+            }
+            let mut preview = original.clone();
+            if preview.intent.version_policy() == dnd_protocol::VersionPolicy::Checked {
+                let Ok(version) = dnd_game_core::current_version(&self.state, &preview.intent)
+                else {
+                    continue;
+                };
+                preview.expected_version = Some(version);
+            }
+            let events = match apply(&self.state, &preview, actor, &mut self.rng) {
+                Ok(events) => events,
+                Err(reason) => {
+                    tracing::warn!(
+                        intent = preview.intent.kind(),
+                        code = reason.code(),
+                        "offline edit cannot be projected onto the current base"
+                    );
+                    continue;
+                }
+            };
+            let batch = EventBatch {
+                seq: self.next_seq,
+                caused_by: Some(original.intent_id),
+                events,
+            };
+            self.commit(
+                batch,
+                Some(original.payload_hash()),
+                Some(actor.user_id),
+                now_ms,
+                None,
+                Some(operation.id),
+            )
+            .await?;
+        }
+        Ok(())
     }
 
     /// Commits events that no intent caused (the server's own, e.g. a participant joining) the
@@ -212,7 +316,8 @@ impl CampaignEngine {
             caused_by: None,
             events,
         };
-        self.commit(batch.clone(), None, actor, now_ms).await?;
+        self.commit(batch.clone(), None, actor, now_ms, None, None)
+            .await?;
         Ok(batch)
     }
 
@@ -222,18 +327,24 @@ impl CampaignEngine {
         intent_hash: Option<PayloadHash>,
         actor: Option<UserId>,
         at_ms: i64,
+        pending: Option<&IntentEnvelope>,
+        projected_id: Option<i64>,
     ) -> Result<(), EngineError> {
         let last = batch.last_seq();
         if !dnd_protocol::is_js_safe(last.0) {
             return Err(EngineError::SeqExhausted);
         }
         self.db
-            .project(&[BatchRecord {
-                batch: batch.clone(),
-                intent_hash,
-                actor,
-                at_ms,
-            }])
+            .project_with_pending(
+                &[BatchRecord {
+                    batch: batch.clone(),
+                    intent_hash,
+                    actor,
+                    at_ms,
+                }],
+                pending,
+                projected_id,
+            )
             .await?;
         evolve_all(&mut self.state, &batch.events);
         for event in &batch.events {

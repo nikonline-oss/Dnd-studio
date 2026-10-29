@@ -116,7 +116,10 @@
     "invalid_layout": "The plugin's sheet layout has an error",
     "incompatible_app": "The plugin does not fit this version of the app",
     "missing_dependency": "A plugin this one depends on is not installed",
-    "dependency_version_mismatch": "An unsuitable version of a dependency is installed"
+    "dependency_version_mismatch": "An unsuitable version of a dependency is installed",
+    "pending_conflicts": "Resolve offline edit conflicts before stopping the session.",
+    "campaign_on_server": "This campaign is already linked to a session. Connect to that session to sync.",
+    "replica_mismatch": "The local copy does not match this session or its GM. Open the original campaign."
   },
   "menu": {
     "label": "Main menu",
@@ -714,5 +717,19 @@
     "columnName": "Name of column {{letter}}",
     "resize": "Width of column {{letter}}",
     "empty": "No rows yet"
+  },
+  "offline": {
+    "title": "Offline edits",
+    "conflict": "Conflict",
+    "pending": "Waiting to sync",
+    "reason": "Reason: {{code}}",
+    "apply": "Apply mine over server",
+    "discard": "Discard",
+    "edit": "Edit {{id}}",
+    "mine": "My edit",
+    "server": "Server version",
+    "missing": "Element is absent",
+    "copy": "Offline copy of a hosted campaign. Edits are saved until reconnecting.",
+    "unavailable": "Connect to see the current server version."
   }
 }

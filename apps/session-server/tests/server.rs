@@ -575,6 +575,114 @@ async fn assets_are_served_to_those_who_may_see_them() {
 }
 
 #[tokio::test]
+async fn asset_upload_checks_gm_hash_format_and_registration_visibility() {
+    let h = Harness::default().await;
+    let created = h.create().await;
+    let gm = h.join_gm(&created).await;
+    let player = h.join_player(&created, "Mira").await;
+    let bytes = b"OggS offline ambience";
+    let hash = sha(bytes);
+    let upload = |token: String, hash: String, kind: &str| {
+        h.http
+            .post(h.url(&format!("/api/sessions/{}/assets", created.session_id)))
+            .bearer_auth(token)
+            .header("x-asset-sha256", hash)
+            .header("x-asset-kind", kind)
+            .body(bytes.to_vec())
+            .send()
+    };
+    assert_eq!(
+        upload(player.token.clone(), hash.clone(), "audio")
+            .await
+            .unwrap()
+            .status(),
+        403
+    );
+    assert_eq!(
+        upload(gm.token.clone(), "0".repeat(64), "audio")
+            .await
+            .unwrap()
+            .status(),
+        400
+    );
+    assert_eq!(
+        upload(gm.token.clone(), hash.clone(), "../escape")
+            .await
+            .unwrap()
+            .status(),
+        400
+    );
+    assert_eq!(
+        upload(gm.token.clone(), hash.clone(), "webp")
+            .await
+            .unwrap()
+            .status(),
+        400
+    );
+    for _ in 0..2 {
+        assert_eq!(
+            upload(gm.token.clone(), hash.clone(), "audio")
+                .await
+                .unwrap()
+                .status(),
+            204
+        );
+    }
+    let url = h.url(&format!(
+        "/api/sessions/{}/assets/{hash}",
+        created.session_id
+    ));
+    assert_eq!(
+        h.http
+            .get(&url)
+            .bearer_auth(&player.token)
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        404
+    );
+    let mut connection = h.connect(created.session_id, &gm.token).await;
+    connection.snapshot().await;
+    let intent_id = connection
+        .intent(Intent::RegisterAsset {
+            asset: Box::new(AssetDto {
+                id: AssetId::new_v7(),
+                usage: AssetUsage::Audio,
+                sha256: hash.clone(),
+                mime: "audio/ogg".into(),
+                size_bytes: i64::try_from(bytes.len()).unwrap(),
+                original_name: Some("Ambience.ogg".into()),
+                width: 0,
+                height: 0,
+                display_sha256: Some(hash.clone()),
+                thumbnail_sha256: hash.clone(),
+                tiles: vec![],
+                folder_id: None,
+                version: Version(1),
+            }),
+        })
+        .await;
+    loop {
+        if let ServerMessage::Accepted(accepted) = connection.next().await
+            && accepted.intent_id == intent_id
+        {
+            break;
+        }
+    }
+    let fetched = h
+        .http
+        .get(&url)
+        .bearer_auth(&gm.token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(fetched.status(), 200);
+    assert_eq!(fetched.bytes().await.unwrap().as_ref(), bytes);
+    h.server.stop().await.unwrap();
+}
+
+#[tokio::test]
 async fn tokens_reconnect_as_the_same_user_and_only_to_their_session() {
     let h = Harness::default().await;
     let (a, b) = (h.create().await, h.create().await);

@@ -29,6 +29,130 @@ fn create_map(id: MapId) -> IntentEnvelope {
     )
 }
 
+#[tokio::test]
+async fn offline_edits_survive_reopen_and_retries_do_not_duplicate_the_queue() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut local = LocalServer::create(dir.path(), "Offline").await.unwrap();
+    let folder = local.folder().to_owned();
+    local
+        .db()
+        .set_remote_binding(Some("https://session/active"))
+        .await
+        .unwrap();
+    let edit = create_map(MapId::new_v7());
+    assert!(matches!(
+        local.submit(&edit).await.unwrap().0,
+        IntentOutcome::Accepted { .. }
+    ));
+    local.submit_offline(&edit).await.unwrap();
+    assert_eq!(local.db().pending_ops().await.unwrap().len(), 1);
+    let rejected = envelope(
+        Intent::DeleteMap {
+            id: MapId::new_v7(),
+        },
+        Some(Version(1)),
+    );
+    assert!(matches!(
+        local.submit_offline(&rejected).await.unwrap().0,
+        IntentOutcome::Rejected { .. }
+    ));
+    assert_eq!(local.db().pending_ops().await.unwrap().len(), 1);
+    local.close().await.unwrap();
+    let mut reopened = LocalServer::open(&folder).await.unwrap();
+    assert_eq!(reopened.db().pending_ops().await.unwrap()[0].envelope, edit);
+    assert_eq!(reopened.snapshot().maps.len(), 1);
+    reopened.submit(&create_map(MapId::new_v7())).await.unwrap();
+    assert_eq!(reopened.db().pending_ops().await.unwrap().len(), 2);
+    reopened.close().await.unwrap();
+}
+
+#[tokio::test]
+async fn interrupted_replica_replacement_recovers_the_previous_database_and_queue() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut local = LocalServer::create(dir.path(), "Recover replica")
+        .await
+        .unwrap();
+    let folder = local.folder().to_owned();
+    local
+        .submit_offline(&create_map(MapId::new_v7()))
+        .await
+        .unwrap();
+    local.close().await.unwrap();
+    std::fs::rename(
+        folder.join("campaign.sqlite"),
+        folder.join("campaign.sqlite.sync-old"),
+    )
+    .unwrap();
+    std::fs::write(
+        folder.join("campaign.sqlite.sync-new"),
+        b"interrupted preparation",
+    )
+    .unwrap();
+    let recovered = LocalServer::open(&folder).await.unwrap();
+    assert_eq!(recovered.snapshot().maps.len(), 1);
+    assert_eq!(recovered.db().pending_ops().await.unwrap().len(), 1);
+    assert!(folder.join("campaign.sqlite").exists());
+    assert!(!folder.join("campaign.sqlite.sync-new").exists());
+    assert!(!folder.join("campaign.sqlite.sync-old").exists());
+    recovered.close().await.unwrap();
+}
+
+#[tokio::test]
+async fn replica_recovery_handles_partial_preparation_corruption_and_completed_rename() {
+    for phase in ["prepared", "corrupt", "committed", "invalid_state"] {
+        let dir = tempfile::tempdir().unwrap();
+        let local = LocalServer::create(dir.path(), "Previous copy")
+            .await
+            .unwrap();
+        let folder = local.folder().to_owned();
+        local.close().await.unwrap();
+        let file = folder.join("campaign.sqlite");
+        if phase != "prepared" {
+            std::fs::copy(&file, folder.join("campaign.sqlite.sync-old")).unwrap();
+        }
+        match phase {
+            "prepared" => {
+                std::fs::write(folder.join("campaign.sqlite.sync-new"), b"partial").unwrap();
+            }
+            "corrupt" => {
+                std::fs::write(&file, b"partial database").unwrap();
+            }
+            "committed" | "invalid_state" => {
+                let (db, _) = CampaignDb::open(&file, 0).await.unwrap();
+                if phase == "committed" {
+                    sqlx::query(
+                        "UPDATE campaign_meta SET value = 'New copy' WHERE key = 'campaign.name'",
+                    )
+                    .execute(db.pool())
+                    .await
+                    .unwrap();
+                } else {
+                    sqlx::query(
+                        "UPDATE campaign_meta SET value = 'invalid' WHERE key = 'campaign.version'",
+                    )
+                    .execute(db.pool())
+                    .await
+                    .unwrap();
+                }
+                db.close().await.unwrap();
+            }
+            _ => unreachable!(),
+        }
+        let reopened = LocalServer::open(&folder).await.unwrap();
+        assert_eq!(
+            reopened.info().name,
+            if phase == "committed" {
+                "New copy"
+            } else {
+                "Previous copy"
+            }
+        );
+        assert!(!folder.join("campaign.sqlite.sync-old").exists());
+        assert!(!folder.join("campaign.sqlite.sync-new").exists());
+        reopened.close().await.unwrap();
+    }
+}
+
 /// Events stored in the campaign file, read through a second connection (WAL allows it).
 async fn stored_seq(server: &LocalServer) -> Seq {
     let (db, _) = CampaignDb::open(&server.folder().join("campaign.sqlite"), 0)
@@ -154,6 +278,11 @@ async fn storage_failure_changes_nothing() {
     let mut server = LocalServer::create(dir.path(), "Faulty").await.unwrap();
     server.submit(&create_map(MapId::new_v7())).await.unwrap();
     let before = server.snapshot();
+    server
+        .db()
+        .set_remote_binding(Some("https://session/active"))
+        .await
+        .unwrap();
 
     // Simulate a storage failure from a second connection.
     let (db, _) = CampaignDb::open(&server.folder().join("campaign.sqlite"), 0)
@@ -174,6 +303,7 @@ async fn storage_failure_changes_nothing() {
     assert_eq!(err.code, "storage_error");
     assert_eq!(server.snapshot(), before);
     assert_eq!(stored_seq(&server).await, Seq(1));
+    assert!(server.db().pending_ops().await.unwrap().is_empty());
 
     sqlx::query("DROP TRIGGER fail_writes")
         .execute(db.pool())
@@ -183,6 +313,7 @@ async fn storage_failure_changes_nothing() {
     let (outcome, _) = server.submit(&create_map(MapId::new_v7())).await.unwrap();
     assert_eq!(outcome, IntentOutcome::Accepted { seq: Seq(2) });
     assert_eq!(stored_seq(&server).await, Seq(2));
+    assert_eq!(server.db().pending_ops().await.unwrap().len(), 1);
 }
 
 #[tokio::test]
@@ -361,10 +492,9 @@ async fn idempotency_survives_reopen() {
     assert_eq!(stored_seq(&reopened).await, Seq(2));
 }
 
-/// Only the idempotency window is restored on open: with a window of 2 intents, the oldest
-/// accepted intent is forgotten and a repeat is evaluated afresh (here: the id already exists).
+/// The bounded memory cache falls back to durable receipts for older accepted operations.
 #[tokio::test]
-async fn only_the_window_is_restored_on_open() {
+async fn bounded_cache_still_recovers_old_accepted_receipts() {
     use dnd_game_core::IntentWindow;
     let dir = tempfile::tempdir().unwrap();
     let mut server = LocalServer::create(dir.path(), "Window").await.unwrap();
@@ -385,14 +515,9 @@ async fn only_the_window_is_restored_on_open() {
     // Inside the window: original outcome.
     let (outcome, _) = reopened.submit(&second).await.unwrap();
     assert_eq!(outcome, IntentOutcome::Accepted { seq: Seq(2) });
-    // Outside the window: a new intent, rejected by the core because the map exists.
+    // Outside the memory window: the durable journal still returns the original outcome.
     let (outcome, _) = reopened.submit(&first).await.unwrap();
-    assert_eq!(
-        outcome,
-        IntentOutcome::Rejected {
-            reason: RejectReason::AlreadyExists
-        }
-    );
+    assert_eq!(outcome, IntentOutcome::Accepted { seq: Seq(1) });
     assert_eq!(reopened.snapshot().maps.len(), 3);
 }
 

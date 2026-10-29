@@ -42,6 +42,92 @@ fn create_map() -> IntentEnvelope {
 }
 
 #[tokio::test]
+async fn a_durable_retry_after_the_cache_expires_never_rewinds_a_token() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut engine, gm) = engine(dir.path()).await;
+    let create = create_map();
+    let Intent::CreateMap { id: map, .. } = create.intent else {
+        unreachable!()
+    };
+    engine.submit(&create, &gm, 0).await.unwrap();
+    let token = TokenId::new_v7();
+    engine
+        .commit_events(
+            vec![Event::TokenCreated {
+                token: TokenDto {
+                    id: token,
+                    map_id: map,
+                    character_id: None,
+                    asset_id: None,
+                    name: "Pawn".into(),
+                    x: 0,
+                    y: 0,
+                    rotation: 0.0,
+                    scale: 1.0,
+                    layer: TokenLayer::Tokens,
+                    visible: true,
+                    version: Version(1),
+                },
+            }],
+            Some(gm.user_id),
+            1,
+        )
+        .await
+        .unwrap();
+    let first = IntentEnvelope {
+        intent_id: IntentId::new_v7(),
+        expected_version: None,
+        intent: Intent::MoveToken {
+            id: token,
+            x: 16,
+            y: 16,
+        },
+    };
+    let accepted = engine.submit(&first, &gm, 2).await.unwrap().0;
+    let later = IntentEnvelope {
+        intent_id: IntentId::new_v7(),
+        expected_version: None,
+        intent: Intent::MoveToken {
+            id: token,
+            x: 32,
+            y: 32,
+        },
+    };
+    engine.submit(&later, &gm, 3).await.unwrap();
+    engine.close().await.unwrap();
+    let now = 3 * 24 * 60 * 60 * 1000;
+    let (db, _) = CampaignDb::open(&dir.path().join("campaign.sqlite"), now)
+        .await
+        .unwrap();
+    let mut engine = CampaignEngine::load(db, IntentWindow::DEFAULT, 7, now)
+        .await
+        .unwrap();
+    let (outcome, batch) = engine.submit(&first, &gm, now).await.unwrap();
+    assert_eq!(outcome, accepted);
+    assert!(batch.is_none());
+    assert_eq!(engine.state().tokens[&token].x, 32);
+    let reused = IntentEnvelope {
+        intent: Intent::MoveToken {
+            id: token,
+            x: 99,
+            y: 99,
+        },
+        ..first
+    };
+    assert_eq!(
+        engine.submit(&reused, &gm, now + 1).await.unwrap().0,
+        IntentOutcome::Rejected {
+            reason: RejectReason::IntentIdReused
+        }
+    );
+    let (retry, batch) = engine.submit(&first, &gm, now + 2).await.unwrap();
+    assert_eq!(retry, accepted);
+    assert!(batch.is_none());
+    assert_eq!(engine.state().tokens[&token].x, 32);
+    engine.close().await.unwrap();
+}
+
+#[tokio::test]
 async fn each_submit_is_judged_for_its_own_actor() {
     let dir = tempfile::tempdir().unwrap();
     let (mut engine, gm) = engine(dir.path()).await;

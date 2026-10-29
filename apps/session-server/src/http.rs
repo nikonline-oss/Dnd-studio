@@ -512,3 +512,117 @@ pub async fn asset(
     )
         .into_response())
 }
+
+/// A GM uploads a content-addressed derived file before registering it through an intent.
+pub async fn upload_asset(
+    State(app): State<App>,
+    Path(id): Path<SessionId>,
+    headers: HeaderMap,
+    request: axum::extract::Request,
+) -> Result<StatusCode, ApiError> {
+    let participant = app.participant(id, &headers).await?;
+    if participant.role != Role::Gm {
+        return Err(ApiError::forbidden());
+    }
+    let _active = app.session(id).await?;
+    let bytes = axum::body::to_bytes(
+        request.into_body(),
+        app.config.limits.max_upload_bytes.min(100 * 1024 * 1024),
+    )
+    .await
+    .map_err(|_| {
+        ApiError::new(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            "too_large",
+            "asset exceeds the upload limit",
+        )
+    })?;
+    let sha = headers
+        .get("x-asset-sha256")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    if !dnd_assets::is_sha256_hex(sha) || dnd_assets::sha256_hex(&bytes) != sha {
+        return Err(ApiError::bad_request(
+            "invalid_asset",
+            "asset hash does not match its bytes",
+        ));
+    }
+    let kind = headers
+        .get("x-asset-kind")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .to_owned();
+    let destination = match kind.as_str() {
+        "webp" => app
+            .session_dir(id)
+            .join("assets")
+            .join(format!("{sha}.webp")),
+        "audio" => app
+            .session_dir(id)
+            .join("assets")
+            .join(format!("{sha}.audio")),
+        "plugin" => app
+            .session_dir(id)
+            .join("assets/plugins")
+            .join(format!("{sha}.dndplugin")),
+        _ => {
+            return Err(ApiError::bad_request(
+                "invalid_asset",
+                "unsupported asset kind",
+            ));
+        }
+    };
+    let audit_kind = kind.clone();
+    let validated = tokio::task::spawn_blocking(move || {
+        match kind.as_str() {
+            "webp" => {
+                if !bytes.starts_with(b"RIFF") || bytes.get(8..12) != Some(b"WEBP") {
+                    return Err("expected WebP");
+                }
+                dnd_assets::import_image(&bytes, dnd_assets::AssetUsage::Token)
+                    .map_err(|_| "invalid image")?;
+            }
+            "audio" => {
+                dnd_assets::import_audio(&bytes).map_err(|_| "invalid audio")?;
+            }
+            "plugin" => {
+                dnd_plugin::read_package(&bytes, dnd_plugin::PackageLimits::default())
+                    .map_err(|_| "invalid plugin")?;
+            }
+            _ => return Err("unsupported asset kind"),
+        }
+        Ok(bytes)
+    })
+    .await
+    .map_err(ApiError::internal)?
+    .map_err(|message| ApiError::bad_request("invalid_asset", message))?;
+    if !destination.exists() {
+        let parent = destination
+            .parent()
+            .ok_or_else(|| ApiError::bad_request("invalid_asset", "invalid destination"))?;
+        tokio::fs::create_dir_all(parent)
+            .await
+            .map_err(ApiError::internal)?;
+        let partial = parent.join(format!(".upload-{}", uuid::Uuid::now_v7()));
+        if let Err(error) = tokio::fs::write(&partial, &validated).await {
+            tokio::fs::remove_file(&partial).await.ok();
+            return Err(ApiError::internal(error));
+        }
+        if let Err(error) = tokio::fs::rename(&partial, &destination).await {
+            tokio::fs::remove_file(&partial).await.ok();
+            if !destination.exists() {
+                return Err(ApiError::internal(error));
+            }
+        }
+    }
+    app.db
+        .audit(
+            Some(id),
+            "gm",
+            "asset_uploaded",
+            &serde_json::json!({ "sha256": sha, "kind": audit_kind, "bytes": validated.len() }),
+            now_ms(),
+        )
+        .await?;
+    Ok(StatusCode::NO_CONTENT)
+}

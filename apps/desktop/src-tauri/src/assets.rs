@@ -382,6 +382,24 @@ pub fn serve<R: Runtime>(
         let state = app.state::<AppState>();
         let remote = state.remote.lock().await.clone();
         if let Some(remote) = remote {
+            if remote.info().hosted
+                && matches!(
+                    remote.status(),
+                    crate::remote::RemoteStatus::Reconnecting { .. }
+                )
+            {
+                let local = state.server.lock().await;
+                if let Some(local) = local.as_ref() {
+                    let mime = local
+                        .state()
+                        .assets
+                        .values()
+                        .find(|asset| asset.sha256 == sha)
+                        .map_or("image/webp", |asset| asset.mime.as_str());
+                    responder.respond(response_for_mime(Some(local.folder()), &sha, mime));
+                    return;
+                }
+            }
             // On a session server: fetched once (hash checked), then from the cache.
             let cache = state.dirs.get().map(|d| d.asset_cache.clone());
             let mime = remote

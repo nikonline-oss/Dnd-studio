@@ -11,6 +11,7 @@ import { BoardView } from '@/features/boards/BoardView';
 import { CompendiumList } from '@/features/compendium/CompendiumList';
 import { CompendiumView } from '@/features/compendium/CompendiumView';
 import { LibraryPanel } from './LibraryPanel';
+import { OfflineEdits } from '@/features/connect/OfflineEdits';
 import { TriggerEditor } from '@/features/triggers/TriggerEditor';
 import { TriggerList } from '@/features/triggers/TriggerList';
 import { CharacterEditor } from '@/features/characters/CharacterEditor';
@@ -324,6 +325,7 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
         </Group>
       </div>
       <StatusBar campaign={campaign} />
+      <OfflineEdits isGm={campaign.role === 'gm'} campaignPath={campaign.path} />
     </div>
   );
 }

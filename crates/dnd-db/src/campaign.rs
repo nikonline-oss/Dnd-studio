@@ -64,6 +64,16 @@ pub struct RecentIntent {
     pub at_ms: i64,
 }
 
+/// A durable offline edit awaiting the authoritative session server (ADR-0004).
+#[derive(Clone, Debug, PartialEq)]
+pub struct PendingOp {
+    pub id: i64,
+    pub envelope: dnd_protocol::IntentEnvelope,
+    pub status: String,
+    pub conflict: Option<dnd_protocol::RejectReason>,
+    pub projected: bool,
+}
+
 /// What happened while opening a campaign.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct OpenReport {
@@ -79,6 +89,103 @@ pub struct CampaignDb {
 }
 
 impl CampaignDb {
+    pub async fn has_speculative_events(&self) -> DbResult<bool> {
+        Ok(get_meta(&self.pool, "local.speculative").await?.as_deref() == Some("1"))
+    }
+
+    pub async fn clear_speculative_marker(&self) -> DbResult<()> {
+        let mut connection = self.pool.acquire().await?;
+        set_meta(&mut connection, "local.speculative", "0").await
+    }
+
+    pub async fn mark_pending_projected(&self, id: i64) -> DbResult<()> {
+        let mut connection = self.pool.acquire().await?;
+        mark_projected(&mut connection, id).await
+    }
+    /// Client-only association with an active hosted session (ADR-0004).
+    pub async fn remote_binding(&self) -> DbResult<Option<String>> {
+        Ok(get_meta(&self.pool, "local.remote_session")
+            .await?
+            .filter(|v| !v.is_empty()))
+    }
+
+    pub async fn set_remote_binding(&self, value: Option<&str>) -> DbResult<()> {
+        let mut connection = self.pool.acquire().await?;
+        set_meta(&mut connection, "local.remote_session", value.unwrap_or("")).await
+    }
+
+    pub async fn enqueue_pending_op(
+        &self,
+        envelope: &dnd_protocol::IntentEnvelope,
+        at_ms: i64,
+    ) -> DbResult<i64> {
+        for existing in self.pending_ops().await? {
+            if existing.envelope.intent_id == envelope.intent_id {
+                if existing.envelope == *envelope {
+                    return Ok(existing.id);
+                }
+                return Err(DbError::InvalidData {
+                    column: "pending_ops.intent",
+                    details: "intent id reused with another payload".into(),
+                });
+            }
+        }
+        let mut connection = self.pool.acquire().await?;
+        insert_pending(&mut connection, envelope, at_ms, false).await
+    }
+
+    pub async fn pending_ops(&self) -> DbResult<Vec<PendingOp>> {
+        let rows = sqlx::query(
+            "SELECT id, intent, status, conflict, projected FROM pending_ops ORDER BY id",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        rows.iter()
+            .map(|row| {
+                let conflict: Option<String> = row.try_get("conflict")?;
+                Ok(PendingOp {
+                    id: row.try_get("id")?,
+                    envelope: serde_json::from_str(&row.try_get::<String, _>("intent")?)?,
+                    status: row.try_get("status")?,
+                    projected: row.try_get("projected")?,
+                    conflict: conflict.as_deref().map(serde_json::from_str).transpose()?,
+                })
+            })
+            .collect()
+    }
+
+    pub async fn mark_pending_conflict(
+        &self,
+        id: i64,
+        reason: &dnd_protocol::RejectReason,
+    ) -> DbResult<()> {
+        sqlx::query("UPDATE pending_ops SET status = 'conflict', conflict = ? WHERE id = ?")
+            .bind(serde_json::to_string(reason)?)
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn rebase_pending_op(
+        &self,
+        id: i64,
+        envelope: &dnd_protocol::IntentEnvelope,
+        base_version: i64,
+    ) -> DbResult<()> {
+        sqlx::query("UPDATE pending_ops SET intent = ?, base_version = ?, status = 'pending', conflict = NULL WHERE id = ?")
+            .bind(serde_json::to_string(envelope)?).bind(base_version).bind(id).execute(&self.pool).await?;
+        Ok(())
+    }
+
+    pub async fn delete_pending_op(&self, id: i64) -> DbResult<()> {
+        sqlx::query("DELETE FROM pending_ops WHERE id = ?")
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
     /// Creates a new campaign file. Fails if `path` already exists.
     pub async fn create(path: &Path, name: &str, gm: &LocalUser, now_ms: i64) -> DbResult<Self> {
         if path.exists() {
@@ -238,6 +345,29 @@ impl CampaignDb {
             .collect::<DbResult<Vec<_>>>()?;
         intents.reverse();
         Ok(intents)
+    }
+
+    /// Durable accepted receipt, including operations older than the in-memory cache.
+    pub async fn accepted_intent(&self, id: IntentId) -> DbResult<Option<RecentIntent>> {
+        let row = sqlx::query("SELECT MAX(seq) AS last_seq, MAX(intent_hash) AS intent_hash, MAX(created_at) AS at_ms FROM event_log WHERE intent_id = ? GROUP BY intent_id")
+            .bind(id.to_string()).fetch_optional(&self.pool).await?;
+        row.map(|row| {
+            let hash: Option<String> = row.try_get("intent_hash")?;
+            Ok(RecentIntent {
+                intent_id: id,
+                intent_hash: hash
+                    .map(|value| {
+                        PayloadHash::from_hex(&value).ok_or(DbError::InvalidData {
+                            column: "event_log.intent_hash",
+                            details: value,
+                        })
+                    })
+                    .transpose()?,
+                last_seq: Seq(row.try_get("last_seq")?),
+                at_ms: row.try_get("at_ms")?,
+            })
+        })
+        .transpose()
     }
 
     /// Up to `limit` chat messages written before message `before` (or the newest ones), oldest
@@ -605,10 +735,29 @@ impl CampaignDb {
 
     /// Appends batches to `event_log` and applies them to the tables, all in one transaction.
     pub async fn project(&self, records: &[BatchRecord]) -> DbResult<()> {
+        self.project_with_pending(records, None, None).await
+    }
+
+    /// Atomically persist an offline intent together with its locally accepted events.
+    pub async fn project_with_pending(
+        &self,
+        records: &[BatchRecord],
+        pending: Option<&dnd_protocol::IntentEnvelope>,
+        projected_id: Option<i64>,
+    ) -> DbResult<()> {
         if records.is_empty() {
             return Ok(());
         }
         let mut tx = self.pool.begin().await?;
+        if let Some(envelope) = pending {
+            insert_pending(&mut tx, envelope, records[0].at_ms, true).await?;
+        }
+        if let Some(id) = projected_id {
+            mark_projected(&mut tx, id).await?;
+        }
+        if pending.is_some() || projected_id.is_some() {
+            set_meta(&mut tx, "local.speculative", "1").await?;
+        }
         for record in records {
             let mut seq = record.batch.seq;
             for event in &record.batch.events {
@@ -632,6 +781,32 @@ impl CampaignDb {
         tx.commit().await?;
         Ok(())
     }
+}
+
+async fn insert_pending(
+    conn: &mut SqliteConnection,
+    envelope: &dnd_protocol::IntentEnvelope,
+    at_ms: i64,
+    projected: bool,
+) -> DbResult<i64> {
+    let result = sqlx::query(
+        "INSERT INTO pending_ops (intent, base_version, created_at, projected) VALUES (?, ?, ?, ?)",
+    )
+    .bind(serde_json::to_string(envelope)?)
+    .bind(envelope.expected_version.map(|v| v.0))
+    .bind(at_ms)
+    .bind(projected)
+    .execute(conn)
+    .await?;
+    Ok(result.last_insert_rowid())
+}
+
+async fn mark_projected(conn: &mut SqliteConnection, id: i64) -> DbResult<()> {
+    sqlx::query("UPDATE pending_ops SET projected = 1 WHERE id = ?")
+        .bind(id)
+        .execute(conn)
+        .await?;
+    Ok(())
 }
 
 async fn upsert_board_node(conn: &mut SqliteConnection, node: &BoardNodeDto) -> DbResult<()> {

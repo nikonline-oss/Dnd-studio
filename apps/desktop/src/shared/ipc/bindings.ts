@@ -135,6 +135,9 @@ export const commands = {
 	hosted: boolean,
 	status: RemoteStatus,
 } | null, IpcError>(__TAURI_INVOKE("remote_current")),
+	remotePending: () => typedError<PendingEdits, IpcError>(__TAURI_INVOKE("remote_pending")),
+	remoteSync: () => typedError<null, IpcError>(__TAURI_INVOKE("remote_sync")),
+	remoteResolve: (id: string, applyMine: boolean) => typedError<null, IpcError>(__TAURI_INVOKE("remote_resolve", { id, applyMine })),
 	/**  The plugins shipped with the app. */
 	pluginBundled: () => __TAURI_INVOKE<BundledPlugin[]>("plugin_bundled"),
 	/**  The compendia of the campaign's plugins. */
@@ -966,6 +969,18 @@ export type MapImported = {
 	source_height: number,
 };
 
+export type PendingEdit = {
+	id: string,
+	envelope: IntentEnvelope,
+	conflict: RejectReason | null,
+	server_data: string | null,
+};
+
+export type PendingEdits = {
+	binding: string | null,
+	edits: PendingEdit[],
+};
+
 /**  A plugin installed in the campaign. */
 export type PluginDto = {
 	id: string,
@@ -1022,6 +1037,8 @@ export type Rejection = {
 
 /**  A session this app hosted or joined (no secrets). */
 export type RemoteEntry = {
+	/**  Local campaign uploaded by this GM; absent for joined and older saved sessions. */
+	local_campaign?: string | null,
 	server: string,
 	session_id: SessionId,
 	session_name: string,

@@ -104,9 +104,13 @@ async fn host_join_and_play_through_the_server() {
         .unwrap();
     assert_eq!(hosted.name, "Lost Mine");
     // The token is remembered for the next upload.
-    let again = remote::host(&local, &base, "", &gm_secrets, &gm_book)
+    let other_local = LocalServer::create(dir.path(), "Other campaign")
         .await
         .unwrap();
+    let again = remote::host(&other_local, &base, "", &gm_secrets, &gm_book)
+        .await
+        .unwrap();
+    other_local.close().await.unwrap();
     assert_ne!(again.session_id, hosted.session_id);
 
     let saved = remote::sessions(&gm_secrets, &gm_book);
@@ -134,6 +138,39 @@ async fn host_join_and_play_through_the_server() {
     assert_eq!(gm.campaign_info().role, Role::Gm);
     let gm_view = next_snapshot(&mut gm_rx).await;
     assert_eq!(gm_view.maps.len(), 1);
+    let binding = format!("{base}/{}", hosted.session_id);
+    local
+        .db()
+        .set_remote_binding(Some("https://different/session"))
+        .await
+        .unwrap();
+    assert_eq!(
+        gm.sync_pending(local.db()).await.unwrap_err().code,
+        "replica_mismatch"
+    );
+    let before = local.snapshot();
+    let mut mismatched = Some(local);
+    assert_eq!(
+        gm.refresh_replica(&mut mismatched).await.unwrap_err().code,
+        "replica_mismatch"
+    );
+    let mut local = mismatched.take().unwrap();
+    assert_eq!(local.snapshot(), before);
+    local.db().set_remote_binding(Some(&binding)).await.unwrap();
+
+    let wrong_owner = LocalServer::create(dir.path(), "Wrong replica")
+        .await
+        .unwrap();
+    wrong_owner
+        .db()
+        .set_remote_binding(Some(&binding))
+        .await
+        .unwrap();
+    assert_eq!(
+        gm.sync_pending(wrong_owner.db()).await.unwrap_err().code,
+        "replica_mismatch"
+    );
+    wrong_owner.close().await.unwrap();
 
     let player_secrets = MemorySecrets::default();
     let player_book = RemoteBook::new(dir.path().join("player/remote_sessions.json"));
@@ -190,9 +227,141 @@ async fn host_join_and_play_through_the_server() {
     assert_eq!(entry_again.user_id, player_entry.user_id);
     assert!(!token_again.is_empty());
 
+    // An offline imported map uploads its derivatives before its registration intent.
+    let imported = dnd_desktop_lib::assets_api::read_and_import(
+        std::path::PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/icons/32x32.png")),
+        local.folder().join("assets"),
+        dnd_assets::AssetUsage::Map,
+    )
+    .await
+    .unwrap();
+    dnd_desktop_lib::assets_api::register_map(
+        &mut local,
+        &imported,
+        "Offline map".into(),
+        None,
+        |_| {},
+    )
+    .await
+    .unwrap();
+    gm.sync_pending(local.db()).await.unwrap();
+    let downloaded = gm
+        .asset(
+            &imported.thumbnail.sha256,
+            &dir.path().join("cache"),
+            "image/webp",
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        dnd_assets::sha256_hex(&downloaded),
+        imported.thumbnail.sha256
+    );
+
+    // Durable offline edits replay in order and pause at a conflict.
+    let (queue, _) = dnd_db::CampaignDb::open(&local.folder().join("campaign.sqlite"), 1234)
+        .await
+        .unwrap();
+    for name in ["Prepared offline", "Conflicting edit", "Dependent edit"] {
+        queue
+            .enqueue_pending_op(
+                &IntentEnvelope {
+                    intent_id: IntentId::new_v7(),
+                    expected_version: Some(Version(1)),
+                    intent: Intent::UpdateMap {
+                        id: map,
+                        name: Some(name.into()),
+                        grid: None,
+                        visible_to_players: None,
+                    },
+                },
+                1234,
+            )
+            .await
+            .unwrap();
+    }
+    assert_eq!(
+        player.sync_pending(&queue).await.unwrap_err().code,
+        "forbidden"
+    );
+    gm.sync_pending(&queue).await.unwrap();
+    let pending = queue.pending_ops().await.unwrap();
+    assert_eq!(pending.len(), 2);
+    assert_eq!(pending[0].status, "conflict");
+    assert_eq!(pending[1].status, "pending");
+    gm.sync_pending(&queue).await.unwrap();
+    assert_eq!(queue.pending_ops().await.unwrap().len(), 2);
+    let offline_note = JournalEntryId::new_v7();
+    local
+        .submit_offline(&IntentEnvelope {
+            intent_id: IntentId::new_v7(),
+            expected_version: None,
+            intent: Intent::CreateJournalEntry {
+                id: offline_note,
+                folder_id: None,
+                title: "Offline note".into(),
+                markdown: "Continue editing me".into(),
+                visibility: JournalVisibility::Gm,
+                players_can_edit: false,
+                table: None,
+            },
+        })
+        .await
+        .unwrap();
+    queue.close().await.unwrap();
+
+    let mut replica = Some(local);
+    gm.refresh_replica(&mut replica).await.unwrap();
+    let mut local = replica.take().unwrap();
+    assert_eq!(local.snapshot().maps[0].name, "Dependent edit");
+    assert_eq!(local.db().pending_ops().await.unwrap().len(), 3);
+    assert!(
+        local.journal_entry(&offline_note).is_some(),
+        "refresh must preserve pending creations in the offline view"
+    );
+    local
+        .submit_offline(&IntentEnvelope {
+            intent_id: IntentId::new_v7(),
+            expected_version: Some(Version(1)),
+            intent: Intent::UpdateJournalEntry {
+                id: offline_note,
+                title: None,
+                markdown: Some("Edited after refresh".into()),
+                visibility: None,
+                players_can_edit: None,
+                table: None,
+            },
+        })
+        .await
+        .unwrap();
+    let pending = local.db().pending_ops().await.unwrap();
+    let mut rebased = pending[0].envelope.clone();
+    rebased.intent_id = IntentId::new_v7();
+    rebased.expected_version = Some(Version(2));
+    local
+        .db()
+        .rebase_pending_op(pending[0].id, &rebased, 2)
+        .await
+        .unwrap();
+    gm.sync_pending(local.db()).await.unwrap();
+    let remaining = local.db().pending_ops().await.unwrap();
+    assert_eq!(remaining.len(), 3);
+    assert!(remaining[0].conflict.is_some());
+    local.db().delete_pending_op(remaining[0].id).await.unwrap();
+    gm.sync_pending(local.db()).await.unwrap();
+    assert!(local.db().pending_ops().await.unwrap().is_empty());
+
     // Only the GM stops the session.
     assert_eq!(player.stop().await.unwrap_err().code, "forbidden");
     gm.stop().await.unwrap();
+    let mut final_copy = Some(local);
+    gm.refresh_replica(&mut final_copy).await.unwrap();
+    let local = final_copy.take().unwrap();
+    assert_eq!(local.snapshot().maps[0].name, "Conflicting edit");
+    assert_eq!(
+        local.journal_entry(&offline_note).unwrap().markdown,
+        "Edited after refresh"
+    );
 
     remote::forget(&base, hosted.session_id, &gm_secrets, &gm_book).unwrap();
     assert_eq!(remote::sessions(&gm_secrets, &gm_book).len(), 1);

@@ -111,6 +111,9 @@ fn token_key(server: &str, session: SessionId) -> String {
 /// A session this app hosted or joined (no secrets).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 pub struct RemoteEntry {
+    /// Local campaign uploaded by this GM; absent for joined and older saved sessions.
+    #[serde(default)]
+    pub local_campaign: Option<String>,
     pub server: String,
     pub session_id: SessionId,
     pub session_name: String,
@@ -213,6 +216,12 @@ pub async fn host(
     secrets: &dyn Secrets,
     book: &RemoteBook,
 ) -> Result<HostedSession, IpcError> {
+    if local.db().remote_binding().await?.is_some() {
+        return Err(IpcError::user(
+            "campaign_on_server",
+            "stop the existing hosted session before hosting this campaign again",
+        ));
+    }
     let http = HttpClient::new(server)?;
     let base = http.base().to_owned();
     let host_token = match host_token.trim() {
@@ -238,6 +247,7 @@ pub async fn host(
     secrets.set(&gm_key(&base, created.session_id), &created.gm_key)?;
     secrets.set(&code_key(&base, created.session_id), &created.access_code)?;
     book.save(RemoteEntry {
+        local_campaign: Some(local.folder().display().to_string()),
         server: base.clone(),
         session_id: created.session_id,
         session_name: created.name.clone(),
@@ -249,6 +259,10 @@ pub async fn host(
         access_code: None,
         saved_at_ms: now_ms(),
     })?;
+    local
+        .db()
+        .set_remote_binding(Some(&format!("{base}/{}", created.session_id)))
+        .await?;
     tracing::info!(server = %base, session = %created.session_id, "campaign uploaded");
     Ok(HostedSession {
         server: base,
@@ -272,6 +286,7 @@ pub async fn join(
     let joined = http.join_player(session, access_code, name).await?;
     secrets.set(&token_key(&server, session), &joined.token)?;
     let entry = RemoteEntry {
+        local_campaign: None,
         server,
         session_id: session,
         session_name: joined.session_name,
@@ -550,6 +565,199 @@ impl RemoteSession {
         Ok(self.connection.submit(envelope).await?)
     }
 
+    /// Replays durable offline edits in their original order. Transport failures leave the
+    /// current operation on disk; the same intent id makes a retry idempotent (ADR-0015).
+    pub async fn sync_pending(&self, db: &dnd_db::CampaignDb) -> Result<(), IpcError> {
+        if self.role != Role::Gm {
+            return Err(IpcError::user(
+                "forbidden",
+                "only the GM may replay offline edits",
+            ));
+        }
+        check_replica(
+            db,
+            self.user_id,
+            &format!("{}/{}", self.entry.server, self.entry.session_id),
+        )
+        .await?;
+        for operation in db.pending_ops().await? {
+            if operation.status == "conflict" {
+                break;
+            }
+            let assets = db
+                .path()
+                .parent()
+                .ok_or_else(|| {
+                    IpcError::internal("invalid_campaign", "campaign has no parent directory")
+                })?
+                .join("assets");
+            match &operation.envelope.intent {
+                dnd_protocol::Intent::RegisterAsset { asset } => {
+                    if asset.usage == dnd_protocol::AssetUsage::Audio {
+                        self.upload_local_file(&assets, &asset.sha256, "audio")
+                            .await?;
+                    } else {
+                        let mut hashes = std::collections::BTreeSet::new();
+                        hashes.insert(asset.thumbnail_sha256.as_str());
+                        if let Some(display) = &asset.display_sha256 {
+                            hashes.insert(display.as_str());
+                        }
+                        hashes.extend(asset.tiles.iter().map(|tile| tile.sha256.as_str()));
+                        for hash in hashes {
+                            self.upload_local_file(&assets, hash, "webp").await?;
+                        }
+                    }
+                }
+                dnd_protocol::Intent::InstallPlugin { plugin } => {
+                    self.upload_local_file(&assets, &plugin.archive_sha256, "plugin")
+                        .await?;
+                }
+                _ => {}
+            }
+            match self.submit(operation.envelope).await? {
+                IntentOutcome::Accepted { .. } => db.delete_pending_op(operation.id).await?,
+                IntentOutcome::Rejected { reason } => {
+                    db.mark_pending_conflict(operation.id, &reason).await?;
+                    // Later operations can depend on this edit. Keep their original order
+                    // until the GM resolves the rejected operation.
+                    break;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    async fn upload_local_file(
+        &self,
+        assets: &Path,
+        sha: &str,
+        kind: &str,
+    ) -> Result<(), IpcError> {
+        if !dnd_assets::is_sha256_hex(sha) {
+            return Err(IpcError::user("invalid_asset", "invalid asset hash"));
+        }
+        let path = match kind {
+            "webp" => assets.join(format!("{sha}.webp")),
+            "audio" => assets.join(format!("{sha}.audio")),
+            "plugin" => assets.join("plugins").join(format!("{sha}.dndplugin")),
+            _ => return Err(IpcError::user("invalid_asset", "unsupported asset kind")),
+        };
+        if tokio::fs::metadata(&path).await?.len() > 100 * 1024 * 1024 {
+            return Err(IpcError::user("too_large", "asset is too large"));
+        }
+        let bytes = tokio::fs::read(path).await?;
+        self.http
+            .upload_asset(self.entry.session_id, &self.token, sha, kind, bytes)
+            .await?;
+        Ok(())
+    }
+
+    /// Refresh the GM's offline copy from a validated server archive. Pending edits survive
+    /// the replacement; originals remain in the local asset directory.
+    pub async fn refresh_replica(&self, local: &mut Option<LocalServer>) -> Result<(), IpcError> {
+        if self.role != Role::Gm || !self.entry.hosted {
+            return Err(IpcError::user("forbidden", "no GM replica"));
+        }
+        let Some(current) = local.as_ref() else {
+            return Ok(());
+        };
+        check_replica(
+            current.db(),
+            self.user_id,
+            &format!("{}/{}", self.entry.server, self.entry.session_id),
+        )
+        .await?;
+        let folder = current.folder().to_owned();
+        let pending = current.db().pending_ops().await?;
+        let binding = format!("{}/{}", self.entry.server, self.entry.session_id);
+        let staging = folder.join(format!(".session-sync-{}", uuid::Uuid::now_v7()));
+        std::fs::create_dir(&staging)?;
+        let _cleanup = ReplicaStaging {
+            path: staging.clone(),
+            parent: folder.clone(),
+        };
+        let archive = staging.join("session.zip");
+        self.http
+            .export(self.entry.session_id, &self.token, &archive)
+            .await?;
+        let extracted = staging.join("validated");
+        dnd_db::read_archive(&archive, &extracted, dnd_db::ArchiveLimits::DEFAULT)?;
+        let incoming = extracted.join(crate::local_server::CAMPAIGN_FILE);
+        let (db, _) = dnd_db::CampaignDb::open(&incoming, now_ms()).await?;
+        if db
+            .local_user()
+            .await?
+            .is_none_or(|owner| owner.id != self.user_id)
+        {
+            db.close().await?;
+            return Err(IpcError::user(
+                "replica_mismatch",
+                "server archive belongs to another campaign",
+            ));
+        }
+        db.set_remote_binding(Some(&binding)).await?;
+        db.clear_speculative_marker().await?;
+        // Never import another machine's pending queue from a campaign export.
+        for op in db.pending_ops().await? {
+            db.delete_pending_op(op.id).await?;
+        }
+        for op in pending {
+            let id = db.enqueue_pending_op(&op.envelope, now_ms()).await?;
+            if let Some(reason) = op.conflict {
+                db.mark_pending_conflict(id, &reason).await?;
+            }
+        }
+        let (base, _) = db.load_state().await?;
+        if let Ok(mut view) = self.view.lock()
+            && let Some(view) = view.as_mut()
+        {
+            for (id, entry) in base.journal {
+                if view
+                    .state
+                    .journal
+                    .get(&id)
+                    .is_some_and(|current| current.version == entry.version)
+                {
+                    view.state.journal.insert(id, entry);
+                }
+            }
+        }
+        db.close().await?;
+        copy_replica_assets(&extracted.join("assets"), &folder.join("assets"))?;
+        current.db().backup("before-session-sync", now_ms()).await?;
+        current.checkpoint().await?;
+        let file = folder.join(crate::local_server::CAMPAIGN_FILE);
+        let previous = folder.join(crate::local_server::REPLICA_OLD);
+        let prepared = folder.join(crate::local_server::REPLICA_NEW);
+        std::fs::copy(&incoming, &prepared)?;
+        std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(&prepared)?
+            .sync_all()?;
+        if let Some(current) = local.take() {
+            current.close().await?;
+        }
+        let replaced = async {
+            std::fs::rename(&file, &previous)?;
+            std::fs::rename(&prepared, &file)?;
+            LocalServer::open_replaced(&folder).await
+        }
+        .await;
+        match replaced {
+            Ok(reopened) => {
+                *local = Some(reopened);
+                std::fs::remove_file(&previous).ok();
+            }
+            Err(error) => {
+                *local = Some(LocalServer::open(&folder).await?);
+                return Err(error);
+            }
+        }
+        // The staging directory was generated directly inside this campaign.
+        Ok(())
+    }
+
     pub async fn journal_entry(&self, id: JournalEntryId) -> Result<JournalEntryDto, IpcError> {
         self.connection
             .journal_entry(id)
@@ -602,6 +810,52 @@ impl RemoteSession {
     pub fn close(&self) {
         self.connection.close();
     }
+}
+
+/// Guard both the session association and the campaign's original local owner before replay.
+pub async fn check_replica(
+    db: &dnd_db::CampaignDb,
+    owner: UserId,
+    binding: &str,
+) -> Result<(), IpcError> {
+    if db.remote_binding().await?.as_deref() != Some(binding)
+        || db.local_user().await?.is_none_or(|user| user.id != owner)
+    {
+        return Err(IpcError::user(
+            "replica_mismatch",
+            "offline copy belongs to another campaign or session",
+        ));
+    }
+    Ok(())
+}
+
+struct ReplicaStaging {
+    path: PathBuf,
+    parent: PathBuf,
+}
+
+impl Drop for ReplicaStaging {
+    fn drop(&mut self) {
+        if self.path.parent() == Some(self.parent.as_path()) {
+            std::fs::remove_dir_all(&self.path).ok();
+        }
+    }
+}
+
+fn copy_replica_assets(from: &Path, to: &Path) -> Result<(), IpcError> {
+    std::fs::create_dir_all(to)?;
+    for entry in std::fs::read_dir(from)? {
+        let entry = entry?;
+        let kind = entry.file_type()?;
+        if kind.is_dir() {
+            copy_replica_assets(&entry.path(), &to.join(entry.file_name()))?;
+        } else if kind.is_file() {
+            std::fs::copy(entry.path(), to.join(entry.file_name()))?;
+        } else {
+            return Err(IpcError::user("invalid_archive", "unsupported asset entry"));
+        }
+    }
+    Ok(())
 }
 
 /// Applies a batch to the view; `true` on a gap (the caller asks for a snapshot).

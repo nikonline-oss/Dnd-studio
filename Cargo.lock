@@ -1407,6 +1407,7 @@ dependencies = [
  "anyhow",
  "argon2",
  "axum",
+ "dnd-assets",
  "dnd-db",
  "dnd-game-core",
  "dnd-plugin",

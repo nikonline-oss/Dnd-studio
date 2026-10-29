@@ -64,6 +64,12 @@ pub fn router(app: App) -> Router {
         .route("/api/sessions/{id}/stop", post(http::stop_session))
         .route("/api/sessions/{id}/export", get(http::export_session))
         .route("/api/sessions/{id}/assets/{sha256}", get(http::asset))
+        .route(
+            "/api/sessions/{id}/assets",
+            post(http::upload_asset).layer(DefaultBodyLimit::max(
+                limits.max_upload_bytes.min(100 * 1024 * 1024),
+            )),
+        )
         .merge(limited)
         .layer(TraceLayer::new_for_http())
         .with_state(app)

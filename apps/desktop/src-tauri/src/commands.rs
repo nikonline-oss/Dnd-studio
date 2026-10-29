@@ -21,8 +21,7 @@ use crate::remote::{
     RemoteStatus, Secrets,
 };
 
-/// Shared application state. At most one of `server` (local play) and `remote` (a session
-/// server, ADR-0022) is open.
+/// Shared application state. A hosted remote session retains a local offline replica (ADR-0004).
 #[derive(Debug)]
 pub struct AppState {
     pub(crate) server: Arc<Mutex<Option<LocalServer>>>,
@@ -277,6 +276,14 @@ pub async fn journal_entry(
 ) -> Result<JournalEntryDto, IpcError> {
     let remote = state.remote.lock().await.clone();
     if let Some(remote) = remote {
+        if remote.info().hosted
+            && matches!(remote.status(), RemoteStatus::Reconnecting { .. })
+            && let Some(local) = state.server.lock().await.as_ref()
+        {
+            return local
+                .journal_entry(&id)
+                .ok_or_else(|| IpcError::user("not_found", "journal entry not found"));
+        }
         return remote.journal_entry(id).await;
     }
     let guard = state.server.lock().await;
@@ -290,6 +297,12 @@ pub async fn journal_entry(
 #[specta::specta]
 pub async fn get_snapshot(state: State<'_, AppState>) -> Result<Snapshot, IpcError> {
     if let Some(remote) = state.remote.lock().await.as_ref() {
+        if remote.info().hosted
+            && matches!(remote.status(), RemoteStatus::Reconnecting { .. })
+            && let Some(local) = state.server.lock().await.as_ref()
+        {
+            return Ok(local.snapshot());
+        }
         return remote.snapshot();
     }
     state
@@ -314,6 +327,16 @@ pub async fn submit_intent<R: Runtime>(
     // Cloned out of the lock: the round trip to the server must not block other commands.
     let remote = state.remote.lock().await.clone();
     if let Some(remote) = remote {
+        if remote.info().hosted && matches!(remote.status(), RemoteStatus::Reconnecting { .. }) {
+            let mut guard = state.server.lock().await;
+            if let Some(local) = guard.as_mut() {
+                let (outcome, _) = local.submit_offline(&envelope).await?;
+                GameSnapshotReplaced(local.snapshot())
+                    .emit(&app)
+                    .map_err(|e| IpcError::internal("emit_failed", e.to_string()))?;
+                return Ok(outcome);
+            }
+        }
         // The batch comes back from the server like everyone else's.
         return remote.submit(envelope).await;
     }
@@ -454,7 +477,30 @@ pub async fn remote_stop(state: State<'_, AppState>) -> Result<(), IpcError> {
         .await
         .clone()
         .ok_or_else(|| IpcError::user("not_in_remote_session", "not connected to a server"))?;
+    let mut replica = state.server.lock().await;
+    if let Some(local) = replica.as_ref() {
+        remote.sync_pending(local.db()).await?;
+        if !local.db().pending_ops().await?.is_empty() {
+            return Err(IpcError::user(
+                "pending_conflicts",
+                "resolve offline edits before stopping the session",
+            ));
+        }
+    }
     remote.stop().await?;
+    if replica.is_some() {
+        remote.refresh_replica(&mut replica).await?;
+    }
+    if let Some(local) = replica.as_ref() {
+        local.db().set_remote_binding(None).await?;
+    }
+    drop(replica);
+    let info = remote.info();
+    let book = RemoteBook::new(dirs(&state)?.book.clone());
+    if let Some(mut entry) = book.find(&info.server, info.session_id) {
+        entry.local_campaign = None;
+        book.save(entry)?;
+    }
     if let Some(remote) = state.remote.lock().await.take() {
         remote.close();
     }
@@ -468,6 +514,163 @@ pub async fn remote_current(state: State<'_, AppState>) -> Result<Option<RemoteI
     Ok(state.remote.lock().await.as_ref().map(RemoteSession::info))
 }
 
+#[derive(Clone, Debug, Serialize, specta::Type)]
+pub struct PendingEdit {
+    pub id: String,
+    pub envelope: IntentEnvelope,
+    pub conflict: Option<dnd_protocol::RejectReason>,
+    pub server_data: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, specta::Type)]
+pub struct PendingEdits {
+    pub binding: Option<String>,
+    pub edits: Vec<PendingEdit>,
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn remote_pending(state: State<'_, AppState>) -> Result<PendingEdits, IpcError> {
+    let remote = state.remote.lock().await.clone();
+    let snapshot = remote.as_ref().and_then(|r| r.snapshot().ok());
+    let guard = state.server.lock().await;
+    let Some(local) = guard.as_ref() else {
+        return Ok(PendingEdits {
+            binding: None,
+            edits: Vec::new(),
+        });
+    };
+    let binding = local.db().remote_binding().await?;
+    let edits: Vec<PendingEdit> = local
+        .db()
+        .pending_ops()
+        .await?
+        .into_iter()
+        .map(|op| PendingEdit {
+            id: op.envelope.intent_id.to_string(),
+            envelope: op.envelope.clone(),
+            server_data: if let dnd_protocol::Intent::UpdateJournalEntry { id, .. } =
+                &op.envelope.intent
+            {
+                remote
+                    .as_ref()
+                    .and_then(|remote| remote.with_state(|state| state.journal.get(id).cloned()))
+                    .flatten()
+                    .and_then(|entry| serde_json::to_string_pretty(&entry).ok())
+            } else {
+                snapshot.as_ref().and_then(|snapshot| {
+                    let intent = serde_json::to_value(&op.envelope.intent).ok()?;
+                    let snapshot = serde_json::to_value(snapshot).ok()?;
+                    let target_id = [
+                        "id",
+                        "character_id",
+                        "token_id",
+                        "combatant_id",
+                        "combat_id",
+                        "board_id",
+                        "map_id",
+                    ]
+                    .into_iter()
+                    .find_map(|key| intent.get(key).and_then(|v| v.as_str()));
+                    let target = match target_id {
+                        Some(id) => snapshot
+                            .as_object()?
+                            .values()
+                            .filter_map(|v| v.as_array())
+                            .flatten()
+                            .find(|entity| entity.get("id").and_then(|v| v.as_str()) == Some(id))?,
+                        None if matches!(
+                            op.envelope.intent,
+                            dnd_protocol::Intent::UpdateCampaignMeta { .. }
+                        ) =>
+                        {
+                            snapshot.get("campaign")?
+                        }
+                        None => return None,
+                    };
+                    serde_json::to_string_pretty(target).ok()
+                })
+            },
+            conflict: op.conflict,
+        })
+        .collect();
+    drop(guard);
+    Ok(PendingEdits { binding, edits })
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn remote_sync(state: State<'_, AppState>) -> Result<(), IpcError> {
+    let remote = state
+        .remote
+        .lock()
+        .await
+        .clone()
+        .ok_or_else(|| IpcError::user("not_in_remote_session", "no remote session"))?;
+    if remote.status() != RemoteStatus::Online {
+        return Ok(());
+    }
+    let mut guard = state.server.lock().await;
+    let mut needs_refresh = false;
+    if let Some(local) = guard.as_ref() {
+        needs_refresh = !local.db().pending_ops().await?.is_empty()
+            || local.db().has_speculative_events().await?
+            || remote
+                .snapshot()
+                .is_ok_and(|snapshot| snapshot.seq != local.snapshot().seq);
+        remote.sync_pending(local.db()).await?;
+    }
+    if needs_refresh {
+        remote.refresh_replica(&mut guard).await?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn remote_resolve(
+    state: State<'_, AppState>,
+    id: String,
+    apply_mine: bool,
+) -> Result<(), IpcError> {
+    let remote = state
+        .remote
+        .lock()
+        .await
+        .clone()
+        .ok_or_else(|| IpcError::user("not_in_remote_session", "no remote session"))?;
+    if remote.info().role != dnd_protocol::Role::Gm {
+        return Err(IpcError::user(
+            "forbidden",
+            "only the GM resolves offline edits",
+        ));
+    }
+    let guard = state.server.lock().await;
+    let local = guard.as_ref().ok_or_else(IpcError::no_campaign)?;
+    let op = local
+        .db()
+        .pending_ops()
+        .await?
+        .into_iter()
+        .find(|op| op.envelope.intent_id.to_string() == id)
+        .ok_or_else(|| IpcError::user("not_found", "offline edit not found"))?;
+    if apply_mine {
+        let Some(dnd_protocol::RejectReason::StaleVersion { current }) = op.conflict else {
+            return Err(IpcError::user("invalid", "this edit cannot be rebased"));
+        };
+        let mut envelope = op.envelope;
+        envelope.intent_id = dnd_protocol::IntentId::new_v7();
+        envelope.expected_version = Some(current);
+        local
+            .db()
+            .rebase_pending_op(op.id, &envelope, current.0)
+            .await?;
+    } else {
+        local.db().delete_pending_op(op.id).await?;
+    }
+    Ok(())
+}
+
 /// Leaves local play (the local campaign is closed, untouched) and connects to the session.
 async fn go_remote<R: Runtime>(
     app: &AppHandle<R>,
@@ -475,29 +678,90 @@ async fn go_remote<R: Runtime>(
     entry: RemoteEntry,
     token: String,
 ) -> Result<CampaignInfo, IpcError> {
+    let replica_path = if entry.hosted {
+        entry.local_campaign.clone()
+    } else {
+        None
+    };
+    let session_id = entry.session_id;
+    let session_binding = format!("{}/{}", entry.server, session_id);
+    {
+        let mut local = state.server.lock().await;
+        if local.as_ref().map(|s| s.folder().display().to_string()) != replica_path {
+            let candidate = match &replica_path {
+                Some(path) => Some(LocalServer::open(std::path::Path::new(path)).await?),
+                None => None,
+            };
+            if let Some(candidate) = candidate {
+                let owner = entry.user_id.ok_or_else(|| {
+                    IpcError::user("replica_mismatch", "session owner is missing")
+                })?;
+                if let Err(error) =
+                    crate::remote::check_replica(candidate.db(), owner, &session_binding).await
+                {
+                    candidate.close().await?;
+                    return Err(error);
+                }
+                if let Some(previous) = local.take() {
+                    previous.close().await?;
+                }
+                *local = Some(candidate);
+            } else if let Some(previous) = local.take() {
+                previous.close().await?;
+            }
+        } else if let Some(local) = local.as_ref() {
+            let owner = entry
+                .user_id
+                .ok_or_else(|| IpcError::user("replica_mismatch", "session owner is missing"))?;
+            crate::remote::check_replica(local.db(), owner, &session_binding).await?;
+        }
+    }
     let emitter = app.clone();
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
     let session = RemoteSession::connect(
         entry,
         token,
         dnd_net::ConnectOptions::default(),
         move |event| {
-            let sent = match event {
-                RemoteEvent::Snapshot(snapshot) => GameSnapshotReplaced(*snapshot).emit(&emitter),
-                RemoteEvent::Events(batch) => GameEventsEmitted(batch).emit(&emitter),
-                RemoteEvent::Status(status) => RemoteStatusChanged(status).emit(&emitter),
-            };
-            if let Err(e) = sent {
-                tracing::error!(error = %e, "failed to emit a session event");
-            }
+            let _ = tx.send(event);
         },
     )?;
     let info = session.campaign_info();
-    if let Some(local) = state.server.lock().await.take() {
-        local.close().await?;
-    }
     if let Some(previous) = state.remote.lock().await.replace(session) {
         previous.close();
     }
+    let replicas = state.server.clone();
+    let active = state.remote.clone();
+    tokio::spawn(async move {
+        while let Some(event) = rx.recv().await {
+            if active.lock().await.as_ref().map(|r| r.info().session_id) != Some(session_id) {
+                break;
+            }
+            let sent = match event {
+                RemoteEvent::Snapshot(snapshot) => GameSnapshotReplaced(*snapshot).emit(&emitter),
+                RemoteEvent::Events(batch) => {
+                    let mut guard = replicas.lock().await;
+                    let matches_session = match guard.as_ref() {
+                        Some(local) => {
+                            local.db().remote_binding().await.ok().flatten().as_deref()
+                                == Some(session_binding.as_str())
+                        }
+                        None => false,
+                    };
+                    if let Some(local) = guard.as_mut().filter(|_| matches_session)
+                        && let Err(error) = local.replicate(&batch).await
+                    {
+                        tracing::error!(error = %error, "failed to update offline replica");
+                    }
+                    GameEventsEmitted(batch).emit(&emitter)
+                }
+                RemoteEvent::Status(status) => RemoteStatusChanged(status).emit(&emitter),
+            };
+            if let Err(error) = sent {
+                tracing::error!(error = %error, "failed to emit a session event");
+            }
+        }
+    });
     tracing::info!(campaign = %info.path, role = ?info.role, "connected to a session server");
     Ok(info)
 }
@@ -601,6 +865,12 @@ pub async fn sheet_view(
     sheet_json: String,
 ) -> Result<Option<crate::plugins::SheetView>, IpcError> {
     if let Some(remote) = state.remote.lock().await.as_ref() {
+        if remote.info().hosted
+            && matches!(remote.status(), RemoteStatus::Reconnecting { .. })
+            && let Some(local) = state.server.lock().await.as_ref()
+        {
+            return Ok(crate::plugins::sheet_view(local.state(), &sheet_json));
+        }
         return Ok(remote
             .with_state(|s| crate::plugins::sheet_view(s, &sheet_json))
             .flatten());

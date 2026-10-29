@@ -329,7 +329,8 @@ fn decide(
 }
 
 /// Current version of the entity a checked intent targets.
-fn current_version(state: &GameState, intent: &Intent) -> Result<Version, RejectReason> {
+/// Version of the intent's target, for explicit rebasing and offline projections.
+pub fn current_version(state: &GameState, intent: &Intent) -> Result<Version, RejectReason> {
     let version = match intent {
         Intent::UpdateCampaignMeta { .. } => Some(state.campaign.version),
         Intent::UpdateMap { id, .. } | Intent::DeleteMap { id } => {

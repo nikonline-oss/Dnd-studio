@@ -353,6 +353,79 @@ async fn recent_intents_respect_the_time_window() {
 }
 
 #[tokio::test]
+async fn offline_intents_are_ordered_and_conflicts_can_be_rebased_or_discarded() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = new_campaign(&dir).await;
+    assert_eq!(db.remote_binding().await.unwrap(), None);
+    db.set_remote_binding(Some("https://server/session"))
+        .await
+        .unwrap();
+    assert_eq!(
+        db.remote_binding().await.unwrap().as_deref(),
+        Some("https://server/session")
+    );
+    db.set_remote_binding(None).await.unwrap();
+    assert_eq!(db.remote_binding().await.unwrap(), None);
+    let first = IntentEnvelope {
+        intent_id: IntentId(v7(0xA10)),
+        expected_version: Some(Version(3)),
+        intent: Intent::UpdateMap {
+            id: MapId(v7(0xA11)),
+            name: Some("Misty cave".into()),
+            grid: None,
+            visible_to_players: None,
+        },
+    };
+    let second = IntentEnvelope {
+        intent_id: IntentId(v7(0xA12)),
+        expected_version: None,
+        intent: Intent::CreateMap {
+            id: MapId(v7(0xA13)),
+            name: "Hidden room".into(),
+            background_asset_id: None,
+            width: 800,
+            height: 600,
+            grid: Grid {
+                kind: GridKind::Square,
+                cell_size: 50.0,
+                offset_x: 0.0,
+                offset_y: 0.0,
+            },
+            visible_to_players: false,
+        },
+    };
+    let first_id = db.enqueue_pending_op(&first, 100).await.unwrap();
+    assert_eq!(db.enqueue_pending_op(&first, 100).await.unwrap(), first_id);
+    let mut reused = first.clone();
+    reused.expected_version = Some(Version(99));
+    assert!(db.enqueue_pending_op(&reused, 100).await.is_err());
+    let second_id = db.enqueue_pending_op(&second, 101).await.unwrap();
+    let queued = db.pending_ops().await.unwrap();
+    assert_eq!(queued.len(), 2);
+    assert_eq!(queued[0].envelope, first);
+    assert_eq!(queued[1].envelope, second);
+    assert_eq!(queued[0].status, "pending");
+
+    let stale = RejectReason::StaleVersion {
+        current: Version(4),
+    };
+    db.mark_pending_conflict(first_id, &stale).await.unwrap();
+    let conflicts = db.pending_ops().await.unwrap();
+    assert_eq!(conflicts[0].status, "conflict");
+    assert_eq!(conflicts[0].conflict, Some(stale));
+
+    let mut rebased = conflicts[0].envelope.clone();
+    rebased.intent_id = IntentId(v7(0xA14));
+    rebased.expected_version = Some(Version(4));
+    db.rebase_pending_op(first_id, &rebased, 4).await.unwrap();
+    assert_eq!(db.pending_ops().await.unwrap()[0].envelope, rebased);
+    db.delete_pending_op(first_id).await.unwrap();
+    db.delete_pending_op(second_id).await.unwrap();
+    assert!(db.pending_ops().await.unwrap().is_empty());
+    db.close().await.unwrap();
+}
+
+#[tokio::test]
 async fn checkpoint_empties_the_wal() {
     let dir = tempfile::tempdir().unwrap();
     let db = new_campaign(&dir).await;
@@ -445,7 +518,7 @@ fn query_inventory_matches_adr_0008() {
         .map(|s| s.matches("sqlx::query").count())
         .sum();
     assert_eq!(
-        count, 76,
+        count, 83,
         "runtime queries changed: add a real-SQLite test and update the table in docs/adr/0008-db-conventions.md"
     );
 }

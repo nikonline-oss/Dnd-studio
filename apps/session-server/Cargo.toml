@@ -20,6 +20,8 @@ path = "src/main.rs"
 dnd-protocol.workspace = true
 dnd-game-core.workspace = true
 dnd-db.workspace = true
+dnd-assets.workspace = true
+dnd-plugin.workspace = true
 anyhow.workspace = true
 thiserror.workspace = true
 serde.workspace = true
@@ -37,7 +39,6 @@ getrandom.workspace = true
 
 [dev-dependencies]
 dnd-protocol = { workspace = true, features = ["arbitrary"] }
-dnd-plugin.workspace = true
 tempfile.workspace = true
 reqwest.workspace = true
 rustls.workspace = true

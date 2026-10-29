@@ -44,6 +44,7 @@ function renderShell(checkpoint: () => unknown) {
     (cmd) => {
       calls.push(cmd);
       if (cmd === 'get_snapshot') return snapshot;
+      if (cmd === 'remote_pending') return { binding: null, edits: [] };
       if (cmd === 'app_info') return { version: '0.0.1' };
       if (cmd === 'campaign_checkpoint') return checkpoint();
       throw new Error(`unexpected command ${cmd}`);

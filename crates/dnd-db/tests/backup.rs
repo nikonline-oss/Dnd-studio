@@ -15,6 +15,55 @@ fn gm() -> LocalUser {
 }
 
 #[tokio::test]
+async fn pending_projection_migration_marks_only_locally_recorded_operations() {
+    use dnd_protocol::{Intent, IntentEnvelope, IntentId, Version};
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("v16.sqlite");
+    let opts = sqlx::sqlite::SqliteConnectOptions::new()
+        .filename(&path)
+        .create_if_missing(true);
+    let pool = sqlx::SqlitePool::connect_with(opts).await.unwrap();
+    CAMPAIGN_MIGRATOR.run_to(16, &pool).await.unwrap();
+    let first = IntentEnvelope {
+        intent_id: IntentId::new_v7(),
+        expected_version: Some(Version(1)),
+        intent: Intent::UpdateCampaignMeta {
+            name: Some("Offline".into()),
+            description: None,
+        },
+    };
+    let second = IntentEnvelope {
+        intent_id: IntentId::new_v7(),
+        ..first.clone()
+    };
+    for envelope in [&first, &second] {
+        sqlx::query("INSERT INTO pending_ops (intent, base_version, created_at) VALUES (?, 1, 0)")
+            .bind(serde_json::to_string(envelope).unwrap())
+            .execute(&pool)
+            .await
+            .unwrap();
+    }
+    sqlx::query("INSERT INTO event_log (seq, intent_id, event, created_at) VALUES (1, ?, '{\"kind\":\"redacted\"}', 0)").bind(first.intent_id.to_string()).execute(&pool).await.unwrap();
+    pool.close().await;
+    let (db, report) = CampaignDb::open(&path, 1).await.unwrap();
+    assert!(report.pre_migration_backup.is_some());
+    let operations = db.pending_ops().await.unwrap();
+    assert!(operations[0].projected);
+    assert!(!operations[1].projected);
+    assert!(db.has_speculative_events().await.unwrap());
+    let rebased = IntentEnvelope {
+        intent_id: IntentId::new_v7(),
+        expected_version: Some(Version(2)),
+        ..first
+    };
+    db.rebase_pending_op(operations[0].id, &rebased, 2)
+        .await
+        .unwrap();
+    assert!(db.pending_ops().await.unwrap()[0].projected);
+    db.close().await.unwrap();
+}
+
+#[tokio::test]
 async fn corrupted_file_is_detected_and_restored_from_backup() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("Crypt.sqlite");

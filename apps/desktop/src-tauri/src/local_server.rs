@@ -20,6 +20,8 @@ use crate::error::IpcError;
 
 /// File name of the database inside a campaign folder.
 pub const CAMPAIGN_FILE: &str = "campaign.sqlite";
+pub(crate) const REPLICA_NEW: &str = "campaign.sqlite.sync-new";
+pub(crate) const REPLICA_OLD: &str = "campaign.sqlite.sync-old";
 /// Asset folder inside a campaign folder.
 pub const ASSETS_DIR: &str = "assets";
 /// A backup is taken on open when the newest one is older than this.
@@ -123,6 +125,36 @@ impl LocalServer {
     /// [`open`](Self::open) with a custom idempotency window (ADR-0015).
     pub async fn open_with(folder: &Path, window: IntentWindow) -> Result<Self, IpcError> {
         let file = folder.join(CAMPAIGN_FILE);
+        let previous = folder.join(REPLICA_OLD);
+        if previous.exists() && (!file.exists() || dnd_db::quick_check(&file).await.is_err()) {
+            restore_replica_file(folder)?;
+        }
+        let result = Self::open_existing(folder, window).await;
+        let opened = match result {
+            Ok(local) => local,
+            Err(_) if previous.exists() => {
+                restore_replica_file(folder)?;
+                Self::open_existing(folder, window).await?
+            }
+            Err(error) => return Err(error),
+        };
+        if previous.exists() {
+            std::fs::remove_file(previous).ok();
+        }
+        let prepared = folder.join(REPLICA_NEW);
+        if prepared.exists() {
+            std::fs::remove_file(prepared).ok();
+        }
+        Ok(opened)
+    }
+
+    /// Used during an active replacement; recovery files remain until the caller commits it.
+    pub(crate) async fn open_replaced(folder: &Path) -> Result<Self, IpcError> {
+        Self::open_existing(folder, IntentWindow::DEFAULT).await
+    }
+
+    async fn open_existing(folder: &Path, window: IntentWindow) -> Result<Self, IpcError> {
+        let file = folder.join(CAMPAIGN_FILE);
         if !file.exists() {
             return Err(IpcError::user(
                 "not_a_campaign",
@@ -163,14 +195,19 @@ impl LocalServer {
                 return Err(e.into());
             }
         };
-        let engine = CampaignEngine::load(db, window, seed(), now_ms()).await?;
+        let mut engine = CampaignEngine::load(db, window, seed(), now_ms()).await?;
+        let actor = Actor {
+            user_id: user.id,
+            role: user.role,
+        };
+        if let Err(error) = engine.materialize_pending(&actor, now_ms()).await {
+            engine.close().await.ok();
+            return Err(error.into());
+        }
         Ok(Self {
             engine,
             folder,
-            actor: Actor {
-                user_id: user.id,
-                role: user.role,
-            },
+            actor,
         })
     }
 
@@ -232,7 +269,46 @@ impl LocalServer {
         &mut self,
         envelope: &IntentEnvelope,
     ) -> Result<(IntentOutcome, Option<EventBatch>), IpcError> {
+        if self.db().remote_binding().await?.is_some() {
+            return self.submit_offline(envelope).await;
+        }
         Ok(self.engine.submit(envelope, &self.actor, now_ms()).await?)
+    }
+
+    /// The local replica's durable offline queue (ADR-0004).
+    pub fn db(&self) -> &CampaignDb {
+        self.engine.db()
+    }
+
+    /// Follow authoritative batches only while the local copy has no speculative edits.
+    pub async fn replicate(&mut self, batch: &EventBatch) -> Result<(), IpcError> {
+        if batch.last_seq() <= self.engine.last_seq()
+            || !self.db().pending_ops().await?.is_empty()
+            || self.db().has_speculative_events().await?
+        {
+            return Ok(());
+        }
+        if batch.seq.0 != self.engine.last_seq().0 + 1 {
+            return Err(IpcError::user(
+                "replica_gap",
+                "local replica requires a fresh server export",
+            ));
+        }
+        self.engine
+            .commit_events(batch.events.clone(), None, now_ms())
+            .await?;
+        Ok(())
+    }
+
+    /// Persist the replay operation and locally accepted events in one transaction.
+    pub async fn submit_offline(
+        &mut self,
+        envelope: &IntentEnvelope,
+    ) -> Result<(IntentOutcome, Option<EventBatch>), IpcError> {
+        Ok(self
+            .engine
+            .submit_offline(envelope, &self.actor, now_ms())
+            .await?)
     }
 
     /// Writes the campaign archive (CLAUDE.md §6) to `out`: a consistent copy of the database,
@@ -281,6 +357,18 @@ impl LocalServer {
         tracing::info!(folder = %self.folder.display(), "campaign closed");
         Ok(())
     }
+}
+
+fn restore_replica_file(folder: &Path) -> Result<(), IpcError> {
+    let broken = format!("{CAMPAIGN_FILE}.sync-broken-{}", uuid::Uuid::now_v7());
+    for suffix in ["", "-wal", "-shm"] {
+        let current = folder.join(format!("{CAMPAIGN_FILE}{suffix}"));
+        if current.exists() {
+            std::fs::rename(current, folder.join(format!("{broken}{suffix}")))?;
+        }
+    }
+    std::fs::rename(folder.join(REPLICA_OLD), folder.join(CAMPAIGN_FILE))?;
+    Ok(())
 }
 
 /// Unpacks a campaign archive into a new folder under `parent`, named after the campaign (with

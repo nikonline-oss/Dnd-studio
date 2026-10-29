@@ -43,6 +43,7 @@ function renderShell(role: CampaignInfo['role']) {
     (cmd) => {
       if (cmd === 'get_snapshot') return snapshot;
       if (cmd === 'campaign_current') return campaign(role);
+      if (cmd === 'remote_pending') return { binding: null, edits: [] };
       if (cmd === 'app_info') return { version: '0.0.1' };
       if (cmd === 'logs_recent') return [];
       throw new Error(`unexpected command ${cmd}`);

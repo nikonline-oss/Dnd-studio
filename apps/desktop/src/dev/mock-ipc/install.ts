@@ -654,6 +654,11 @@ export async function installMockIpc(
         // Session server (ADR-0022): enough to look at the dialogs and the status bar.
         case 'remote_current':
           return remote;
+        case 'remote_pending':
+          return { binding: null, edits: [] };
+        case 'remote_sync':
+        case 'remote_resolve':
+          return null;
         case 'remote_sessions':
           return savedSessions;
         case 'remote_host':

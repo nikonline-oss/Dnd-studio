@@ -144,6 +144,29 @@ impl HttpClient {
         .await
     }
 
+    /// Upload one immutable derived asset; the server verifies the hash and format.
+    pub async fn upload_asset(
+        &self,
+        id: SessionId,
+        token: &str,
+        sha: &str,
+        kind: &str,
+        bytes: Vec<u8>,
+    ) -> Result<(), NetError> {
+        checked(
+            self.http
+                .post(self.url(&format!("/api/sessions/{id}/assets")))
+                .bearer_auth(token)
+                .header("x-asset-sha256", sha)
+                .header("x-asset-kind", kind)
+                .body(bytes)
+                .send()
+                .await,
+        )
+        .await
+        .map(drop)
+    }
+
     pub async fn join_gm(&self, id: SessionId, gm_key: &str) -> Result<Joined, NetError> {
         self.join(id, serde_json::json!({ "gm_key": gm_key })).await
     }
