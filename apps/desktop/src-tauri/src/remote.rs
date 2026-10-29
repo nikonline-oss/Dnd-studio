@@ -765,6 +765,17 @@ impl RemoteSession {
             .ok_or_else(|| IpcError::user("not_found", "journal entry not found"))
     }
 
+    pub async fn chat_history(
+        &self,
+        before: Option<dnd_protocol::ChatMessageId>,
+        limit: u32,
+    ) -> Result<Vec<ChatMessageDto>, IpcError> {
+        Ok(self
+            .http
+            .chat_history(self.entry.session_id, &self.token, before, limit)
+            .await?)
+    }
+
     /// An asset file from the session, through `cache` (files are content-addressed, so a cached
     /// one never goes stale).
     pub async fn asset(&self, sha256: &str, cache: &Path, mime: &str) -> Result<Vec<u8>, IpcError> {

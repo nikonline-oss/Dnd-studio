@@ -218,6 +218,12 @@ async fn host_join_and_play_through_the_server() {
     assert!(gm_now.chat.iter().any(|m| m.body == "hello"));
     assert!(gm_now.users.iter().any(|u| u.name == "Mira"));
     assert_eq!(player.snapshot().unwrap().seq, batch.last_seq());
+    let history = player.chat_history(None, 50).await.unwrap();
+    assert!(
+        history
+            .iter()
+            .any(|m| m.body == "hello" && m.at_ms.is_some())
+    );
 
     // Reconnecting later uses the saved participant token.
     let (entry_again, token_again) =

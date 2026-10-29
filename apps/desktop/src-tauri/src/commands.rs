@@ -255,9 +255,9 @@ pub async fn chat_history(
     before: Option<ChatMessageId>,
     limit: u32,
 ) -> Result<Vec<ChatMessageDto>, IpcError> {
-    // Paging through the server comes with stage 4; the snapshot carries the recent chat.
-    if state.remote.lock().await.is_some() {
-        return Ok(Vec::new());
+    let remote = state.remote.lock().await.clone();
+    if let Some(remote) = remote {
+        return remote.chat_history(before, limit).await;
     }
     let guard = state.server.lock().await;
     let server = guard.as_ref().ok_or_else(IpcError::no_campaign)?;

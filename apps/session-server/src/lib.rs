@@ -61,6 +61,7 @@ pub fn router(app: App) -> Router {
             post(http::create_session).layer(DefaultBodyLimit::max(limits.max_upload_bytes)),
         )
         .route("/api/sessions/{id}", get(http::session_info))
+        .route("/api/sessions/{id}/chat", get(http::chat_history))
         .route("/api/sessions/{id}/stop", post(http::stop_session))
         .route("/api/sessions/{id}/export", get(http::export_session))
         .route("/api/sessions/{id}/assets/{sha256}", get(http::asset))

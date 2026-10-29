@@ -1,3 +1,4 @@
+import { useMutation } from '@tanstack/react-query';
 import type { TFunction } from 'i18next';
 import { useEffect, useRef, useState, type SyntheticEvent } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -48,7 +49,7 @@ export function ChatPanel() {
   const bottom = useRef<HTMLDivElement>(null);
 
   const recent = useSnapshotSelect((s) => s.chat) ?? [];
-  const messages = [...older, ...recent];
+  const messages = [...new Map([...older, ...recent].map((m) => [m.id, m])).values()];
   const isGm = campaign?.role === 'gm' || campaign?.role === 'co_gm';
   const character = useSnapshotSelect((s) => s.characters.find((c) => c.id === characterId));
   // Field references (@str_mod) read the selected character's sheet if the user may use it.
@@ -59,13 +60,13 @@ export function ChatPanel() {
     bottom.current?.scrollIntoView({ block: 'end' });
   }, [recent.length]);
 
-  const loadOlder = async () => {
-    const first = messages[0];
-    if (!first) return;
-    const page = await unwrap(commands.chatHistory(first.id, PAGE));
-    if (page.length < PAGE) setNoMore(true);
-    setOlder((prev) => [...page, ...prev]);
-  };
+  const history = useMutation({
+    mutationFn: () => unwrap(commands.chatHistory(messages[0]?.id ?? null, PAGE)),
+    onSuccess: (page) => {
+      if (page.length < PAGE) setNoMore(true);
+      setOlder((prev) => [...page, ...prev]);
+    },
+  });
 
   const send = (e: SyntheticEvent) => {
     e.preventDefault();
@@ -101,9 +102,15 @@ export function ChatPanel() {
   return (
     <section className="chat-panel" aria-label={t('panels.chat')}>
       <ol className="chat-list">
-        {messages.length > 0 && !noMore && (
+        {!noMore && (
           <li className="chat-more">
-            <button type="button" onClick={() => void loadOlder()}>
+            <button
+              type="button"
+              disabled={history.isPending}
+              onClick={() => {
+                history.mutate();
+              }}
+            >
               {t('chat.loadOlder')}
             </button>
           </li>
@@ -140,7 +147,7 @@ export function ChatPanel() {
           {localError}
         </p>
       )}
-      <ErrorText error={submit.error} />
+      <ErrorText error={submit.error ?? history.error} />
     </section>
   );
 }

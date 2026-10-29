@@ -13,8 +13,9 @@ use dnd_game_core::{
     sees_everything, snapshot_for,
 };
 use dnd_protocol::{
-    AssetUsage, EventBatch, Intent, IntentEnvelope, IntentOutcome, JournalEntryDto, JournalEntryId,
-    JournalVisibility, RejectReason, Role, SessionId, Snapshot, UserDto, UserId,
+    AssetUsage, ChatMessageDto, ChatMessageId, EventBatch, Intent, IntentEnvelope, IntentOutcome,
+    JournalEntryDto, JournalEntryId, JournalVisibility, RejectReason, Role, SessionId, Snapshot,
+    UserDto, UserId,
 };
 use tokio::sync::{broadcast, mpsc, oneshot, watch};
 
@@ -46,6 +47,12 @@ enum Command {
         id: JournalEntryId,
         role: Role,
         reply: oneshot::Sender<Option<JournalEntryDto>>,
+    },
+    ChatHistory {
+        before: Option<ChatMessageId>,
+        limit: usize,
+        role: Role,
+        reply: oneshot::Sender<anyhow::Result<Vec<ChatMessageDto>>>,
     },
     Join {
         user: UserDto,
@@ -187,6 +194,21 @@ impl SessionHandle {
             .await
     }
 
+    pub async fn chat_history(
+        &self,
+        before: Option<ChatMessageId>,
+        limit: usize,
+        role: Role,
+    ) -> Result<anyhow::Result<Vec<ChatMessageDto>>, SessionGone> {
+        self.ask(|reply| Command::ChatHistory {
+            before,
+            limit,
+            role,
+            reply,
+        })
+        .await
+    }
+
     /// Makes `user` a user of the campaign (no event when nothing changes).
     pub async fn join(
         &self,
@@ -317,6 +339,19 @@ async fn run(
                     sees_everything(role) || e.visibility == JournalVisibility::Players
                 });
                 let _ = reply.send(entry);
+            }
+            Command::ChatHistory {
+                before,
+                limit,
+                role,
+                reply,
+            } => {
+                let result = engine
+                    .db()
+                    .chat_history_for(before, limit, role)
+                    .await
+                    .map_err(Into::into);
+                let _ = reply.send(result);
             }
             Command::Join { user, reply } => {
                 let result = match join(engine.state(), user.id, &user.name, user.role) {

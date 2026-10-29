@@ -77,7 +77,12 @@ const systemMessage: ChatMessageDto = {
   system: { code: 'character_approved', name: 'Aria' },
 };
 
-function renderChat(role: Role, chat: ChatMessageDto[] = []) {
+function renderChat(
+  role: Role,
+  chat: ChatMessageDto[] = [],
+  history: (before: string | null, limit: number) => Promise<ChatMessageDto[]> = () =>
+    Promise.resolve([]),
+) {
   const snapshot: Snapshot = {
     seq: 1,
     campaign: { name: 'C', description: '', version: 1 },
@@ -105,7 +110,10 @@ function renderChat(role: Role, chat: ChatMessageDto[] = []) {
   mockIPC((cmd, args) => {
     if (cmd === 'get_snapshot') return snapshot;
     if (cmd === 'campaign_current') return info;
-    if (cmd === 'chat_history') return [];
+    if (cmd === 'chat_history') {
+      const { before, limit } = args as { before: string | null; limit: number };
+      return history(before, limit);
+    }
     if (cmd === 'submit_intent') {
       sent.push((args as { envelope: IntentEnvelope }).envelope);
       return { status: 'accepted', seq: 2 };
@@ -121,6 +129,66 @@ function renderChat(role: Role, chat: ChatMessageDto[] = []) {
 }
 
 describe('ChatPanel', () => {
+  it('can request visible history even when the snapshot chat is empty', async () => {
+    const calls: unknown[] = [];
+    renderChat('player', [], (before, limit) => {
+      calls.push({ before, limit });
+      return Promise.resolve([
+        { ...systemMessage, kind: 'text', system: null, body: 'Before hidden rolls' },
+      ]);
+    });
+    await userEvent.click(await screen.findByRole('button', { name: 'Load earlier messages' }));
+    expect(await screen.findByText('Before hidden rolls')).toBeInTheDocument();
+    expect(calls).toEqual([{ before: null, limit: 50 }]);
+  });
+
+  it('loads one history page at a time and merges overlapping snapshot messages', async () => {
+    const recent: ChatMessageDto = {
+      ...systemMessage,
+      kind: 'text',
+      body: 'Snapshot message',
+      system: null,
+    };
+    const older: ChatMessageDto = { ...recent, id: ME, body: 'Older message' };
+    let release: (page: ChatMessageDto[]) => void = () => {};
+    const response = new Promise<ChatMessageDto[]>((resolve) => {
+      release = resolve;
+    });
+    const calls: unknown[] = [];
+    renderChat('player', [recent], (before, limit) => {
+      calls.push({ before, limit });
+      return response;
+    });
+    const button = await screen.findByRole('button', { name: 'Load earlier messages' });
+    await userEvent.click(button);
+    expect(button).toBeDisabled();
+    expect(calls).toEqual([{ before: recent.id, limit: 50 }]);
+    release([older, recent]);
+    expect(await screen.findByText('Older message')).toBeInTheDocument();
+    expect(screen.getAllByText('Snapshot message')).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: 'Load earlier messages' })).not.toBeInTheDocument();
+  });
+
+  it('reports a history failure and lets the user retry', async () => {
+    const recent: ChatMessageDto = {
+      ...systemMessage,
+      kind: 'text',
+      body: 'Latest',
+      system: null,
+    };
+    let attempts = 0;
+    renderChat('player', [recent], () => {
+      if (++attempts === 1) return Promise.reject(new Error('network lost'));
+      return Promise.resolve([{ ...recent, id: ME, body: 'Recovered older message' }]);
+    });
+    await userEvent.click(await screen.findByRole('button', { name: 'Load earlier messages' }));
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Load earlier messages' }));
+    expect(await screen.findByText('Recovered older message')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(attempts).toBe(2);
+  });
+
   it('shows what triggers did (ADR-0024)', async () => {
     const system = (id: string, message: ChatMessageDto['system']): ChatMessageDto => ({
       ...systemMessage,

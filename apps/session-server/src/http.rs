@@ -4,13 +4,15 @@ use std::path::PathBuf;
 
 use axum::Json;
 use axum::body::Body;
-use axum::extract::{Multipart, Path, State};
+use axum::extract::{Multipart, Path, Query, State};
 use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use dnd_db::{
     ArchiveLimits, ParticipantRow, ParticipantStatus, SessionRow, SessionState, read_archive,
 };
-use dnd_protocol::{PROTOCOL_VERSION, RejectReason, Role, SessionId, UserDto, UserId};
+use dnd_protocol::{
+    ChatMessageDto, ChatMessageId, PROTOCOL_VERSION, RejectReason, Role, SessionId, UserDto, UserId,
+};
 use serde::{Deserialize, Serialize};
 use tokio::io::AsyncWriteExt;
 
@@ -375,6 +377,30 @@ pub async fn join_session(
         name: participant.name,
         session_name: row.name,
     }))
+}
+
+#[derive(Deserialize)]
+pub struct ChatPage {
+    before: Option<ChatMessageId>,
+    limit: Option<u32>,
+}
+
+/// Older messages, oldest first. Hidden rolls count towards GM pages only.
+pub async fn chat_history(
+    State(app): State<App>,
+    Path(id): Path<SessionId>,
+    headers: HeaderMap,
+    Query(page): Query<ChatPage>,
+) -> Result<Json<Vec<ChatMessageDto>>, ApiError> {
+    let participant = app.participant(id, &headers).await?;
+    let session = app.session(id).await?;
+    let limit = usize::try_from(page.limit.unwrap_or(50).min(200)).unwrap_or(200);
+    let messages = session
+        .chat_history(page.before, limit, participant.role)
+        .await
+        .map_err(ApiError::internal)?
+        .map_err(ApiError::internal)?;
+    Ok(Json(messages))
 }
 
 /// `POST /api/sessions/{id}/stop` (GM): closes the session; connections end.

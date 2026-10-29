@@ -372,21 +372,46 @@ impl CampaignDb {
 
     /// Up to `limit` chat messages written before message `before` (or the newest ones), oldest
     /// first, with their rolls and stored times.
+    pub async fn chat_history_for(
+        &self,
+        before: Option<ChatMessageId>,
+        limit: usize,
+        role: Role,
+    ) -> DbResult<Vec<ChatMessageDto>> {
+        self.read_chat_history(
+            before,
+            limit.min(dnd_protocol::CHAT_SNAPSHOT_LEN),
+            dnd_game_core::sees_everything(role),
+        )
+        .await
+    }
+
     pub async fn chat_history(
         &self,
         before: Option<ChatMessageId>,
         limit: usize,
+    ) -> DbResult<Vec<ChatMessageDto>> {
+        self.read_chat_history(before, limit, true).await
+    }
+
+    async fn read_chat_history(
+        &self,
+        before: Option<ChatMessageId>,
+        limit: usize,
+        include_hidden: bool,
     ) -> DbResult<Vec<ChatMessageDto>> {
         let limit = i64::try_from(limit).unwrap_or(i64::MAX);
         let rows = sqlx::query(
             "SELECT c.id, c.sender_user_id, c.kind, c.body, c.created_at, c.sender_name, \
                  c.visibility, d.result \
              FROM chat_messages AS c LEFT JOIN dice_rolls AS d ON d.chat_message_id = c.id \
-             WHERE ?1 IS NULL OR c.rowid < (SELECT rowid FROM chat_messages WHERE id = ?1) \
+             WHERE (?1 IS NULL OR c.rowid < (SELECT rowid FROM chat_messages WHERE id = ?1)) \
+                 AND (?3 OR c.visibility = 'all') \
              ORDER BY c.rowid DESC LIMIT ?2",
         )
         .bind(before.map(|b| b.to_string()))
         .bind(limit)
+        .bind(include_hidden)
         .fetch_all(&self.pool)
         .await?;
         let mut messages = rows

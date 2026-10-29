@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use dnd_protocol::{Role, SessionId, UserId};
+use dnd_protocol::{ChatMessageDto, ChatMessageId, Role, SessionId, UserId};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -138,6 +138,27 @@ impl HttpClient {
         json(
             self.http
                 .get(self.url(&format!("/api/sessions/{id}")))
+                .send()
+                .await,
+        )
+        .await
+    }
+
+    pub async fn chat_history(
+        &self,
+        id: SessionId,
+        token: &str,
+        before: Option<ChatMessageId>,
+        limit: u32,
+    ) -> Result<Vec<ChatMessageDto>, NetError> {
+        let mut path = format!("/api/sessions/{id}/chat?limit={}", limit.min(200));
+        if let Some(before) = before {
+            path.push_str(&format!("&before={before}"));
+        }
+        json(
+            self.http
+                .get(self.url(&path))
+                .bearer_auth(token)
                 .send()
                 .await,
         )

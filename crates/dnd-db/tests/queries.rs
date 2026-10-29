@@ -974,6 +974,64 @@ async fn chat_messages_and_rolls_are_stored_and_paged() {
     );
 }
 
+#[tokio::test]
+async fn history_filters_before_limit_for_every_role() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = new_campaign(&dir).await;
+    let mut messages = Vec::new();
+    for n in 1..=220 {
+        let mut message = chat(n, ChatKind::Text);
+        message.visibility = if n % 100 == 1 {
+            ChatVisibility::All
+        } else {
+            ChatVisibility::Gm
+        };
+        db.project(&[record(
+            i64::try_from(n).unwrap(),
+            None,
+            vec![Event::ChatMessagePosted {
+                message: message.clone(),
+            }],
+        )])
+        .await
+        .unwrap();
+        messages.push(message);
+    }
+    for role in [Role::Gm, Role::CoGm, Role::Player, Role::Spectator] {
+        let expected: Vec<_> = messages
+            .iter()
+            .filter(|m| {
+                dnd_game_core::sees_everything(role) || dnd_game_core::chat_visible_to_players(m)
+            })
+            .rev()
+            .take(2)
+            .map(|m| m.id)
+            .collect();
+        let page = db.chat_history_for(None, 2, role).await.unwrap();
+        assert_eq!(
+            page.iter().rev().map(|m| m.id).collect::<Vec<_>>(),
+            expected,
+            "{role:?}"
+        );
+        let older = db
+            .chat_history_for(Some(page[0].id), 200, role)
+            .await
+            .unwrap();
+        assert!(
+            older.iter().all(|m| dnd_game_core::sees_everything(role)
+                || dnd_game_core::chat_visible_to_players(m))
+        );
+        assert!(db.chat_history_for(None, 0, role).await.unwrap().is_empty());
+        assert!(
+            db.chat_history_for(Some(ChatMessageId::new_v7()), 10, role)
+                .await
+                .unwrap()
+                .is_empty()
+        );
+    }
+    db.close().await.unwrap();
+}
+
 /// Assets round-trip with their tiles; the original hash is unique (UNIQUE(type, sha256)).
 #[tokio::test]
 async fn assets_are_registered_and_loaded() {

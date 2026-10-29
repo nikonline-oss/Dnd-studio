@@ -78,7 +78,7 @@ ADR-0002 выбрал SQLite. Нужно зафиксировать, как им
 | `DELETE FROM journal_entries`                                        | `project_event`                    | `queries.rs::journal_entries_are_projected_and_loaded`                                 |
 | `INSERT INTO chat_messages`                                          | `insert_chat_message`              | `queries.rs::chat_messages_and_rolls_are_stored_and_paged`                             |
 | `INSERT INTO dice_rolls`                                             | `insert_chat_message`              | `queries.rs::chat_messages_and_rolls_are_stored_and_paged`                             |
-| `SELECT … chat_messages JOIN dice_rolls`                             | `chat_history`                     | `queries.rs::chat_messages_and_rolls_are_stored_and_paged` (страницы)                  |
+| `SELECT … chat_messages JOIN dice_rolls`                             | `read_chat_history`                | `queries.rs::history_filters_before_limit_for_every_role` (роли, страницы)             |
 | `INSERT INTO assets`                                                 | `insert_asset`                     | `queries.rs::assets_are_registered_and_loaded` (уникальность `type`+`sha256`)          |
 | `SELECT … FROM assets`                                               | `load_state`                       | `queries.rs::assets_are_registered_and_loaded`                                         |
 | `INSERT INTO event_log`                                              | `project`                          | `queries.rs::every_event_kind_is_projected`, `project_is_atomic`                       |

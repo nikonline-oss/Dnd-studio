@@ -364,6 +364,114 @@ fn ids<T>(items: &[T], id: impl Fn(&T) -> uuid::Uuid) -> Vec<uuid::Uuid> {
 }
 
 #[tokio::test]
+async fn chat_history_pages_visible_messages_without_leaking_hidden_rolls() {
+    let h = Harness::default().await;
+    let created = h.create().await;
+    let gm = h.join_gm(&created).await;
+    let player = h.join_player(&created, "Reader").await;
+    let session = h.server.app.session(created.session_id).await.unwrap();
+    let mut visible = Vec::new();
+    let mut all = Vec::new();
+    for n in 0..226 {
+        let id = ChatMessageId::new_v7();
+        all.push(id);
+        let intent = if n % 75 == 0 {
+            visible.push(id);
+            Intent::SendMessage {
+                id,
+                body: format!("Public {n}"),
+            }
+        } else {
+            Intent::RollDice {
+                id,
+                expression: "1d6".into(),
+                hidden: true,
+                character_id: None,
+                roll: None,
+            }
+        };
+        assert!(matches!(
+            session
+                .submit(
+                    gm_intent(intent),
+                    Actor {
+                        user_id: gm.user_id,
+                        role: gm.role
+                    }
+                )
+                .await
+                .unwrap()
+                .unwrap(),
+            IntentOutcome::Accepted { .. }
+        ));
+    }
+    let url = h.url(&format!("/api/sessions/{}/chat", created.session_id));
+    assert_eq!(h.http.get(&url).send().await.unwrap().status(), 401);
+    let page = h
+        .http
+        .get(format!("{url}?limit=3"))
+        .bearer_auth(&player.token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(page.status(), 200);
+    let page: Vec<ChatMessageDto> = page.json().await.unwrap();
+    assert_eq!(page.iter().map(|m| m.id).collect::<Vec<_>>(), visible[1..]);
+    assert!(page.iter().all(dnd_game_core::chat_visible_to_players));
+    let older: Vec<ChatMessageDto> = h
+        .http
+        .get(format!("{url}?before={}&limit=3", visible[1]))
+        .bearer_auth(&player.token)
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(older.iter().map(|m| m.id).collect::<Vec<_>>(), visible[..1]);
+    assert!(older[0].at_ms.is_some());
+    let gm_page: Vec<ChatMessageDto> = h
+        .http
+        .get(format!("{url}?limit=10000"))
+        .bearer_auth(&gm.token)
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(gm_page.len(), 200);
+    assert_eq!(gm_page.iter().map(|m| m.id).collect::<Vec<_>>(), all[26..]);
+    assert!(
+        gm_page
+            .iter()
+            .any(|m| m.visibility == ChatVisibility::Gm && m.roll.is_some())
+    );
+    assert_eq!(
+        h.http
+            .get(format!("{url}?before=bad-id"))
+            .bearer_auth(&player.token)
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        400
+    );
+    let other = h.create().await;
+    assert_eq!(
+        h.http
+            .get(h.url(&format!("/api/sessions/{}/chat", other.session_id)))
+            .bearer_auth(&player.token)
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        401
+    );
+    h.server.stop().await.unwrap();
+}
+
+#[tokio::test]
 async fn gm_and_player_play_through_the_server() {
     let h = Harness::default().await;
     assert_eq!(
