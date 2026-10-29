@@ -539,6 +539,61 @@ pub async fn asset(
         .into_response())
 }
 
+/// The package of an installed plugin; all participants may read shared rule compendia.
+pub async fn plugin_package(
+    State(app): State<App>,
+    Path((id, sha256)): Path<(SessionId, String)>,
+    headers: HeaderMap,
+) -> Result<Response, ApiError> {
+    app.participant(id, &headers).await?;
+    let not_found = || {
+        ApiError::new(
+            StatusCode::NOT_FOUND,
+            "not_found",
+            "no such installed plugin",
+        )
+    };
+    if !dnd_assets::is_sha256_hex(&sha256) {
+        return Err(not_found());
+    }
+    let session = app.session(id).await?;
+    if !session
+        .plugin_visible(sha256.clone())
+        .await
+        .map_err(ApiError::internal)?
+    {
+        return Err(not_found());
+    }
+    let path = app
+        .session_dir(id)
+        .join("assets/plugins")
+        .join(format!("{sha256}.dndplugin"));
+    let max = dnd_plugin::PackageLimits::DEFAULT.max_package_bytes;
+    if tokio::fs::metadata(&path)
+        .await
+        .map_err(|_| not_found())?
+        .len()
+        > max
+    {
+        return Err(ApiError::bad_request(
+            "too_large",
+            "plugin exceeds the package size limit",
+        ));
+    }
+    let bytes = tokio::fs::read(path).await.map_err(|_| not_found())?;
+    Ok((
+        [
+            (header::CONTENT_TYPE, "application/zip"),
+            (
+                header::CACHE_CONTROL,
+                "private, max-age=31536000, immutable",
+            ),
+        ],
+        bytes,
+    )
+        .into_response())
+}
+
 /// A GM uploads a content-addressed derived file before registering it through an intent.
 pub async fn upload_asset(
     State(app): State<App>,

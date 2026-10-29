@@ -76,6 +76,13 @@ async fn host_join_and_play_through_the_server() {
     let base = format!("http://{}", server.addr);
 
     let mut local = LocalServer::create(dir.path(), "Lost Mine").await.unwrap();
+    let (outcome, _) = dnd_desktop_lib::plugins::install(
+        &mut local,
+        dnd_desktop_lib::bundled::package("srd5").unwrap(),
+    )
+    .await
+    .unwrap();
+    assert!(matches!(outcome, IntentOutcome::Accepted { .. }));
     let map = MapId::new_v7();
     local
         .submit(&IntentEnvelope {
@@ -188,6 +195,68 @@ async fn host_join_and_play_through_the_server() {
     next_snapshot(&mut player_rx).await;
     assert_eq!(player.snapshot().unwrap().maps.len(), 1);
     assert!(matches!(player.status(), RemoteStatus::Online));
+    let installed =
+        dnd_desktop_lib::compendia::remote_installed(&player, &dir.path().join("cache"))
+            .await
+            .unwrap();
+    let spells =
+        dnd_desktop_lib::compendia::page(&installed, "srd5", "srd5-spells", "FIRE", 0, 20).unwrap();
+    assert_eq!(spells.total, 1);
+    assert!(!spells.entries.is_empty());
+    let plugin_sha = player
+        .snapshot()
+        .unwrap()
+        .plugins
+        .iter()
+        .find(|p| p.id == "srd5")
+        .unwrap()
+        .archive_sha256
+        .clone();
+    let package_cache = dir.path().join("cache");
+    let cache_file = package_cache.join(format!("{plugin_sha}.dndplugin"));
+    let package_bytes = player
+        .plugin_package(&plugin_sha, &package_cache)
+        .await
+        .unwrap();
+    std::fs::write(&cache_file, b"broken cache").unwrap();
+    assert_eq!(
+        player
+            .plugin_package(&plugin_sha, &package_cache)
+            .await
+            .unwrap(),
+        package_bytes
+    );
+    assert_eq!(std::fs::read(&cache_file).unwrap(), package_bytes);
+    assert_eq!(
+        player
+            .plugin_package("../escape", &package_cache)
+            .await
+            .unwrap_err()
+            .code,
+        "invalid_asset"
+    );
+    let server_file = server
+        .app
+        .session_dir(hosted.session_id)
+        .join(format!("assets/plugins/{plugin_sha}.dndplugin"));
+    std::fs::write(&server_file, b"bad server response").unwrap();
+    std::fs::remove_file(&cache_file).unwrap();
+    assert_eq!(
+        player
+            .plugin_package(&plugin_sha, &package_cache)
+            .await
+            .unwrap_err()
+            .code,
+        "protocol_error"
+    );
+    std::fs::write(server_file, &package_bytes).unwrap();
+    assert_eq!(
+        player
+            .plugin_package(&plugin_sha, &package_cache)
+            .await
+            .unwrap(),
+        package_bytes
+    );
 
     // A chat message from the player: accepted, and both views follow.
     let outcome = player
@@ -360,6 +429,14 @@ async fn host_join_and_play_through_the_server() {
     // Only the GM stops the session.
     assert_eq!(player.stop().await.unwrap_err().code, "forbidden");
     gm.stop().await.unwrap();
+    // A verified cached package remains readable after the server session has stopped.
+    assert_eq!(
+        player
+            .plugin_package(&plugin_sha, &package_cache)
+            .await
+            .unwrap(),
+        package_bytes
+    );
     let mut final_copy = Some(local);
     gm.refresh_replica(&mut final_copy).await.unwrap();
     let local = final_copy.take().unwrap();

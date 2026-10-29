@@ -38,6 +38,16 @@ export function useSnapshotSelect<T>(select: (snapshot: Snapshot) => T): T | und
   return useQuery({ queryKey: queryKeys.snapshot, queryFn: ipc.getSnapshot, select }).data;
 }
 
+/** Content-addressed plugin membership; unchanged by token movement and other game events. */
+export function usePluginRevision(): string | undefined {
+  return useSnapshotSelect((s) =>
+    s.plugins
+      .map((p) => `${p.id}:${p.archive_sha256}`)
+      .sort()
+      .join('|'),
+  );
+}
+
 /** Subscribes once (in the app shell) to game events and patches the snapshot cache. */
 export function useGameEventsSync() {
   const queryClient = useQueryClient();
@@ -47,6 +57,8 @@ export function useGameEventsSync() {
       syncLoopingSounds(payload.sounds ?? []);
       queryClient.setQueryData(queryKeys.snapshot, payload);
       void queryClient.invalidateQueries({ queryKey: ['journal'] });
+      void queryClient.invalidateQueries({ queryKey: ['compendia'] });
+      void queryClient.invalidateQueries({ queryKey: ['compendium'] });
     });
     const unlisten = events.gameEventsEmitted.listen(({ payload }) => {
       const current = queryClient.getQueryData<Snapshot>(queryKeys.snapshot);
@@ -58,6 +70,14 @@ export function useGameEventsSync() {
       }
       // Do side effects only for a newly applied batch: duplicate delivery must not replay sound.
       if (next === current) return;
+      if (
+        payload.events.some(
+          (event) => event.kind === 'plugin_installed' || event.kind === 'plugin_uninstalled',
+        )
+      ) {
+        void queryClient.invalidateQueries({ queryKey: ['compendia'] });
+        void queryClient.invalidateQueries({ queryKey: ['compendium'] });
+      }
       // Journal texts live in their own cache entries (the snapshot has only the index).
       for (const event of payload.events) {
         if (event.kind === 'sound_played') playSound(event.sound);

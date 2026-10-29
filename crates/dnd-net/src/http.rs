@@ -245,6 +245,57 @@ impl HttpClient {
             .map_err(|e| NetError::Transport(e.to_string()))
     }
 
+    /// Download an installed plugin, limiting received bytes and checking its content hash.
+    pub async fn plugin_package(
+        &self,
+        id: SessionId,
+        token: &str,
+        sha256: &str,
+    ) -> Result<Vec<u8>, NetError> {
+        const MAX_BYTES: usize = 256 * 1024 * 1024; // PackageLimits::DEFAULT; dnd-net stays protocol-only.
+        if sha256.len() != 64
+            || !sha256
+                .bytes()
+                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        {
+            return Err(NetError::Protocol("invalid plugin hash".into()));
+        }
+        let mut response = checked(
+            self.http
+                .get(self.url(&format!("/api/sessions/{id}/plugins/{sha256}")))
+                .bearer_auth(token)
+                .timeout(std::time::Duration::from_secs(60))
+                .send()
+                .await,
+        )
+        .await?;
+        if response
+            .content_length()
+            .is_some_and(|size| size > MAX_BYTES as u64)
+        {
+            return Err(NetError::Protocol("plugin package is too large".into()));
+        }
+        let mut bytes = Vec::new();
+        while let Some(chunk) = response
+            .chunk()
+            .await
+            .map_err(|e| NetError::Transport(e.to_string()))?
+        {
+            if chunk.len() > MAX_BYTES.saturating_sub(bytes.len()) {
+                return Err(NetError::Protocol("plugin package is too large".into()));
+            }
+            bytes.extend_from_slice(&chunk);
+        }
+        let actual: String = Sha256::digest(&bytes)
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect();
+        if actual != sha256 {
+            return Err(NetError::Protocol("plugin package hash mismatch".into()));
+        }
+        Ok(bytes)
+    }
+
     /// A served asset file; its bytes must hash to `sha256` (content addressing, ADR-0004).
     pub async fn asset(
         &self,

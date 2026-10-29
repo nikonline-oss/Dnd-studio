@@ -776,6 +776,36 @@ impl RemoteSession {
             .await?)
     }
 
+    /// An installed plugin's immutable package, verified even when read from the disk cache.
+    pub async fn plugin_package(&self, sha256: &str, cache: &Path) -> Result<Vec<u8>, IpcError> {
+        if !dnd_assets::is_sha256_hex(sha256) {
+            return Err(IpcError::user("invalid_asset", "invalid plugin hash"));
+        }
+        let path = cache.join(format!("{sha256}.dndplugin"));
+        if tokio::fs::metadata(&path)
+            .await
+            .is_ok_and(|m| m.len() <= dnd_plugin::PackageLimits::DEFAULT.max_package_bytes)
+            && let Ok(bytes) = tokio::fs::read(&path).await
+            && dnd_assets::sha256_hex(&bytes) == sha256
+        {
+            return Ok(bytes);
+        }
+        let bytes = self
+            .http
+            .plugin_package(self.entry.session_id, &self.token, sha256)
+            .await?;
+        if tokio::fs::create_dir_all(cache).await.is_ok() {
+            let partial = cache.join(format!("{sha256}.{}.partial", uuid::Uuid::now_v7()));
+            if tokio::fs::write(&partial, &bytes).await.is_ok() {
+                // Only a failed hash/size check reaches this branch for an existing cache file.
+                tokio::fs::remove_file(&path).await.ok();
+                tokio::fs::rename(&partial, &path).await.ok();
+            }
+            tokio::fs::remove_file(partial).await.ok();
+        }
+        Ok(bytes)
+    }
+
     /// An asset file from the session, through `cache` (files are content-addressed, so a cached
     /// one never goes stale).
     pub async fn asset(&self, sha256: &str, cache: &Path, mime: &str) -> Result<Vec<u8>, IpcError> {

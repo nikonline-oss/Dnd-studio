@@ -63,6 +63,10 @@ enum Command {
         role: Role,
         reply: oneshot::Sender<bool>,
     },
+    PluginVisible {
+        sha256: String,
+        reply: oneshot::Sender<bool>,
+    },
     Export {
         out: PathBuf,
         reply: oneshot::Sender<anyhow::Result<()>>,
@@ -225,6 +229,11 @@ impl SessionHandle {
             reply,
         })
         .await
+    }
+
+    pub async fn plugin_visible(&self, sha256: String) -> Result<bool, SessionGone> {
+        self.ask(|reply| Command::PluginVisible { sha256, reply })
+            .await
     }
 
     /// Writes the campaign archive (database + served assets) to `out`.
@@ -404,6 +413,14 @@ async fn run(
             }
             Command::Export { out, reply } => {
                 let _ = reply.send(export(&engine, &assets, &out).await);
+            }
+            Command::PluginVisible { sha256, reply } => {
+                let installed = engine
+                    .state()
+                    .plugins
+                    .values()
+                    .any(|p| p.archive_sha256 == sha256);
+                let _ = reply.send(installed);
             }
             Command::Stop { reason, reply } => {
                 if let Err(e) = engine.close().await {

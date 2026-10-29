@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { useCampaign } from '@/shared/game/useGame';
+import { useCampaign, usePluginRevision } from '@/shared/game/useGame';
 import { labelText } from '@/shared/i18n/label';
 import { commands, unwrap } from '@/shared/ipc/client';
 import { useSelection } from '@/shared/state/selection';
@@ -13,12 +13,13 @@ export function CompendiumList() {
   const { t, i18n } = useTranslation();
   const lang = i18n.resolvedLanguage ?? i18n.language;
   const { data: campaign } = useCampaign();
+  const revision = usePluginRevision();
   const active = useSelection((s) => s.active);
   const openCompendium = useSelection((s) => s.openCompendium);
   const compendia = useQuery({
-    // Plugins change rarely; the list is read again when the campaign does.
-    queryKey: ['compendia', campaign?.path],
+    queryKey: ['compendia', campaign?.path, revision],
     queryFn: () => unwrap(commands.compendiumList()),
+    enabled: campaign !== undefined && campaign !== null && revision !== undefined,
   });
   const list = compendia.data ?? [];
 

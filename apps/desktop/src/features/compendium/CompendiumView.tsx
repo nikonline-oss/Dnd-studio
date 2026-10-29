@@ -1,10 +1,10 @@
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { entryMarkdown } from './entryMarkdown';
-import { useCampaign, useSubmitIntent } from '@/shared/game/useGame';
+import { useCampaign, usePluginRevision, useSubmitIntent } from '@/shared/game/useGame';
 import { labelText } from '@/shared/i18n/label';
-import { commands, unwrap, type CompendiumEntryDto } from '@/shared/ipc/client';
+import { commands, unwrap } from '@/shared/ipc/client';
 import { uuidv7 } from '@/shared/ipc/uuid';
 import { useSelection } from '@/shared/state/selection';
 import { ErrorText } from '@/shared/ui/ErrorText';
@@ -23,17 +23,29 @@ export function CompendiumView({ compendiumKey }: { compendiumKey: string }) {
   const [pluginId = '', compendiumId = ''] = compendiumKey.split('/');
   const [query, setQuery] = useState('');
   const [limit, setLimit] = useState(PAGE);
-  const [chosen, setChosen] = useState<CompendiumEntryDto | null>(null);
+  const [chosenId, setChosenId] = useState<string | null>(null);
   const { data: campaign } = useCampaign();
+  const revision = usePluginRevision();
   const isGm = campaign?.role === 'gm' || campaign?.role === 'co_gm';
   const submit = useSubmitIntent();
   const openJournal = useSelection((s) => s.openJournal);
   const page = useQuery({
-    queryKey: ['compendium', pluginId, compendiumId, query, limit],
+    queryKey: ['compendium', campaign?.path, pluginId, compendiumId, revision, query, limit],
     queryFn: () => unwrap(commands.compendiumEntries(pluginId, compendiumId, query, 0, limit)),
-    placeholderData: keepPreviousData,
+    placeholderData: (previous, previousQuery) => {
+      if (!previousQuery) return undefined;
+      const key = previousQuery.queryKey;
+      return key[1] === campaign?.path &&
+        key[2] === pluginId &&
+        key[3] === compendiumId &&
+        key[4] === revision
+        ? previous
+        : undefined;
+    },
+    enabled: campaign !== undefined && campaign !== null && revision !== undefined,
   });
   const entries = page.data?.entries ?? [];
+  const chosen = page.isError ? null : (entries.find((entry) => entry.id === chosenId) ?? null);
   const total = page.data?.total ?? 0;
 
   return (
@@ -56,7 +68,7 @@ export function CompendiumView({ compendiumKey }: { compendiumKey: string }) {
               role="option"
               aria-selected={chosen?.id === entry.id}
               onClick={() => {
-                setChosen(entry);
+                setChosenId(entry.id);
               }}
             >
               {labelText(entry.name, lang)}

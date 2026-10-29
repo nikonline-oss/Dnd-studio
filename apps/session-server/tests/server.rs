@@ -472,6 +472,108 @@ async fn chat_history_pages_visible_messages_without_leaking_hidden_rolls() {
 }
 
 #[tokio::test]
+async fn only_installed_plugin_packages_are_shared_with_session_participants() {
+    let h = Harness::default().await;
+    let created = h.create().await;
+    let gm = h.join_gm(&created).await;
+    let player = h.join_player(&created, "Reader").await;
+    let bytes = dnd_plugin::pack_directory(
+        &Path::new(env!("CARGO_MANIFEST_DIR")).join("../../plugins/system-srd5"),
+    )
+    .unwrap();
+    let package = dnd_plugin::read_package(&bytes, dnd_plugin::PackageLimits::default()).unwrap();
+    let url = h.url(&format!(
+        "/api/sessions/{}/plugins/{}",
+        created.session_id, package.sha256
+    ));
+    assert_eq!(h.http.get(&url).send().await.unwrap().status(), 401);
+    let upload = h
+        .http
+        .post(h.url(&format!("/api/sessions/{}/assets", created.session_id)))
+        .bearer_auth(&gm.token)
+        .header("x-asset-sha256", &package.sha256)
+        .header("x-asset-kind", "plugin")
+        .body(bytes.clone())
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(upload.status(), 204);
+    // Uploading bytes does not publish the package before its install intent is committed.
+    assert_eq!(
+        h.http
+            .get(&url)
+            .bearer_auth(&gm.token)
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        404
+    );
+    let session = h.server.app.session(created.session_id).await.unwrap();
+    let actor = Actor {
+        user_id: gm.user_id,
+        role: gm.role,
+    };
+    assert!(matches!(
+        session
+            .submit(
+                gm_intent(Intent::InstallPlugin {
+                    plugin: Box::new(package.to_dto())
+                }),
+                actor
+            )
+            .await
+            .unwrap()
+            .unwrap(),
+        IntentOutcome::Accepted { .. }
+    ));
+    for token in [&gm.token, &player.token] {
+        let response = h.http.get(&url).bearer_auth(token).send().await.unwrap();
+        assert_eq!(response.status(), 200);
+        assert_eq!(response.headers()["content-type"], "application/zip");
+        assert_eq!(response.bytes().await.unwrap().as_ref(), bytes.as_slice());
+    }
+    let other = h.create().await;
+    assert_eq!(
+        h.http
+            .get(h.url(&format!(
+                "/api/sessions/{}/plugins/{}",
+                other.session_id, package.sha256
+            )))
+            .bearer_auth(&player.token)
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        401
+    );
+    assert!(matches!(
+        session
+            .submit(
+                gm_intent(Intent::UninstallPlugin {
+                    id: package.manifest.id
+                }),
+                actor
+            )
+            .await
+            .unwrap()
+            .unwrap(),
+        IntentOutcome::Accepted { .. }
+    ));
+    assert_eq!(
+        h.http
+            .get(&url)
+            .bearer_auth(&player.token)
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        404
+    );
+    h.server.stop().await.unwrap();
+}
+
+#[tokio::test]
 async fn gm_and_player_play_through_the_server() {
     let h = Harness::default().await;
     assert_eq!(

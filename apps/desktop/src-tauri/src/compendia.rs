@@ -50,6 +50,50 @@ const MAX_PAGE: u32 = 500;
 type Parsed = Arc<Vec<Compendium>>;
 static CACHE: LazyLock<Mutex<HashMap<String, Parsed>>> = LazyLock::new(Mutex::default);
 
+pub async fn remote_installed(
+    remote: &crate::remote::RemoteSession,
+    cache: &Path,
+) -> Result<Vec<(String, Parsed)>, IpcError> {
+    let plugins = remote
+        .with_state(|state| {
+            state
+                .plugins
+                .values()
+                .map(|p| (p.id.clone(), p.archive_sha256.clone()))
+                .collect::<Vec<_>>()
+        })
+        .ok_or_else(|| IpcError::user("connecting", "waiting for the server"))?;
+    let mut installed = Vec::with_capacity(plugins.len());
+    for (id, sha) in plugins {
+        let cached = CACHE.lock().ok().and_then(|cache| cache.get(&sha).cloned());
+        let parsed = if let Some(cached) = cached {
+            cached
+        } else {
+            let bytes = remote.plugin_package(&sha, cache).await?;
+            tokio::task::spawn_blocking(move || parse_compendia(&sha, &bytes))
+                .await
+                .map_err(|e| IpcError::internal("compendia_failed", e.to_string()))??
+        };
+        installed.push((id, parsed));
+    }
+    Ok(installed)
+}
+
+fn parse_compendia(sha256: &str, bytes: &[u8]) -> Result<Parsed, IpcError> {
+    let package = read_package(bytes, PackageLimits::default())?;
+    if package.sha256 != sha256 {
+        return Err(IpcError::user(
+            "invalid_archive",
+            "plugin package hash mismatch",
+        ));
+    }
+    let parsed = Arc::new(package.compendia);
+    if let Ok(mut cache) = CACHE.lock() {
+        cache.insert(sha256.to_owned(), Arc::clone(&parsed));
+    }
+    Ok(parsed)
+}
+
 /// The compendia of the package `sha256` in `campaign` (empty if it cannot be read).
 fn compendia_of(campaign: &Path, sha256: &str) -> Parsed {
     if let Ok(cache) = CACHE.lock()
@@ -61,27 +105,26 @@ fn compendia_of(campaign: &Path, sha256: &str) -> Parsed {
         .join(ASSETS_DIR)
         .join("plugins")
         .join(format!("{sha256}.dndplugin"));
-    let parsed: Parsed = match std::fs::read(&path)
+    match std::fs::read(&path)
         .map_err(|e| e.to_string())
-        .and_then(|bytes| read_package(&bytes, PackageLimits::default()).map_err(|e| e.to_string()))
+        .and_then(|bytes| parse_compendia(sha256, &bytes).map_err(|e| e.message))
     {
-        Ok(package) => Arc::new(package.compendia),
+        Ok(parsed) => parsed,
         Err(error) => {
             tracing::warn!(%sha256, %error, "plugin package unreadable; no compendia");
             Arc::new(Vec::new())
         }
-    };
-    if let Ok(mut cache) = CACHE.lock() {
-        cache.insert(sha256.to_owned(), Arc::clone(&parsed));
     }
-    parsed
 }
 
 /// `(plugin id, compendia)` of every plugin installed in the open campaign.
 async fn installed(state: &AppState) -> Result<Vec<(String, Parsed)>, IpcError> {
-    // In a session the packages stay on the GM's machine; viewing them there comes with stage 4.
-    if state.remote.lock().await.is_some() {
-        return Ok(Vec::new());
+    let remote = state.remote.lock().await.clone();
+    if let Some(remote) = remote {
+        let dirs = state.dirs.get().ok_or_else(|| {
+            IpcError::internal("not_ready", "app directories are not initialized")
+        })?;
+        return remote_installed(&remote, &dirs.asset_cache).await;
     }
     let (folder, plugins) = {
         let guard = state.server.lock().await;
