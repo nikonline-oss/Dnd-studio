@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { BoardList } from './BoardList';
 import { BoardView } from './BoardView';
+import { useSelection } from '@/shared/state/selection';
 import type {
   BoardNodeDto,
   CampaignInfo,
@@ -56,6 +57,7 @@ function setup(role: Role) {
       note(2, 'The missing mayor', 'players'),
       note(3, 'Secret passage', 'gm'),
       { ...note(4, '', 'gm'), content: { type: 'trigger', id: id(50) }, x: 6400 },
+      { ...note(5, '', 'gm'), content: { type: 'link', target: { kind: 'map', id: crypt.id } } },
     ],
     board_edges: [],
     zones: [],
@@ -107,6 +109,32 @@ beforeAll(() => {
 });
 
 describe('BoardView', () => {
+  it('creates a map from the open board and places an opening card on that board', async () => {
+    const sent = setup('gm');
+    await userEvent.click(await screen.findByRole('button', { name: 'New map' }));
+    await waitFor(() => {
+      expect(sent).toHaveLength(2);
+    });
+    const createMap = sent.find(({ intent }) => intent.kind === 'create_map');
+    const createNode = sent.find(({ intent }) => intent.kind === 'create_board_node');
+    expect(createMap?.intent).toMatchObject({
+      kind: 'create_map',
+      name: 'New map 2',
+      visible_to_players: false,
+    });
+    expect(createNode?.intent).toMatchObject({
+      kind: 'create_board_node',
+      board_id: id(1),
+      content: {
+        type: 'link',
+        target: {
+          kind: 'map',
+          id: createMap?.intent.kind === 'create_map' ? createMap.intent.id : '',
+        },
+      },
+    });
+  });
+
   it('GM roles pick a link in the selection form and it becomes a card', async () => {
     const sent = setup('gm');
     await userEvent.click(await screen.findByRole('button', { name: 'Link' }));
@@ -179,5 +207,16 @@ describe('BoardView', () => {
     expect(await screen.findByText('The missing mayor')).toBeInTheDocument();
     expect(screen.queryByRole('toolbar', { name: 'Board tools' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'New board' })).not.toBeInTheDocument();
+  });
+});
+
+describe('BoardList', () => {
+  it('shows maps nested under an expandable board and opens a selected map', async () => {
+    setup('gm');
+    await userEvent.click(await screen.findByRole('button', { name: 'Show maps in Plot' }));
+    const maps = await screen.findByRole('list', { name: 'Maps in Plot' });
+    await userEvent.click(within(maps).getByRole('button', { name: 'Sunken Crypt' }));
+    expect(useSelection.getState().mapId).toBe(crypt.id);
+    expect(useSelection.getState().center).toBe('map');
   });
 });

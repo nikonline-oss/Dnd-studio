@@ -3,13 +3,14 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSnapshotSelect, useSubmitIntent } from '@/shared/game/useGame';
 import { useRemote } from '@/shared/game/useRemote';
-import { assetUrl, ipc, type AssetDto } from '@/shared/ipc/client';
+import { ipc, type AssetDto } from '@/shared/ipc/client';
 import { uuidv7 } from '@/shared/ipc/uuid';
 import { useSelection } from '@/shared/state/selection';
 import { ErrorText } from '@/shared/ui/ErrorText';
 import { IconButton } from '@/shared/ui/IconButton';
 import { NavSection } from '@/shared/ui/NavSection';
 import { useToast } from '@/shared/ui/Toast';
+import type { MenuItem } from '@/shared/ui/Menu';
 import { LibraryExplorer } from './LibraryExplorer';
 
 /** How a picture is written into a journal text (ADR-0024). */
@@ -36,8 +37,63 @@ export function ImageLibrary() {
   const [selected, setSelected] = useState<string | null>(null);
   const importImages = useMutation({ mutationFn: ipc.assetImportImages });
 
-  const picture = assets.find((a) => a.id === selected);
   const boardId = active?.kind === 'board' ? active.id : null;
+  const folderPath = (folderId: string): string => {
+    const folder = folders.find((item) => item.id === folderId);
+    if (!folder) return '';
+    return folder.parent ? `${folderPath(folder.parent)} / ${folder.name}` : folder.name;
+  };
+  const moveToFolder = (picture: AssetDto, folderId: string | null) => {
+    submit.mutate({
+      intent: { kind: 'move_asset', id: picture.id, folder_id: folderId },
+      expectedVersion: picture.version,
+    });
+    setSelected(null);
+  };
+  const pictureMenu = (picture: AssetDto): (MenuItem | 'separator')[] => [
+    {
+      label: t('images.toBoard'),
+      disabled: boardId === null || submit.isPending,
+      onSelect: () => {
+        if (boardId === null) return;
+        submit.mutate({
+          intent: {
+            kind: 'create_board_node',
+            id: uuidv7(),
+            board_id: boardId,
+            content: { type: 'image', asset_id: picture.id },
+            x: 0,
+            y: 0,
+            width: 240 * 16,
+            height: 180 * 16,
+            visibility: 'gm',
+          },
+        });
+      },
+    },
+    {
+      label: t('images.copyForJournal'),
+      onSelect: () => {
+        void navigator.clipboard.writeText(pictureMarkdown(picture)).then(() => {
+          showToast(t('images.copied'));
+        });
+      },
+    },
+    'separator',
+    {
+      label: t('library.moveAssetRoot'),
+      onSelect: () => {
+        moveToFolder(picture, null);
+      },
+    },
+    ...folders.map((folder) => ({
+      label: t('images.moveToFolder', { name: folderPath(folder.id) }),
+      checked: picture.folder_id === folder.id,
+      onSelect: () => {
+        moveToFolder(picture, folder.id);
+      },
+    })),
+  ];
 
   return (
     <NavSection
@@ -63,72 +119,8 @@ export function ImageLibrary() {
         assets={imageAssets}
         selected={selected}
         onSelect={setSelected}
+        assetMenuItems={pictureMenu}
       />
-      {picture && (
-        <div className="image-actions">
-          <img
-            className="image-selection-preview"
-            src={assetUrl(picture.thumbnail_sha256)}
-            alt={picture.original_name ?? ''}
-          />
-          <select
-            aria-label={t('library.moveAsset', {
-              name: picture.original_name ?? picture.sha256.slice(0, 8),
-            })}
-            value={picture.folder_id ?? ''}
-            onChange={(event) => {
-              submit.mutate({
-                intent: {
-                  kind: 'move_asset',
-                  id: picture.id,
-                  folder_id: event.target.value || null,
-                },
-                expectedVersion: picture.version,
-              });
-            }}
-          >
-            <option value="">{t('library.root')}</option>
-            {folders.map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.name}
-              </option>
-            ))}
-          </select>
-          <button
-            type="button"
-            disabled={boardId === null || submit.isPending}
-            title={boardId === null ? t('images.openBoardFirst') : undefined}
-            onClick={() => {
-              if (boardId === null) return;
-              submit.mutate({
-                intent: {
-                  kind: 'create_board_node',
-                  id: uuidv7(),
-                  board_id: boardId,
-                  content: { type: 'image', asset_id: picture.id },
-                  x: 0,
-                  y: 0,
-                  width: 240 * 16,
-                  height: 180 * 16,
-                  visibility: 'gm',
-                },
-              });
-            }}
-          >
-            {t('images.toBoard')}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              void navigator.clipboard.writeText(pictureMarkdown(picture)).then(() => {
-                showToast(t('images.copied'));
-              });
-            }}
-          >
-            {t('images.copyForJournal')}
-          </button>
-        </div>
-      )}
       <ErrorText error={importImages.error ?? submit.error} />
     </NavSection>
   );

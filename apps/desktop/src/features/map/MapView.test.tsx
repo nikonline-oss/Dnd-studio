@@ -36,6 +36,7 @@ const scene = vi.hoisted(() => ({
     gmView: boolean;
   }[],
   tools: [] as (FogTool | null)[],
+  combatMovement: [] as boolean[],
   onFog: null as ((kind: FogOpKind, shapes: FogShape[]) => void) | null,
   onMove: null as ((move: TokenMove) => void) | null,
   onSelect: null as ((id: string | null) => void) | null,
@@ -88,6 +89,9 @@ vi.mock('./MapScene', () => ({
     }
     setTool(tool: FogTool | null) {
       scene.tools.push(tool);
+    }
+    setCombatMovement(on: boolean) {
+      scene.combatMovement.push(on);
     }
     setZones(zones: ZoneDto[], selected: string | null) {
       scene.zones.push(zones);
@@ -206,6 +210,7 @@ function setup(
 beforeEach(() => {
   scene.shown = [];
   scene.tools = [];
+  scene.combatMovement = [];
   scene.onFog = null;
   scene.onMove = null;
   scene.tokens = [];
@@ -222,6 +227,19 @@ afterEach(() => {
 });
 
 describe('MapView', () => {
+  it('enables destination-based movement hints during combat', async () => {
+    useSelection.setState({ mapId: id(1) });
+    setup(<MapView />, [map(1, { visible_to_players: true })], 'player', [], {
+      combats: [{ id: id(60), map_id: id(1), round: 1, turn: null, version: 1 }],
+    });
+    await waitFor(() => {
+      expect(scene.combatMovement.at(-1)).toBe(true);
+    });
+    expect(
+      await screen.findByText('Select one of your tokens, then point to its destination.'),
+    ).toBeInTheDocument();
+  });
+
   it('shows the selected map with its background on the scene', async () => {
     useSelection.setState({ mapId: id(2) });
     setup(<MapView />, [map(1), map(2, { background_asset_id: asset.id })]);

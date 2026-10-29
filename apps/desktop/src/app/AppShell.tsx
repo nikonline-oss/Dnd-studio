@@ -10,20 +10,17 @@ import { BoardList } from '@/features/boards/BoardList';
 import { BoardView } from '@/features/boards/BoardView';
 import { CompendiumList } from '@/features/compendium/CompendiumList';
 import { CompendiumView } from '@/features/compendium/CompendiumView';
-import { ImageLibrary } from '@/features/images/ImageLibrary';
-import { AudioLibrary } from '@/features/images/AudioLibrary';
+import { LibraryPanel } from './LibraryPanel';
 import { TriggerEditor } from '@/features/triggers/TriggerEditor';
 import { TriggerList } from '@/features/triggers/TriggerList';
 import { CharacterEditor } from '@/features/characters/CharacterEditor';
 import { CharacterList } from '@/features/characters/CharacterList';
 import { ChatPanel } from '@/features/chat/ChatPanel';
 import { JournalEditor } from '@/features/journal/JournalEditor';
-import { JournalTree } from '@/features/journal/JournalTree';
 import { PluginsView } from '@/features/plugins/PluginsView';
 import { InitiativePanel } from '@/features/initiative/InitiativePanel';
 import { LogPanel } from '@/features/logs/LogPanel';
 import { MapInspector } from '@/features/map/MapInspector';
-import { MapList } from '@/features/map/MapList';
 import { TokenInspector } from '@/features/tokens/TokenInspector';
 import { TokenList } from '@/features/tokens/TokenList';
 
@@ -42,26 +39,20 @@ const MapView = lazy(() => import('@/features/map/MapView').then((m) => ({ defau
 
 /** Side panel views per preset; players get no map list (§5: the map is chosen for them). */
 const GM_VIEWS: SideView[] = [
-  'maps',
-  'characters',
-  'journal',
-  'plugins',
   'boards',
+  'characters',
+  'library',
+  'plugins',
   'triggers',
-  'images',
-  'audio',
   'compendia',
 ];
-const PLAYER_VIEWS: SideView[] = ['characters', 'journal', 'boards', 'compendia'];
+const PLAYER_VIEWS: SideView[] = ['characters', 'library', 'boards', 'compendia'];
 const VIEW_ICONS = {
-  maps: 'map',
   characters: 'users',
-  journal: 'book',
+  library: 'book',
   plugins: 'puzzle',
   boards: 'board',
   triggers: 'bolt',
-  images: 'image',
-  audio: 'music',
   compendia: 'book',
 } as const;
 
@@ -110,7 +101,7 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
   const views = isGm ? GM_VIEWS : PLAYER_VIEWS;
   const storedView = useSettings((s) => s.sideView);
   const updateSettings = useSettings((s) => s.update);
-  const sideView = views.includes(storedView) ? storedView : (views[0] ?? 'journal');
+  const sideView = views.includes(storedView) ? storedView : (views[0] ?? 'boards');
   const sidePanel = usePanelRef();
   const [sideCollapsed, setSideCollapsed] = useState(!isGm);
   const pendingApproval = useSnapshotSelect(
@@ -205,25 +196,13 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
               setSideCollapsed(size.inPixels === 0);
             }}
           >
-            {sideView === 'maps' ? (
-              <ErrorBoundary name={t('maps.title')}>
-                <MapList />
-              </ErrorBoundary>
-            ) : sideView === 'characters' ? (
+            {sideView === 'characters' ? (
               <ErrorBoundary name={t('characters.title')}>
                 <CharacterList />
               </ErrorBoundary>
-            ) : sideView === 'compendia' ? (
-              <ErrorBoundary name={t('compendia.title')}>
-                <CompendiumList />
-              </ErrorBoundary>
-            ) : sideView === 'images' ? (
-              <ErrorBoundary name={t('images.title')}>
-                <ImageLibrary />
-              </ErrorBoundary>
-            ) : sideView === 'audio' ? (
-              <ErrorBoundary name={t('audio.title')}>
-                <AudioLibrary />
+            ) : sideView === 'library' ? (
+              <ErrorBoundary name={t('library.title')}>
+                <LibraryPanel isGm={isGm} />
               </ErrorBoundary>
             ) : sideView === 'triggers' ? (
               <ErrorBoundary name={t('triggers.title')}>
@@ -238,8 +217,8 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
                 <PluginsView />
               </ErrorBoundary>
             ) : (
-              <ErrorBoundary name={t('journal.title')}>
-                <JournalTree />
+              <ErrorBoundary name={t('compendia.title')}>
+                <CompendiumList />
               </ErrorBoundary>
             )}
           </Panel>

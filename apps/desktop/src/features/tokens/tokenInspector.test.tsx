@@ -22,12 +22,13 @@ const token: TokenDto = {
   version: 4,
 };
 
-function setup(role: Role) {
+function setup(role: Role, linked = true) {
+  const selectedToken = linked ? token : { ...token, character_id: null };
   const snapshot: Snapshot = {
     seq: 1,
     campaign: { name: 'C', description: '', version: 1 },
     maps: [],
-    tokens: [token],
+    tokens: [selectedToken],
     characters: [
       {
         id: 'c1',
@@ -84,6 +85,23 @@ describe('TokenInspector', () => {
     setup('gm');
     expect(await screen.findByText('Restless Knight')).toBeInTheDocument();
     expect(screen.getByText('Token of Knight')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Open character sheet' }));
+    expect(useSelection.getState()).toMatchObject({
+      active: { kind: 'character', id: 'c1' },
+      center: 'character',
+    });
+  });
+
+  it('lets a player open the linked character sheet', async () => {
+    setup('player');
+    await userEvent.click(await screen.findByRole('button', { name: 'Open character sheet' }));
+    expect(useSelection.getState().active).toEqual({ kind: 'character', id: 'c1' });
+  });
+
+  it('does not show a sheet action for an unlinked token', async () => {
+    setup('gm', false);
+    expect(await screen.findByText('Restless Knight')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Open character sheet' })).not.toBeInTheDocument();
   });
 
   it('GM changes the layer, size and visibility with the token version', async () => {

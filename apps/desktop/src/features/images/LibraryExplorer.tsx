@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState, type CSSProperties, type DragEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { assetUrl, type AssetDto, type Library, type LibraryFolderDto } from '@/shared/ipc/client';
 import { useSnapshotSelect, useSubmitIntent } from '@/shared/game/useGame';
@@ -22,11 +23,13 @@ export function LibraryExplorer({
   assets,
   selected,
   onSelect,
+  assetMenuItems,
 }: {
   library: Library;
   assets: AssetDto[];
   selected: string | null;
-  onSelect: (id: string) => void;
+  onSelect: (id: string | null) => void;
+  assetMenuItems?: (asset: AssetDto) => (MenuItem | 'separator')[];
 }) {
   const { t } = useTranslation();
   const folders = (useSnapshotSelect((s) => s.library_folders ?? []) ?? []).filter(
@@ -34,6 +37,7 @@ export function LibraryExplorer({
   );
   const submit = useSubmitIntent();
   const dragged = useRef<DragItem | null>(null);
+  const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [expandedState, setExpandedState] = useState<Set<string> | null>(null);
   const [creating, setCreating] = useState<{ parent: string | null; depth: number } | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
@@ -42,6 +46,12 @@ export function LibraryExplorer({
     x: number;
     y: number;
     folder: LibraryFolderDto | null;
+    asset: AssetDto | null;
+  } | null>(null);
+  const [hoverPreview, setHoverPreview] = useState<{
+    asset: AssetDto;
+    left: number;
+    top: number;
   } | null>(null);
   const [confirm, setConfirm] = useState<LibraryFolderDto | null>(null);
   const expanded = expandedState ?? new Set(folders.map((folder) => folder.id));
@@ -107,6 +117,7 @@ export function LibraryExplorer({
         intent: { kind: 'move_asset', id: asset.id, folder_id: parent },
         expectedVersion: asset.version,
       });
+      if (selected === asset.id) onSelect(null);
       return;
     }
     const folder = folders.find((candidate) => candidate.id === item.id);
@@ -220,6 +231,9 @@ export function LibraryExplorer({
     }
     if (row.kind === 'asset') {
       const isSelected = row.asset.id === selected;
+      const openAssetMenu = (x: number, y: number) => {
+        setMenu({ x, y, folder: null, asset: row.asset });
+      };
       return (
         <li
           role="treeitem"
@@ -233,17 +247,15 @@ export function LibraryExplorer({
             event.dataTransfer.setData(DRAG_TYPE, `asset:${row.asset.id}`);
             event.dataTransfer.effectAllowed = 'move';
           }}
-          onDragEnd={() => {
-            dragged.current = null;
-          }}
           onDragOver={(event) => {
             onDragOver(event, row.asset.folder_id ?? null);
           }}
-          onDragLeave={(event) => {
-            event.currentTarget.removeAttribute('data-drop');
-          }}
           onDrop={(event) => {
             onDrop(event, row.asset.folder_id ?? null);
+          }}
+          onContextMenu={(event) => {
+            event.preventDefault();
+            openAssetMenu(event.clientX, event.clientY);
           }}
           onClick={() => {
             onSelect(row.asset.id);
@@ -251,13 +263,51 @@ export function LibraryExplorer({
         >
           <span className="tree-chevron-space" />
           {library === 'images' ? (
-            <img className="library-tree-thumb" src={assetUrl(row.asset.thumbnail_sha256)} alt="" />
+            <img
+              className="library-tree-thumb"
+              src={assetUrl(row.asset.thumbnail_sha256)}
+              alt=""
+              onMouseEnter={(event) => {
+                if (previewTimer.current) clearTimeout(previewTimer.current);
+                const rect = event.currentTarget.getBoundingClientRect();
+                const width = Math.min(320, window.innerWidth - 16);
+                setHoverPreview({
+                  asset: row.asset,
+                  left: Math.max(8, Math.min(rect.left, window.innerWidth - width - 8)),
+                  top: Math.max(8, Math.min(rect.bottom + 6, window.innerHeight - 260)),
+                });
+              }}
+              onMouseLeave={() => {
+                previewTimer.current = setTimeout(() => {
+                  setHoverPreview(null);
+                }, 180);
+              }}
+            />
           ) : (
             <Icon name="music" className="row-icon" />
           )}
           <span className="row-name" title={row.asset.original_name ?? undefined}>
             {row.asset.original_name ?? row.asset.sha256.slice(0, 8)}
           </span>
+          {assetMenuItems && (
+            <span
+              className="library-row-actions"
+              onClick={(event) => {
+                event.stopPropagation();
+              }}
+            >
+              <IconButton
+                icon="more"
+                label={t('library.assetActions', {
+                  name: row.asset.original_name ?? row.asset.sha256.slice(0, 8),
+                })}
+                onClick={(event) => {
+                  const rect = event.currentTarget.getBoundingClientRect();
+                  openAssetMenu(rect.right, rect.bottom);
+                }}
+              />
+            </span>
+          )}
         </li>
       );
     }
@@ -292,7 +342,7 @@ export function LibraryExplorer({
         }}
         onContextMenu={(event) => {
           event.preventDefault();
-          setMenu({ x: event.clientX, y: event.clientY, folder });
+          setMenu({ x: event.clientX, y: event.clientY, folder, asset: null });
         }}
       >
         <Icon name="chevron" className="tree-chevron" />
@@ -380,7 +430,7 @@ export function LibraryExplorer({
         }}
         onContextMenu={(event) => {
           event.preventDefault();
-          setMenu({ x: event.clientX, y: event.clientY, folder: null });
+          setMenu({ x: event.clientX, y: event.clientY, folder: null, asset: null });
         }}
       >
         <VirtualList<Row>
@@ -403,13 +453,35 @@ export function LibraryExplorer({
         <ContextMenu
           x={menu.x}
           y={menu.y}
-          label={t('library.folders')}
-          items={folderMenu(menu.folder)}
+          label={menu.asset?.original_name ?? t('library.folders')}
+          items={menu.asset ? (assetMenuItems?.(menu.asset) ?? []) : folderMenu(menu.folder)}
           onClose={() => {
             setMenu(null);
           }}
         />
       )}
+      {hoverPreview &&
+        createPortal(
+          <div
+            className="library-image-hover-preview"
+            role="tooltip"
+            style={{ left: hoverPreview.left, top: hoverPreview.top }}
+            onMouseEnter={() => {
+              if (previewTimer.current) clearTimeout(previewTimer.current);
+            }}
+            onMouseLeave={() => {
+              setHoverPreview(null);
+            }}
+          >
+            <img
+              src={assetUrl(
+                hoverPreview.asset.display_sha256 ?? hoverPreview.asset.thumbnail_sha256,
+              )}
+              alt={hoverPreview.asset.original_name ?? ''}
+            />
+          </div>,
+          document.body,
+        )}
       {confirm && (
         <div
           className="confirm-bar"

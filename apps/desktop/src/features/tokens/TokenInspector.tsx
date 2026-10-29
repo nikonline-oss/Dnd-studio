@@ -20,6 +20,7 @@ export function TokenInspector() {
   const { data: campaign } = useCampaign();
   const tokenId = useSelection((s) => s.tokenId);
   const selectToken = useSelection((s) => s.selectToken);
+  const openCharacter = useSelection((s) => s.openCharacter);
   const token = useSnapshotSelect((s) => s.tokens.find((tok) => tok.id === tokenId));
   const characters = useSnapshotSelect((s) => s.characters);
 
@@ -43,6 +44,16 @@ export function TokenInspector() {
             <p className="muted">
               {character ? t('tokens.linkedTo', { name: character.name }) : t('tokens.noCharacter')}
             </p>
+            {character && (
+              <button
+                className="btn btn-ghost"
+                onClick={() => {
+                  openCharacter(character.id);
+                }}
+              >
+                {t('tokens.openCharacterSheet')}
+              </button>
+            )}
           </div>
         </div>
         {isGm ? (

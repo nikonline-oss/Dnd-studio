@@ -36,10 +36,10 @@ export function PixiHost({ onReady, onError, background }: PixiHostProps) {
     let disposed = false;
     let started = false;
     let release: (() => void) | null = null;
+    let resizeObserver: ResizeObserver | null = null;
 
     const ready = app
       .init({
-        resizeTo: host,
         preference: 'webgl',
         // Software and blocklisted GPUs (old drivers, VMs) still get a renderer.
         failIfMajorPerformanceCaveat: false,
@@ -55,6 +55,13 @@ export function PixiHost({ onReady, onError, background }: PixiHostProps) {
           started = true;
           if (disposed) return;
           host.appendChild(app.canvas);
+          const resizeRenderer = () => {
+            const { width, height } = host.getBoundingClientRect();
+            app.renderer.resize(width, height);
+          };
+          resizeObserver = new ResizeObserver(resizeRenderer);
+          resizeObserver.observe(host);
+          resizeRenderer();
           release = onReadyRef.current(app);
         },
         (error: unknown) => {
@@ -64,6 +71,7 @@ export function PixiHost({ onReady, onError, background }: PixiHostProps) {
 
     return () => {
       disposed = true;
+      resizeObserver?.disconnect();
       void ready.then(() => {
         if (!started) return;
         release?.();

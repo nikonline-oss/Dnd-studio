@@ -35,6 +35,14 @@ export function MapView() {
   const isGm = campaign?.role === 'gm' || campaign?.role === 'co_gm';
   const map = useShownMap();
   const selectedTokenId = useSelection((s) => s.tokenId);
+  const combat = useSnapshotSelect((s) => s.combats.some((entry) => entry.map_id === map?.id));
+  const triggerZones = useSnapshotSelect((s) =>
+    s.triggers.flatMap(({ definition }) =>
+      definition.event.type === 'roll_in_zone' || definition.event.type === 'token_entered_zone'
+        ? [definition.event.zone]
+        : [],
+    ),
+  );
   const background = map && snapshot?.assets.find((a) => a.id === map.background_asset_id);
   const fog = map && snapshot?.fog.find((f) => f.map_id === map.id);
   const [scene, setScene] = useState<MapScene | null>(null);
@@ -71,8 +79,11 @@ export function MapView() {
   // Zones are the GM's (ADR-0024); players never receive any.
   const zones = useSnapshotSelect((s) => s.zones.filter((z) => z.map_id === map?.id));
   useEffect(() => {
-    scene?.setZones(isGm ? (zones ?? []) : [], selectedZone);
-  }, [scene, zones, isGm, selectedZone]);
+    scene?.setZones(isGm ? (zones ?? []) : [], selectedZone, isGm && combat ? triggerZones : []);
+  }, [scene, zones, isGm, selectedZone, combat, triggerZones]);
+  useEffect(() => {
+    scene?.setCombatMovement(Boolean(combat));
+  }, [scene, combat]);
   // Another map: nothing of the last one stays selected or renamed.
   const shownMapIdForZones = map?.id;
   const [renaming, setRenaming] = useState<string | null>(null);
@@ -301,6 +312,13 @@ export function MapView() {
       {map && isGm && tool.shape === 'zone_edit' && (
         <p className="map-edit-hint" role="status">
           {t('zones.editHint')}
+        </p>
+      )}
+      {map && combat && (
+        <p className="map-combat-hint" role="status">
+          {selectedTokenId
+            ? t('mapView.combatMoveTargetHint')
+            : t(isGm ? 'mapView.combatMoveSelectHintGm' : 'mapView.combatMoveSelectHint')}
         </p>
       )}
       {renamed && renameAt && (

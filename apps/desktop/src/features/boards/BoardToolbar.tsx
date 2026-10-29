@@ -10,6 +10,7 @@ export function BoardToolbar({
   onLink,
   onImage,
   onTrigger,
+  onMap,
   connecting,
   canConnect,
   onConnect,
@@ -21,6 +22,7 @@ export function BoardToolbar({
   onImage: (assetId: string) => void;
   /** Places a trigger as a block; `null`: a new one. */
   onTrigger: (triggerId: string | null) => void;
+  onMap: () => void;
   connecting: boolean;
   canConnect: boolean;
   onConnect: () => void;
@@ -34,6 +36,9 @@ export function BoardToolbar({
     <div className="board-toolbar" role="toolbar" aria-label={t('boards.tools')}>
       <IconButton icon="note" label={t('boards.addNote')} disabled={disabled} onClick={onNote}>
         {t('boards.addNote')}
+      </IconButton>
+      <IconButton icon="map" label={t('boards.addMap')} disabled={disabled} onClick={onMap}>
+        {t('boards.addMap')}
       </IconButton>
       <IconButton
         icon="link"

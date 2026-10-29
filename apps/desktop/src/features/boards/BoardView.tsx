@@ -46,9 +46,11 @@ interface View {
 export function BoardView({ boardId }: { boardId: string }) {
   const { t } = useTranslation();
   const submit = useSubmitIntent();
+  const openMap = useSelection((s) => s.openMap);
   const { data: campaign } = useCampaign();
   const isGm = campaign?.role === 'gm' || campaign?.role === 'co_gm';
   const board = useSnapshotSelect((s) => s.boards.find((b) => b.id === boardId));
+  const maps = useSnapshotSelect((s) => s.maps) ?? [];
   const nodes = useSnapshotSelect((s) => s.board_nodes.filter((n) => n.board_id === boardId));
   const edges = useSnapshotSelect((s) => s.board_edges.filter((e) => e.board_id === boardId));
   const triggers = useSnapshotSelect((s) => s.triggers);
@@ -319,6 +321,49 @@ export function BoardView({ boardId }: { boardId: string }) {
     <section className="board-view" aria-label={board.name}>
       {isGm && (
         <BoardToolbar
+          onMap={() => {
+            const id = uuidv7();
+            submit.mutate(
+              {
+                intent: {
+                  kind: 'create_map',
+                  id,
+                  name: `${t('maps.newName')} ${maps.length + 1}`,
+                  background_asset_id: null,
+                  width: 4000,
+                  height: 3000,
+                  grid: { kind: 'square', cell_size: 70, offset_x: 0, offset_y: 0 },
+                  visible_to_players: false,
+                },
+              },
+              {
+                onSuccess: () => {
+                  const nodeId = uuidv7();
+                  const at = spawnPoint();
+                  submit.mutate(
+                    {
+                      intent: {
+                        kind: 'create_board_node',
+                        id: nodeId,
+                        board_id: boardId,
+                        content: { type: 'link', target: { kind: 'map', id } },
+                        x: at.x - 110 * U,
+                        y: at.y - 80 * U,
+                        width: 220 * U,
+                        height: 160 * U,
+                        visibility: 'gm',
+                      },
+                    },
+                    {
+                      onSuccess: () => {
+                        openMap(id);
+                      },
+                    },
+                  );
+                },
+              },
+            );
+          }}
           onNote={() => {
             createNode({ type: 'note', markdown: t('boards.newNote') }, 220, 120);
           }}

@@ -15,6 +15,7 @@ import { drawShape, FogLayer } from './FogLayer';
 import { BrushStroke, brushRadius16, rectFromDrag } from './fogShapes';
 import { gridPattern } from './gridPattern';
 import { TokenLayer, type TokenView } from './TokenLayer';
+import { shortestMovementPath } from './movementPath';
 import {
   clampLabel,
   dragHandle,
@@ -60,6 +61,7 @@ const REVEAL_PREVIEW = 0xe3aa45;
 const HIDE_PREVIEW = 0x0b0a10;
 const PREVIEW_ALPHA = 0.45;
 const ZONE_PREVIEW = 0x9b7bff;
+const MOVEMENT_PATH = 0x43e2c5;
 /** A press that moves less than this (CSS px) is a click, not a drag. */
 const CLICK_SLOP_PX = 4;
 /** Token moves while dragging: ~12 Hz (ADR-0003 asks for 10–15 Hz). */
@@ -119,6 +121,8 @@ export class MapScene {
   private readonly fog: FogLayer;
   /** Tool preview, drawn in Units16 (scaled down to map units). */
   private readonly preview = new Graphics();
+  /** Shortest-path route preview during combat; drawn above fog and zones. */
+  private readonly movementPreview = new Graphics();
   /** Zones, shown to GM roles only (ADR-0024). */
   private readonly zones = new ZoneLayer();
   private camera: Camera = { x: 0, y: 0, zoom: 1 };
@@ -153,7 +157,11 @@ export class MapScene {
   private readonly moves: Throttle<TokenMove>;
   private zoneList: ZoneDto[] = [];
   private selectedZone: string | null = null;
+  private triggeredZones: string[] = [];
   private zoneEditing = false;
+  private combatMovement = false;
+  private movementTokenId: string | null = null;
+  private movementPress = false;
   /** The zone being dragged in edit mode and from where (Units16). */
   private zoneDrag: {
     zone: ZoneDto;
@@ -189,6 +197,7 @@ export class MapScene {
       this.onMoveToken(move);
     });
     this.preview.scale.set(1 / 16);
+    this.movementPreview.scale.set(1 / 16);
     this.preview.eventMode = 'none';
     // Tokens sit under the fog: players do not see what is hidden.
     this.world.addChild(
@@ -198,6 +207,7 @@ export class MapScene {
       this.fog.view,
       this.zones.view,
       this.preview,
+      this.movementPreview,
     );
     app.stage.addChild(this.world);
     const stage = app.stage;
@@ -242,6 +252,7 @@ export class MapScene {
       this.mapId = map.id;
       this.cancelDrawing();
       this.endTokenDrag();
+      this.clearMovementPlan();
       this.fit();
     }
     this.grid = map.grid;
@@ -255,9 +266,10 @@ export class MapScene {
   }
 
   /** The zones of the shown map (empty for players, who never get any) and the selected one. */
-  setZones(zones: ZoneDto[], selected: string | null = null): void {
+  setZones(zones: ZoneDto[], selected: string | null = null, triggered: string[] = []): void {
     this.zoneList = zones;
     this.selectedZone = selected;
+    this.triggeredZones = triggered;
     // A sent change is shown until the zone comes back changed (or the request fails).
     const shown = this.zoneOverride;
     if (shown?.sent) {
@@ -285,6 +297,14 @@ export class MapScene {
     this.drawZones();
   }
 
+  /** Combat uses click-to-plan movement instead of dragging the token itself. */
+  setCombatMovement(on: boolean): void {
+    if (on === this.combatMovement) return;
+    this.combatMovement = on;
+    this.clearMovementPlan();
+    this.drawZones();
+  }
+
   /** Where a zone's name is on the canvas (CSS pixels), to rename it in place. */
   zoneLabelOnCanvas(zoneId: string): Point | null {
     const box = this.zones.labelBox(zoneId);
@@ -301,6 +321,7 @@ export class MapScene {
     this.tool = tool;
     this.cancelDrawing();
     this.endTokenDrag();
+    if (tool) this.clearMovementPlan();
     this.app.canvas.style.cursor = this.idleCursor();
     // Tokens can be grabbed only without a fog tool (and outside zone edit mode).
     if (this.grid) this.tokens.show(this.tokenViews, this.grid, this.tokensGrabbable());
@@ -437,6 +458,7 @@ export class MapScene {
 
   private idleCursor(): string {
     if (this.tool) return 'crosshair';
+    if (this.combatMovement && this.movementTokenId) return 'crosshair';
     return this.zoneEditing ? 'default' : 'grab';
   }
 
@@ -450,6 +472,7 @@ export class MapScene {
       this.zoneEditing ? this.selectedZone : null,
       this.camera.zoom,
       (this.mapSize?.width ?? 0) * 16,
+      this.combatMovement ? this.triggeredZones : [],
     );
   }
 
@@ -621,6 +644,13 @@ export class MapScene {
   private readonly onGrabToken = (id: string, event: FederatedPointerEvent): void => {
     const view = this.tokenViews.find((v) => v.token.id === id);
     if (!view || this.tool) return;
+    if (this.combatMovement) {
+      this.movementTokenId = id;
+      this.onSelectToken(id);
+      this.movementPreview.clear();
+      this.app.canvas.style.cursor = 'crosshair';
+      return;
+    }
     const at = this.world.toLocal(event.global);
     this.tokenDrag = {
       id,
@@ -702,6 +732,11 @@ export class MapScene {
     }
     // In zone edit mode the left button works on zones; on the empty map it still pans.
     if (event.button === 0 && this.zoneEditing && this.mapSize && this.zoneDown(event)) return;
+    if (event.button === 0 && this.combatMovement && this.movementTokenId && this.mapSize) {
+      this.movementPress = true;
+      this.drawMovementPath(this.world.toLocal(event.global));
+      return;
+    }
     if (event.button !== 0 && event.button !== 1) return;
     this.dragFrom = { x: event.global.x, y: event.global.y };
     this.panStart = event.button === 0 ? { ...this.dragFrom } : null;
@@ -710,6 +745,10 @@ export class MapScene {
 
   private readonly onMove = (event: FederatedPointerEvent): void => {
     if (!this.mapSize) return;
+    if (this.combatMovement && this.movementTokenId && !this.tokenDrag) {
+      this.drawMovementPath(this.world.toLocal(event.global));
+      return;
+    }
     const drag = this.tokenDrag;
     if (drag) {
       if (!drag.moved) {
@@ -748,6 +787,20 @@ export class MapScene {
   };
 
   private readonly onUp = (event: FederatedPointerEvent): void => {
+    if (this.movementPress) {
+      this.movementPress = false;
+      const path = this.movementPathAt(this.world.toLocal(event.global));
+      const token = this.tokenViews.find((view) => view.token.id === this.movementTokenId)?.token;
+      const destination = path?.at(-1);
+      if (token && destination && this.mapSize) {
+        const final = tokenPosition(destination, this.mapSize);
+        if (final.x !== token.x || final.y !== token.y) {
+          this.onMoveToken({ id: token.id, ...final, final: true });
+        }
+      }
+      this.clearMovementPlan();
+      return;
+    }
     if (this.zoneDrag) {
       this.zoneUp(event);
       return;
@@ -793,4 +846,40 @@ export class MapScene {
       if (clicked) this.onSelectToken(null);
     }
   };
+
+  private movementPathAt(destination: Point): Point[] | null {
+    const token = this.tokenViews.find((view) => view.token.id === this.movementTokenId)?.token;
+    if (!token || !this.grid || !this.mapSize) return null;
+    return shortestMovementPath(
+      { x: token.x / 16, y: token.y / 16 },
+      destination,
+      this.grid,
+      this.mapSize,
+    );
+  }
+
+  private drawMovementPath(destination: Point): void {
+    this.movementPreview.clear();
+    const path = this.movementPathAt(destination);
+    if (!path || path.length < 2) return;
+    const first = path[0];
+    if (!first) return;
+    const lineWidth = (4 * 16) / this.camera.zoom;
+    const radius = (8 * 16) / this.camera.zoom;
+    this.movementPreview.moveTo(first.x * 16, first.y * 16);
+    for (const point of path.slice(1)) this.movementPreview.lineTo(point.x * 16, point.y * 16);
+    this.movementPreview.stroke({ color: MOVEMENT_PATH, alpha: 0.95, width: lineWidth });
+    for (const point of path) {
+      this.movementPreview
+        .circle(point.x * 16, point.y * 16, radius)
+        .fill({ color: MOVEMENT_PATH, alpha: 0.85 });
+    }
+  }
+
+  private clearMovementPlan(): void {
+    this.movementTokenId = null;
+    this.movementPress = false;
+    this.movementPreview.clear();
+    this.app.canvas.style.cursor = this.idleCursor();
+  }
 }

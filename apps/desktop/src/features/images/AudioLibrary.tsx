@@ -7,6 +7,7 @@ import { useRemote } from '@/shared/game/useRemote';
 import { IconButton } from '@/shared/ui/IconButton';
 import { NavSection } from '@/shared/ui/NavSection';
 import { ErrorText } from '@/shared/ui/ErrorText';
+import type { MenuItem } from '@/shared/ui/Menu';
 import { LibraryExplorer } from './LibraryExplorer';
 
 /** Music and sound library. GM playback is broadcast through the authoritative game event stream. */
@@ -21,7 +22,34 @@ export function AudioLibrary() {
   const submit = useSubmitIntent();
   const importing = useMutation({ mutationFn: ipc.assetImportAudio });
   const current = useSnapshotSelect((s) => s.sounds ?? []) ?? [];
-  const selectedSound = sounds.find((asset) => asset.id === selected);
+  const soundMenu = (asset: (typeof sounds)[number]): MenuItem[] => [
+    {
+      label: t('audio.playOnce'),
+      onSelect: () => {
+        submit.mutate({
+          intent: { kind: 'play_sound', asset_id: asset.id, volume: 80, looped: false },
+        });
+      },
+    },
+    {
+      label: t('audio.playLoop'),
+      onSelect: () => {
+        submit.mutate({
+          intent: { kind: 'play_sound', asset_id: asset.id, volume: 80, looped: true },
+        });
+      },
+    },
+    ...(current.some((sound) => sound.asset_id === asset.id)
+      ? [
+          {
+            label: t('audio.stop'),
+            onSelect: () => {
+              submit.mutate({ intent: { kind: 'stop_sound', asset_id: asset.id } });
+            },
+          },
+        ]
+      : []),
+  ];
 
   return (
     <NavSection
@@ -41,54 +69,13 @@ export function AudioLibrary() {
         )
       }
     >
-      <LibraryExplorer library="audio" assets={sounds} selected={selected} onSelect={setSelected} />
-      {selectedSound && (
-        <div
-          className="audio-selection-actions"
-          aria-label={selectedSound.original_name ?? t('audio.title')}
-        >
-          <span className="row-name">
-            {selectedSound.original_name ?? selectedSound.sha256.slice(0, 8)}
-          </span>
-          <IconButton
-            icon="play"
-            label={t('audio.playOnce')}
-            onClick={() => {
-              submit.mutate({
-                intent: {
-                  kind: 'play_sound',
-                  asset_id: selectedSound.id,
-                  volume: 80,
-                  looped: false,
-                },
-              });
-            }}
-          />
-          <IconButton
-            icon="music"
-            label={t('audio.playLoop')}
-            onClick={() => {
-              submit.mutate({
-                intent: {
-                  kind: 'play_sound',
-                  asset_id: selectedSound.id,
-                  volume: 80,
-                  looped: true,
-                },
-              });
-            }}
-          />
-          {current.some((sound) => sound.asset_id === selectedSound.id) && (
-            <IconButton
-              icon="stop"
-              label={t('audio.stop')}
-              onClick={() => {
-                submit.mutate({ intent: { kind: 'stop_sound', asset_id: selectedSound.id } });
-              }}
-            />
-          )}
-        </div>
-      )}
+      <LibraryExplorer
+        library="audio"
+        assets={sounds}
+        selected={selected}
+        onSelect={setSelected}
+        assetMenuItems={soundMenu}
+      />
       <ErrorText error={importing.error ?? submit.error} />
     </NavSection>
   );

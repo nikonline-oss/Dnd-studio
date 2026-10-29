@@ -7,6 +7,7 @@ import { zoneParts } from './zoneTool';
 import type { ZoneDto } from '@/shared/ipc/client';
 
 const ZONE_COLOR = 0x9b7bff;
+const TRIGGER_COLOR = 0xff9f43;
 const SELECTED_COLOR = 0xffd166;
 const FILL_ALPHA = 0.12;
 const SELECTED_FILL_ALPHA = 0.22;
@@ -43,11 +44,18 @@ export class ZoneLayer {
    * Shows exactly `zones`, `selected` highlighted with handles sized for `zoom`; names are sized
    * for a map `mapWidth` Units16 wide. Redraws only when something changed.
    */
-  show(zones: ZoneDto[], selected: string | null, zoom: number, mapWidth: number): void {
+  show(
+    zones: ZoneDto[],
+    selected: string | null,
+    zoom: number,
+    mapWidth: number,
+    triggered: string[] = [],
+  ): void {
+    const triggerSet = new Set(triggered);
     const key = `${mapWidth}:${selected ?? ''}@${selected ? zoom : 0}|${zones
       .map(
         (z) =>
-          `${z.id}:${z.version}:${z.name}:${JSON.stringify(z.shape)}:${JSON.stringify(z.label)}`,
+          `${z.id}:${z.version}:${z.name}:${triggerSet.has(z.id)}:${JSON.stringify(z.shape)}:${JSON.stringify(z.label)}`,
       )
       .join(',')}`;
     if (key === this.key) return;
@@ -60,7 +68,8 @@ export class ZoneLayer {
     const fontSize = Math.min(MAX_FONT, Math.max(MIN_FONT, Math.round(mapWidth / 40)));
     for (const zone of zones) {
       const isSelected = zone.id === selected;
-      const color = isSelected ? SELECTED_COLOR : ZONE_COLOR;
+      const hasTrigger = triggerSet.has(zone.id);
+      const color = isSelected ? SELECTED_COLOR : hasTrigger ? TRIGGER_COLOR : ZONE_COLOR;
       // A merged zone is drawn part by part.
       for (const part of zoneParts(zone.shape)) {
         if (part.type === 'rect') this.shapes.rect(part.x, part.y, part.width, part.height);
@@ -71,9 +80,9 @@ export class ZoneLayer {
       }
       const at: Point16 = labelPosition(zone);
       const label = new Text({
-        text: zone.name,
+        text: hasTrigger ? `⚡ ${zone.name}` : zone.name,
         style: {
-          fill: isSelected ? SELECTED_COLOR : 0xffffff,
+          fill: isSelected || hasTrigger ? color : 0xffffff,
           fontSize,
           fontWeight: '600',
           stroke: { color: 0x000000, width: fontSize / 8 },

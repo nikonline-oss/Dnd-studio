@@ -36,6 +36,7 @@
     "downscaled": "The image ({{width}}×{{height}}) was scaled down to fit 16384 px"
   },
   "tokens": {
+    "openCharacterSheet": "Open character sheet",
     "title": "Tokens",
     "noMap": "Select a map",
     "empty": "No tokens on this map",
@@ -189,6 +190,9 @@
     "rendererFailed": "Could not start the map renderer (WebGL is unavailable)",
     "imagesFailed": "Some map images could not be loaded",
     "dropHint": "Drop to place the token",
+    "combatMoveSelectHint": "Select one of your tokens, then point to its destination.",
+    "combatMoveSelectHintGm": "Select a token, then point to its destination. Trigger zones are marked ⚡.",
+    "combatMoveTargetHint": "Point to a destination cell to preview the shortest route, then click to move.",
     "toolbar": "Map tools"
   },
   "inspector": {
@@ -361,6 +365,7 @@
     "value": "Initiative of {{name}}"
   },
   "activity": {
+    "library": "Library",
     "label": "Views",
     "maps": "Maps",
     "characters": "Characters",
@@ -438,6 +443,11 @@
     "remote": "Plugins are installed into the local campaign."
   },
   "boards": {
+    "addMap": "New map",
+    "expandMaps": "Show maps in {{name}}",
+    "collapseMaps": "Hide maps in {{name}}",
+    "mapsInBoard": "Maps in {{name}}",
+    "noMaps": "No maps on this board",
     "title": "Boards",
     "add": "New board",
     "newName": "Board",
@@ -656,6 +666,7 @@
     "toBoard": "Onto the open board",
     "openBoardFirst": "Open a board in a tab first",
     "copyForJournal": "Copy for the journal",
+    "moveToFolder": "Move to folder: {{name}}",
     "copied": "Copied: paste it into an entry"
   },
   "audio": {
@@ -667,6 +678,12 @@
     "stop": "Stop for everyone"
   },
   "library": {
+    "title": "Library",
+    "emptyAlt": "An enchanted lantern over a blank map",
+    "emptyMessage": "Your campaign library is ready for its first story.",
+    "assetActions": "Actions for {{name}}",
+    "moveAssetRoot": "Move to library root",
+    "resizeSections": "Resize {{first}} and {{second}}",
     "folders": "Library folders",
     "root": "Root",
     "addFolder": "Create folder",
