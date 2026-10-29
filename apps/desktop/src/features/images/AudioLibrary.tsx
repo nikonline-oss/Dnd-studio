@@ -1,7 +1,7 @@
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useSnapshotSelect, useSubmitIntent } from '@/shared/game/useGame';
+import { useCampaign, useSnapshotSelect, useSubmitIntent } from '@/shared/game/useGame';
 import { ipc } from '@/shared/ipc/client';
 import { useRemote } from '@/shared/game/useRemote';
 import { IconButton } from '@/shared/ui/IconButton';
@@ -19,6 +19,13 @@ export function AudioLibrary() {
     .sort((a, b) => (a.original_name ?? '').localeCompare(b.original_name ?? ''));
   const [selected, setSelected] = useState<string | null>(null);
   const remote = useRemote();
+  const { data: campaign } = useCampaign();
+  const isGm = campaign?.role === 'gm' || campaign?.role === 'co_gm';
+  const canImport =
+    isGm &&
+    (remote === null ||
+      remote.status.state === 'online' ||
+      (remote.hosted && remote.status.state === 'reconnecting'));
   const submit = useSubmitIntent();
   const importing = useMutation({ mutationFn: ipc.assetImportAudio });
   const current = useSnapshotSelect((s) => s.sounds ?? []) ?? [];
@@ -57,7 +64,7 @@ export function AudioLibrary() {
       title={t('audio.title')}
       count={sounds.length}
       actions={
-        remote === null && (
+        canImport && (
           <IconButton
             icon="plus"
             label={t('audio.import')}

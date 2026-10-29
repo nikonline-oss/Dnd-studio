@@ -6,6 +6,7 @@ pub mod bundled;
 mod commands;
 pub mod compendia;
 mod error;
+mod import_target;
 mod journal_files;
 mod local_server;
 pub mod logging;

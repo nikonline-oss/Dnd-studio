@@ -442,6 +442,7 @@ pub struct RemoteSession {
     connection: Arc<Connection>,
     view: Arc<StdMutex<Option<View>>>,
     status: Arc<StdMutex<RemoteStatus>>,
+    view_changed: Arc<tokio::sync::Notify>,
 }
 
 impl RemoteSession {
@@ -467,6 +468,8 @@ impl RemoteSession {
         )?);
         let view: Arc<StdMutex<Option<View>>> = Arc::default();
         let status = Arc::new(StdMutex::new(RemoteStatus::Connecting));
+        let view_changed = Arc::new(tokio::sync::Notify::new());
+        let changed = Arc::clone(&view_changed);
         let (view_w, status_w, conn) = (view.clone(), status.clone(), Arc::downgrade(&connection));
         tokio::spawn(async move {
             while let Some(incoming) = rx.recv().await {
@@ -479,6 +482,7 @@ impl RemoteSession {
                                 state: GameState::from_snapshot((*snapshot).clone()),
                             });
                         }
+                        changed.notify_waiters();
                         on_event(RemoteEvent::Snapshot(snapshot));
                     }
                     Incoming::Events(batch) => {
@@ -489,6 +493,7 @@ impl RemoteSession {
                         if gap && let Some(conn) = conn.upgrade() {
                             conn.resync();
                         }
+                        changed.notify_waiters();
                         on_event(RemoteEvent::Events(batch));
                     }
                     Incoming::Status(s) => {
@@ -496,6 +501,7 @@ impl RemoteSession {
                         if let Ok(mut status) = status_w.lock() {
                             *status = s.clone();
                         }
+                        changed.notify_waiters();
                         on_event(RemoteEvent::Status(s));
                     }
                 }
@@ -510,6 +516,7 @@ impl RemoteSession {
             connection,
             view,
             status,
+            view_changed,
         })
     }
 
@@ -828,6 +835,90 @@ impl RemoteSession {
             }
         }
         Ok(outcome)
+    }
+
+    /// Register an imported sound only after its verified bytes reach the authoritative server.
+    pub async fn register_audio(
+        &self,
+        audio: &dnd_assets::ImportedAudio,
+        directory: &Path,
+        name: Option<String>,
+    ) -> Result<dnd_protocol::AssetId, IpcError> {
+        use dnd_protocol::{AssetUsage, Intent, RejectReason};
+        if !matches!(self.role, Role::Gm | Role::CoGm) {
+            return Err(IpcError::user("forbidden", "only GM roles import sounds"));
+        }
+        if self.status() != RemoteStatus::Online {
+            return Err(IpcError::user("offline", "the session is not connected"));
+        }
+        let sha = &audio.file.sha256;
+        if let Some(id) = self.asset_by_hash(AssetUsage::Audio, sha) {
+            return Ok(id);
+        }
+        self.upload_local_file(directory, sha, "audio").await?;
+        let asset = crate::assets::audio_dto(audio, name);
+        let id = asset.id;
+        match self
+            .submit(IntentEnvelope {
+                intent_id: dnd_protocol::IntentId::new_v7(),
+                expected_version: None,
+                intent: Intent::RegisterAsset {
+                    asset: Box::new(asset),
+                },
+            })
+            .await?
+        {
+            IntentOutcome::Accepted { .. } => Ok(id),
+            IntentOutcome::Rejected {
+                reason: RejectReason::AlreadyExists,
+            } => {
+                // A concurrent import can win before its event reaches this view. Read the
+                // canonical id after resync; never invent an optimistic asset in the snapshot.
+                self.connection.resync();
+                let wait = async {
+                    loop {
+                        let changed = self.view_changed.notified();
+                        tokio::pin!(changed);
+                        changed.as_mut().enable();
+                        if let Some(id) = self.asset_by_hash(AssetUsage::Audio, sha) {
+                            return Some(id);
+                        }
+                        if matches!(self.status(), RemoteStatus::Closed { .. }) {
+                            return None;
+                        }
+                        changed.await;
+                    }
+                };
+                tokio::time::timeout(std::time::Duration::from_secs(5), wait)
+                    .await
+                    .ok()
+                    .flatten()
+                    .ok_or_else(|| {
+                        IpcError::user(
+                            "already_exists",
+                            "the imported sound already exists; retry after synchronization",
+                        )
+                    })
+            }
+            IntentOutcome::Rejected { reason } => {
+                Err(IpcError::user(reason.code(), reason.to_string()))
+            }
+        }
+    }
+
+    fn asset_by_hash(
+        &self,
+        usage: dnd_protocol::AssetUsage,
+        sha: &str,
+    ) -> Option<dnd_protocol::AssetId> {
+        self.with_state(|state| {
+            state
+                .assets
+                .values()
+                .find(|a| a.usage == usage && a.sha256 == sha)
+                .map(|a| a.id)
+        })
+        .flatten()
     }
 
     /// An installed plugin's immutable package, verified even when read from the disk cache.

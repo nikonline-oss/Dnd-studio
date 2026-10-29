@@ -118,50 +118,30 @@ pub async fn asset_import_audio<R: Runtime>(
     state: State<'_, AppState>,
 ) -> Result<Vec<AssetId>, IpcError> {
     let paths = pick_audio(&app).await;
-    let assets_dir = {
-        let guard = state.server.lock().await;
-        let server = guard.as_ref().ok_or_else(IpcError::no_campaign)?;
-        server.folder().join(ASSETS_DIR)
-    };
+    if paths.is_empty() {
+        return Ok(Vec::new());
+    }
+    let target = crate::import_target::ImportTarget::capture(&state).await?;
+    let assets_dir = target.directory();
     let mut ids = Vec::with_capacity(paths.len());
     for path in paths {
         let original_name = path.file_name().map(|s| s.to_string_lossy().into_owned());
-        let dir = assets_dir.clone();
-        let audio = tauri::async_runtime::spawn_blocking(move || {
-            let size = std::fs::metadata(&path)?.len();
-            if size > MAX_AUDIO_BYTES as u64 {
-                return Err(asset_error(&dnd_assets::AssetError::TooLarge {
-                    bytes: usize::try_from(size).unwrap_or(usize::MAX),
-                }));
-            }
-            let audio = import_audio(&std::fs::read(&path)?).map_err(|e| asset_error(&e))?;
-            dnd_assets::store_audio(&dir, &audio)?;
-            Ok(audio)
-        })
-        .await
-        .map_err(|e| IpcError::internal("import_failed", e.to_string()))??;
-        let mut guard = state.server.lock().await;
+        let audio = read_audio(path, assets_dir.clone()).await?;
+        if let crate::import_target::ImportTarget::Remote { session, .. } = &target {
+            ids.push(
+                session
+                    .register_audio(&audio, &assets_dir, original_name)
+                    .await?,
+            );
+            continue;
+        }
+        let mut guard = target.local_server(&state).await?;
         let server = guard.as_mut().ok_or_else(IpcError::no_campaign)?;
         if let Some(existing) = server.asset_by_sha(&audio.file.sha256) {
             ids.push(existing);
             continue;
         }
-        let sha = audio.file.sha256.clone();
-        let asset = AssetDto {
-            id: AssetId::new_v7(),
-            usage: dnd_protocol::AssetUsage::Audio,
-            sha256: sha.clone(),
-            mime: audio.mime.to_owned(),
-            size_bytes: i64::try_from(audio.file.bytes.len()).unwrap_or(i64::MAX),
-            original_name,
-            width: 0,
-            height: 0,
-            display_sha256: Some(sha.clone()),
-            thumbnail_sha256: sha,
-            tiles: Vec::new(),
-            folder_id: None,
-            version: Version::INITIAL,
-        };
+        let asset = audio_dto(&audio, original_name);
         let id = asset.id;
         let batch = submit(
             server,
@@ -176,6 +156,47 @@ pub async fn asset_import_audio<R: Runtime>(
         ids.push(id);
     }
     Ok(ids)
+}
+
+pub(crate) async fn read_audio(
+    path: PathBuf,
+    directory: PathBuf,
+) -> Result<dnd_assets::ImportedAudio, IpcError> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let size = std::fs::metadata(&path)?.len();
+        if size > MAX_AUDIO_BYTES as u64 {
+            return Err(asset_error(&dnd_assets::AssetError::TooLarge {
+                bytes: usize::try_from(size).unwrap_or(usize::MAX),
+            }));
+        }
+        let audio = import_audio(&std::fs::read(path)?).map_err(|e| asset_error(&e))?;
+        dnd_assets::store_audio(&directory, &audio)?;
+        Ok(audio)
+    })
+    .await
+    .map_err(|e| IpcError::internal("import_failed", e.to_string()))?
+}
+
+pub(crate) fn audio_dto(
+    audio: &dnd_assets::ImportedAudio,
+    original_name: Option<String>,
+) -> AssetDto {
+    let sha = audio.file.sha256.clone();
+    AssetDto {
+        id: AssetId::new_v7(),
+        usage: dnd_protocol::AssetUsage::Audio,
+        sha256: sha.clone(),
+        mime: audio.mime.to_owned(),
+        size_bytes: i64::try_from(audio.file.bytes.len()).unwrap_or(i64::MAX),
+        original_name,
+        width: 0,
+        height: 0,
+        display_sha256: Some(sha.clone()),
+        thumbnail_sha256: sha,
+        tiles: Vec::new(),
+        folder_id: None,
+        version: Version::INITIAL,
+    }
 }
 
 async fn pick_audio<R: Runtime>(app: &AppHandle<R>) -> Vec<PathBuf> {

@@ -119,7 +119,8 @@
     "dependency_version_mismatch": "An unsuitable version of a dependency is installed",
     "pending_conflicts": "Resolve offline edit conflicts before stopping the session.",
     "campaign_on_server": "This campaign is already linked to a session. Connect to that session to sync.",
-    "replica_mismatch": "The local copy does not match this session or its GM. Open the original campaign."
+    "replica_mismatch": "The local copy does not match this session or its GM. Open the original campaign.",
+    "import_context_changed": "The campaign or connection changed during import. Try importing again."
   },
   "menu": {
     "label": "Main menu",

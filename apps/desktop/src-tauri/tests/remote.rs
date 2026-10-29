@@ -232,6 +232,57 @@ async fn host_join_and_play_through_the_server() {
         .await
         .unwrap();
     assert_eq!(active.state, "active");
+    let audio = dnd_assets::import_audio(b"OggS remote ambience").unwrap();
+    let audio_dir = local.folder().join("assets");
+    dnd_assets::store_audio(&audio_dir, &audio).unwrap();
+    assert_eq!(
+        player
+            .register_audio(&audio, &audio_dir, Some("Ambience.ogg".into()))
+            .await
+            .unwrap_err()
+            .code,
+        "forbidden"
+    );
+    let (first, second) = tokio::join!(
+        gm.register_audio(&audio, &audio_dir, Some("Ambience.ogg".into())),
+        gm.register_audio(&audio, &audio_dir, Some("Copy.ogg".into())),
+    );
+    let audio_id = first.unwrap();
+    let repeated = second.unwrap();
+    assert_eq!(audio_id, repeated);
+    gm.submit(IntentEnvelope {
+        intent_id: IntentId::new_v7(),
+        expected_version: None,
+        intent: Intent::PlaySound {
+            asset_id: audio_id,
+            volume: 80,
+            looped: true,
+        },
+    })
+    .await
+    .unwrap();
+    tokio::time::timeout(Duration::from_secs(10), async {
+        while !player
+            .snapshot()
+            .unwrap()
+            .sounds
+            .iter()
+            .any(|sound| sound.asset_id == audio_id && sound.looped)
+        {
+            player_rx.recv().await.unwrap();
+        }
+    })
+    .await
+    .unwrap();
+    let heard = player
+        .asset(
+            &audio.file.sha256,
+            &dir.path().join("sound-cache"),
+            audio.mime,
+        )
+        .await
+        .unwrap();
+    assert_eq!(heard, audio.file.bytes);
     let plugin_sha = player
         .snapshot()
         .unwrap()
