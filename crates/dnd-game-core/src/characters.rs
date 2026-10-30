@@ -52,6 +52,7 @@ pub(crate) fn apply(
                 },
             }])
         })(),
+        Intent::DeleteCharacter { id } => delete(state, *id),
         Intent::UpdateCharacter {
             id,
             name,
@@ -150,6 +151,32 @@ fn valid_conditions(state: &GameState, ids: &[String]) -> Result<Vec<String>, Re
         .filter(|c| ids.contains(&c.id))
         .map(|c| c.id.clone())
         .collect())
+}
+
+fn delete(state: &GameState, id: dnd_protocol::CharacterId) -> Result<Vec<Event>, RejectReason> {
+    let mut events = Vec::new();
+    for token in state.tokens.values().filter(|t| t.character_id == Some(id)) {
+        let mut token = token.clone();
+        token.character_id = None;
+        token.version = bump(token.version)?;
+        events.push(Event::TokenUpdated { token });
+    }
+    for combatant in state
+        .combatants
+        .values()
+        .filter(|c| c.character_id == Some(id))
+    {
+        let mut combatant = combatant.clone();
+        combatant.character_id = None;
+        combatant.version = bump(combatant.version)?;
+        events.push(Event::CombatantUpdated { combatant });
+    }
+    let nodes: Vec<_> = state.board_nodes.values().filter(|n| matches!(&n.content, dnd_protocol::BoardNodeContent::Link { target: dnd_protocol::BoardLink::Character { id: target } } if *target == id)).map(|n| n.id).collect();
+    for node in nodes {
+        events.extend(crate::boards::delete_node(state, node));
+    }
+    events.push(Event::CharacterDeleted { id });
+    Ok(events)
 }
 
 fn change(

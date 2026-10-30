@@ -81,6 +81,7 @@ pub struct PluginPackage {
 /// The rules of a system plugin with its sheet files loaded.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SystemPackage {
+    pub creature_sheet_layout: Option<LayoutNode>,
     pub rules: SystemRules,
     /// The data schema exactly as in the package (JSON Schema subset).
     pub sheet_schema: Value,
@@ -473,7 +474,26 @@ fn parse_system(
         serde_json::from_value(layout_value).map_err(|e| invalid_layout(e.to_string()))?;
     sheet::check_layout(&sheet_layout, &sheet_schema, &rules).map_err(invalid_layout)?;
 
+    let creature_sheet_layout = rules
+        .creature_sheet_layout
+        .as_ref()
+        .map(|name| -> PluginResult<LayoutNode> {
+            let bytes = take_file(sheets, name)?;
+            let invalid = |reason: String| PluginError::InvalidLayout {
+                file: name.clone(),
+                reason,
+            };
+            let value = parse_json(name, &bytes)?;
+            MetaSchema::Layout.check(&value)?.map_err(invalid)?;
+            let layout: LayoutNode =
+                serde_json::from_value(value).map_err(|e| invalid(e.to_string()))?;
+            sheet::check_layout(&layout, &sheet_schema, &rules).map_err(invalid)?;
+            Ok(layout)
+        })
+        .transpose()?;
+
     Ok(SystemPackage {
+        creature_sheet_layout,
         rules,
         sheet_schema,
         sheet_layout,

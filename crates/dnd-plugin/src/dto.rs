@@ -28,6 +28,10 @@ impl SystemPackage {
     pub fn to_dto(&self) -> SystemRulesDto {
         let r = &self.rules;
         SystemRulesDto {
+            creature_sheet_layout: self
+                .creature_sheet_layout
+                .as_ref()
+                .map(|layout| serde_json::to_value(layout).unwrap_or(Value::Null)),
             sheet_schema: self.sheet_schema.clone(),
             // A layout node always serializes; `Null` would only hide a bug the core then rejects.
             sheet_layout: serde_json::to_value(&self.sheet_layout).unwrap_or(Value::Null),

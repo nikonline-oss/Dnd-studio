@@ -1,0 +1,101 @@
+{
+  "type": "section",
+  "label": {
+    "en": "Creature",
+    "ru": "Существо"
+  },
+  "children": [
+    {
+      "type": "field",
+      "path": "concept",
+      "label": {
+        "en": "Concept",
+        "ru": "Концепция"
+      }
+    },
+    {
+      "type": "resource",
+      "resource": "health"
+    },
+    {
+      "type": "grid",
+      "columns": 2,
+      "children": [
+        {
+          "type": "field",
+          "path": "attributes.body",
+          "label": {
+            "en": "Body",
+            "ru": "Тело"
+          }
+        },
+        {
+          "type": "field",
+          "path": "attributes.agility",
+          "label": {
+            "en": "Agility",
+            "ru": "Ловкость"
+          }
+        },
+        {
+          "type": "field",
+          "path": "attributes.mind",
+          "label": {
+            "en": "Mind",
+            "ru": "Разум"
+          }
+        },
+        {
+          "type": "field",
+          "path": "attributes.spirit",
+          "label": {
+            "en": "Spirit",
+            "ru": "Дух"
+          }
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "children": [
+        {
+          "type": "field",
+          "path": "harm",
+          "label": {
+            "en": "Harm",
+            "ru": "Урон"
+          }
+        },
+        {
+          "type": "computed",
+          "name": "defense",
+          "label": {
+            "en": "Defense",
+            "ru": "Защита"
+          }
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "children": [
+        {
+          "type": "roll",
+          "roll": "body"
+        },
+        {
+          "type": "roll",
+          "roll": "agility"
+        }
+      ]
+    },
+    {
+      "type": "field",
+      "path": "notes",
+      "label": {
+        "en": "Notes",
+        "ru": "Заметки"
+      }
+    }
+  ]
+}

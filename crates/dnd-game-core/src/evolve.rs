@@ -79,6 +79,9 @@ pub fn evolve(state: &mut GameState, event: &Event) {
         Event::CombatantRemoved { id } => {
             state.combatants.remove(id);
         }
+        Event::CharacterDeleted { id } => {
+            state.characters.remove(id);
+        }
         Event::CharacterCreated { character } | Event::CharacterUpdated { character } => {
             state.characters.insert(character.id, character.clone());
         }

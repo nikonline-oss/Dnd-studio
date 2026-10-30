@@ -430,6 +430,7 @@ pub fn filter_for_players(before: &GameState, after: &GameState, batch: &EventBa
                         Event::ChatMessagePosted { message } => chat_visible_to_players(message),
                         Event::CampaignMetaUpdated { .. }
                         | Event::CharacterCreated { .. }
+                        | Event::CharacterDeleted { .. }
                         | Event::CharacterUpdated { .. }
                         | Event::UserJoined { .. }
                         // Rules are the same for everyone.

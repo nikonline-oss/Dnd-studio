@@ -133,8 +133,12 @@ pub(crate) fn apply(
             }])
         })(),
         Intent::DeleteBoardNode { id } => (|| {
-            if !state.board_nodes.contains_key(id) {
-                return Err(RejectReason::NotFound);
+            let node = state.board_nodes.get(id).ok_or(RejectReason::NotFound)?;
+            if let BoardNodeContent::Link {
+                target: BoardLink::Map { id: map },
+            } = node.content
+            {
+                return Ok(delete_map(state, map));
             }
             Ok(delete_node(state, *id))
         })(),
@@ -241,7 +245,7 @@ fn delete_board(state: &GameState, id: BoardId) -> Vec<Event> {
 }
 
 /// The node's edges, then the node.
-fn delete_node(state: &GameState, id: BoardNodeId) -> Vec<Event> {
+pub(crate) fn delete_node(state: &GameState, id: BoardNodeId) -> Vec<Event> {
     let mut events: Vec<Event> = state
         .board_edges
         .values()
@@ -249,6 +253,27 @@ fn delete_node(state: &GameState, id: BoardNodeId) -> Vec<Event> {
         .map(|e| Event::BoardEdgeDeleted { id: e.id })
         .collect();
     events.push(Event::BoardNodeDeleted { id });
+    events
+}
+
+/// Deleting a map card deletes its map everywhere, including links on other boards.
+pub(crate) fn delete_map(state: &GameState, id: dnd_protocol::MapId) -> Vec<Event> {
+    let nodes: std::collections::BTreeSet<_> = state.board_nodes.values()
+        .filter(|n| matches!(n.content, BoardNodeContent::Link { target: BoardLink::Map { id: map } } if map == id))
+        .map(|n| n.id).collect();
+    let mut events: Vec<_> = state
+        .board_edges
+        .values()
+        .filter(|e| nodes.contains(&e.from) || nodes.contains(&e.to))
+        .map(|e| Event::BoardEdgeDeleted { id: e.id })
+        .collect();
+    events.extend(nodes.into_iter().map(|id| Event::BoardNodeDeleted { id }));
+    events.extend(
+        state
+            .tokens_on(id)
+            .map(|t| Event::TokenDeleted { id: t.id }),
+    );
+    events.push(Event::MapDeleted { id });
     events
 }
 

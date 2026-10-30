@@ -192,6 +192,7 @@ pub fn zone_dto() -> impl Strategy<Value = ZoneDto> {
             name,
             shape,
             label,
+            color: crate::zone::default_zone_color(),
             version,
         })
 }
@@ -603,6 +604,7 @@ pub fn intent() -> impl Strategy<Value = Intent> {
                 shape,
                 label
             }),
+        (zone_id(), 0u32..=0xffffff).prop_map(|(id, color)| Intent::SetZoneColor { id, color }),
         zone_id().prop_map(|id| Intent::DeleteZone { id }),
         (trigger_id(), trigger_def())
             .prop_map(|(id, definition)| Intent::CreateTrigger { id, definition }),
@@ -683,6 +685,7 @@ pub fn intent() -> impl Strategy<Value = Intent> {
         character_id().prop_map(|id| Intent::ApproveCharacter { id }),
         character_id().prop_map(|id| Intent::ReturnCharacter { id }),
         character_id().prop_map(|id| Intent::ArchiveCharacter { id }),
+        character_id().prop_map(|id| Intent::DeleteCharacter { id }),
         character_id().prop_map(|id| Intent::AssignCharacterOwner { id, owner: None }),
     ]
 }

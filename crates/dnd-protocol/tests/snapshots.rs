@@ -150,9 +150,9 @@ fn shared_playback_wire_contract_and_legacy_defaults() {
     }))
     .unwrap();
     assert_eq!((legacy.position_ms, legacy.paused), (0, false));
-    assert_eq!(PROTOCOL_VERSION, 7);
+    assert_eq!(PROTOCOL_VERSION, 8);
     let mut old = envelope(ClientMessage::Ping);
-    old.v = 6;
+    old.v = 7;
     assert!(old.check_version().is_err());
 }
 

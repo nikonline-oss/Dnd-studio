@@ -34,6 +34,7 @@ pub(crate) fn apply(
                     name: valid_name(name, "name")?,
                     shape: valid_shape(map, shape)?,
                     label: None,
+                    color: 0x9b7bff,
                     version: Version::INITIAL,
                 },
             }])
@@ -64,6 +65,15 @@ pub(crate) fn apply(
                 }
                 zone.label = Some(*label);
             }
+            zone.version = bump(zone.version)?;
+            Ok(vec![Event::ZoneUpdated { zone }])
+        })(),
+        Intent::SetZoneColor { id, color } => (|| {
+            if *color > 0xffffff {
+                return Err(RejectReason::invalid("color"));
+            }
+            let mut zone = state.zones.get(id).cloned().ok_or(RejectReason::NotFound)?;
+            zone.color = *color;
             zone.version = bump(zone.version)?;
             Ok(vec![Event::ZoneUpdated { zone }])
         })(),

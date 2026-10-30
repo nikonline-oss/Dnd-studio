@@ -5,6 +5,7 @@
   "additionalProperties": false,
   "required": ["sheet", "initiative"],
   "properties": {
+    "creature_sheet_layout": { "$ref": "#/$defs/sheet_file" },
     "sheet": {
       "type": "object",
       "additionalProperties": false,

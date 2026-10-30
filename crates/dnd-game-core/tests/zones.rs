@@ -446,3 +446,54 @@ fn the_name_label_moves_on_the_map_only() {
         .is_err()
     );
 }
+#[test]
+fn zone_colors_are_checked_versioned_and_gm_only() {
+    for (role, allowed) in [
+        (Role::Gm, true),
+        (Role::CoGm, true),
+        (Role::Player, false),
+        (Role::Spectator, false),
+    ] {
+        let mut state = zoned();
+        let result = run(
+            &mut state,
+            role,
+            Intent::SetZoneColor {
+                id: zone(0),
+                color: 0x12abef,
+            },
+            Some(Version::INITIAL),
+        );
+        if allowed {
+            assert!(result.is_ok());
+            assert_eq!(state.zones[&zone(0)].color, 0x12abef);
+            assert_eq!(state.zones[&zone(0)].version, Version(2));
+            assert!(
+                run(
+                    &mut state,
+                    role,
+                    Intent::SetZoneColor {
+                        id: zone(0),
+                        color: 0
+                    },
+                    Some(Version::INITIAL)
+                )
+                .is_err()
+            );
+        } else {
+            assert_eq!(result, Err(RejectReason::Forbidden));
+        }
+    }
+    assert_eq!(
+        run(
+            &mut zoned(),
+            Role::Gm,
+            Intent::SetZoneColor {
+                id: zone(0),
+                color: 0x1000000
+            },
+            Some(Version::INITIAL)
+        ),
+        Err(RejectReason::invalid("color"))
+    );
+}

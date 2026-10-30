@@ -97,6 +97,13 @@ fn check_rules(rules: &SystemRulesDto) -> Result<(), RejectReason> {
     if !rules.sheet_layout.is_object() {
         return Err(RejectReason::invalid("sheet_layout"));
     }
+    if rules
+        .creature_sheet_layout
+        .as_ref()
+        .is_some_and(|layout| !layout.is_object())
+    {
+        return Err(RejectReason::invalid("creature_sheet_layout"));
+    }
     let thresholds = &rules.health_thresholds;
     if thresholds.len() != 3
         || thresholds.iter().any(|t| *t > 100)

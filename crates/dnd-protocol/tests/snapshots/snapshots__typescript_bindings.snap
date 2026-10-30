@@ -269,7 +269,7 @@ export type Event = { kind: "campaign_meta_updated"; campaign: CampaignMeta } | 
 /**  The map's fog now has no operations, only the initial state. */
 { kind: "fog_reset"; map_id: MapId; covered: boolean } | { kind: "token_created"; token: TokenDto } | { kind: "token_updated"; token: TokenDto } | { kind: "token_moved"; id: TokenId; x: number; y: number } | { kind: "token_deleted"; id: TokenId } | { kind: "character_created"; character: CharacterDto } | 
 /**  Any change: name, sheet, status, owner. */
-{ kind: "character_updated"; character: CharacterDto } | { kind: "journal_entry_created"; entry: JournalEntryDto } | 
+{ kind: "character_deleted"; id: CharacterId } | { kind: "character_updated"; character: CharacterDto } | { kind: "journal_entry_created"; entry: JournalEntryDto } | 
 /**  Any change: text, title, folder, order, visibility. */
 { kind: "journal_entry_updated"; entry: JournalEntryDto } | { kind: "journal_entry_deleted"; id: JournalEntryId } | { kind: "journal_folder_created"; folder: JournalFolderDto } | 
 /**  Renamed or moved. */
@@ -417,7 +417,9 @@ width: number; height: number; grid: Grid; visible_to_players: boolean } | { kin
  *  Players create their own `pc` in `draft` (owner = themselves); GM / Co-GM create any
  *  character directly as `active`.
  */
-{ kind: "create_character"; id: CharacterId; character_kind: CharacterKind; name: string; owner: UserId | null; sheet_json: string } | { kind: "update_character"; id: CharacterId; name: string | null; sheet_json: string | null } | 
+{ kind: "create_character"; id: CharacterId; character_kind: CharacterKind; name: string; owner: UserId | null; sheet_json: string } | 
+/**  GM / Co-GM: permanently delete a character; linked tokens and initiative entries remain unlinked. */
+{ kind: "delete_character"; id: CharacterId } | { kind: "update_character"; id: CharacterId; name: string | null; sheet_json: string | null } | 
 /**  draft → pending_approval (owner or GM). */
 { kind: "submit_character"; id: CharacterId } | 
 /**  pending_approval → active (GM / Co-GM). */
@@ -501,7 +503,9 @@ roll: string | null } |
 /**  GM / Co-GM: a named area on a map for triggers (ADR-0024). */
 { kind: "create_zone"; id: ZoneId; map_id: MapId; name: string; shape: ZoneShape } | { kind: "update_zone"; id: ZoneId; name: string | null; shape: ZoneShape | null; 
 /**  Moves the zone's name: the top-left corner of the text, on the map. */
-label?: ZoneLabel | null } | { kind: "delete_zone"; id: ZoneId } | 
+label?: ZoneLabel | null } | 
+/**  Changes RGB color (GM/Co-GM, checked version). */
+{ kind: "set_zone_color"; id: ZoneId; color: number } | { kind: "delete_zone"; id: ZoneId } | 
 /**
  *  Joins zones of the same map into `into` (its parts and theirs); the others are deleted and
  *  triggers watching them watch `into` instead.
@@ -860,6 +864,8 @@ export type SystemRulesDto = {
 	sheet_schema: unknown,
 	/**  Root layout node (rendered by the clients; the core only stores it). */
 	sheet_layout: unknown,
+	/**  Optional NPC/creature form over the same validated system data. */
+	creature_sheet_layout?: unknown | null,
 	/**  Name → expression; results are integers. */
 	computed: { [key in string]: string },
 	/**  Dice expression for initiative. */
@@ -1037,6 +1043,8 @@ export type ZoneDto = {
 	shape: ZoneShape,
 	/**  Where the GM moved the name to; `None` (and zones stored before): at the first part's corner. */
 	label?: ZoneLabel | null,
+	/**  RGB, 0x000000..=0xffffff. Old campaigns use purple. */
+	color?: number,
 	version: Version,
 };
 

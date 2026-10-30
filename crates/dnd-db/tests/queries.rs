@@ -518,7 +518,7 @@ fn query_inventory_matches_adr_0008() {
         .map(|s| s.matches("sqlx::query").count())
         .sum();
     assert_eq!(
-        count, 83,
+        count, 84,
         "runtime queries changed: add a real-SQLite test and update the table in docs/adr/0008-db-conventions.md"
     );
 }
@@ -630,6 +630,17 @@ async fn characters_and_users_are_projected_and_loaded() {
             role: Role::Gm
         }]
     );
+    db.project(&[record(
+        3,
+        Some(0x33),
+        vec![Event::CharacterDeleted {
+            id: CharacterId(v7(0x300)),
+        }],
+    )])
+    .await
+    .unwrap();
+    let (deleted, _) = db.load_state().await.unwrap();
+    assert!(deleted.characters.is_empty());
 }
 
 /// Participants joining a session become users (ADR-0022); joining again updates name and role.
@@ -702,6 +713,7 @@ async fn plugins_and_the_system_are_projected_and_loaded() {
         system: Some(SystemRulesDto {
             sheet_schema: serde_json::json!({ "type": "object", "properties": {} }),
             sheet_layout: serde_json::json!({ "type": "section", "children": [] }),
+            creature_sheet_layout: None,
             computed: std::collections::BTreeMap::new(),
             initiative: "1d20".into(),
             resources: Vec::new(),
@@ -1721,6 +1733,7 @@ async fn zones_are_projected_loaded_and_go_with_their_map() {
             points: vec![0, 0, 160, 0, 80, 160],
         },
         label: None,
+        color: 0x9b7bff,
         version: Version(1),
     };
     db.project(&[record(
@@ -1735,6 +1748,7 @@ async fn zones_are_projected_loaded_and_go_with_their_map() {
     .unwrap();
     let moved = ZoneDto {
         name: "Old altar".into(),
+        color: 0x12abef,
         shape: ZoneShape::Rect {
             x: 16,
             y: 32,

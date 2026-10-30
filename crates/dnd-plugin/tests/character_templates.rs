@@ -4,6 +4,60 @@ use common::*;
 use serde_json::json;
 
 #[test]
+fn creature_layout_uses_the_system_schema_and_references() {
+    let mut rules = system_rules();
+    rules["creature_sheet_layout"] = json!("sheet/creature.layout.json");
+    let package = system_package().json("system.json", &rules).json(
+        "sheet/creature.layout.json",
+        &json!({"type":"section","label":"Creature","children":[
+            {"type":"field","path":"str","label":"Strength"},
+            {"type":"computed","name":"str_mod","label":"Modifier"},
+            {"type":"resource","resource":"hp"},
+            {"type":"roll","roll":"str_check"}
+        ]}),
+    );
+    let loaded = package.read().unwrap();
+    assert_eq!(
+        loaded
+            .to_dto()
+            .system
+            .unwrap()
+            .creature_sheet_layout
+            .unwrap()["label"],
+        "Creature"
+    );
+    for node in [
+        json!({"type":"field","path":"missing","label":"Bad"}),
+        json!({"type":"roll","roll":"missing"}),
+        json!({"type":"resource","resource":"missing"}),
+        json!({"type":"computed","name":"missing","label":"Bad"}),
+        json!({"type":"script","code":"alert(1)"}),
+    ] {
+        assert!(
+            package
+                .clone()
+                .json("sheet/creature.layout.json", &node)
+                .read()
+                .is_err()
+        );
+    }
+}
+
+#[test]
+fn creature_layout_requires_a_safe_existing_distinct_file() {
+    for path in [
+        "../creature.json",
+        "https://example.org/form.json",
+        "sheet/missing.json",
+        "sheet/character.schema.json",
+    ] {
+        let mut rules = system_rules();
+        rules["creature_sheet_layout"] = json!(path);
+        assert!(system_package().json("system.json", &rules).read().is_err());
+    }
+}
+
+#[test]
 fn character_templates_are_validated() {
     for template in [
         json!(null),

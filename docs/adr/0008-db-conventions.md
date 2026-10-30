@@ -73,6 +73,7 @@ ADR-0002 выбрал SQLite. Нужно зафиксировать, как им
 | `SELECT … FROM characters`                                           | `load_state`                       | `projection.rs::character_owners_are_loaded`                                                    |
 | `SELECT … FROM users`                                                | `load_state`                       | `queries.rs::characters_and_users_are_projected_and_loaded`                                     |
 | `INSERT … ON CONFLICT` `characters`                                  | `upsert_character`                 | `queries.rs::characters_and_users_are_projected_and_loaded` (insert и update)                   |
+| `DELETE FROM characters`                                             | `project_event`                    | `queries.rs::characters_and_users_are_projected_and_loaded` (delete, reload)                    |
 | `SELECT … FROM journal_entries`                                      | `load_state`                       | `queries.rs::journal_entries_are_projected_and_loaded`                                          |
 | `INSERT … ON CONFLICT` `journal_entries`                             | `upsert_journal_entry`             | `queries.rs::journal_entries_are_projected_and_loaded` (`created_at` не меняется)               |
 | `DELETE FROM journal_entries`                                        | `project_event`                    | `queries.rs::journal_entries_are_projected_and_loaded`                                          |

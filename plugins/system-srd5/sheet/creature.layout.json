@@ -1,0 +1,125 @@
+{
+  "type": "section",
+  "label": {
+    "en": "Creature stat block",
+    "ru": "Блок характеристик существа"
+  },
+  "children": [
+    {
+      "type": "field",
+      "path": "species",
+      "label": {
+        "en": "Creature type",
+        "ru": "Вид существа"
+      }
+    },
+    {
+      "type": "resource",
+      "resource": "hp"
+    },
+    {
+      "type": "row",
+      "children": [
+        {
+          "type": "field",
+          "path": "hp.current",
+          "label": {
+            "en": "Current HP",
+            "ru": "Текущие хиты"
+          }
+        },
+        {
+          "type": "field",
+          "path": "hp.max",
+          "label": {
+            "en": "Maximum HP",
+            "ru": "Максимальные хиты"
+          }
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "children": [
+        {
+          "type": "field",
+          "path": "ac",
+          "label": {
+            "en": "Armor class",
+            "ru": "Класс брони"
+          }
+        },
+        {
+          "type": "field",
+          "path": "speed",
+          "label": {
+            "en": "Speed",
+            "ru": "Скорость"
+          }
+        }
+      ]
+    },
+    {
+      "type": "grid",
+      "columns": 3,
+      "children": [
+        {
+          "type": "field",
+          "path": "abilities.str",
+          "label": {
+            "en": "STR",
+            "ru": "STR"
+          }
+        },
+        {
+          "type": "field",
+          "path": "abilities.dex",
+          "label": {
+            "en": "DEX",
+            "ru": "DEX"
+          }
+        },
+        {
+          "type": "field",
+          "path": "abilities.con",
+          "label": {
+            "en": "CON",
+            "ru": "CON"
+          }
+        },
+        {
+          "type": "field",
+          "path": "abilities.int",
+          "label": {
+            "en": "INT",
+            "ru": "INT"
+          }
+        },
+        {
+          "type": "field",
+          "path": "abilities.wis",
+          "label": {
+            "en": "WIS",
+            "ru": "WIS"
+          }
+        },
+        {
+          "type": "field",
+          "path": "abilities.cha",
+          "label": {
+            "en": "CHA",
+            "ru": "CHA"
+          }
+        }
+      ]
+    },
+    {
+      "type": "field",
+      "path": "notes",
+      "label": {
+        "en": "Traits and actions",
+        "ru": "Особенности и действия"
+      }
+    }
+  ]
+}

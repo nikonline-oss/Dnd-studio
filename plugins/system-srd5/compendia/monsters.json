@@ -34,7 +34,28 @@
             "bonus": 5,
             "damage": "1d4 + 3 piercing"
           }
-        ]
+        ],
+        "character_template": {
+          "kind": "npc",
+          "sheet_data": {
+            "species": "beast",
+            "abilities": {
+              "str": 7,
+              "dex": 16,
+              "con": 11,
+              "int": 2,
+              "wis": 10,
+              "cha": 4
+            },
+            "hp": {
+              "current": 7,
+              "max": 7
+            },
+            "notes": "Bite: +5, 1d4 + 3 piercing",
+            "ac": 13,
+            "speed": 30
+          }
+        }
       }
     },
     {
@@ -70,7 +91,28 @@
             "bonus": 4,
             "damage": "1d6 + 2 piercing"
           }
-        ]
+        ],
+        "character_template": {
+          "kind": "npc",
+          "sheet_data": {
+            "species": "fey",
+            "abilities": {
+              "str": 8,
+              "dex": 15,
+              "con": 10,
+              "int": 10,
+              "wis": 8,
+              "cha": 8
+            },
+            "hp": {
+              "current": 10,
+              "max": 10
+            },
+            "notes": "Scimitar: +4, 1d6 + 2 slashing\nShortbow: +4, 1d6 + 2 piercing",
+            "ac": 15,
+            "speed": 30
+          }
+        }
       }
     },
     {
@@ -106,7 +148,28 @@
             "bonus": 5,
             "damage": "1d6 + 3 piercing"
           }
-        ]
+        ],
+        "character_template": {
+          "kind": "npc",
+          "sheet_data": {
+            "species": "undead",
+            "abilities": {
+              "str": 10,
+              "dex": 16,
+              "con": 15,
+              "int": 6,
+              "wis": 8,
+              "cha": 5
+            },
+            "hp": {
+              "current": 13,
+              "max": 13
+            },
+            "notes": "Shortsword: +5, 1d6 + 3 piercing\nShortbow: +5, 1d6 + 3 piercing",
+            "ac": 14,
+            "speed": 30
+          }
+        }
       }
     },
     {
@@ -137,7 +200,28 @@
             "bonus": 4,
             "damage": "1d6 + 2 piercing"
           }
-        ]
+        ],
+        "character_template": {
+          "kind": "npc",
+          "sheet_data": {
+            "species": "beast",
+            "abilities": {
+              "str": 14,
+              "dex": 15,
+              "con": 12,
+              "int": 3,
+              "wis": 12,
+              "cha": 6
+            },
+            "hp": {
+              "current": 11,
+              "max": 11
+            },
+            "notes": "Bite: +4, 1d6 + 2 piercing",
+            "ac": 12,
+            "speed": 40
+          }
+        }
       }
     },
     {
@@ -168,7 +252,28 @@
             "bonus": 3,
             "damage": "1d8 + 1 bludgeoning"
           }
-        ]
+        ],
+        "character_template": {
+          "kind": "npc",
+          "sheet_data": {
+            "species": "undead",
+            "abilities": {
+              "str": 13,
+              "dex": 6,
+              "con": 16,
+              "int": 3,
+              "wis": 6,
+              "cha": 5
+            },
+            "hp": {
+              "current": 15,
+              "max": 15
+            },
+            "notes": "Slam: +3, 1d8 + 1 bludgeoning",
+            "ac": 8,
+            "speed": 20
+          }
+        }
       }
     }
   ]

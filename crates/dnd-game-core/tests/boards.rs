@@ -101,6 +101,36 @@ fn boards() -> GameState {
 }
 
 #[test]
+fn deleting_map_card_removes_map_and_every_other_reference() {
+    for role in [Role::Gm, Role::CoGm] {
+        let mut state = boards();
+        let map_id = pooled_map_id(1);
+        for id in [node(0), node(3)] {
+            state.board_nodes.get_mut(&id).unwrap().content = BoardNodeContent::Link {
+                target: BoardLink::Map { id: map_id },
+            };
+        }
+        run(
+            &mut state,
+            role,
+            Intent::DeleteBoardNode { id: node(0) },
+            Some(Version::INITIAL),
+        )
+        .unwrap();
+        assert!(!state.maps.contains_key(&map_id));
+        assert!(!state.board_nodes.contains_key(&node(0)));
+        assert!(!state.board_nodes.contains_key(&node(3)));
+        assert!(
+            state
+                .board_edges
+                .values()
+                .all(|e| e.from != node(0) && e.to != node(0))
+        );
+        assert!(state.tokens.values().all(|t| t.map_id != map_id));
+    }
+}
+
+#[test]
 fn only_gm_roles_change_boards() {
     for (role, allowed) in [
         (Role::Gm, true),

@@ -410,5 +410,6 @@
   "inventory": {
     "path": "equipment",
     "name_field": "name"
-  }
+  },
+  "creature_sheet_layout": "sheet/creature.layout.json"
 }

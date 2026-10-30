@@ -69,6 +69,9 @@ pub enum Event {
         character: CharacterDto,
     },
     /// Any change: name, sheet, status, owner.
+    CharacterDeleted {
+        id: crate::CharacterId,
+    },
     CharacterUpdated {
         character: CharacterDto,
     },

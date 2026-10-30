@@ -184,6 +184,10 @@ pub struct SystemRulesDto {
     /// Root layout node (rendered by the clients; the core only stores it).
     #[cfg_attr(feature = "specta", specta(type = specta_typescript::Unknown))]
     pub sheet_layout: Value,
+    /// Optional NPC/creature form over the same validated system data.
+    #[serde(default)]
+    #[cfg_attr(feature = "specta", specta(type = Option<specta_typescript::Unknown>))]
+    pub creature_sheet_layout: Option<Value>,
     /// Name → expression; results are integers.
     pub computed: BTreeMap<String, String>,
     /// Dice expression for initiative.

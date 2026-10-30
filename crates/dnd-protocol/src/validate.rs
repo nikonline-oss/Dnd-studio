@@ -104,6 +104,7 @@ impl Intent {
             | Self::UpdateMap { .. }
             | Self::DeleteMap { .. }
             | Self::UpdateToken { .. }
+            | Self::DeleteCharacter { .. }
             | Self::DeleteToken { .. }
             | Self::CreateCharacter { .. }
             | Self::UpdateCharacter { .. }
@@ -137,6 +138,7 @@ impl Intent {
             | Self::CreateBoardEdge { .. }
             | Self::UpdateBoardEdge { .. }
             | Self::DeleteBoardEdge { .. }
+            | Self::SetZoneColor { .. }
             | Self::DeleteZone { .. }
             | Self::MergeZones { .. }
             | Self::SetConditions { .. }
@@ -203,6 +205,7 @@ impl Intent {
             | Self::UpdateToken { .. }
             | Self::MoveToken { .. }
             | Self::DeleteToken { .. }
+            | Self::DeleteCharacter { .. }
             | Self::UpdateCharacter { .. }
             | Self::SubmitCharacter { .. }
             | Self::ApproveCharacter { .. }
@@ -231,6 +234,7 @@ impl Intent {
             | Self::UpdateBoardEdge { .. }
             | Self::DeleteBoardEdge { .. }
             | Self::UpdateZone { .. }
+            | Self::SetZoneColor { .. }
             | Self::DeleteZone { .. }
             | Self::MergeZones { .. }
             | Self::SetConditions { .. }

@@ -44,6 +44,9 @@ pub struct Manifest {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SystemRules {
     pub sheet: SheetRef,
+    /// Optional NPC presentation of the same sheet schema.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub creature_sheet_layout: Option<String>,
     /// Name → expression. Results must be integers (the core checks).
     #[serde(default)]
     pub computed: BTreeMap<String, String>,

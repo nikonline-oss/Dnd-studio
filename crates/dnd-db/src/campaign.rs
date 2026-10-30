@@ -902,6 +902,13 @@ async fn project_event(conn: &mut SqliteConnection, event: &Event, at_ms: i64) -
                 .await?;
             Ok(())
         }
+        Event::CharacterDeleted { id } => {
+            sqlx::query("DELETE FROM characters WHERE id = ?")
+                .bind(id.to_string())
+                .execute(conn)
+                .await?;
+            Ok(())
+        }
         Event::CharacterCreated { character } | Event::CharacterUpdated { character } => {
             upsert_character(conn, character).await
         }

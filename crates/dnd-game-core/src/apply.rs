@@ -132,14 +132,7 @@ fn decide(
             Ok(vec![Event::MapUpdated { map }])
         }
 
-        Intent::DeleteMap { id } => {
-            let mut events: Vec<Event> = state
-                .tokens_on(*id)
-                .map(|t| Event::TokenDeleted { id: t.id })
-                .collect();
-            events.push(Event::MapDeleted { id: *id });
-            Ok(events)
-        }
+        Intent::DeleteMap { id } => Ok(crate::boards::delete_map(state, *id)),
 
         Intent::CreateToken {
             id,
@@ -236,6 +229,7 @@ fn decide(
         Intent::DeleteToken { id } => Ok(vec![Event::TokenDeleted { id: *id }]),
 
         Intent::CreateCharacter { .. }
+        | Intent::DeleteCharacter { .. }
         | Intent::UpdateCharacter { .. }
         | Intent::SubmitCharacter { .. }
         | Intent::ApproveCharacter { .. }
@@ -310,6 +304,7 @@ fn decide(
 
         Intent::CreateZone { .. }
         | Intent::UpdateZone { .. }
+        | Intent::SetZoneColor { .. }
         | Intent::DeleteZone { .. }
         | Intent::MergeZones { .. } => {
             crate::zones::apply(state, intent).unwrap_or(Err(RejectReason::invalid("intent")))
@@ -340,7 +335,8 @@ pub fn current_version(state: &GameState, intent: &Intent) -> Result<Version, Re
         Intent::UpdateToken { id, .. }
         | Intent::DeleteToken { id }
         | Intent::MoveToken { id, .. } => state.tokens.get(id).map(|t| t.version),
-        Intent::UpdateCharacter { id, .. }
+        Intent::DeleteCharacter { id }
+        | Intent::UpdateCharacter { id, .. }
         | Intent::SubmitCharacter { id }
         | Intent::ApproveCharacter { id }
         | Intent::ReturnCharacter { id }
@@ -371,6 +367,7 @@ pub fn current_version(state: &GameState, intent: &Intent) -> Result<Version, Re
         | Intent::CreateBoardEdge { .. }
         | Intent::CreateZone { .. } => None,
         Intent::UpdateZone { id, .. }
+        | Intent::SetZoneColor { id, .. }
         | Intent::DeleteZone { id }
         | Intent::MergeZones { into: id, .. } => state.zones.get(id).map(|z| z.version),
         Intent::CreateTrigger { .. } | Intent::FireTrigger { .. } => None,

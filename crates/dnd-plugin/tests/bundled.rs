@@ -35,6 +35,7 @@ fn srd5_loads_with_its_sheet_rules_and_compendia() {
     let dto = package.to_dto();
     let rules = dto.system.unwrap();
     assert_eq!(rules.initiative, "1d20 + @dex_mod");
+    assert!(rules.creature_sheet_layout.is_some());
     assert!(rules.computed.contains_key("str_mod"));
     assert!(rules.rolls.iter().any(|r| r.id == "stealth"));
     assert_eq!(package.compendia.len(), 2);
@@ -50,5 +51,6 @@ fn generic_d6_loads() {
     );
     let rules = package.to_dto().system.unwrap();
     assert_eq!(rules.initiative, "2d6 + @attributes.agility");
+    assert!(rules.creature_sheet_layout.is_some());
     assert_eq!(rules.health_thresholds, [66, 33, 0]);
 }

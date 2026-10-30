@@ -74,7 +74,7 @@ pub use zone::{MAX_ZONE_PARTS, MAX_ZONE_POINTS, MAX_ZONES_PER_MAP, ZoneDto, Zone
 
 /// Protocol version. Peers with a different version are refused with
 /// [`RejectReason::ProtocolMismatch`].
-pub const PROTOCOL_VERSION: u32 = 7;
+pub const PROTOCOL_VERSION: u32 = 8;
 
 /// Registers every protocol type that is exported to TypeScript.
 #[cfg(feature = "specta")]

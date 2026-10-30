@@ -136,7 +136,16 @@ pub struct ZoneDto {
     /// Where the GM moved the name to; `None` (and zones stored before): at the first part's corner.
     #[serde(default)]
     pub label: Option<ZoneLabel>,
+    /// RGB, 0x000000..=0xffffff. Old campaigns use purple.
+    #[serde(default = "default_zone_color")]
+    pub color: u32,
     pub version: Version,
+}
+
+/// Default color of zones created before custom colors.
+#[must_use]
+pub const fn default_zone_color() -> u32 {
+    0x9b7bff
 }
 
 #[cfg(test)]
@@ -160,6 +169,7 @@ mod tests {
         let json = r#"{"id":"0190a000-0000-7000-8000-000000000001","map_id":"0190a000-0000-7000-8000-000000000002","name":"Altar","shape":{"type":"rect","x":0,"y":0,"width":16,"height":16},"version":3}"#;
         let zone: ZoneDto = serde_json::from_str(json).unwrap();
         assert_eq!(zone.label, None);
+        assert_eq!(zone.color, default_zone_color());
     }
 
     #[test]

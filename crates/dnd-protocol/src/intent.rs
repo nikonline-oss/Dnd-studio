@@ -156,6 +156,10 @@ pub enum Intent {
         owner: Option<UserId>,
         sheet_json: String,
     },
+    /// GM / Co-GM: permanently delete a character; linked tokens and initiative entries remain unlinked.
+    DeleteCharacter {
+        id: CharacterId,
+    },
     UpdateCharacter {
         id: CharacterId,
         name: Option<String>,
@@ -374,6 +378,11 @@ pub enum Intent {
         #[serde(default)]
         label: Option<ZoneLabel>,
     },
+    /// Changes RGB color (GM/Co-GM, checked version).
+    SetZoneColor {
+        id: ZoneId,
+        color: u32,
+    },
     DeleteZone {
         id: ZoneId,
     },
@@ -488,6 +497,7 @@ impl Intent {
             Self::MoveToken { .. } => "move_token",
             Self::DeleteToken { .. } => "delete_token",
             Self::CreateCharacter { .. } => "create_character",
+            Self::DeleteCharacter { .. } => "delete_character",
             Self::UpdateCharacter { .. } => "update_character",
             Self::SubmitCharacter { .. } => "submit_character",
             Self::ApproveCharacter { .. } => "approve_character",
@@ -522,6 +532,7 @@ impl Intent {
             Self::DeleteBoardEdge { .. } => "delete_board_edge",
             Self::CreateZone { .. } => "create_zone",
             Self::UpdateZone { .. } => "update_zone",
+            Self::SetZoneColor { .. } => "set_zone_color",
             Self::DeleteZone { .. } => "delete_zone",
             Self::MergeZones { .. } => "merge_zones",
             Self::CreateTrigger { .. } => "create_trigger",
@@ -577,6 +588,7 @@ impl Intent {
             | Self::DeleteMap { .. }
             | Self::UpdateToken { .. }
             | Self::DeleteToken { .. }
+            | Self::DeleteCharacter { .. }
             | Self::UpdateCharacter { .. }
             | Self::SubmitCharacter { .. }
             | Self::ApproveCharacter { .. }
@@ -601,6 +613,7 @@ impl Intent {
             | Self::UpdateBoardEdge { .. }
             | Self::DeleteBoardEdge { .. }
             | Self::UpdateZone { .. }
+            | Self::SetZoneColor { .. }
             | Self::DeleteZone { .. }
             | Self::MergeZones { .. }
             | Self::SetConditions { .. }
@@ -622,6 +635,7 @@ impl Intent {
             Self::CreateCharacter { id, .. }
             | Self::SetConditions { id, .. }
             | Self::GiveItem { id, .. }
+            | Self::DeleteCharacter { id }
             | Self::UpdateCharacter { id, .. }
             | Self::SubmitCharacter { id }
             | Self::ApproveCharacter { id }

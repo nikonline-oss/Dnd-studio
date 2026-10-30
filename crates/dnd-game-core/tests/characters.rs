@@ -13,6 +13,45 @@ fn new_id() -> CharacterId {
     CharacterId(v7(0x4000))
 }
 
+#[test]
+fn deletion_is_checked_and_only_gm_roles_may_delete() {
+    for role in [Role::Gm, Role::CoGm, Role::Player, Role::Spectator] {
+        let mut state = table_state();
+        run(
+            &mut state,
+            Role::Player,
+            create(CharacterKind::Pc, Some(PLAYER)),
+            None,
+        )
+        .unwrap();
+        let result = run(
+            &mut state,
+            role,
+            Intent::DeleteCharacter { id: new_id() },
+            Some(Version::INITIAL),
+        );
+        if role.is_game_master() {
+            assert!(result.is_ok());
+            assert!(!state.characters.contains_key(&new_id()));
+        } else {
+            assert_eq!(result, Err(RejectReason::Forbidden));
+            assert!(state.characters.contains_key(&new_id()));
+        }
+    }
+    let mut state = table_state();
+    run(&mut state, Role::Gm, create(CharacterKind::Npc, None), None).unwrap();
+    assert!(
+        run(
+            &mut state,
+            Role::Gm,
+            Intent::DeleteCharacter { id: new_id() },
+            Some(Version(9))
+        )
+        .is_err()
+    );
+    assert!(state.characters.contains_key(&new_id()));
+}
+
 fn create(kind: CharacterKind, owner: Option<UserId>) -> Intent {
     Intent::CreateCharacter {
         id: new_id(),
@@ -362,4 +401,73 @@ fn sheet_json_is_validated() {
         validate_sheet_json(r#"{"hp": -9007199254740991, "ok": [true, null, "s"]}"#),
         Ok(())
     );
+}
+
+#[test]
+fn deletion_detaches_tokens_and_initiative_and_removes_board_links() {
+    let mut state = table_state();
+    let id = pooled_character_id(0);
+    let combatant_id = CombatantId(v7(0x889));
+    state.combatants.insert(
+        combatant_id,
+        CombatantDto {
+            id: combatant_id,
+            combat_id: CombatId(v7(0x888)),
+            token_id: None,
+            character_id: Some(id),
+            name: "Hero".into(),
+            initiative: Some(12),
+            sort_order: 0,
+            version: Version::INITIAL,
+        },
+    );
+    let node = BoardNodeId(v7(0x990));
+    let other = BoardNodeId(v7(0x991));
+    state.board_nodes.insert(
+        node,
+        BoardNodeDto {
+            id: node,
+            board_id: BoardId(v7(0x992)),
+            content: BoardNodeContent::Link {
+                target: BoardLink::Character { id },
+            },
+            x: 0,
+            y: 0,
+            width: 1600,
+            height: 1600,
+            visibility: BoardVisibility::Players,
+            version: Version::INITIAL,
+        },
+    );
+    let edge = BoardEdgeId(v7(0x993));
+    state.board_edges.insert(
+        edge,
+        BoardEdgeDto {
+            id: edge,
+            board_id: BoardId(v7(0x992)),
+            from: node,
+            to: other,
+            label: String::new(),
+            directed: true,
+            visibility: BoardVisibility::Players,
+            version: Version::INITIAL,
+        },
+    );
+    let count = state.tokens.len();
+    let events = run(
+        &mut state,
+        Role::Gm,
+        Intent::DeleteCharacter { id },
+        Some(Version::INITIAL),
+    )
+    .unwrap();
+    assert!(matches!(events.last(),Some(Event::CharacterDeleted{id:deleted}) if *deleted == id));
+    assert_eq!(state.tokens.len(), count);
+    assert!(state.tokens.values().all(|t| t.character_id != Some(id)));
+    assert_eq!(state.combatants[&combatant_id].character_id, None);
+    assert_eq!(state.combatants[&combatant_id].initiative, Some(12));
+    assert!(!state.board_nodes.contains_key(&node));
+    assert!(!state.board_edges.contains_key(&edge));
+    dnd_game_core::evolve_all(&mut state, &events);
+    assert!(!state.characters.contains_key(&id));
 }

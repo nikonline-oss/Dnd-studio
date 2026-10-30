@@ -22,6 +22,19 @@ fn bundled(dir: &str) -> PluginDto {
         .to_dto()
 }
 
+#[test]
+fn creature_form_must_be_an_object_and_legacy_systems_need_no_form() {
+    let mut plugin = bundled("system-generic-d6");
+    let rules = plugin.system.as_mut().unwrap();
+    rules.creature_sheet_layout = None;
+    assert!(check_plugin(&plugin).is_ok());
+    plugin.system.as_mut().unwrap().creature_sheet_layout = Some(json!("script"));
+    assert_eq!(
+        check_plugin(&plugin),
+        Err(RejectReason::invalid("creature_sheet_layout"))
+    );
+}
+
 fn install(state: &mut GameState, plugin: PluginDto, system: bool) {
     let id = plugin.id.clone();
     run(
