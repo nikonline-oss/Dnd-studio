@@ -63,6 +63,40 @@ async fn server_schema() {
 }
 
 #[tokio::test]
+async fn derivative_uniqueness_migration_preserves_existing_references() {
+    let pool = memory_pool().await;
+    CAMPAIGN_MIGRATOR.run_to(17, &pool).await.unwrap();
+    let sha = "a".repeat(64);
+    sqlx::query("INSERT INTO assets (id,type,usage,sha256,mime,size_bytes,created_at) VALUES ('picture','image','token',?,'image/png',1,0)").bind(&sha).execute(&pool).await.unwrap();
+    sqlx::query("INSERT INTO maps (id,name,background_asset_id,grid_kind,grid_cell_size,visible_to_players) VALUES ('map','Crypt','picture','square',70,0)").execute(&pool).await.unwrap();
+    sqlx::query("INSERT INTO tokens (id,map_id,asset_id,x,y,rotation,scale,layer,visible) VALUES ('token','map','picture',0,0,0,1,'tokens',1)").execute(&pool).await.unwrap();
+    migrate(&pool, &CAMPAIGN_MIGRATOR).await.unwrap();
+    assert_eq!(
+        sqlx::query_scalar::<_, String>("SELECT background_asset_id FROM maps WHERE id='map'")
+            .fetch_one(&pool)
+            .await
+            .unwrap(),
+        "picture"
+    );
+    assert_eq!(
+        sqlx::query_scalar::<_, String>("SELECT asset_id FROM tokens WHERE id='token'")
+            .fetch_one(&pool)
+            .await
+            .unwrap(),
+        "picture"
+    );
+    sqlx::query("INSERT INTO assets (id,type,usage,sha256,mime,size_bytes,created_at) VALUES ('background','image','map',?,'image/png',1,0)").bind(&sha).execute(&pool).await.unwrap();
+    assert!(sqlx::query("INSERT INTO assets (id,type,usage,sha256,mime,size_bytes,created_at) VALUES ('duplicate','image','map',?,'image/png',1,0)").bind(&sha).execute(&pool).await.is_err());
+    assert!(
+        sqlx::query("PRAGMA foreign_key_check")
+            .fetch_all(&pool)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[tokio::test]
 async fn migrations_are_idempotent() {
     let pool = memory_pool().await;
     migrate(&pool, &CAMPAIGN_MIGRATOR).await.unwrap();

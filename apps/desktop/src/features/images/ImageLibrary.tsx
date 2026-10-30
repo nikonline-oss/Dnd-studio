@@ -1,7 +1,7 @@
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useSnapshotSelect, useSubmitIntent } from '@/shared/game/useGame';
+import { useCampaign, useSnapshotSelect, useSubmitIntent } from '@/shared/game/useGame';
 import { useRemote } from '@/shared/game/useRemote';
 import { ipc, type AssetDto } from '@/shared/ipc/client';
 import { uuidv7 } from '@/shared/ipc/uuid';
@@ -33,6 +33,13 @@ export function ImageLibrary() {
   const active = useSelection((s) => s.active);
   const submit = useSubmitIntent();
   const remote = useRemote();
+  const { data: campaign } = useCampaign();
+  const isGm = campaign?.role === 'gm' || campaign?.role === 'co_gm';
+  const canImport =
+    isGm &&
+    (remote === null ||
+      remote.status.state === 'online' ||
+      (remote.hosted && remote.status.state === 'reconnecting'));
   const showToast = useToast((s) => s.show);
   const [selected, setSelected] = useState<string | null>(null);
   const importImages = useMutation({ mutationFn: ipc.assetImportImages });
@@ -101,8 +108,7 @@ export function ImageLibrary() {
       title={t('images.title')}
       count={imageAssets.length}
       actions={
-        // Pictures are imported into the local campaign; uploading to a session comes later.
-        remote === null && (
+        canImport && (
           <IconButton
             icon="plus"
             label={t('images.import')}

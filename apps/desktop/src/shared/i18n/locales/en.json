@@ -448,6 +448,7 @@
   },
   "boards": {
     "addMap": "New map",
+    "importMap": "Import map…",
     "expandMaps": "Show maps in {{name}}",
     "collapseMaps": "Hide maps in {{name}}",
     "mapsInBoard": "Maps in {{name}}",

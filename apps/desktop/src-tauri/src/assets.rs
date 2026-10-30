@@ -18,8 +18,9 @@ use tauri::{AppHandle, Manager, Runtime, State, UriSchemeContext, UriSchemeRespo
 use tauri_plugin_dialog::DialogExt;
 use tauri_specta::Event;
 
-use crate::commands::{AppState, GameEventsEmitted};
+use crate::commands::{AppState, GameSnapshotReplaced};
 use crate::error::{IpcError, IpcErrorKind};
+use crate::import_target::ImportTarget;
 use crate::local_server::{ASSETS_DIR, LocalServer};
 
 /// URI scheme serving derived asset files: `dnd-asset://localhost/<sha256>`
@@ -57,23 +58,24 @@ pub async fn asset_import_map<R: Runtime>(
         .unwrap_or_else(|| "Map".to_owned());
     let original_name = path.file_name().map(|s| s.to_string_lossy().into_owned());
 
-    let assets_dir = {
-        let guard = state.server.lock().await;
-        let server = guard.as_ref().ok_or_else(IpcError::no_campaign)?;
-        server.folder().join(ASSETS_DIR)
-    };
+    let target = ImportTarget::capture(&state).await?;
+    let assets_dir = target.directory();
     // The campaign lock is not held while decoding: other intents keep flowing.
-    let imported = read_and_import(path, assets_dir, AssetUsage::Map).await?;
-
-    let mut guard = state.server.lock().await;
+    let imported = read_and_import(path, assets_dir.clone(), AssetUsage::Map).await?;
+    if let ImportTarget::Remote { session, .. } = &target {
+        return session
+            .import_map(&imported, &assets_dir, name, original_name)
+            .await
+            .map(Some);
+    }
+    let mut guard = target.local_server(&state).await?;
     let server = guard.as_mut().ok_or_else(IpcError::no_campaign)?;
-    register_map(server, &imported, name, original_name, |batch| {
-        if let Err(e) = GameEventsEmitted(batch).emit(&app) {
-            tracing::error!(error = %e, "failed to emit game events");
-        }
-    })
-    .await
-    .map(Some)
+    let result = register_map(server, &imported, name, original_name, |_| {}).await;
+    // A replica can have an older seq than the UI's server snapshot. Replace the view rather
+    // than emitting a local batch that would be discarded as already seen. Also expose a
+    // committed asset if creating the map itself was rejected.
+    emit_import_snapshot(&app, server);
+    result.map(Some)
 }
 
 /// Asks for pictures (several at once) and imports them into the campaign's image library
@@ -86,23 +88,27 @@ pub async fn asset_import_images<R: Runtime>(
     state: State<'_, AppState>,
 ) -> Result<Vec<AssetId>, IpcError> {
     let paths = pick_images(&app).await;
-    let assets_dir = {
-        let guard = state.server.lock().await;
-        let server = guard.as_ref().ok_or_else(IpcError::no_campaign)?;
-        server.folder().join(ASSETS_DIR)
-    };
+    if paths.is_empty() {
+        return Ok(Vec::new());
+    }
+    let target = ImportTarget::capture(&state).await?;
+    let assets_dir = target.directory();
     let mut ids = Vec::with_capacity(paths.len());
     for path in paths {
         let original_name = path.file_name().map(|s| s.to_string_lossy().into_owned());
         let imported = read_and_import(path, assets_dir.clone(), AssetUsage::Token).await?;
-        let mut guard = state.server.lock().await;
+        if let ImportTarget::Remote { session, .. } = &target {
+            ids.push(
+                session
+                    .register_image(&imported, &assets_dir, original_name)
+                    .await?,
+            );
+            continue;
+        }
+        let mut guard = target.local_server(&state).await?;
         let server = guard.as_mut().ok_or_else(IpcError::no_campaign)?;
-        let id = register_image(server, &imported, original_name, |batch| {
-            if let Err(e) = GameEventsEmitted(batch).emit(&app) {
-                tracing::error!(error = %e, "failed to emit game events");
-            }
-        })
-        .await?;
+        let id = register_image(server, &imported, original_name, |_| {}).await?;
+        emit_import_snapshot(&app, server);
         ids.push(id);
     }
     Ok(ids)
@@ -137,25 +143,32 @@ pub async fn asset_import_audio<R: Runtime>(
         }
         let mut guard = target.local_server(&state).await?;
         let server = guard.as_mut().ok_or_else(IpcError::no_campaign)?;
-        if let Some(existing) = server.asset_by_sha(&audio.file.sha256) {
+        if let Some(existing) =
+            server.asset_by_sha(dnd_protocol::AssetUsage::Audio, &audio.file.sha256)
+        {
+            emit_import_snapshot(&app, server);
             ids.push(existing);
             continue;
         }
         let asset = audio_dto(&audio, original_name);
         let id = asset.id;
-        let batch = submit(
+        submit(
             server,
             Intent::RegisterAsset {
                 asset: Box::new(asset),
             },
         )
         .await?;
-        if let Err(e) = GameEventsEmitted(batch).emit(&app) {
-            tracing::error!(error = %e, "failed to emit game events");
-        }
+        emit_import_snapshot(&app, server);
         ids.push(id);
     }
     Ok(ids)
+}
+
+fn emit_import_snapshot<R: Runtime>(app: &AppHandle<R>, server: &LocalServer) {
+    if let Err(error) = GameSnapshotReplaced(server.snapshot()).emit(app) {
+        tracing::error!(%error, "failed to emit imported assets");
+    }
 }
 
 pub(crate) async fn read_audio(
@@ -225,7 +238,7 @@ pub async fn register_image(
     original_name: Option<String>,
     mut on_batch: impl FnMut(EventBatch),
 ) -> Result<AssetId, IpcError> {
-    if let Some(existing) = server.asset_by_sha(&imported.original.sha256) {
+    if let Some(existing) = server.asset_by_sha(imported.usage, &imported.original.sha256) {
         return Ok(existing);
     }
     let asset = asset_dto(imported, original_name);
@@ -250,7 +263,7 @@ pub async fn register_map(
     original_name: Option<String>,
     mut on_batch: impl FnMut(EventBatch),
 ) -> Result<MapImported, IpcError> {
-    let asset_id = match server.asset_by_sha(&imported.original.sha256) {
+    let asset_id = match server.asset_by_sha(imported.usage, &imported.original.sha256) {
         // The same image was imported before: reuse it.
         Some(existing) => existing,
         None => {
@@ -317,7 +330,7 @@ pub async fn read_and_import(
     .map_err(|e| IpcError::internal("import_failed", e.to_string()))?
 }
 
-fn asset_dto(imported: &Imported, original_name: Option<String>) -> AssetDto {
+pub(crate) fn asset_dto(imported: &Imported, original_name: Option<String>) -> AssetDto {
     AssetDto {
         id: AssetId::new_v7(),
         usage: imported.usage,

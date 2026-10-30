@@ -40,7 +40,7 @@ const crypt: MapDto = {
   version: 1,
 };
 
-function setup(role: Role) {
+function setup(role: Role, cancelImport = false) {
   const snapshot: Snapshot = {
     seq: 1,
     campaign: { name: 'C', description: '', version: 1 },
@@ -88,6 +88,11 @@ function setup(role: Role) {
   mockIPC((cmd, args) => {
     if (cmd === 'get_snapshot') return snapshot;
     if (cmd === 'campaign_current') return info;
+    if (cmd === 'remote_current') return null;
+    if (cmd === 'asset_import_map')
+      return cancelImport
+        ? null
+        : { map_id: id(200), downscaled: false, source_width: 800, source_height: 600 };
     if (cmd === 'submit_intent') {
       sent.push((args as { envelope: IntentEnvelope }).envelope);
       return { status: 'accepted', seq: 2 };
@@ -109,6 +114,27 @@ beforeAll(() => {
 });
 
 describe('BoardView', () => {
+  it('does not create a card when map import is cancelled', async () => {
+    const sent = setup('co_gm', true);
+    await userEvent.click(await screen.findByRole('button', { name: 'Import map…' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Import map…' })).toBeEnabled());
+    expect(sent).toEqual([]);
+  });
+
+  it('imports a map image and places its opening card on the current board', async () => {
+    const sent = setup('gm');
+    await userEvent.click(await screen.findByRole('button', { name: 'Import map…' }));
+    await waitFor(() => {
+      expect(sent).toHaveLength(1);
+      expect(sent[0]?.intent).toMatchObject({
+        kind: 'create_board_node',
+        board_id: id(1),
+        content: { type: 'link', target: { kind: 'map', id: id(200) } },
+      });
+    });
+    expect(useSelection.getState().active).toMatchObject({ kind: 'map', id: id(200) });
+  });
+
   it('creates a map from the open board and places an opening card on that board', async () => {
     const sent = setup('gm');
     await userEvent.click(await screen.findByRole('button', { name: 'New map' }));

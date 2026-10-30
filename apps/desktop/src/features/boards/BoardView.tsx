@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState, type PointerEvent, type WheelEvent } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useMutation } from '@tanstack/react-query';
 import { BoardToolbar } from './BoardToolbar';
 import { cardLine } from './geometry';
 import { useCampaign, useSnapshotSelect, useSubmitIntent } from '@/shared/game/useGame';
+import { useRemote } from '@/shared/game/useRemote';
 import {
   assetUrl,
+  ipc,
   type BoardEdgeDto,
   type BoardLink,
   type BoardNodeDto,
@@ -18,6 +21,7 @@ import { Icon } from '@/shared/ui/Icon';
 import { ConfirmDelete, IconButton } from '@/shared/ui/IconButton';
 import { InlineEdit } from '@/shared/ui/InlineEdit';
 import { Markdown } from '@/shared/ui/Markdown';
+import { useToast } from '@/shared/ui/Toast';
 
 /** Board coordinates are Units16 (ADR-0016); the canvas draws 1 unit = 1 CSS px at zoom 1. */
 const U = 16;
@@ -49,6 +53,14 @@ export function BoardView({ boardId }: { boardId: string }) {
   const openMap = useSelection((s) => s.openMap);
   const { data: campaign } = useCampaign();
   const isGm = campaign?.role === 'gm' || campaign?.role === 'co_gm';
+  const remote = useRemote();
+  const canImport =
+    isGm &&
+    (remote === null ||
+      remote.status.state === 'online' ||
+      (remote.hosted && remote.status.state === 'reconnecting'));
+  const importMap = useMutation({ mutationFn: ipc.assetImportMap });
+  const showToast = useToast((s) => s.show);
   const board = useSnapshotSelect((s) => s.boards.find((b) => b.id === boardId));
   const maps = useSnapshotSelect((s) => s.maps) ?? [];
   const nodes = useSnapshotSelect((s) => s.board_nodes.filter((n) => n.board_id === boardId));
@@ -321,6 +333,45 @@ export function BoardView({ boardId }: { boardId: string }) {
     <section className="board-view" aria-label={board.name}>
       {isGm && (
         <BoardToolbar
+          onImportMap={
+            canImport
+              ? () => {
+                  importMap.mutate(undefined, {
+                    onSuccess: (imported) => {
+                      if (!imported) return;
+                      const at = spawnPoint();
+                      submit.mutate(
+                        {
+                          intent: {
+                            kind: 'create_board_node',
+                            id: uuidv7(),
+                            board_id: boardId,
+                            content: { type: 'link', target: { kind: 'map', id: imported.map_id } },
+                            x: at.x - 110 * U,
+                            y: at.y - 80 * U,
+                            width: 220 * U,
+                            height: 160 * U,
+                            visibility: 'gm',
+                          },
+                        },
+                        {
+                          onSuccess: () => {
+                            openMap(imported.map_id);
+                          },
+                        },
+                      );
+                      if (imported.downscaled)
+                        showToast(
+                          t('maps.downscaled', {
+                            width: imported.source_width,
+                            height: imported.source_height,
+                          }),
+                        );
+                    },
+                  });
+                }
+              : undefined
+          }
           onMap={() => {
             const id = uuidv7();
             submit.mutate(
@@ -418,7 +469,7 @@ export function BoardView({ boardId }: { boardId: string }) {
           onResetView={() => {
             setView({ x: 40, y: 40, zoom: 1 });
           }}
-          disabled={submit.isPending}
+          disabled={submit.isPending || importMap.isPending}
         />
       )}
 
@@ -659,7 +710,7 @@ export function BoardView({ boardId }: { boardId: string }) {
         </div>
       )}
       {connecting && <p className="board-hint">{t('boards.connectHint')}</p>}
-      <ErrorText error={submit.error} />
+      <ErrorText error={importMap.error ?? submit.error} />
     </section>
   );
 }

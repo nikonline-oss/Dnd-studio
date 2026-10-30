@@ -458,6 +458,7 @@
   },
   "boards": {
     "addMap": "Новая карта",
+    "importMap": "Импортировать карту…",
     "expandMaps": "Показать карты на доске «{{name}}»",
     "collapseMaps": "Скрыть карты на доске «{{name}}»",
     "mapsInBoard": "Карты на доске «{{name}}»",

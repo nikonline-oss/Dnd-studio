@@ -632,6 +632,51 @@ fn png(width: u32, height: u32) -> Vec<u8> {
     out.into_inner()
 }
 
+#[tokio::test]
+async fn the_same_picture_can_also_be_imported_as_a_map() {
+    use dnd_desktop_lib::assets_api::{read_and_import, register_image, register_map};
+    let dir = tempfile::tempdir().unwrap();
+    let mut server = LocalServer::create(dir.path(), "Pictures and maps")
+        .await
+        .unwrap();
+    let source = dir.path().join("crypt.png");
+    std::fs::write(&source, png(32, 32)).unwrap();
+    let assets = server.folder().join("assets");
+    let picture = read_and_import(
+        source.clone(),
+        assets.clone(),
+        dnd_assets::AssetUsage::Token,
+    )
+    .await
+    .unwrap();
+    let picture_id = register_image(&mut server, &picture, None, |_| {})
+        .await
+        .unwrap();
+    let image = read_and_import(source, assets, dnd_assets::AssetUsage::Map)
+        .await
+        .unwrap();
+    let imported = register_map(&mut server, &image, "Crypt".into(), None, |_| {})
+        .await
+        .unwrap();
+    let snapshot = server.snapshot();
+    assert_eq!(snapshot.assets.len(), 2);
+    let map = snapshot
+        .maps
+        .iter()
+        .find(|m| m.id == imported.map_id)
+        .unwrap();
+    assert_ne!(map.background_asset_id, Some(picture_id));
+    assert_eq!(
+        snapshot
+            .assets
+            .iter()
+            .find(|a| Some(a.id) == map.background_asset_id)
+            .unwrap()
+            .usage,
+        dnd_protocol::AssetUsage::Map
+    );
+}
+
 /// Map import end to end (without the dialog): files are stored by hash, the asset and a map of
 /// the image's size are created, re-importing reuses the asset, and the files are served only
 /// by a valid hash of the open campaign.

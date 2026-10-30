@@ -283,6 +283,141 @@ async fn host_join_and_play_through_the_server() {
         .await
         .unwrap();
     assert_eq!(heard, audio.file.bytes);
+    // One original may be both a library picture and a tiled map background. Every
+    // derivative must reach the server before its metadata becomes visible to players.
+    let image_dir = local.folder().join("assets");
+    let mut source = std::io::Cursor::new(Vec::new());
+    image::RgbaImage::from_pixel(2100, 20, image::Rgba([30, 80, 120, 255]))
+        .write_to(&mut source, image::ImageFormat::Png)
+        .unwrap();
+    let source = source.into_inner();
+    let picture = dnd_assets::import_image(&source, dnd_assets::AssetUsage::Token).unwrap();
+    dnd_assets::store(&image_dir, &picture).unwrap();
+    assert_eq!(
+        player
+            .register_image(&picture, &image_dir, None)
+            .await
+            .unwrap_err()
+            .code,
+        "forbidden"
+    );
+    let (picture_id, duplicate) = tokio::join!(
+        gm.register_image(&picture, &image_dir, Some("Room.png".into())),
+        gm.register_image(&picture, &image_dir, None),
+    );
+    let picture_id = picture_id.unwrap();
+    assert_eq!(duplicate.unwrap(), picture_id);
+    let entry_id = JournalEntryId::new_v7();
+    assert!(matches!(
+        gm.submit(IntentEnvelope {
+            intent_id: IntentId::new_v7(),
+            expected_version: None,
+            intent: Intent::CreateJournalEntry {
+                id: entry_id,
+                folder_id: None,
+                title: "Room picture".into(),
+                markdown: format!("![Room](asset:{picture_id})"),
+                visibility: JournalVisibility::Players,
+                players_can_edit: false,
+                table: None,
+            },
+        })
+        .await
+        .unwrap(),
+        IntentOutcome::Accepted { .. }
+    ));
+    tokio::time::timeout(Duration::from_secs(10), async {
+        while !player
+            .snapshot()
+            .unwrap()
+            .assets
+            .iter()
+            .any(|a| a.id == picture_id)
+        {
+            player_rx.recv().await.unwrap();
+        }
+    })
+    .await
+    .unwrap();
+    let display = picture.display.as_ref().unwrap();
+    assert_eq!(
+        player
+            .asset(
+                &display.sha256,
+                &dir.path().join("picture-cache"),
+                "image/webp"
+            )
+            .await
+            .unwrap(),
+        display.bytes
+    );
+    let image = dnd_assets::import_image(&source, dnd_assets::AssetUsage::Map).unwrap();
+    dnd_assets::store(&image_dir, &image).unwrap();
+    let imported = gm
+        .import_map(&image, &image_dir, "Room".into(), None)
+        .await
+        .unwrap();
+    tokio::time::timeout(Duration::from_secs(10), async {
+        while !gm
+            .snapshot()
+            .unwrap()
+            .maps
+            .iter()
+            .any(|m| m.id == imported.map_id)
+        {
+            gm_rx.recv().await.unwrap();
+        }
+    })
+    .await
+    .unwrap();
+    let imported_map = gm
+        .snapshot()
+        .unwrap()
+        .maps
+        .into_iter()
+        .find(|m| m.id == imported.map_id)
+        .unwrap();
+    assert_ne!(imported_map.background_asset_id, Some(picture_id));
+    assert!(matches!(
+        gm.submit(IntentEnvelope {
+            intent_id: IntentId::new_v7(),
+            expected_version: Some(imported_map.version),
+            intent: Intent::UpdateMap {
+                id: imported_map.id,
+                name: None,
+                grid: None,
+                visible_to_players: Some(true)
+            },
+        })
+        .await
+        .unwrap(),
+        IntentOutcome::Accepted { .. }
+    ));
+    tokio::time::timeout(Duration::from_secs(10), async {
+        while !player
+            .snapshot()
+            .unwrap()
+            .maps
+            .iter()
+            .any(|m| m.id == imported_map.id)
+        {
+            player_rx.recv().await.unwrap();
+        }
+    })
+    .await
+    .unwrap();
+    for file in std::iter::once(&image.thumbnail)
+        .chain(image.display.iter())
+        .chain(image.tiles.iter().map(|t| &t.webp))
+    {
+        assert_eq!(
+            player
+                .asset(&file.sha256, &dir.path().join("image-cache"), "image/webp")
+                .await
+                .unwrap(),
+            file.bytes
+        );
+    }
     let plugin_sha = player
         .snapshot()
         .unwrap()

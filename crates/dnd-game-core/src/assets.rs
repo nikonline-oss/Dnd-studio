@@ -1,5 +1,5 @@
 //! Asset registration (ADR-0017). The import pipeline runs outside the core (I/O); the core checks
-//! that the record is well formed, unique by original hash, and only from GM roles (authorize).
+//! that the record is well formed, unique by usage + original hash, and only from GM roles.
 
 use dnd_protocol::{AssetDto, AssetUsage, Event, Intent, RejectReason, Version};
 
@@ -36,7 +36,11 @@ pub(crate) fn apply(
 
 fn validate(state: &GameState, asset: &AssetDto) -> Result<AssetDto, RejectReason> {
     let invalid = |field: &str| Err(RejectReason::invalid(field));
-    if state.assets.values().any(|a| a.sha256 == asset.sha256) {
+    if state
+        .assets
+        .values()
+        .any(|a| a.usage == asset.usage && a.sha256 == asset.sha256)
+    {
         return Err(RejectReason::AlreadyExists);
     }
     if !is_sha256_hex(&asset.sha256) || !is_sha256_hex(&asset.thumbnail_sha256) {

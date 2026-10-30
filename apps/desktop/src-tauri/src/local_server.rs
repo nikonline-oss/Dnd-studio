@@ -248,12 +248,16 @@ impl LocalServer {
 
     /// The asset registered for an original upload with this SHA-256, if any (dedup on import).
     #[must_use]
-    pub fn asset_by_sha(&self, sha256: &str) -> Option<dnd_protocol::AssetId> {
+    pub fn asset_by_sha(
+        &self,
+        usage: dnd_protocol::AssetUsage,
+        sha256: &str,
+    ) -> Option<dnd_protocol::AssetId> {
         self.engine
             .state()
             .assets
             .values()
-            .find(|a| a.sha256 == sha256)
+            .find(|a| a.usage == usage && a.sha256 == sha256)
             .map(|a| a.id)
     }
 

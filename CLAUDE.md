@@ -159,7 +159,7 @@ GM / Co-GM / Player / Spectator. Проверка — всегда в game-core;
 
 ## 6. Модель данных (клиент и сессия — одна схема)
 
-campaign_meta (kv), users, assets (уникальность type+sha256, миниатюра), worlds, maps (сетка, туман,
+campaign_meta (kv), users, assets (уникальность type+usage+sha256, миниатюра — ADR-0027), worlds, maps (сетка, туман,
 visible_to_players), characters (kind, sheet_template, sheet_data JSON, owner, status), tokens (map, character?,
 asset?, x, y, rotation, scale, layer, visible), journal_folders (parent, name, order), journal_entries (markdown, folder_id, order, visibility,
 players_can_edit), journal_links (source, target_type, target_id, link_type, directed, weight, label, meta,

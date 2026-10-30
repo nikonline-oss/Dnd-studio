@@ -10,6 +10,7 @@ import type {
   IntentEnvelope,
   LibraryFolderDto,
   Snapshot,
+  RemoteInfo,
 } from '@/shared/ipc/client';
 import { useSelection } from '@/shared/state/selection';
 import { Markdown } from '@/shared/ui/Markdown';
@@ -31,7 +32,12 @@ const hall: AssetDto = {
   version: 1,
 };
 
-function setup(node: React.ReactNode, asset = hall, libraryFolders: LibraryFolderDto[] = []) {
+function setup(
+  node: React.ReactNode,
+  asset = hall,
+  libraryFolders: LibraryFolderDto[] = [],
+  remote: RemoteInfo | null = null,
+) {
   const snapshot: Snapshot = {
     seq: 1,
     campaign: { name: 'C', description: '', version: 1 },
@@ -62,7 +68,7 @@ function setup(node: React.ReactNode, asset = hall, libraryFolders: LibraryFolde
     calls.push(cmd);
     if (cmd === 'get_snapshot') return snapshot;
     if (cmd === 'campaign_current') return info;
-    if (cmd === 'remote_current') return null;
+    if (cmd === 'remote_current') return remote;
     if (cmd === 'asset_import_images') return [];
     if (cmd === 'submit_intent') {
       sent.push((args as { envelope: IntentEnvelope }).envelope);
@@ -83,6 +89,21 @@ afterEach(() => {
 });
 
 describe('Image library', () => {
+  it('imports pictures while connected to an online session', async () => {
+    const { calls } = setup(<ImageLibrary />, hall, [], {
+      server: 'http://localhost:8080',
+      session_id: id(100),
+      session_name: 'C',
+      role: 'gm',
+      hosted: false,
+      status: { state: 'online' },
+    });
+    await userEvent.click(await screen.findByRole('button', { name: 'Import pictures…' }));
+    await waitFor(() => {
+      expect(calls).toContain('asset_import_images');
+    });
+  });
+
   it('imports pictures and puts one onto the open board', async () => {
     useSelection.getState().openBoard(id(1));
     const { sent, calls } = setup(<ImageLibrary />);

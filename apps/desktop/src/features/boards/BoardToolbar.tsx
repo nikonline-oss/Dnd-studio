@@ -11,6 +11,7 @@ export function BoardToolbar({
   onImage,
   onTrigger,
   onMap,
+  onImportMap,
   connecting,
   canConnect,
   onConnect,
@@ -23,6 +24,7 @@ export function BoardToolbar({
   /** Places a trigger as a block; `null`: a new one. */
   onTrigger: (triggerId: string | null) => void;
   onMap: () => void;
+  onImportMap: (() => void) | undefined;
   connecting: boolean;
   canConnect: boolean;
   onConnect: () => void;
@@ -40,6 +42,16 @@ export function BoardToolbar({
       <IconButton icon="map" label={t('boards.addMap')} disabled={disabled} onClick={onMap}>
         {t('boards.addMap')}
       </IconButton>
+      {onImportMap && (
+        <IconButton
+          icon="image"
+          label={t('boards.importMap')}
+          disabled={disabled}
+          onClick={onImportMap}
+        >
+          {t('boards.importMap')}
+        </IconButton>
+      )}
       <IconButton
         icon="link"
         label={t('boards.addLink')}

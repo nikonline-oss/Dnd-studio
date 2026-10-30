@@ -139,6 +139,30 @@ fn malformed_records_are_rejected() {
 }
 
 #[test]
+fn one_original_can_have_distinct_map_and_picture_derivatives() {
+    let mut state = table_state();
+    run(&mut state, Role::Gm, register(map_asset(1, 1)), None).unwrap();
+    let picture = AssetDto {
+        usage: AssetUsage::Token,
+        width: 256,
+        height: 256,
+        display_sha256: Some(hex(0xD1)),
+        tiles: vec![],
+        ..map_asset(2, 1)
+    };
+    run(&mut state, Role::CoGm, register(picture.clone()), None).unwrap();
+    assert_eq!(state.assets.len(), 2);
+    let duplicate = AssetDto {
+        id: AssetId(v7(0x7003)),
+        ..picture
+    };
+    assert_eq!(
+        run(&mut state, Role::Gm, register(duplicate), None),
+        Err(RejectReason::AlreadyExists)
+    );
+}
+
+#[test]
 fn map_backgrounds_must_be_map_images() {
     let mut state = table_state();
     run(&mut state, Role::Gm, register(map_asset(1, 1)), None).unwrap();

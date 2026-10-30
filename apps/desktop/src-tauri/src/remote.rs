@@ -844,19 +844,87 @@ impl RemoteSession {
         directory: &Path,
         name: Option<String>,
     ) -> Result<dnd_protocol::AssetId, IpcError> {
+        self.register_asset(crate::assets::audio_dto(audio, name), directory)
+            .await
+    }
+
+    /// Import a picture with its WebP derivatives before announcing it to the session.
+    pub async fn register_image(
+        &self,
+        image: &dnd_assets::Imported,
+        directory: &Path,
+        name: Option<String>,
+    ) -> Result<dnd_protocol::AssetId, IpcError> {
+        self.register_asset(crate::assets::asset_dto(image, name), directory)
+            .await
+    }
+
+    /// A map's metadata is submitted only after its background has been registered.
+    pub async fn import_map(
+        &self,
+        image: &dnd_assets::Imported,
+        directory: &Path,
+        name: String,
+        original_name: Option<String>,
+    ) -> Result<crate::assets::MapImported, IpcError> {
+        let asset_id = self.register_image(image, directory, original_name).await?;
+        let map_id = dnd_protocol::MapId::new_v7();
+        match self
+            .submit(IntentEnvelope {
+                intent_id: dnd_protocol::IntentId::new_v7(),
+                expected_version: None,
+                intent: dnd_protocol::Intent::CreateMap {
+                    id: map_id,
+                    name,
+                    background_asset_id: Some(asset_id),
+                    width: i64::from(image.width),
+                    height: i64::from(image.height),
+                    grid: dnd_protocol::Grid::default(),
+                    visible_to_players: false,
+                },
+            })
+            .await?
+        {
+            IntentOutcome::Accepted { .. } => Ok(crate::assets::MapImported {
+                map_id,
+                downscaled: image.downscaled,
+                source_width: image.source_width,
+                source_height: image.source_height,
+            }),
+            IntentOutcome::Rejected { reason } => {
+                Err(IpcError::user(reason.code(), reason.to_string()))
+            }
+        }
+    }
+
+    async fn register_asset(
+        &self,
+        asset: dnd_protocol::AssetDto,
+        directory: &Path,
+    ) -> Result<dnd_protocol::AssetId, IpcError> {
         use dnd_protocol::{AssetUsage, Intent, RejectReason};
         if !matches!(self.role, Role::Gm | Role::CoGm) {
-            return Err(IpcError::user("forbidden", "only GM roles import sounds"));
+            return Err(IpcError::user("forbidden", "only GM roles import assets"));
         }
         if self.status() != RemoteStatus::Online {
             return Err(IpcError::user("offline", "the session is not connected"));
         }
-        let sha = &audio.file.sha256;
-        if let Some(id) = self.asset_by_hash(AssetUsage::Audio, sha) {
+        let sha = asset.sha256.clone();
+        let usage = asset.usage;
+        if let Some(id) = self.asset_by_hash(usage, &sha) {
             return Ok(id);
         }
-        self.upload_local_file(directory, sha, "audio").await?;
-        let asset = crate::assets::audio_dto(audio, name);
+        if usage == AssetUsage::Audio {
+            self.upload_local_file(directory, &sha, "audio").await?;
+        } else {
+            let mut hashes = std::collections::BTreeSet::new();
+            hashes.insert(asset.thumbnail_sha256.as_str());
+            hashes.extend(asset.display_sha256.as_deref());
+            hashes.extend(asset.tiles.iter().map(|tile| tile.sha256.as_str()));
+            for hash in hashes {
+                self.upload_local_file(directory, hash, "webp").await?;
+            }
+        }
         let id = asset.id;
         match self
             .submit(IntentEnvelope {
@@ -880,7 +948,7 @@ impl RemoteSession {
                         let changed = self.view_changed.notified();
                         tokio::pin!(changed);
                         changed.as_mut().enable();
-                        if let Some(id) = self.asset_by_hash(AssetUsage::Audio, sha) {
+                        if let Some(id) = self.asset_by_hash(usage, &sha) {
                             return Some(id);
                         }
                         if matches!(self.status(), RemoteStatus::Closed { .. }) {
@@ -896,7 +964,7 @@ impl RemoteSession {
                     .ok_or_else(|| {
                         IpcError::user(
                             "already_exists",
-                            "the imported sound already exists; retry after synchronization",
+                            "the imported asset already exists; retry after synchronization",
                         )
                     })
             }
