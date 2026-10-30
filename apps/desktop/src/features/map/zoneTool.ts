@@ -11,6 +11,8 @@ export type ZoneDrawing =
 
 interface ZoneToolState {
   drawing: ZoneDrawing;
+  creating: boolean;
+  create: () => void;
   /** Zones ticked in the list (to merge); the first is kept. */
   ticked: string[];
   /** Zone edit mode on the map: select, move, resize, move the name. */
@@ -27,12 +29,20 @@ interface ZoneToolState {
 /** Shared by the zone list (inspector) and the map view; both are the map feature. */
 export const useZoneTool = create<ZoneToolState>()((set) => ({
   drawing: { mode: 'new' },
+  creating: false,
+  create: () => {
+    set({ creating: true, editing: false, drawing: { mode: 'new' } });
+  },
   ticked: [],
   editing: false,
   selected: null,
   draw: (drawing) => {
     // Drawing a rectangle ends edit mode.
-    set(drawing.mode === 'new' ? { drawing } : { drawing, editing: false });
+    set(
+      drawing.mode === 'new'
+        ? { drawing, creating: false }
+        : { drawing, editing: false, creating: false },
+    );
   },
   toggle: (zoneId) => {
     set((s) => ({
@@ -45,7 +55,11 @@ export const useZoneTool = create<ZoneToolState>()((set) => ({
     set({ ticked: [] });
   },
   setEditing: (editing) => {
-    set(editing ? { editing, drawing: { mode: 'new' } } : { editing, selected: null });
+    set(
+      editing
+        ? { editing, creating: false, drawing: { mode: 'new' } }
+        : { editing, creating: false, selected: null },
+    );
   },
   select: (selected) => {
     set({ selected });

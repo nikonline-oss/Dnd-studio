@@ -134,6 +134,19 @@ export function ImageLibrary() {
           useSelection.getState().openMedia('images', id);
         }}
         assetMenuItems={pictureMenu}
+        backgroundMenuItems={
+          canImport
+            ? [
+                {
+                  label: t('images.import'),
+                  disabled: importImages.isPending,
+                  onSelect: () => {
+                    importImages.mutate();
+                  },
+                },
+              ]
+            : []
+        }
       />
       <ErrorText error={importImages.error ?? submit.error} />
     </NavSection>

@@ -80,7 +80,8 @@ describe('Links in texts', () => {
     setup(`[Rain](asset:${asset.id})\n[Secret](asset:${id(9)})`, [asset]);
     const audio = await screen.findByLabelText('Rain');
     expect(audio.tagName).toBe('AUDIO');
-    expect(audio).toHaveAttribute('controls');
+    expect(screen.getByRole('button', { name: 'Play' })).toBeInTheDocument();
+    expect(audio).not.toHaveAttribute('controls');
     expect(audio).toHaveAttribute('src', `asset://${asset.sha256}`);
     expect(screen.queryByLabelText('Secret')).not.toBeInTheDocument();
   });

@@ -159,6 +159,9 @@ export function JournalTree() {
   const [pending, setPending] = useState<Pending | null>(null);
   const [renaming, setRenaming] = useState<Item | null>(null);
   const [confirm, setConfirm] = useState<Item | null>(null);
+  const [moving, setMoving] = useState<Item | null>(null);
+  const [moveFolder, setMoveFolder] = useState('');
+  const busy = submit.isPending || exchange.busy;
   const [menu, setMenu] = useState<{ x: number; y: number; target: Item | null } | null>(null);
   /** Folder under the dragged item: an id, `null` for the root, `undefined` when not dragging. */
   const [dropTarget, setDropTarget] = useState<string | null | undefined>(undefined);
@@ -198,6 +201,7 @@ export function JournalTree() {
   };
 
   const startCreate = (type: Pending['type'], parent: string | null) => {
+    if (!isGm || busy) return;
     setRenaming(null);
     setPending({ type, parent });
     expand(model.path(parent));
@@ -207,7 +211,7 @@ export function JournalTree() {
     const target = pending;
     setPending(null);
     treeRef.current?.focus();
-    if (!target || name === null) return;
+    if (!target || name === null || !isGm || busy) return;
     const id = uuidv7();
     if (target.type === 'folder') {
       submit.mutate(
@@ -244,7 +248,7 @@ export function JournalTree() {
   const finishRename = (item: Item, name: string | null) => {
     setRenaming(null);
     treeRef.current?.focus();
-    if (name === null) return;
+    if (name === null || busy || !canRename(item)) return;
     if (item.kind === 'folder') {
       const folder = model.folders.get(item.id);
       if (!folder || folder.name === name) return;
@@ -270,6 +274,7 @@ export function JournalTree() {
   };
 
   const remove = (item: Item) => {
+    if (!isGm || busy) return;
     setConfirm(null);
     treeRef.current?.focus();
     if (item.kind === 'folder') {
@@ -292,6 +297,7 @@ export function JournalTree() {
 
   /** Moves the dragged item into `folder` (`null` = root); no-op if it is already there. */
   const moveInto = (item: Item, folder: string | null) => {
+    if (!isGm || busy) return;
     if (item.kind === 'entry') {
       const entry = entryById.get(item.id);
       if (!entry || entry.folder_id === folder) return;
@@ -346,55 +352,156 @@ export function JournalTree() {
   };
 
   const openMenu = (e: MouseEvent, target: Item | null) => {
-    if (!isGm) return;
+    if ((e.target as HTMLElement).closest('input, textarea, select')) return;
     e.preventDefault();
     e.stopPropagation();
     if (target) setSelected(target);
     setMenu({ x: e.clientX, y: e.clientY, target });
   };
 
+  const canRename = (item: Item) =>
+    isGm ||
+    (item.kind === 'entry' &&
+      campaign?.role === 'player' &&
+      entryById.get(item.id)?.visibility === 'players' &&
+      entryById.get(item.id)?.players_can_edit === true);
+  const updateAccess = (
+    id: string,
+    patch: { visibility?: 'gm' | 'players'; players_can_edit?: boolean },
+  ) => {
+    const entry = entryById.get(id);
+    if (!entry || !isGm || busy) return;
+    submit.mutate({
+      intent: {
+        kind: 'update_journal_entry',
+        id,
+        title: null,
+        markdown: null,
+        visibility: null,
+        players_can_edit: null,
+        ...patch,
+      },
+      expectedVersion: entry.version,
+    });
+  };
   const menuItems = (target: Item | null): (MenuItem | 'separator')[] => {
     const into = folderOf(target);
-    const items: (MenuItem | 'separator')[] = [
-      {
-        label: t('journal.add'),
+    const items: (MenuItem | 'separator')[] = [];
+    if (target?.kind === 'entry') {
+      items.push({
+        label: t('context.open', { defaultValue: 'Open' }),
         onSelect: () => {
-          startCreate('entry', into);
+          openJournal(target.id);
         },
-      },
-      {
-        label: t('journal.addTable'),
+      });
+      const entry = entryById.get(target.id);
+      if (isGm && entry)
+        items.push(
+          {
+            label:
+              entry.visibility === 'players'
+                ? t('context.hidePlayers', { defaultValue: 'Hide from players' })
+                : t('context.showPlayers', { defaultValue: 'Show to players' }),
+            disabled: busy,
+            onSelect: () => {
+              updateAccess(entry.id, {
+                visibility: entry.visibility === 'players' ? 'gm' : 'players',
+              });
+            },
+          },
+          {
+            label: entry.players_can_edit
+              ? t('journal.disallowPlayerEditing', { defaultValue: 'Disable player editing' })
+              : t('journal.playersCanEdit'),
+            disabled: busy,
+            onSelect: () => {
+              updateAccess(entry.id, { players_can_edit: !entry.players_can_edit });
+            },
+          },
+        );
+    }
+    if (target?.kind === 'folder')
+      items.push({
+        label: expanded.has(target.id)
+          ? t('context.collapse', { defaultValue: 'Collapse' })
+          : t('context.expand', { defaultValue: 'Expand' }),
         onSelect: () => {
-          startCreate('table', into);
+          toggle(target.id);
         },
-      },
-      {
-        label: t('journal.addFolder'),
-        onSelect: () => {
-          startCreate('folder', into);
-        },
-      },
-      'separator',
-      { label: t('journal.import'), onSelect: exchange.importJournal },
-      { label: t('journal.export'), onSelect: exchange.exportJournal },
-    ];
-    if (target) {
+      });
+    if (isGm) {
       items.push(
-        'separator',
         {
-          label: t('journal.rename'),
+          label: t('journal.add'),
+          disabled: busy,
           onSelect: () => {
-            setRenaming(target);
+            startCreate('entry', into);
+          },
+        },
+        {
+          label: t('journal.addTable'),
+          disabled: busy,
+          onSelect: () => {
+            startCreate('table', into);
+          },
+        },
+        {
+          label: t('journal.addFolder'),
+          disabled: busy,
+          onSelect: () => {
+            startCreate('folder', into);
+          },
+        },
+        'separator',
+        { label: t('journal.import'), disabled: busy, onSelect: exchange.importJournal },
+        { label: t('journal.export'), disabled: busy, onSelect: exchange.exportJournal },
+      );
+    }
+    if (target && canRename(target))
+      items.push({
+        label: t('journal.rename'),
+        disabled: busy,
+        onSelect: () => {
+          setRenaming(target);
+        },
+      });
+    if (target && isGm)
+      items.push(
+        {
+          label: t('context.moveTo', { defaultValue: 'Move to…' }),
+          disabled: busy,
+          onSelect: () => {
+            setMoving(target);
+            setMoveFolder(
+              (target.kind === 'entry'
+                ? entryById.get(target.id)?.folder_id
+                : model.folders.get(target.id)?.parent) ?? '',
+            );
           },
         },
         {
           label: t('journal.delete'),
+          disabled: busy,
           onSelect: () => {
             setConfirm(target);
           },
         },
       );
-    }
+    items.push(
+      'separator',
+      {
+        label: t('context.expandAll', { defaultValue: 'Expand all' }),
+        onSelect: () => {
+          expand([...model.folders.keys()]);
+        },
+      },
+      {
+        label: t('journal.collapseAll'),
+        onSelect: () => {
+          setExpanded(() => new Set());
+        },
+      },
+    );
     return items;
   };
 
@@ -451,11 +558,11 @@ export function JournalTree() {
         else return;
         break;
       case 'F2':
-        if (!isGm || !current || currentIndex < 0) return;
+        if (!isGm || busy || !current || currentIndex < 0) return;
         setRenaming(current);
         break;
       case 'Delete':
-        if (!isGm || !current || currentIndex < 0) return;
+        if (!isGm || busy || !current || currentIndex < 0) return;
         setConfirm(current);
         break;
       default:
@@ -510,7 +617,7 @@ export function JournalTree() {
         aria-selected={isSelected}
         aria-current={row.kind === 'entry' && row.entry.id === openId}
         data-drop={row.kind === 'folder' && dropTarget === row.folder.id}
-        draggable={isGm && !isRenaming}
+        draggable={isGm && !busy && !isRenaming}
         onDragStart={(e) => {
           dragged.current = item;
           e.dataTransfer.setData(JOURNAL_DRAG_TYPE, `${item.kind}:${item.id}`);
@@ -531,7 +638,7 @@ export function JournalTree() {
           if (row.kind === 'folder') toggle(row.folder.id);
         }}
         onDoubleClick={() => {
-          if (isGm) setRenaming(item);
+          if (isGm && !busy) setRenaming(item);
         }}
         onContextMenu={(e) => {
           openMenu(e, item);
@@ -589,7 +696,7 @@ export function JournalTree() {
                 onClick={() => {
                   startCreate('entry', target);
                 }}
-                disabled={submit.isPending}
+                disabled={busy}
               />
               <IconButton
                 icon="table"
@@ -597,7 +704,7 @@ export function JournalTree() {
                 onClick={() => {
                   startCreate('table', target);
                 }}
-                disabled={submit.isPending}
+                disabled={busy}
               />
               <IconButton
                 icon="folderPlus"
@@ -605,7 +712,7 @@ export function JournalTree() {
                 onClick={() => {
                   startCreate('folder', target);
                 }}
-                disabled={submit.isPending}
+                disabled={busy}
               />
             </>
           )}
@@ -653,7 +760,7 @@ export function JournalTree() {
           }}
         />
       </div>
-      {confirm && (
+      {isGm && confirm && (
         <div
           className="confirm-bar"
           role="alertdialog"
@@ -670,6 +777,7 @@ export function JournalTree() {
             <button
               type="button"
               className="confirm-delete"
+              disabled={busy}
               autoFocus
               onClick={() => {
                 remove(confirm);
@@ -688,6 +796,59 @@ export function JournalTree() {
             </button>
           </div>
         </div>
+      )}
+      {isGm && moving && (
+        <form
+          className="confirm-bar"
+          role="dialog"
+          aria-label={t('context.moveTo', { defaultValue: 'Move to…' })}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') setMoving(null);
+          }}
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!busy) {
+              moveInto(moving, moveFolder || null);
+              setMoving(null);
+            }
+          }}
+        >
+          <label>
+            {t('journal.destination', { defaultValue: 'Destination folder' })}
+            <select
+              value={moveFolder}
+              onChange={(e) => {
+                setMoveFolder(e.target.value);
+              }}
+              disabled={busy}
+            >
+              <option value="">{t('journal.root', { defaultValue: 'Journal root' })}</option>
+              {[...model.folders.values()]
+                .filter(
+                  (folder) => moving.kind !== 'folder' || !model.isInside(folder.id, moving.id),
+                )
+                .map((folder) => (
+                  <option key={folder.id} value={folder.id}>
+                    {model
+                      .path(folder.id)
+                      .map((id) => model.folders.get(id)?.name)
+                      .join(' / ')}
+                  </option>
+                ))}
+            </select>
+          </label>
+          <button type="submit" disabled={busy}>
+            {t('context.move', { defaultValue: 'Move' })}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setMoving(null);
+            }}
+          >
+            {t('journal.cancel')}
+          </button>
+        </form>
       )}
       {menu && (
         <ContextMenu

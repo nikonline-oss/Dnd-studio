@@ -749,6 +749,8 @@ export class MapScene {
     if (event.button === 0 && this.zoneEditing && this.mapSize && this.zoneDown(event)) return;
     if (event.button === 0 && this.combatMovement && this.movementTokenId && this.mapSize) {
       this.movementPress = true;
+      this.dragFrom = { x: event.global.x, y: event.global.y };
+      this.panStart = { ...this.dragFrom };
       this.drawMovementPath(this.world.toLocal(event.global));
       return;
     }
@@ -760,6 +762,24 @@ export class MapScene {
 
   private readonly onMove = (event: FederatedPointerEvent): void => {
     if (!this.mapSize) return;
+    // Camera gestures take precedence over the combat route preview. A short left press
+    // still confirms movement; dragging pans while keeping the planned token selected.
+    if (this.dragFrom && this.combatMovement && this.movementTokenId) {
+      if (
+        this.movementPress &&
+        this.panStart &&
+        Math.hypot(event.global.x - this.panStart.x, event.global.y - this.panStart.y) <
+          CLICK_SLOP_PX
+      )
+        return;
+      this.movementPress = false;
+      const dx = event.global.x - this.dragFrom.x;
+      const dy = event.global.y - this.dragFrom.y;
+      this.dragFrom = { x: event.global.x, y: event.global.y };
+      this.setCamera(panBy(this.camera, dx, dy, this.screenSize(), this.mapSize));
+      this.app.canvas.style.cursor = 'grabbing';
+      return;
+    }
     if (this.combatMovement && this.movementTokenId && !this.tokenDrag) {
       this.drawMovementPath(this.world.toLocal(event.global));
       return;
@@ -804,6 +824,8 @@ export class MapScene {
   private readonly onUp = (event: FederatedPointerEvent): void => {
     if (this.movementPress) {
       this.movementPress = false;
+      this.dragFrom = null;
+      this.panStart = null;
       const path = this.movementPathAt(this.world.toLocal(event.global));
       const token = this.tokenViews.find((view) => view.token.id === this.movementTokenId)?.token;
       const destination = path?.at(-1);

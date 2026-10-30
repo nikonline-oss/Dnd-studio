@@ -13,6 +13,7 @@ import { assetUrl, type AssetDto, type Library, type LibraryFolderDto } from '@/
 import { useSnapshotSelect, useSubmitIntent } from '@/shared/game/useGame';
 import { uuidv7 } from '@/shared/ipc/uuid';
 import { ContextMenu } from '@/shared/ui/ContextMenu';
+import { ErrorText } from '@/shared/ui/ErrorText';
 import { Icon } from '@/shared/ui/Icon';
 import { IconButton } from '@/shared/ui/IconButton';
 import type { MenuItem } from '@/shared/ui/Menu';
@@ -33,6 +34,7 @@ export function LibraryExplorer({
   onSelect,
   onOpenFolder,
   assetMenuItems,
+  backgroundMenuItems = [],
 }: {
   library: Library;
   assets: AssetDto[];
@@ -40,6 +42,7 @@ export function LibraryExplorer({
   onSelect: (id: string | null) => void;
   onOpenFolder?: (id: string | null) => void;
   assetMenuItems?: (asset: AssetDto) => (MenuItem | 'separator')[];
+  backgroundMenuItems?: MenuItem[];
 }) {
   const { t } = useTranslation();
   const folders = (useSnapshotSelect((s) => s.library_folders ?? []) ?? []).filter(
@@ -76,6 +79,7 @@ export function LibraryExplorer({
   const [expandedState, setExpandedState] = useState<Set<string> | null>(null);
   const [creating, setCreating] = useState<{ parent: string | null; depth: number } | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
+  const [assetRename, setAssetRename] = useState<{ asset: AssetDto; name: string } | null>(null);
   const [query, setQuery] = useState('');
   const [menu, setMenu] = useState<{
     x: number;
@@ -236,6 +240,13 @@ export function LibraryExplorer({
   const folderMenu = (folder: LibraryFolderDto | null): MenuItem[] => {
     const items: MenuItem[] = [
       {
+        label: t('media.open'),
+        onSelect: () => {
+          onOpenFolder?.(folder?.id ?? null);
+        },
+      },
+      ...backgroundMenuItems,
+      {
         label: t('library.addFolder'),
         onSelect: () => {
           startCreate(folder?.id ?? null);
@@ -306,6 +317,7 @@ export function LibraryExplorer({
           }}
           onContextMenu={(event) => {
             event.preventDefault();
+            event.stopPropagation();
             openAssetMenu(event.clientX, event.clientY);
           }}
           onClick={() => {
@@ -340,7 +352,7 @@ export function LibraryExplorer({
           <span className="row-name" title={row.asset.original_name ?? undefined}>
             {row.asset.original_name ?? row.asset.sha256.slice(0, 8)}
           </span>
-          {assetMenuItems && (
+          {
             <span
               className="library-row-actions"
               onClick={(event) => {
@@ -358,7 +370,7 @@ export function LibraryExplorer({
                 }}
               />
             </span>
-          )}
+          }
         </li>
       );
     }
@@ -394,6 +406,7 @@ export function LibraryExplorer({
         }}
         onContextMenu={(event) => {
           event.preventDefault();
+          event.stopPropagation();
           setMenu({ x: event.clientX, y: event.clientY, folder, asset: null });
         }}
       >
@@ -504,12 +517,71 @@ export function LibraryExplorer({
           x={menu.x}
           y={menu.y}
           label={menu.asset?.original_name ?? t('library.folders')}
-          items={menu.asset ? (assetMenuItems?.(menu.asset) ?? []) : folderMenu(menu.folder)}
+          items={
+            menu.asset
+              ? [
+                  {
+                    label: t('media.open'),
+                    onSelect: () => {
+                      if (menu.asset) onSelect(menu.asset.id);
+                    },
+                  },
+                  {
+                    label: t('library.renameAsset', { defaultValue: 'Rename file' }),
+                    onSelect: () => {
+                      if (menu.asset)
+                        setAssetRename({ asset: menu.asset, name: menu.asset.original_name ?? '' });
+                    },
+                  },
+                  ...(assetMenuItems?.(menu.asset) ?? []),
+                ]
+              : folderMenu(menu.folder)
+          }
           onClose={() => {
             setMenu(null);
           }}
         />
       )}
+      {assetRename && (
+        <form
+          className="confirm-bar"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const name = assetRename.name.trim();
+            if (!name) return;
+            submit.mutate({
+              intent: { kind: 'rename_asset', id: assetRename.asset.id, name },
+              expectedVersion: assetRename.asset.version,
+            });
+            setAssetRename(null);
+          }}
+        >
+          <input
+            autoFocus
+            maxLength={200}
+            aria-label={t('library.renameAsset', { defaultValue: 'Rename file' })}
+            value={assetRename.name}
+            onChange={(event) => {
+              setAssetRename({ ...assetRename, name: event.target.value });
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') setAssetRename(null);
+            }}
+          />
+          <button type="submit" disabled={!assetRename.name.trim() || submit.isPending}>
+            {t('library.renameAsset', { defaultValue: 'Rename file' })}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setAssetRename(null);
+            }}
+          >
+            {t('picker.cancel')}
+          </button>
+        </form>
+      )}
+      <ErrorText error={submit.error} />
       {hoverPreview &&
         createPortal(
           <div

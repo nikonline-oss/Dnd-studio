@@ -20,6 +20,8 @@ import { ErrorText } from '@/shared/ui/ErrorText';
 import { Icon } from '@/shared/ui/Icon';
 import { ConfirmDelete, IconButton } from '@/shared/ui/IconButton';
 import { InlineEdit } from '@/shared/ui/InlineEdit';
+import { ContextMenu } from '@/shared/ui/ContextMenu';
+import type { MenuItem } from '@/shared/ui/Menu';
 import { Markdown } from '@/shared/ui/Markdown';
 import { useToast } from '@/shared/ui/Toast';
 
@@ -62,10 +64,22 @@ export function BoardView({ boardId }: { boardId: string }) {
   const importMap = useMutation({ mutationFn: ipc.assetImportMap });
   const showToast = useToast((s) => s.show);
   const board = useSnapshotSelect((s) => s.boards.find((b) => b.id === boardId));
+  const assets = useSnapshotSelect((s) => s.assets) ?? [];
   const maps = useSnapshotSelect((s) => s.maps) ?? [];
   const nodes = useSnapshotSelect((s) => s.board_nodes.filter((n) => n.board_id === boardId));
   const edges = useSnapshotSelect((s) => s.board_edges.filter((e) => e.board_id === boardId));
   const triggers = useSnapshotSelect((s) => s.triggers);
+  const [context, setContext] = useState<{
+    x: number;
+    y: number;
+    nodeId: string | null;
+    edgeId: string | null;
+  } | null>(null);
+  const [remove, setRemove] = useState<Selected>(null);
+  const [edgeRename, setEdgeRename] = useState<{ edge: BoardEdgeDto; label: string } | null>(null);
+  const [mapRename, setMapRename] = useState<{ id: string; name: string; version: number } | null>(
+    null,
+  );
   const [view, setView] = useState<View>({ x: 40, y: 40, zoom: 1 });
   const [selected, setSelected] = useState<Selected>(null);
   const [connecting, setConnecting] = useState(false);
@@ -329,10 +343,129 @@ export function BoardView({ boardId }: { boardId: string }) {
     });
   };
 
+  const menuItems: MenuItem[] = [];
+  const contextNode = nodes.find((node) => node.id === context?.nodeId);
+  const contextEdge = edges.find((edge) => edge.id === context?.edgeId);
+  if (contextNode) {
+    const node = contextNode;
+    const content = node.content;
+    if (content.type === 'link')
+      menuItems.push({
+        label: t('boards.open', { defaultValue: 'Open' }),
+        onSelect: () => {
+          const selection = useSelection.getState();
+          const target = content.target;
+          if (target.kind === 'map') selection.openMap(target.id);
+          else if (target.kind === 'journal') selection.openJournal(target.id);
+          else selection.openCharacter(target.id);
+        },
+      });
+    if (content.type === 'image') {
+      const asset = assets.find((a) => a.id === content.asset_id);
+      if (asset)
+        menuItems.push({
+          label: t('boards.open', { defaultValue: 'Open' }),
+          onSelect: () => {
+            useSelection.getState().openMedia('images', asset.folder_id ?? null, asset.id);
+          },
+        });
+    }
+    if (content.type === 'trigger')
+      menuItems.push({
+        label: t('boards.openTrigger'),
+        onSelect: () => {
+          useSelection.getState().openTrigger(content.id);
+        },
+      });
+    if (isGm) {
+      if (content.type === 'note')
+        menuItems.push({
+          label: t('boards.editNote'),
+          onSelect: () => {
+            setEditing(node.id);
+          },
+        });
+      if (content.type === 'link' && content.target.kind === 'map') {
+        const map = maps.find((m) => m.id === content.target.id);
+        if (map)
+          menuItems.push({
+            label: t('maps.rename'),
+            onSelect: () => {
+              setMapRename({ id: map.id, name: map.name, version: map.version });
+            },
+          });
+      }
+      if (content.type !== 'trigger')
+        menuItems.push({
+          label: t(node.visibility === 'players' ? 'boards.hidePlayers' : 'boards.showPlayers', {
+            defaultValue: node.visibility === 'players' ? 'Hide from players' : 'Show to players',
+          }),
+          onSelect: () => {
+            setNodeVisibility(node, node.visibility === 'players' ? 'gm' : 'players');
+          },
+        });
+      menuItems.push(
+        {
+          label: t('boards.connect'),
+          onSelect: () => {
+            setSelected({ kind: 'node', id: node.id });
+            setConnecting(true);
+          },
+        },
+        {
+          label:
+            content.type === 'link' && content.target.kind === 'map'
+              ? t('boards.deleteMapEverywhere', {
+                  defaultValue: 'Delete map everywhere, including its tokens and other board links',
+                })
+              : t('boards.deleteCard'),
+          onSelect: () => {
+            setRemove({ kind: 'node', id: node.id });
+          },
+        },
+      );
+    }
+  }
+  if (contextEdge && isGm) {
+    const edge = contextEdge;
+    menuItems.push({
+      label: t('boards.lineLabel'),
+      onSelect: () => {
+        setEdgeRename({ edge, label: edge.label });
+      },
+    });
+    menuItems.push(
+      {
+        label: t('boards.arrow'),
+        onSelect: () => {
+          updateEdge(edge, { directed: !edge.directed });
+        },
+      },
+      {
+        label: t(edge.visibility === 'players' ? 'boards.hidePlayers' : 'boards.showPlayers', {
+          defaultValue: edge.visibility === 'players' ? 'Hide from players' : 'Show to players',
+        }),
+        onSelect: () => {
+          updateEdge(edge, { visibility: edge.visibility === 'players' ? 'gm' : 'players' });
+        },
+      },
+      {
+        label: t('boards.deleteLine'),
+        onSelect: () => {
+          setRemove({ kind: 'edge', id: edge.id });
+        },
+      },
+    );
+  }
+  const removeContent = remove?.kind === 'node' ? byId.get(remove.id)?.content : undefined;
   return (
     <section className="board-view" aria-label={board.name}>
       {isGm && (
         <BoardToolbar
+          contextRequest={context && !context.nodeId && !context.edgeId ? context : null}
+          onCloseContext={() => {
+            setContext(null);
+          }}
           onImportMap={
             canImport
               ? () => {
@@ -483,6 +616,17 @@ export function BoardView({ boardId }: { boardId: string }) {
         onPointerUp={onUp}
         onPointerCancel={onUp}
         onWheel={onWheel}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          gesture.current = null;
+          const element = e.target as Element;
+          const nodeId = element.closest('[data-node-id]')?.getAttribute('data-node-id') ?? null;
+          const edgeId = element.closest('[data-edge-id]')?.getAttribute('data-edge-id') ?? null;
+          if (nodeId) setSelected({ kind: 'node', id: nodeId });
+          else if (edgeId) setSelected({ kind: 'edge', id: edgeId });
+          setContext({ x: e.clientX, y: e.clientY, nodeId, edgeId });
+        }}
       >
         <div
           className="board-world"
@@ -515,6 +659,7 @@ export function BoardView({ boardId }: { boardId: string }) {
                 <g
                   key={edge.id}
                   className="board-edge"
+                  data-edge-id={edge.id}
                   data-hidden={edge.visibility === 'gm'}
                   data-selected={isSelected}
                   onPointerDown={(e) => {
@@ -653,7 +798,14 @@ export function BoardView({ boardId }: { boardId: string }) {
             }}
           />
           <ConfirmDelete
-            label={t('boards.deleteCard')}
+            label={
+              selectedNode.content.type === 'link' && selectedNode.content.target.kind === 'map'
+                ? t('boards.deleteMapEverywhere', {
+                    defaultValue:
+                      'Delete map everywhere, including its tokens and other board links',
+                  })
+                : t('boards.deleteCard')
+            }
             onConfirm={() => {
               setSelected(null);
               submit.mutate({
@@ -710,6 +862,125 @@ export function BoardView({ boardId }: { boardId: string }) {
         </div>
       )}
       {connecting && <p className="board-hint">{t('boards.connectHint')}</p>}
+      {context && (contextNode || contextEdge) && menuItems.length > 0 && (
+        <ContextMenu
+          x={context.x}
+          y={context.y}
+          items={menuItems}
+          label={t('boards.title')}
+          onClose={() => {
+            setContext(null);
+          }}
+        />
+      )}
+      {edgeRename && (
+        <form
+          className="board-selection"
+          onSubmit={(e) => {
+            e.preventDefault();
+            updateEdge(edgeRename.edge, { label: edgeRename.label });
+            setEdgeRename(null);
+          }}
+        >
+          <input
+            autoFocus
+            aria-label={t('boards.lineLabel')}
+            value={edgeRename.label}
+            onChange={(e) => {
+              setEdgeRename({ ...edgeRename, label: e.target.value });
+            }}
+          />
+          <button type="submit">{t('boards.lineLabel')}</button>
+          <button
+            type="button"
+            onClick={() => {
+              setEdgeRename(null);
+            }}
+          >
+            {t('boards.cancel', { defaultValue: 'Cancel' })}
+          </button>
+        </form>
+      )}
+      {mapRename && (
+        <form
+          className="board-selection"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const name = mapRename.name.trim();
+            if (!name) return;
+            submit.mutate({
+              intent: {
+                kind: 'update_map',
+                id: mapRename.id,
+                name,
+                grid: null,
+                visible_to_players: null,
+              },
+              expectedVersion: mapRename.version,
+            });
+            setMapRename(null);
+          }}
+        >
+          <input
+            autoFocus
+            aria-label={t('maps.rename')}
+            value={mapRename.name}
+            onChange={(e) => {
+              setMapRename({ ...mapRename, name: e.target.value });
+            }}
+          />
+          <button type="submit">{t('maps.rename')}</button>
+          <button
+            type="button"
+            onClick={() => {
+              setMapRename(null);
+            }}
+          >
+            {t('boards.cancel', { defaultValue: 'Cancel' })}
+          </button>
+        </form>
+      )}
+      {remove && (
+        <div className="board-selection" role="alertdialog" aria-label={t('boards.deleteCard')}>
+          <p>
+            {removeContent?.type === 'link' && removeContent.target.kind === 'map'
+              ? t('boards.deleteMapEverywhere', {
+                  defaultValue: 'Delete map everywhere, including its tokens and other board links',
+                })
+              : t('common.confirmDelete')}
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              setRemove(null);
+            }}
+          >
+            {t('boards.cancel', { defaultValue: 'Cancel' })}
+          </button>
+          <button
+            type="button"
+            disabled={submit.isPending}
+            onClick={() => {
+              const item =
+                remove.kind === 'node'
+                  ? byId.get(remove.id)
+                  : edges.find((edge) => edge.id === remove.id);
+              if (item)
+                submit.mutate({
+                  intent:
+                    remove.kind === 'node'
+                      ? { kind: 'delete_board_node', id: item.id }
+                      : { kind: 'delete_board_edge', id: item.id },
+                  expectedVersion: item.version,
+                });
+              setRemove(null);
+              setSelected(null);
+            }}
+          >
+            {t('common.confirmDelete')}
+          </button>
+        </div>
+      )}
       <ErrorText error={importMap.error ?? submit.error} />
     </section>
   );
@@ -753,6 +1024,7 @@ function BoardCard({
   return (
     <div
       className={`board-card board-card-${content.type}`}
+      data-node-id={node.id}
       data-selected={selected}
       data-hidden={node.visibility === 'gm'}
       role="group"

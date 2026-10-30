@@ -1,0 +1,111 @@
+.boards-navigator {
+  min-height: 100%;
+  position: relative;
+}
+.boards-navigator .board-nav-list {
+  padding: 4px 8px 20px;
+}
+.boards-navigator .board-tree-group {
+  margin-bottom: 6px;
+  list-style: none;
+}
+.boards-navigator .board-nav-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 3px 6px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+}
+.boards-navigator .board-nav-row:hover {
+  background: color-mix(in srgb, currentColor 6%, transparent);
+}
+.boards-navigator .board-nav-row[aria-current='true'] {
+  background: color-mix(in srgb, var(--accent, #b99b65) 14%, transparent);
+  border-color: color-mix(in srgb, var(--accent, #b99b65) 40%, transparent);
+}
+.boards-navigator .board-nav-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+.boards-navigator .board-nav-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+.boards-navigator .board-nav-open,
+.boards-navigator .board-nav-expand,
+.boards-navigator .board-nav-more {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px;
+  border-radius: 4px;
+  min-width: 24px;
+  cursor: pointer;
+}
+.boards-navigator .board-nav-expand svg {
+  width: 12px;
+  transition: transform 0.15s;
+}
+.boards-navigator .board-nav-expand[aria-expanded='true'] svg {
+  transform: rotate(90deg);
+}
+.boards-navigator .board-nav-count {
+  font-size: 11px;
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+}
+.boards-navigator .board-nav-visibility {
+  width: 14px;
+  opacity: 0.5;
+}
+.boards-navigator .board-nav-more {
+  font-size: 20px;
+  opacity: 0.6;
+}
+.boards-navigator button:hover,
+.boards-navigator button:focus-visible {
+  background: color-mix(in srgb, currentColor 10%, transparent);
+}
+.boards-navigator .board-map-list {
+  margin: 3px 0 8px 17px;
+  padding: 0 0 0 12px;
+  border-left: 1px solid color-mix(in srgb, currentColor 16%, transparent);
+  list-style: none;
+}
+.boards-navigator .board-nav-map {
+  min-height: 34px;
+  font-size: 12px;
+}
+.boards-navigator .board-nav-map .board-nav-open {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+.boards-navigator input {
+  min-width: 0;
+  width: 100%;
+}
+.boards-navigator .board-nav-confirm {
+  margin: 8px;
+  padding: 12px;
+  border: 1px solid var(--accent, #b99b65);
+  border-radius: 7px;
+  background: var(--bg-panel, #25252d);
+}
+.boards-navigator .board-nav-confirm p {
+  margin: 0 0 10px;
+  overflow-wrap: anywhere;
+}
+.boards-navigator .board-nav-confirm button {
+  margin-right: 8px;
+}

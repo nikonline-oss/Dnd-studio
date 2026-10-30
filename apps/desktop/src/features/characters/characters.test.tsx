@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { mockIPC } from '@tauri-apps/api/mocks';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CharacterEditor, sheetProblem } from './CharacterEditor';
@@ -168,5 +168,39 @@ describe('CharacterEditor', () => {
     await screen.findByText('Bob');
     expect(screen.queryByRole('button', { name: 'Save sheet' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Archive' })).not.toBeInTheDocument();
+  });
+});
+
+describe('character context menus', () => {
+  it('requires explicit confirmation before deleting a character with its version', async () => {
+    const sent = renderWith('gm', [character({})], <CharacterList />);
+    fireEvent.contextMenu(await screen.findByText('Aria'));
+    await userEvent.click(
+      screen.getByRole('menuitem', { name: /Delete character|characters.delete/ }),
+    );
+    expect(sent).toHaveLength(0);
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    await userEvent.click(
+      screen.getByRole('button', { name: /Delete character|characters.delete/ }),
+    );
+    await waitFor(() => {
+      expect(sent).toHaveLength(1);
+    });
+    expect(sent[0]).toMatchObject({
+      intent: { kind: 'delete_character', id: character({}).id },
+      expected_version: 4,
+    });
+  });
+  it('shows creation commands on the background, and hides deletion from players', async () => {
+    renderWith('player', [character({})], <CharacterList />);
+    const name = await screen.findByText('Aria');
+    fireEvent.contextMenu(name);
+    expect(
+      screen.queryByRole('menuitem', { name: /Delete character|characters.delete/ }),
+    ).not.toBeInTheDocument();
+    await userEvent.keyboard('{Escape}');
+    fireEvent.contextMenu(screen.getByRole('list', { name: 'Characters' }));
+    expect(screen.getByRole('menuitem', { name: 'Add PC' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Add NPC' })).not.toBeInTheDocument();
   });
 });

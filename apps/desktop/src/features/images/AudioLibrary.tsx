@@ -90,6 +90,19 @@ export function AudioLibrary() {
           useSelection.getState().openMedia('audio', id);
         }}
         assetMenuItems={soundMenu}
+        backgroundMenuItems={
+          canImport
+            ? [
+                {
+                  label: t('audio.import'),
+                  disabled: importing.isPending,
+                  onSelect: () => {
+                    importing.mutate();
+                  },
+                },
+              ]
+            : []
+        }
       />
       <ErrorText error={importing.error ?? submit.error} />
     </NavSection>

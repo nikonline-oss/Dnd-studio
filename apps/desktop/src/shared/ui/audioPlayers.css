@@ -1,0 +1,147 @@
+.audio-card.audio-card {
+  box-sizing: border-box;
+  color: var(--color-text);
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--color-accent) 8%, var(--color-surface)),
+    var(--color-surface)
+  );
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  padding: 18px;
+  gap: 14px;
+  min-width: 0;
+}
+.audio-card .audio-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.audio-card .audio-heading strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+}
+.audio-card .audio-art {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 42px;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+  color: var(--color-accent);
+}
+.audio-card .audio-transport {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.audio-card .audio-control {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+.audio-card .audio-control:hover {
+  background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+}
+.audio-card .audio-control:focus-visible,
+.audio-card input:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 3px;
+}
+.audio-card .audio-control:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.audio-card .audio-primary {
+  width: 44px;
+  height: 44px;
+  color: var(--color-surface);
+  background: var(--color-accent);
+}
+.audio-card .audio-primary:hover {
+  background: color-mix(in srgb, var(--color-accent) 80%, white);
+}
+.audio-card .audio-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 90px;
+  flex: 1;
+}
+.audio-card input[type='range'] {
+  accent-color: var(--color-accent);
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  cursor: pointer;
+}
+.audio-card output {
+  font-size: 11px;
+  opacity: 0.72;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.audio-card .media-range {
+  flex-wrap: nowrap;
+  font-size: 12px;
+}
+.audio-card .audio-volume {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+  width: min(150px, 100%);
+}
+.audio-card .audio-volume .icon {
+  flex-shrink: 0;
+  opacity: 0.65;
+}
+.audio-card.compact {
+  min-width: min(300px, 100%);
+  padding: 8px 12px;
+  gap: 6px;
+}
+.audio-card.compact .audio-art {
+  flex-basis: 30px;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+}
+.audio-card.compact .audio-primary {
+  width: 32px;
+  height: 32px;
+}
+.audio-card.compact .audio-heading strong {
+  font-size: 12px;
+}
+.audio-card.compact .audio-control {
+  padding: 0;
+}
+.journal-audio.journal-audio {
+  display: inline-flex;
+  flex-direction: column;
+  width: 360px;
+  max-width: 100%;
+  margin: 8px 0;
+  vertical-align: middle;
+}
+.journal-audio > audio {
+  display: none;
+}

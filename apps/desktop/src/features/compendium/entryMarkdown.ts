@@ -54,6 +54,8 @@ export function entryMarkdown(entry: CompendiumEntryDto, lang: string): string {
     typeof entry.data === 'object' && entry.data !== null && !Array.isArray(entry.data)
       ? Object.entries(entry.data as Record<string, unknown>)
       : [];
-  const lines = fields.map(([k, v]) => `- **${fieldName(k)}:** ${value(v, lang, 1)}`);
+  const lines = fields
+    .filter(([key]) => key !== 'character_template')
+    .map(([k, v]) => `- **${fieldName(k)}:** ${value(v, lang, 1)}`);
   return `# ${inline(labelText(entry.name, lang))}\n\n${lines.join('\n')}\n`;
 }

@@ -15,10 +15,21 @@
     "up": "Parent folder",
     "files": "Folder contents",
     "empty": "This folder is empty",
-    "selectFile": "Select a picture or sound from the list"
+    "selectFile": "Select a picture or sound from the list",
+    "open": "Open",
+    "localPlay": "Play",
+    "localPause": "Pause",
+    "localVolume": "Volume",
+    "fileCommands": "Library commands",
+    "itemName": "Name",
+    "moveTo": "Move to folder…",
+    "newFolder": "New folder",
+    "save": "Save"
   },
   "common": {
-    "confirmDelete": "Delete?"
+    "confirmDelete": "Delete?",
+    "cancel": "Cancel",
+    "commands": "Commands"
   },
   "app": {
     "title": "DndStudio"
@@ -76,7 +87,10 @@
     "cells_one": "{{count}} cell",
     "cells_other": "{{count}} cells",
     "rotation": "Rotation, °",
-    "visibleToPlayers": "Visible to players"
+    "visibleToPlayers": "Visible to players",
+    "cells": "cells",
+    "rename": "Rename token",
+    "select": "Select token"
   },
   "errors": {
     "unknown": "Something went wrong",
@@ -304,7 +318,10 @@
       "not_object": "The sheet must be a JSON object",
       "fraction": "Numbers must be whole and within ±2^53−1"
     },
-    "rawSheet": "Sheet as JSON"
+    "rawSheet": "Sheet as JSON",
+    "openSheet": "Open character sheet",
+    "delete": "Delete character",
+    "deleteConfirm": "Delete character “{{name}}”? Linked tokens and initiative entries will remain without a sheet; character cards on boards will be removed."
   },
   "journal": {
     "title": "Journal",
@@ -344,7 +361,10 @@
     "imported": "Imported: {{entries}} entries in {{folders}} folders",
     "importedSkipped": "Imported: {{entries}} entries in {{folders}} folders; files skipped: {{skipped}}",
     "exported": "Journal exported to {{folder}}",
-    "importNothing": "No Markdown or CSV files in this folder"
+    "importNothing": "No Markdown or CSV files in this folder",
+    "destination": "Destination folder",
+    "disallowPlayerEditing": "Disallow player editing",
+    "root": "Root"
   },
   "chat": {
     "input": "Message",
@@ -386,7 +406,9 @@
     "empty": "No combatants yet",
     "roll": "Roll initiative for {{name}}",
     "remove": "Remove {{name}} from combat",
-    "value": "Initiative of {{name}}"
+    "value": "Initiative of {{name}}",
+    "addTokens": "Add tokens",
+    "startHint": "Start combat on the selected map"
   },
   "activity": {
     "library": "Library",
@@ -517,7 +539,15 @@
     "addTrigger": "Trigger",
     "newTrigger": "New trigger on the board",
     "trigger": "Trigger",
-    "openTrigger": "Open"
+    "openTrigger": "Open",
+    "deleteMapEverywhere": "Delete map everywhere, including its tokens and other board links",
+    "open": "Open",
+    "commands": "Commands: {{name}}",
+    "showPlayers": "Show to players",
+    "hidePlayers": "Hide from players",
+    "cancel": "Cancel",
+    "confirmDeleteMap": "Delete map “{{name}}” everywhere, including tokens and other board links?",
+    "confirmDeleteBoard": "Delete board “{{name}}” with all its contents?"
   },
   "zones": {
     "draw": "Draw a zone",
@@ -536,7 +566,9 @@
     "edit": "Edit zones",
     "editOne": "Edit “{{name}}” on the map",
     "editHint": "Click a zone to select it; drag it, its corners or its name. Double-click the name to rename it.",
-    "nameOnMap": "Zone name"
+    "nameOnMap": "Zone name",
+    "color": "Color of zone {{name}}",
+    "new": "Draw a zone"
   },
   "conditions": {
     "title": "Conditions",
@@ -719,7 +751,8 @@
     "confirmDeleteFolder": "Delete folder “{{name}}” and its subfolders? Its {{count}} files will move to the library root.",
     "confirmDeleteFolderDetails": "Subfolders removed: {{folders}}.",
     "moveAsset": "Folder for “{{name}}”",
-    "empty": "This library is empty."
+    "empty": "This library is empty.",
+    "renameAsset": "Rename file"
   },
   "compendia": {
     "createCharacter": "Create character",
@@ -735,7 +768,11 @@
     "pick": "Pick an entry on the left.",
     "toJournal": "Copy to the journal",
     "more_one": "{{count}} more",
-    "more_other": "{{count}} more"
+    "more_other": "{{count}} more",
+    "characterCreated": "Character created",
+    "characterInstance": "Create an instance",
+    "instanceName": "Character name",
+    "sheetPreview": "Creature sheet"
   },
   "table": {
     "toolbar": "Table",
@@ -761,5 +798,25 @@
     "missing": "Element is absent",
     "copy": "Offline copy of a hosted campaign. Edits are saved until reconnecting.",
     "unavailable": "Connect to see the current server version."
+  },
+  "context": {
+    "collapse": "Collapse",
+    "disable": "Disable",
+    "enable": "Enable",
+    "expand": "Expand",
+    "expandAll": "Expand all",
+    "hidePlayers": "Hide from players",
+    "move": "Move",
+    "moveTo": "Move to…",
+    "open": "Open",
+    "refresh": "Refresh",
+    "showPlayers": "Show to players"
+  },
+  "sounds": {
+    "allSounds": "All sounds",
+    "choose": "Choose sound",
+    "loop": "Repeat",
+    "sound": "Sound",
+    "volume": "Volume"
   }
 }

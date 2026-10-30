@@ -7,7 +7,6 @@ import { zoneParts } from './zoneTool';
 import type { ZoneDto } from '@/shared/ipc/client';
 
 const ZONE_COLOR = 0x9b7bff;
-const TRIGGER_COLOR = 0xff9f43;
 const SELECTED_COLOR = 0xffd166;
 const FILL_ALPHA = 0.12;
 const SELECTED_FILL_ALPHA = 0.22;
@@ -55,7 +54,7 @@ export class ZoneLayer {
     const key = `${mapWidth}:${selected ?? ''}@${selected ? zoom : 0}|${zones
       .map(
         (z) =>
-          `${z.id}:${z.version}:${z.name}:${triggerSet.has(z.id)}:${JSON.stringify(z.shape)}:${JSON.stringify(z.label)}`,
+          `${z.id}:${z.version}:${z.color ?? ZONE_COLOR}:${z.name}:${triggerSet.has(z.id)}:${JSON.stringify(z.shape)}:${JSON.stringify(z.label)}`,
       )
       .join(',')}`;
     if (key === this.key) return;
@@ -69,14 +68,16 @@ export class ZoneLayer {
     for (const zone of zones) {
       const isSelected = zone.id === selected;
       const hasTrigger = triggerSet.has(zone.id);
-      const color = isSelected ? SELECTED_COLOR : hasTrigger ? TRIGGER_COLOR : ZONE_COLOR;
+      const color = zone.color ?? ZONE_COLOR;
       // A merged zone is drawn part by part.
       for (const part of zoneParts(zone.shape)) {
         if (part.type === 'rect') this.shapes.rect(part.x, part.y, part.width, part.height);
         else this.shapes.poly(part.points, true);
-        this.shapes
-          .fill({ color, alpha: isSelected ? SELECTED_FILL_ALPHA : FILL_ALPHA })
-          .stroke({ color, alpha: LINE_ALPHA, width: isSelected ? 48 : 32 });
+        this.shapes.fill({ color, alpha: isSelected ? SELECTED_FILL_ALPHA : FILL_ALPHA }).stroke({
+          color: isSelected ? SELECTED_COLOR : color,
+          alpha: LINE_ALPHA,
+          width: isSelected ? 48 : 32,
+        });
       }
       const at: Point16 = labelPosition(zone);
       const label = new Text({

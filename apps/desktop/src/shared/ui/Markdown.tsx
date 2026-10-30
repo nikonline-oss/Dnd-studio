@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import ReactMarkdown, { defaultUrlTransform, type Components } from 'react-markdown';
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import remarkGfm from 'remark-gfm';
+import { InlineAudioPlayer } from './InlineAudioPlayer';
 import { markdownLineBreaks } from './markdownLineBreaks';
 import { useSnapshotSelect } from '@/shared/game/useGame';
 import { assetUrl, type Snapshot } from '@/shared/ipc/client';
@@ -48,11 +49,9 @@ function AssetImage({ id, alt }: { id: string; alt: string }) {
   if (!asset) return <span className="md-image-missing">{alt}</span>;
   if (asset.usage === 'audio')
     return (
-      <audio
-        className="media-inline-audio"
-        aria-label={alt}
-        controls
-        preload="metadata"
+      <InlineAudioPlayer
+        key={asset.sha256}
+        title={alt || asset.original_name || ''}
         src={assetUrl(asset.sha256)}
       />
     );

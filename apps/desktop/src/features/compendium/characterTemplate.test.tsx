@@ -17,6 +17,7 @@ describe('compendium character templates', () => {
     role: CampaignInfo['role'],
     reject = false,
     data: unknown = { character_template: template },
+    creaturePreview = false,
   ) {
     const sent: IntentEnvelope[] = [];
     const client = new QueryClient({
@@ -24,10 +25,37 @@ describe('compendium character templates', () => {
     });
     client.setQueryData(queryKeys.campaign, { name: 'C', path: '/c', user_id: 'u1', role });
     client.setQueryData(queryKeys.snapshot, {
-      plugins: [],
+      system_plugin: creaturePreview ? 'generic-d6' : null,
+      plugins: creaturePreview
+        ? [
+            {
+              id: 'generic-d6',
+              archive_sha256: 'a',
+              system: {
+                sheet_schema: {
+                  type: 'object',
+                  properties: {
+                    attributes: { type: 'object', properties: { agility: { type: 'integer' } } },
+                  },
+                },
+                sheet_layout: { type: 'text', text: 'Ordinary character form' },
+                creature_sheet_layout: {
+                  type: 'section',
+                  label: 'Creature form',
+                  children: [
+                    { type: 'field', path: 'attributes.agility', label: 'Creature agility' },
+                  ],
+                },
+                rolls: [],
+                resources: [],
+              },
+            },
+          ]
+        : [],
       maps: [{ id: 'map1', name: 'Forest', width: 100, height: 80 }],
     });
     mockIPC((cmd, args) => {
+      if (cmd === 'sheet_view') return { computed: {}, resources: [] };
       if (cmd === 'compendium_entries')
         return {
           entries: [{ id: 'scout', name: 'Scout', data }],
@@ -84,6 +112,37 @@ describe('compendium character templates', () => {
   it.each(['player', 'spectator'] as const)('does not offer creation to %s', async (role) => {
     await setup(role);
     expect(screen.queryByRole('button', { name: 'Create character' })).not.toBeInTheDocument();
+  });
+  it('previews the creature form without mutating or creating the entry', async () => {
+    const data = structuredClone({ character_template: template });
+    const sent = await setup('gm', false, data, true);
+    expect(await screen.findByText('Creature form')).toBeInTheDocument();
+    expect(screen.queryByText('Ordinary character form')).not.toBeInTheDocument();
+    expect(screen.getByText('Creature agility')).toBeInTheDocument();
+    expect(sent).toHaveLength(0);
+    expect(data).toEqual({ character_template: template });
+    expect(screen.queryByText(/Character template:/)).not.toBeInTheDocument();
+  });
+  it('keeps the ordinary form for PC templates', async () => {
+    await setup('gm', false, { character_template: { ...template, kind: 'pc' } }, true);
+    expect(await screen.findByText('Ordinary character form')).toBeInTheDocument();
+    expect(screen.queryByText('Creature form')).not.toBeInTheDocument();
+  });
+  it('uses the instance name for both character and token', async () => {
+    const sent = await setup('gm');
+    const input = screen.getByRole('textbox', { name: 'Character name' });
+    await userEvent.clear(input);
+    expect(screen.getByRole('button', { name: 'Create character' })).toBeDisabled();
+    await userEvent.type(input, 'Forest scout');
+    await userEvent.click(screen.getByRole('button', { name: 'Create character' }));
+    expect(await screen.findByRole('status')).toHaveTextContent('Forest scout');
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Map for token' }), 'map1');
+    await userEvent.click(screen.getByRole('button', { name: 'Place token at map centre' }));
+    await waitFor(() => {
+      expect(sent).toHaveLength(2);
+    });
+    expect(sent[0]?.intent).toMatchObject({ name: 'Forest scout' });
+    expect(sent[1]?.intent).toMatchObject({ name: 'Forest scout' });
   });
   it('does not offer placement after rejected character creation', async () => {
     const sent = await setup('gm', true);

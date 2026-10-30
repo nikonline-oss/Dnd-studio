@@ -246,3 +246,96 @@ describe('BoardList', () => {
     expect(useSelection.getState().center).toBe('map');
   });
 });
+
+describe('BoardList context commands', () => {
+  it('offers creation on the empty navigator background', async () => {
+    const sent = setup('gm');
+    const list = await screen.findByRole('list', { name: 'Boards' });
+    fireEvent.contextMenu(list);
+    await userEvent.click(screen.getByRole('menuitem', { name: 'New board' }));
+    await waitFor(() => {
+      expect(sent[0]?.intent.kind).toBe('create_board');
+    });
+  });
+  it('renames a board from its context menu', async () => {
+    const sent = setup('gm');
+    fireEvent.contextMenu(
+      (await screen.findByText('Plot')).closest('.board-tree-group') as HTMLElement,
+    );
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Rename board' }));
+    const input = screen.getByRole('textbox', { name: 'Rename board' });
+    await userEvent.clear(input);
+    await userEvent.type(input, 'Clues{Enter}');
+    await waitFor(() => {
+      expect(sent[0]?.intent).toMatchObject({ kind: 'update_board', name: 'Clues' });
+    });
+  });
+  it('keeps player menus read only', async () => {
+    setup('player');
+    fireEvent.contextMenu(
+      (await screen.findByText('Plot')).closest('.board-tree-group') as HTMLElement,
+    );
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Delete board' })).not.toBeInTheDocument();
+  });
+  it('renames a nested map from its context menu', async () => {
+    const sent = setup('gm');
+    await userEvent.click(await screen.findByRole('button', { name: 'Show maps in Plot' }));
+    fireEvent.contextMenu(
+      within(screen.getByRole('list', { name: 'Maps in Plot' })).getByRole('button', {
+        name: 'Sunken Crypt',
+      }),
+    );
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Rename' }));
+    const input = screen.getByRole('textbox', { name: 'Rename' });
+    await userEvent.clear(input);
+    await userEvent.type(input, 'Crypt 2{Enter}');
+    await waitFor(() => {
+      expect(sent[0]?.intent).toMatchObject({ kind: 'update_map', id: crypt.id, name: 'Crypt 2' });
+    });
+  });
+});
+
+describe('Board canvas context commands', () => {
+  it('creates notes through the background menu', async () => {
+    const sent = setup('gm');
+    fireEvent.contextMenu(await screen.findByRole('application', { name: 'Board canvas' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Note' }));
+    await waitFor(() => {
+      expect(sent[0]?.intent).toMatchObject({
+        kind: 'create_board_node',
+        content: { type: 'note' },
+      });
+    });
+  });
+  it('edits a note through its card menu', async () => {
+    setup('gm');
+    fireEvent.contextMenu(
+      (await screen.findByText('Secret passage')).closest('.board-card') as HTMLElement,
+    );
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Edit note' }));
+    expect(screen.getByRole('textbox', { name: 'Note text' })).toHaveValue('Secret passage');
+  });
+});
+
+describe('Board map deletion', () => {
+  it('requires confirmation before deleting a nested map globally', async () => {
+    const sent = setup('gm');
+    await userEvent.click(await screen.findByRole('button', { name: 'Show maps in Plot' }));
+    fireEvent.contextMenu(
+      within(screen.getByRole('list', { name: 'Maps in Plot' })).getByRole('button', {
+        name: 'Sunken Crypt',
+      }),
+    );
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Delete' }));
+    expect(sent).toEqual([]);
+    const dialog = screen.getByRole('alertdialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete?' }));
+    await waitFor(() => {
+      expect(sent[0]).toMatchObject({
+        expected_version: 1,
+        intent: { kind: 'delete_map', id: crypt.id },
+      });
+    });
+  });
+});

@@ -3,12 +3,9 @@ import { useTranslation } from 'react-i18next';
 import { useCampaign, useSnapshotSelect, useSubmitIntent } from '@/shared/game/useGame';
 import { resumeBlockedSound, setSoundMuted, useSoundPlayback } from '@/shared/game/soundPlayback';
 import { useSelection } from '@/shared/state/selection';
+import { AudioButton, audioTime as time } from './AudioControls';
+import { Icon } from './Icon';
 import { ErrorText } from './ErrorText';
-
-function time(seconds: number) {
-  const safe = Math.max(0, Math.floor(seconds));
-  return `${Math.floor(safe / 60)}:${String(safe % 60).padStart(2, '0')}`;
-}
 
 /** Shared playback controls issue intents; listeners can only mute their own output. */
 export function SessionAudioPlayer({
@@ -48,9 +45,14 @@ export function SessionAudioPlayer({
     });
   };
   return (
-    <section className={`session-audio ${compact ? 'compact' : ''}`} aria-label={t('media.player')}>
-      <div className="session-audio-title">
-        <span aria-hidden="true">♫</span>
+    <section
+      className={`session-audio audio-card ${compact ? 'compact' : ''}`}
+      aria-label={t('media.player')}
+    >
+      <div className="audio-heading">
+        <span className="audio-art">
+          <Icon name="music" size={22} />
+        </span>
         <strong>{isGm ? (asset?.original_name ?? t('media.playing')) : t('media.playing')}</strong>
         {isGm && compact && asset && (
           <button
@@ -62,35 +64,38 @@ export function SessionAudioPlayer({
           </button>
         )}
       </div>
-      <div className="session-audio-buttons">
+      <div className="audio-transport">
         {isGm && (
           <>
-            <button
+            <AudioButton
+              className="audio-control audio-primary"
+              paused={paused}
+              label={paused ? t('media.play') : t('media.pause')}
               disabled={submit.isPending}
               onClick={() => {
                 change({ paused: !paused });
               }}
-            >
-              {paused ? t('media.play') : t('media.pause')}
-            </button>
-            <button
+            ></AudioButton>
+            <AudioButton
+              className="audio-control"
+              icon="stop"
+              label={t('media.stop')}
               disabled={!track || submit.isPending}
               onClick={() => {
                 submit.mutate({ intent: { kind: 'stop_sound', asset_id: assetId } });
               }}
-            >
-              {t('media.stop')}
-            </button>
+            ></AudioButton>
           </>
         )}
-        <button
+        <AudioButton
+          className="audio-control"
+          icon={muted ? 'volumeOff' : 'volume'}
+          label={muted ? t('media.unmuteSelf') : t('media.muteSelf')}
           aria-pressed={muted}
           onClick={() => {
             setSoundMuted(!muted);
           }}
-        >
-          {muted ? t('media.unmuteSelf') : t('media.muteSelf')}
-        </button>
+        ></AudioButton>
         {track?.blocked && (
           <button
             onClick={() => {
@@ -101,7 +106,7 @@ export function SessionAudioPlayer({
           </button>
         )}
       </div>
-      {isGm && !compact && (
+      {isGm && (
         <>
           <label className="media-range">
             {t('media.position')}
@@ -132,40 +137,44 @@ export function SessionAudioPlayer({
               {time(seek ?? position)} / {time(track?.duration ?? 0)}
             </output>
           </label>
-          <label className="media-range">
-            {t('media.volume')}
-            <input
-              type="range"
-              min="0"
-              max="100"
-              value={volume ?? track?.sound.volume ?? 80}
-              onChange={(e) => {
-                setVolume(Number(e.target.value));
-              }}
-              onPointerUp={(e) => {
-                change({ volume: Number(e.currentTarget.value) });
-                setVolume(null);
-              }}
-              onKeyUp={(e) => {
-                if (
-                  ['ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown'].includes(e.key)
-                ) {
+          {!compact && (
+            <label className="media-range">
+              {t('media.volume')}
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={volume ?? track?.sound.volume ?? 80}
+                onChange={(e) => {
+                  setVolume(Number(e.target.value));
+                }}
+                onPointerUp={(e) => {
                   change({ volume: Number(e.currentTarget.value) });
                   setVolume(null);
-                }
-              }}
-            />
-          </label>
-          <label>
-            <input
-              type="checkbox"
-              checked={track?.sound.looped ?? true}
-              onChange={(e) => {
-                change({ looped: e.target.checked });
-              }}
-            />
-            {t('media.repeat')}
-          </label>
+                }}
+                onKeyUp={(e) => {
+                  if (
+                    ['ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown'].includes(e.key)
+                  ) {
+                    change({ volume: Number(e.currentTarget.value) });
+                    setVolume(null);
+                  }
+                }}
+              />
+            </label>
+          )}
+          {!compact && (
+            <label>
+              <input
+                type="checkbox"
+                checked={track?.sound.looped ?? true}
+                onChange={(e) => {
+                  change({ looped: e.target.checked });
+                }}
+              />
+              {t('media.repeat')}
+            </label>
+          )}
         </>
       )}
       <ErrorText error={submit.error} />

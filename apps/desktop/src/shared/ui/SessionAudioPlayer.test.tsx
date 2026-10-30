@@ -117,6 +117,16 @@ describe('session music controls', () => {
       expect(sent[1]?.intent).toMatchObject({ kind: 'set_sound_playback', position_ms: 45000 });
     });
   });
+  it('allows keyboard seeking in the compact GM player', async () => {
+    const sent = setup('gm', true);
+    const slider = await screen.findByRole('slider', { name: /Playback position/ });
+    fireEvent.change(slider, { target: { value: '30' } });
+    expect(sent).toEqual([]);
+    fireEvent.keyUp(slider, { key: 'ArrowRight' });
+    await waitFor(() => {
+      expect(sent[0]?.intent).toMatchObject({ kind: 'set_sound_playback', position_ms: 30000 });
+    });
+  });
   it('shows a compact player after the player tab is closed', async () => {
     useSelection.getState().openMedia('audio', null, id);
     setup('gm', true);

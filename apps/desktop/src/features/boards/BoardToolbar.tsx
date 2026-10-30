@@ -2,10 +2,13 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { BoardLink } from '@/shared/ipc/client';
 import { ElementPicker } from '@/shared/ui/ElementPicker';
+import { ContextMenu } from '@/shared/ui/ContextMenu';
 import { IconButton } from '@/shared/ui/IconButton';
 
 /** GM tools of a board: new cards (note, link, picture), connecting two cards, resetting the view. */
 export function BoardToolbar({
+  contextRequest,
+  onCloseContext,
   onNote,
   onLink,
   onImage,
@@ -18,6 +21,8 @@ export function BoardToolbar({
   onResetView,
   disabled,
 }: {
+  contextRequest?: { x: number; y: number } | null;
+  onCloseContext?: () => void;
   onNote: () => void;
   onLink: (target: BoardLink) => void;
   onImage: (assetId: string) => void;
@@ -100,6 +105,49 @@ export function BoardToolbar({
         {t('boards.connect')}
       </IconButton>
       <IconButton icon="fit" label={t('boards.resetView')} onClick={onResetView} />
+      {contextRequest && (
+        <ContextMenu
+          {...contextRequest}
+          label={t('boards.tools')}
+          onClose={() => onCloseContext?.()}
+          items={[
+            { label: t('boards.addNote'), onSelect: onNote, disabled },
+            { label: t('boards.addMap'), onSelect: onMap, disabled },
+            ...(onImportMap
+              ? [{ label: t('boards.importMap'), onSelect: onImportMap, disabled }]
+              : []),
+            {
+              label: t('boards.addLink'),
+              onSelect: () => {
+                setPicking('link');
+              },
+              disabled,
+            },
+            {
+              label: t('boards.addImage'),
+              onSelect: () => {
+                setPicking('image');
+              },
+              disabled,
+            },
+            {
+              label: t('boards.addTrigger'),
+              onSelect: () => {
+                setPicking('trigger');
+              },
+              disabled,
+            },
+            {
+              label: t('boards.newTrigger'),
+              onSelect: () => {
+                onTrigger(null);
+              },
+              disabled,
+            },
+            { label: t('boards.resetView'), onSelect: onResetView },
+          ]}
+        />
+      )}
       {picking === 'link' && (
         <ElementPicker
           title={t('boards.pickLink')}

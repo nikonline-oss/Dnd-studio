@@ -1,7 +1,7 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
-import { CharacterSheet } from './sheet/CharacterSheet';
-import type { JsonSchema, SheetData, SheetNode } from './sheet/model';
+import { CharacterSheet } from '@/shared/sheet/CharacterSheet';
+import type { JsonSchema, SheetData, SheetNode } from '@/shared/sheet/model';
 import { useSubmitIntent } from '@/shared/game/useGame';
 import { ipc, type CharacterDto, type SystemRulesDto } from '@/shared/ipc/client';
 import { uuidv7 } from '@/shared/ipc/uuid';
@@ -52,7 +52,11 @@ export function SystemSheet({
     <>
       <CharacterSheet
         // Checked by the plugin loader and again by the core when the plugin was installed.
-        layout={rules.sheet_layout as SheetNode}
+        layout={
+          (character.kind === 'npc'
+            ? (rules.creature_sheet_layout ?? rules.sheet_layout)
+            : rules.sheet_layout) as SheetNode
+        }
         schema={rules.sheet_schema as JsonSchema}
         data={data}
         computed={computed}

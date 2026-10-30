@@ -51,6 +51,20 @@ function leave(target: Element, relatedTarget: Element | null) {
   fireEvent(target, event);
 }
 
+it('renames an image from its context menu using its checked version', () => {
+  const { source } = setup('images');
+  fireEvent.dragEnd(source);
+  fireEvent.contextMenu(source);
+  fireEvent.click(screen.getByRole('menuitem', { name: /rename/i }));
+  const input = screen.getByRole('textbox', { name: /rename/i });
+  fireEvent.change(input, { target: { value: 'New image' } });
+  fireEvent.click(screen.getByRole('button', { name: /rename file/i }));
+  expect(mutate).toHaveBeenCalledWith({
+    intent: { kind: 'rename_asset', id: 'asset', name: 'New image' },
+    expectedVersion: 3,
+  });
+});
+
 it('opens a folder from its row while toggling expansion, but not from its context menu', () => {
   const onOpenFolder = vi.fn();
   render(

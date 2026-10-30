@@ -64,13 +64,13 @@ const hero: CharacterDto = {
   version: 4,
 };
 
-function setup(role: Role, system: string | null = 'srd5') {
+function setup(role: Role, system: string | null = 'srd5', creature = false, kind = hero.kind) {
   const snapshot: Snapshot = {
     seq: 1,
     campaign: { name: 'C', description: '', version: 1 },
     maps: [],
     tokens: [],
-    characters: [hero],
+    characters: [{ ...hero, kind }],
     users: [],
     journal: [],
     journal_folders: [],
@@ -79,7 +79,20 @@ function setup(role: Role, system: string | null = 'srd5') {
     combats: [],
     combatants: [],
     chat: [],
-    plugins: [SRD],
+    plugins: [
+      creature && SRD.system
+        ? {
+            ...SRD,
+            system: {
+              ...SRD.system,
+              creature_sheet_layout: {
+                type: 'section',
+                children: [{ type: 'field', path: 'abilities.str', label: 'Creature strength' }],
+              },
+            },
+          }
+        : SRD,
+    ],
     system_plugin: system,
     boards: [],
     board_nodes: [],
@@ -112,6 +125,18 @@ function setup(role: Role, system: string | null = 'srd5') {
   );
   return sent;
 }
+
+it('uses the creature form for NPCs while PCs retain their own form', async () => {
+  setup('gm', 'srd5', true, 'npc');
+  expect(await screen.findByLabelText('Creature strength')).toHaveValue('16');
+  expect(screen.queryByLabelText('Strength')).not.toBeInTheDocument();
+});
+
+it('keeps the PC form when the system also defines a creature form', async () => {
+  setup('gm', 'srd5', true, 'pc');
+  expect(await screen.findByLabelText('Strength')).toHaveValue('16');
+  expect(screen.queryByLabelText('Creature strength')).not.toBeInTheDocument();
+});
 
 afterEach(() => {
   useSelection.getState().reset();

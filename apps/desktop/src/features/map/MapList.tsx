@@ -1,3 +1,4 @@
+import { useListCommands } from '@/shared/ui/useListCommands';
 import { useMutation } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useCampaign, useSnapshotSelect, useSubmitIntent } from '@/shared/game/useGame';
@@ -20,6 +21,7 @@ export function MapList() {
   const { t } = useTranslation();
   const assets = useSnapshotSelect((s) => s.assets);
   const submit = useSubmitIntent();
+  const commands = useListCommands();
   const selectedId = useSelection((s) => s.mapId);
   const openMap = useSelection((s) => s.openMap);
   const maps = useSnapshotSelect((s) => s.maps) ?? [];
@@ -70,110 +72,204 @@ export function MapList() {
     );
   };
 
+  const backgroundItems = isGm
+    ? [
+        { label: t('maps.add'), onSelect: addMap },
+        ...(remote === null
+          ? [
+              {
+                label: t('maps.import'),
+                onSelect: () => {
+                  importMap.mutate();
+                },
+              },
+            ]
+          : []),
+      ]
+    : [];
   return (
-    <NavSection
-      icon="map"
-      title={t('maps.title')}
-      count={maps.length}
-      actions={
-        <>
-          {isGm && remote === null && (
-            <IconButton
-              icon="image"
-              label={t('maps.import')}
-              disabled={importMap.isPending}
-              onClick={() => {
-                importMap.mutate();
-              }}
-            />
-          )}
-          <IconButton
-            icon="plus"
-            label={t('maps.add')}
-            disabled={submit.isPending}
-            onClick={addMap}
-          />
-        </>
-      }
+    <div
+      onContextMenu={(e) => {
+        commands.context(e, backgroundItems);
+      }}
     >
-      {maps.length === 0 && <p className="nav-empty">{t('maps.empty')}</p>}
-      <VirtualList
-        items={maps}
-        rowHeight={NAV_ROW_HEIGHT}
-        getKey={(map) => map.id}
-        label={t('maps.title')}
-        renderRow={(map) => {
-          const background = assets?.find((a) => a.id === map.background_asset_id);
-          return (
-            <li
-              key={map.id}
-              className="nav-row"
-              aria-current={map.id === selectedId}
-              onClick={() => {
-                openMap(map.id);
-              }}
-            >
-              <Icon name={background ? 'image' : 'grid'} className="row-icon" />
-              <InlineEdit
-                value={map.name}
-                label={t('maps.rename')}
-                onCommit={(name) => {
-                  submit.mutate({
-                    intent: {
-                      kind: 'update_map',
-                      id: map.id,
-                      name,
-                      grid: null,
-                      visible_to_players: null,
-                    },
-                    expectedVersion: map.version,
-                  });
+      <NavSection
+        icon="map"
+        title={t('maps.title')}
+        count={maps.length}
+        actions={
+          <>
+            {isGm && remote === null && (
+              <IconButton
+                icon="image"
+                label={t('maps.import')}
+                disabled={importMap.isPending}
+                onClick={() => {
+                  importMap.mutate();
                 }}
               />
-              <label
-                className="eye-toggle"
-                data-on={map.visible_to_players}
-                title={map.visible_to_players ? t('maps.visible') : t('maps.hidden')}
-                onClick={(e) => {
-                  e.stopPropagation();
+            )}
+            {isGm && (
+              <IconButton
+                icon="plus"
+                label={t('maps.add')}
+                disabled={submit.isPending}
+                onClick={addMap}
+              />
+            )}
+          </>
+        }
+      >
+        {maps.length === 0 && <p className="nav-empty">{t('maps.empty')}</p>}
+        <VirtualList
+          items={maps}
+          rowHeight={NAV_ROW_HEIGHT}
+          getKey={(map) => map.id}
+          label={t('maps.title')}
+          renderRow={(map) => {
+            const background = assets?.find((a) => a.id === map.background_asset_id);
+            return (
+              <li
+                onContextMenu={(e) => {
+                  commands.context(e, [
+                    {
+                      label: t('context.open'),
+                      onSelect: () => {
+                        openMap(map.id);
+                      },
+                    },
+                    ...(isGm
+                      ? [
+                          {
+                            label: t('maps.rename'),
+                            onSelect: () => {
+                              commands.rename(t('maps.rename'), map.name, (name) => {
+                                submit.mutate({
+                                  intent: {
+                                    kind: 'update_map',
+                                    id: map.id,
+                                    name,
+                                    grid: null,
+                                    visible_to_players: null,
+                                  },
+                                  expectedVersion: map.version,
+                                });
+                              });
+                            },
+                          },
+                          {
+                            label: t(
+                              map.visible_to_players
+                                ? 'context.hidePlayers'
+                                : 'context.showPlayers',
+                            ),
+                            onSelect: () => {
+                              submit.mutate({
+                                intent: {
+                                  kind: 'update_map',
+                                  id: map.id,
+                                  name: null,
+                                  grid: null,
+                                  visible_to_players: !map.visible_to_players,
+                                },
+                                expectedVersion: map.version,
+                              });
+                            },
+                          },
+                          {
+                            label: t('maps.delete'),
+                            onSelect: () => {
+                              commands.confirm(`${t('maps.delete')}: ${map.name}`, () => {
+                                submit.mutate({
+                                  intent: { kind: 'delete_map', id: map.id },
+                                  expectedVersion: map.version,
+                                });
+                              });
+                            },
+                          },
+                        ]
+                      : []),
+                    ...backgroundItems,
+                  ]);
+                }}
+                key={map.id}
+                className="nav-row"
+                aria-current={map.id === selectedId}
+                onClick={() => {
+                  openMap(map.id);
                 }}
               >
-                <input
-                  type="checkbox"
-                  className="visually-hidden"
-                  aria-label={t('maps.visibleHint')}
-                  checked={map.visible_to_players}
-                  onChange={(e) => {
-                    submit.mutate({
-                      intent: {
-                        kind: 'update_map',
-                        id: map.id,
-                        name: null,
-                        grid: null,
-                        visible_to_players: e.target.checked,
-                      },
-                      expectedVersion: map.version,
-                    });
-                  }}
-                />
-                <Icon name={map.visible_to_players ? 'eye' : 'eyeOff'} />
-              </label>
-              <span className="row-actions">
-                <ConfirmDelete
-                  label={t('maps.delete')}
-                  onConfirm={() => {
-                    submit.mutate({
-                      intent: { kind: 'delete_map', id: map.id },
-                      expectedVersion: map.version,
-                    });
-                  }}
-                />
-              </span>
-            </li>
-          );
-        }}
-      />
-      <ErrorText error={importMap.error ?? submit.error} />
-    </NavSection>
+                <Icon name={background ? 'image' : 'grid'} className="row-icon" />
+                {isGm ? (
+                  <InlineEdit
+                    value={map.name}
+                    label={t('maps.rename')}
+                    onCommit={(name) => {
+                      submit.mutate({
+                        intent: {
+                          kind: 'update_map',
+                          id: map.id,
+                          name,
+                          grid: null,
+                          visible_to_players: null,
+                        },
+                        expectedVersion: map.version,
+                      });
+                    }}
+                  />
+                ) : (
+                  <span className="row-name">{map.name}</span>
+                )}
+                {isGm && (
+                  <label
+                    className="eye-toggle"
+                    data-on={map.visible_to_players}
+                    title={map.visible_to_players ? t('maps.visible') : t('maps.hidden')}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      className="visually-hidden"
+                      aria-label={t('maps.visibleHint')}
+                      checked={map.visible_to_players}
+                      onChange={(e) => {
+                        submit.mutate({
+                          intent: {
+                            kind: 'update_map',
+                            id: map.id,
+                            name: null,
+                            grid: null,
+                            visible_to_players: e.target.checked,
+                          },
+                          expectedVersion: map.version,
+                        });
+                      }}
+                    />
+                    <Icon name={map.visible_to_players ? 'eye' : 'eyeOff'} />
+                  </label>
+                )}
+                {isGm && (
+                  <span className="row-actions">
+                    <ConfirmDelete
+                      label={t('maps.delete')}
+                      onConfirm={() => {
+                        submit.mutate({
+                          intent: { kind: 'delete_map', id: map.id },
+                          expectedVersion: map.version,
+                        });
+                      }}
+                    />
+                  </span>
+                )}
+              </li>
+            );
+          }}
+        />
+        <ErrorText error={importMap.error ?? submit.error} />
+      </NavSection>
+      {commands.ui}
+    </div>
   );
 }

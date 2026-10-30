@@ -83,6 +83,8 @@ export function applyEvent(snapshot: Snapshot, event: Event): Snapshot {
       return { ...snapshot, combatants: upsert(snapshot.combatants, event.combatant) };
     case 'combatant_removed':
       return { ...snapshot, combatants: snapshot.combatants.filter((c) => c.id !== event.id) };
+    case 'character_deleted':
+      return { ...snapshot, characters: snapshot.characters.filter((c) => c.id !== event.id) };
     case 'character_created':
     case 'character_updated':
       return { ...snapshot, characters: upsert(snapshot.characters, event.character) };

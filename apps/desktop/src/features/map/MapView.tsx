@@ -50,17 +50,18 @@ export function MapView() {
   const [chosenTool, setTool] = useState<FogToolState>(DEFAULT_FOG_TOOL);
   // The zone list asks to redraw a zone or add a part to it: the zone tool takes the next rectangle.
   const zoneDrawing = useZoneTool((s) => s.drawing);
+  const zoneCreating = useZoneTool((s) => s.creating);
   // Zone edit mode is shared with the zone list ("Edit on the map").
   const zoneEditing = useZoneTool((s) => s.editing);
   const selectedZone = useZoneTool((s) => s.selected);
   const tool = useMemo<FogToolState>(
     () =>
-      zoneDrawing.mode !== 'new'
+      zoneCreating || zoneDrawing.mode !== 'new'
         ? { ...chosenTool, shape: 'zone' }
         : zoneEditing
           ? { ...chosenTool, shape: 'zone_edit' }
           : chosenTool,
-    [zoneDrawing, zoneEditing, chosenTool],
+    [zoneDrawing, zoneCreating, zoneEditing, chosenTool],
   );
   const chooseTool = (next: FogToolState) => {
     useZoneTool.getState().setEditing(next.shape === 'zone_edit');
