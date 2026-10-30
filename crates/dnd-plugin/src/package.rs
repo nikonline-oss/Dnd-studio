@@ -332,6 +332,26 @@ fn assemble(sha256: String, mut files: Files) -> PluginResult<PluginPackage> {
     let mut ids = BTreeSet::new();
     for (name, bytes) in &files.compendia {
         let compendium = parse_compendium(name, bytes)?;
+        for entry in &compendium.entries {
+            if let Some(template) = entry.data.get("character_template") {
+                let data = &template["sheet_data"];
+                let json = serde_json::to_string(data)
+                    .map_err(|e| invalid_document(name, e.to_string()))?;
+                dnd_protocol::validate_sheet_json(&json).map_err(|_| {
+                    invalid_document(
+                        name,
+                        format!("entry {}: invalid character sheet data", entry.id),
+                    )
+                })?;
+                if let Some(system) = &system {
+                    let filled =
+                        dnd_protocol::sheet_schema::apply_defaults(&system.sheet_schema, data);
+                    dnd_protocol::sheet_schema::check_data(&system.sheet_schema, &filled).map_err(
+                        |reason| invalid_document(name, format!("entry {}: {reason}", entry.id)),
+                    )?;
+                }
+            }
+        }
         if !ids.insert(compendium.id.clone()) {
             return Err(invalid_document(
                 name,

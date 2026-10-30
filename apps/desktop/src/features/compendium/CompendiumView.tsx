@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { entryMarkdown } from './entryMarkdown';
+import { CompendiumCharacter } from './CompendiumCharacter';
 import { useCampaign, usePluginRevision, useSubmitIntent } from '@/shared/game/useGame';
 import { labelText } from '@/shared/i18n/label';
 import { commands, unwrap } from '@/shared/ipc/client';
@@ -91,6 +92,12 @@ export function CompendiumView({ compendiumKey }: { compendiumKey: string }) {
         {chosen ? (
           <>
             <Markdown source={entryMarkdown(chosen, lang)} />
+            {isGm && (
+              <CompendiumCharacter
+                key={`${campaign.path}/${compendiumKey}/${revision}/${chosen.id}`}
+                entry={chosen}
+              />
+            )}
             {isGm && (
               <button
                 type="button"

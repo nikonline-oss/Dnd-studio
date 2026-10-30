@@ -1,0 +1,24 @@
+{
+  "id": "generic-d6-characters",
+  "name": { "ru": "Персонажи Generic d6", "en": "Generic d6 characters" },
+  "entry_type": "character",
+  "entries": [
+    {
+      "id": "scout",
+      "name": { "ru": "Разведчик", "en": "Scout" },
+      "data": {
+        "description": { "ru": "Следопыт и проводник.", "en": "A tracker and guide." },
+        "character_template": {
+          "kind": "npc",
+          "sheet_data": {
+            "concept": "Scout",
+            "attributes": { "body": 1, "agility": 2, "mind": 1, "spirit": 0 },
+            "edges": [{ "name": "Tracking", "attribute": "mind", "bonus": 1 }],
+            "harm": 0,
+            "gear": [{ "name": "Rope", "quantity": 1 }]
+          }
+        }
+      }
+    }
+  ]
+}

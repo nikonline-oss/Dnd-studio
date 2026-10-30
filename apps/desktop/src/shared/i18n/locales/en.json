@@ -722,6 +722,13 @@
     "empty": "This library is empty."
   },
   "compendia": {
+    "createCharacter": "Create character",
+    "openCharacter": "Open character sheet",
+    "tokenMap": "Map for token",
+    "chooseMap": "Choose a map",
+    "placeToken": "Place token at map centre",
+    "invalidTemplate": "Invalid character template.",
+    "defaultSheetHint": "No character template: creates an editable sheet with system defaults.",
     "title": "Compendia",
     "empty": "The campaign’s plugins have no compendia (not shown in a remote session yet).",
     "entries": "Entries",

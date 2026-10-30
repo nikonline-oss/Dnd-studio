@@ -44,6 +44,10 @@ fn srd5_loads_with_its_sheet_rules_and_compendia() {
 fn generic_d6_loads() {
     let package = bundled("system-generic-d6");
     assert_eq!(package.manifest.id, "generic-d6");
+    assert_eq!(
+        package.compendia[0].entries[0].data["character_template"]["sheet_data"]["attributes"]["agility"],
+        2
+    );
     let rules = package.to_dto().system.unwrap();
     assert_eq!(rules.initiative, "2d6 + @attributes.agility");
     assert_eq!(rules.health_thresholds, [66, 33, 0]);

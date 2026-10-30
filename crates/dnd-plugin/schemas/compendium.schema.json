@@ -18,7 +18,21 @@
         "properties": {
           "id": { "$ref": "#/$defs/id" },
           "name": { "$ref": "#/$defs/label" },
-          "data": { "type": "object" }
+          "data": {
+            "type": "object",
+            "properties": {
+              "character_template": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["kind", "sheet_data"],
+                "properties": {
+                  "name": { "$ref": "#/$defs/label" },
+                  "kind": { "enum": ["pc", "npc"] },
+                  "sheet_data": { "type": "object" }
+                }
+              }
+            }
+          }
         }
       }
     }
