@@ -3,21 +3,26 @@
 //! events. Secrets (host token, GM key, participant tokens, access codes) live in the OS keychain;
 //! the list of sessions (`remote_sessions.json` in the app data folder) holds no secrets.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex as StdMutex};
 
 use dnd_game_core::{GameState, evolve_all};
 use dnd_net::{ConnectOptions, Connection, HttpClient, Incoming, NetError, Status};
 use dnd_protocol::{
-    CHAT_SNAPSHOT_LEN, ChatMessageDto, Event, EventBatch, IntentEnvelope, IntentOutcome,
-    JournalEntryDto, JournalEntryId, Role, Seq, SessionId, Snapshot, UserId,
+    AssetUsage, CHAT_SNAPSHOT_LEN, ChatMessageDto, Event, EventBatch, IntentEnvelope,
+    IntentOutcome, JournalEntryDto, JournalEntryId, Role, Seq, SessionId, Snapshot, SoundDto,
+    UserId,
 };
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 
 use crate::error::{IpcError, IpcErrorKind};
 use crate::local_server::{CampaignInfo, LocalServer, now_ms};
+
+#[cfg(test)]
+#[path = "remote_audio_tests.rs"]
+mod audio_tests;
 
 impl From<NetError> for IpcError {
     fn from(e: NetError) -> Self {
@@ -421,9 +426,88 @@ struct View {
     state: GameState,
     seq: Seq,
     chat: Vec<ChatMessageDto>,
+    // Recent one-shots have no GameState row. Keep their MIME through resync and in-flight fetches.
+    sound_mimes: VecDeque<(String, &'static str)>,
+}
+
+const MAX_SOUND_MIMES: usize = 256;
+
+/// Never echo server-provided MIME strings into response headers.
+fn audio_mime(mime: &str) -> Option<&'static str> {
+    match mime {
+        "audio/mpeg" => Some("audio/mpeg"),
+        "audio/ogg" => Some("audio/ogg"),
+        "audio/wav" => Some("audio/wav"),
+        "audio/flac" => Some("audio/flac"),
+        "audio/mp4" => Some("audio/mp4"),
+        "audio/webm" => Some("audio/webm"),
+        _ => None,
+    }
 }
 
 impl View {
+    fn from_snapshot(snapshot: &Snapshot) -> Self {
+        let mut view = Self {
+            state: GameState::from_snapshot(snapshot.clone()),
+            seq: snapshot.seq,
+            chat: snapshot.chat.clone(),
+            sound_mimes: VecDeque::new(),
+        };
+        for sound in &snapshot.sounds {
+            view.remember_sound(sound);
+        }
+        view
+    }
+
+    fn replace_snapshot(&mut self, snapshot: &Snapshot) {
+        self.state = GameState::from_snapshot(snapshot.clone());
+        self.seq = snapshot.seq;
+        self.chat = snapshot.chat.clone();
+        for sound in &snapshot.sounds {
+            self.remember_sound(sound);
+        }
+    }
+
+    fn remember_sound(&mut self, sound: &SoundDto) {
+        if !dnd_assets::is_sha256_hex(&sound.sha256) {
+            return;
+        }
+        let Some(mime) = audio_mime(&sound.mime) else {
+            return;
+        };
+        self.sound_mimes.retain(|(sha, _)| sha != &sound.sha256);
+        if self.sound_mimes.len() >= MAX_SOUND_MIMES {
+            self.sound_mimes.pop_front();
+        }
+        self.sound_mimes.push_back((sound.sha256.clone(), mime));
+    }
+
+    fn asset_mime(&self, sha256: &str) -> &'static str {
+        if !dnd_assets::is_sha256_hex(sha256) {
+            return "image/webp";
+        }
+        self.state
+            .assets
+            .values()
+            .filter(|a| a.usage == AssetUsage::Audio && a.sha256 == sha256)
+            .find_map(|a| audio_mime(&a.mime))
+            // Retained music must remain resolvable even after many transient sound effects.
+            .or_else(|| {
+                self.state
+                    .sounds
+                    .values()
+                    .filter(|s| s.sha256 == sha256)
+                    .find_map(|s| audio_mime(&s.mime))
+            })
+            .or_else(|| {
+                self.sound_mimes
+                    .iter()
+                    .find(|(sha, _)| sha == sha256)
+                    .map(|(_, mime)| *mime)
+            })
+            .unwrap_or("image/webp")
+    }
+
     fn snapshot(&self) -> Snapshot {
         let mut snapshot = self.state.to_snapshot(self.seq);
         snapshot.chat = self.chat.clone();
@@ -476,11 +560,11 @@ impl RemoteSession {
                 match incoming {
                     Incoming::Snapshot(snapshot) => {
                         if let Ok(mut view) = view_w.lock() {
-                            *view = Some(View {
-                                seq: snapshot.seq,
-                                chat: snapshot.chat.clone(),
-                                state: GameState::from_snapshot((*snapshot).clone()),
-                            });
+                            if let Some(view) = view.as_mut() {
+                                view.replace_snapshot(&snapshot);
+                            } else {
+                                *view = Some(View::from_snapshot(&snapshot));
+                            }
                         }
                         changed.notify_waiters();
                         on_event(RemoteEvent::Snapshot(snapshot));
@@ -557,6 +641,17 @@ impl RemoteSession {
             .lock()
             .ok()
             .and_then(|v| v.as_ref().map(|v| f(&v.state)))
+    }
+
+    /// Canonical MIME from visible assets or received sounds, including recent one-shots.
+    /// Metadata is session-local, bounded, and installed before notifying the webview.
+    #[must_use]
+    pub fn asset_mime(&self, sha256: &str) -> &'static str {
+        self.view
+            .lock()
+            .ok()
+            .and_then(|view| view.as_ref().map(|view| view.asset_mime(sha256)))
+            .unwrap_or("image/webp")
     }
 
     /// The latest state, or an error until the first snapshot has arrived.
@@ -1123,6 +1218,9 @@ fn apply(view: &mut View, batch: &EventBatch) -> bool {
     }
     evolve_all(&mut view.state, &batch.events);
     for event in &batch.events {
+        if let Event::SoundPlayed { sound } = event {
+            view.remember_sound(sound);
+        }
         if let Event::ChatMessagePosted { message } = event {
             view.chat.push(ChatMessageDto {
                 at_ms: message.at_ms.or(Some(now_ms())),

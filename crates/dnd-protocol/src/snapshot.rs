@@ -51,7 +51,7 @@ pub struct Snapshot {
     /// Folders of the image and audio libraries (GM roles only; empty for players, ADR-0026).
     #[serde(default)]
     pub library_folders: Vec<LibraryFolderDto>,
-    /// Looping sounds playing now, so a client that (re)connects hears the same music.
+    /// Looping or paused sounds, with the last commanded position for reconnecting clients.
     #[serde(default)]
     pub sounds: Vec<SoundDto>,
 }

@@ -2,13 +2,15 @@ import { create } from 'zustand';
 
 /** What a center tab shows. */
 export interface TabRef {
-  kind: 'map' | 'journal' | 'character' | 'board' | 'trigger' | 'compendium';
+  kind: 'map' | 'journal' | 'character' | 'board' | 'trigger' | 'compendium' | 'images' | 'audio';
   id: string;
 }
 
 const same = (a: TabRef | null, b: TabRef | null) => a?.kind === b?.kind && a?.id === b?.id;
 
 interface SelectionState {
+  mediaSelection: Record<string, string | null>;
+  openMedia: (library: 'images' | 'audio', folderId: string | null, assetId?: string) => void;
   /** Open center tabs, in display order. */
   tabs: TabRef[];
   /** The tab in front, or `null` when none is open. */
@@ -51,6 +53,7 @@ interface SelectionState {
 }
 
 const EMPTY = {
+  mediaSelection: {},
   tabs: [],
   active: null,
   mapId: null,
@@ -102,6 +105,11 @@ export const useSelection = create<SelectionState>()((set) => {
     },
     openMap: (mapId) => {
       open({ kind: 'map', id: mapId });
+    },
+    openMedia: (kind, folderId, assetId) => {
+      const id = folderId ?? 'root';
+      set((s) => ({ mediaSelection: { ...s.mediaSelection, [`${kind}:${id}`]: assetId ?? null } }));
+      open({ kind, id });
     },
     openJournal: (journalId) => {
       open({ kind: 'journal', id: journalId });

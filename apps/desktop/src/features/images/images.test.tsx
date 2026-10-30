@@ -4,6 +4,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ImageLibrary, pictureMarkdown } from './ImageLibrary';
+import { MediaFolderView } from './MediaFolderView';
 import type {
   AssetDto,
   CampaignInfo,
@@ -34,7 +35,7 @@ const hall: AssetDto = {
 
 function setup(
   node: React.ReactNode,
-  asset = hall,
+  asset: AssetDto | AssetDto[] = hall,
   libraryFolders: LibraryFolderDto[] = [],
   remote: RemoteInfo | null = null,
 ) {
@@ -54,7 +55,7 @@ function setup(
     board_edges: [],
     zones: [],
     triggers: [],
-    assets: [asset],
+    assets: Array.isArray(asset) ? asset : [asset],
     fog: [],
     combats: [],
     combatants: [],
@@ -89,6 +90,38 @@ afterEach(() => {
 });
 
 describe('Image library', () => {
+  it('opens the clicked image in its folder tab', async () => {
+    setup(<ImageLibrary />);
+    await userEvent.click(await screen.findByRole('treeitem', { name: /Great hall/ }));
+    expect(useSelection.getState().active).toEqual({ kind: 'images', id: 'root' });
+    expect(useSelection.getState().mediaSelection['images:root']).toBe(hall.id);
+  });
+
+  it('shows only files from the chosen folder beside the selected full image', async () => {
+    const folder: LibraryFolderDto = {
+      id: id(70),
+      library: 'images',
+      name: 'Rooms',
+      parent: null,
+      version: 1,
+    };
+    const filed = { ...hall, folder_id: folder.id };
+    useSelection.getState().openMedia('images', folder.id, hall.id);
+    setup(
+      <MediaFolderView library="images" folderId={folder.id} />,
+      [filed, { ...hall, id: id(51), original_name: 'Outside.png' }],
+      [folder],
+    );
+    expect(await screen.findByRole('option', { name: 'Great hall.png' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    expect(screen.queryByRole('option', { name: 'Outside.png' })).not.toBeInTheDocument();
+    expect(await screen.findByRole('img', { name: 'Great hall.png' })).toHaveAttribute(
+      'src',
+      `asset://${hall.display_sha256}`,
+    );
+  });
   it('imports pictures while connected to an online session', async () => {
     const { calls } = setup(<ImageLibrary />, hall, [], {
       server: 'http://localhost:8080',

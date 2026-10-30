@@ -129,6 +129,34 @@ fn protocol_mismatch_is_detected() {
 }
 
 #[test]
+fn shared_playback_wire_contract_and_legacy_defaults() {
+    let intent = Intent::SetSoundPlayback {
+        asset_id: AssetId(Uuid::from_u128(20)),
+        position_ms: 1234,
+        paused: true,
+        volume: 80,
+        looped: false,
+    };
+    assert_eq!(intent.kind(), "set_sound_playback");
+    assert_eq!(intent.version_policy(), VersionPolicy::LastWriteWins);
+    assert_eq!(intent.created_id(), None);
+    let json = serde_json::to_value(&intent).unwrap();
+    assert_eq!(json["kind"], "set_sound_playback");
+    let decoded: Intent = serde_json::from_value(json).unwrap();
+    assert_eq!(decoded, intent);
+    let legacy: SoundDto = serde_json::from_value(serde_json::json!({
+        "asset_id": Uuid::from_u128(20), "sha256": "00".repeat(32),
+        "mime": "audio/ogg", "volume": 80, "looped": true
+    }))
+    .unwrap();
+    assert_eq!((legacy.position_ms, legacy.paused), (0, false));
+    assert_eq!(PROTOCOL_VERSION, 7);
+    let mut old = envelope(ClientMessage::Ping);
+    old.v = 6;
+    assert!(old.check_version().is_err());
+}
+
+#[test]
 fn reject_codes_match_json_tag() {
     let reasons = [
         RejectReason::StaleVersion {

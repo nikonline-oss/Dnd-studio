@@ -31,6 +31,7 @@ export function ImageLibrary() {
     (f) => f.library === 'images',
   );
   const active = useSelection((s) => s.active);
+  const lastBoard = useSelection((s) => s.tabs.findLast((tab) => tab.kind === 'board'));
   const submit = useSubmitIntent();
   const remote = useRemote();
   const { data: campaign } = useCampaign();
@@ -44,7 +45,7 @@ export function ImageLibrary() {
   const [selected, setSelected] = useState<string | null>(null);
   const importImages = useMutation({ mutationFn: ipc.assetImportImages });
 
-  const boardId = active?.kind === 'board' ? active.id : null;
+  const boardId = active?.kind === 'board' ? active.id : (lastBoard?.id ?? null);
   const folderPath = (folderId: string): string => {
     const folder = folders.find((item) => item.id === folderId);
     if (!folder) return '';
@@ -124,7 +125,14 @@ export function ImageLibrary() {
         library="images"
         assets={imageAssets}
         selected={selected}
-        onSelect={setSelected}
+        onSelect={(id) => {
+          setSelected(id);
+          const asset = imageAssets.find((a) => a.id === id);
+          if (asset) useSelection.getState().openMedia('images', asset.folder_id ?? null, asset.id);
+        }}
+        onOpenFolder={(id) => {
+          useSelection.getState().openMedia('images', id);
+        }}
         assetMenuItems={pictureMenu}
       />
       <ErrorText error={importImages.error ?? submit.error} />

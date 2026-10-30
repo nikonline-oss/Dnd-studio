@@ -1,4 +1,22 @@
 {
+  "media": {
+    "player": "Music player",
+    "playing": "Session music",
+    "openPlayer": "Open player",
+    "play": "Play for everyone",
+    "pause": "Pause",
+    "stop": "Stop",
+    "muteSelf": "Mute for me",
+    "unmuteSelf": "Unmute for me",
+    "enableAudio": "Enable audio",
+    "position": "Playback position",
+    "volume": "Session volume",
+    "repeat": "Repeat",
+    "up": "Parent folder",
+    "files": "Folder contents",
+    "empty": "This folder is empty",
+    "selectFile": "Select a picture or sound from the list"
+  },
   "common": {
     "confirmDelete": "Delete?"
   },
@@ -23,6 +41,8 @@
     "noSystem": "No system (free-form sheet)"
   },
   "maps": {
+    "distanceCells": "cells",
+    "distanceUnits": "units",
     "title": "Maps",
     "empty": "No maps yet",
     "newName": "New map",
@@ -551,6 +571,7 @@
       "board_node": "Board cards",
       "zone": "Zones",
       "asset": "Pictures",
+      "audio": "Music and sounds",
       "trigger": "Triggers"
     },
     "pick": "Pick…",

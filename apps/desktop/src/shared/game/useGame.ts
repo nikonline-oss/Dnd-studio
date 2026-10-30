@@ -25,8 +25,14 @@ export function useCampaign() {
 }
 
 /** Game state of the open campaign. Kept current by {@link useGameEventsSync}. */
+async function getSnapshot() {
+  const snapshot = await ipc.getSnapshot();
+  syncLoopingSounds(snapshot.sounds ?? []);
+  return snapshot;
+}
+
 export function useSnapshot(enabled = true) {
-  return useQuery({ queryKey: queryKeys.snapshot, queryFn: ipc.getSnapshot, enabled });
+  return useQuery({ queryKey: queryKeys.snapshot, queryFn: getSnapshot, enabled });
 }
 
 /**
@@ -35,7 +41,7 @@ export function useSnapshot(enabled = true) {
  * token move does not wake the character list or the chat. Prefer this over {@link useSnapshot}.
  */
 export function useSnapshotSelect<T>(select: (snapshot: Snapshot) => T): T | undefined {
-  return useQuery({ queryKey: queryKeys.snapshot, queryFn: ipc.getSnapshot, select }).data;
+  return useQuery({ queryKey: queryKeys.snapshot, queryFn: getSnapshot, select }).data;
 }
 
 /** Content-addressed plugin membership; unchanged by token movement and other game events. */

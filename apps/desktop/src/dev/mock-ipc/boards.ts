@@ -18,6 +18,27 @@ export function boardEvents(snapshot: Snapshot, intent: Intent): Event[] | null 
     version: item.version + 1,
   });
   switch (intent.kind) {
+    case 'play_sound':
+    case 'set_sound_playback': {
+      const asset = snapshot.assets.find((a) => a.id === intent.asset_id && a.usage === 'audio');
+      if (!asset) return [];
+      return [
+        {
+          kind: 'sound_played',
+          sound: {
+            asset_id: asset.id,
+            sha256: asset.sha256,
+            mime: asset.mime,
+            volume: intent.volume,
+            looped: intent.looped,
+            position_ms: intent.kind === 'set_sound_playback' ? intent.position_ms : 0,
+            paused: intent.kind === 'set_sound_playback' && intent.paused,
+          },
+        },
+      ];
+    }
+    case 'stop_sound':
+      return [{ kind: 'sound_stopped', asset_id: intent.asset_id }];
     case 'create_board': {
       const board: BoardDto = {
         id: intent.id,

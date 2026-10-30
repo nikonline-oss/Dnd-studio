@@ -152,6 +152,7 @@ impl Intent {
             | Self::MoveAsset { .. }
             | Self::RenameAsset { .. }
             | Self::PlaySound { .. }
+            | Self::SetSoundPlayback { .. }
             | Self::StopSound { .. } => Vec::new(),
             Self::RegisterAsset { asset } => vec![("size_bytes", asset.size_bytes)],
             Self::ApplyFog { op, .. } => match &op.shape {
@@ -243,6 +244,7 @@ impl Intent {
             | Self::MoveAsset { .. }
             | Self::RenameAsset { .. }
             | Self::PlaySound { .. }
+            | Self::SetSoundPlayback { .. }
             | Self::StopSound { .. } => None,
         }
     }

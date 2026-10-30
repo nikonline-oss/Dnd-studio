@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next';
 import { Group, Panel, Separator, useDefaultLayout, usePanelRef } from 'react-resizable-panels';
 import { ActivityBar } from './ActivityBar';
 import { CenterTabs } from './CenterTabs';
+import { MediaFolderView } from '@/features/images/MediaFolderView';
+import { CompactAudioPlayers } from '@/shared/ui/SessionAudioPlayer';
 import { MenuBar } from './MenuBar';
 import { StatusBar } from './StatusBar';
 import { BoardList } from '@/features/boards/BoardList';
@@ -88,6 +90,8 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
     board: boardName,
     trigger: triggerName,
     compendium: t('compendia.title'),
+    images: t('images.title'),
+    audio: t('audio.title'),
     map: mapName,
   };
   const crumb = crumbs[center];
@@ -233,7 +237,15 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
               <Panel id="main" minSize="20" className="center-panel">
                 <CenterTabs />
                 <div role="tabpanel" className="tab-body">
-                  {center === 'journal' ? (
+                  {(center === 'images' || center === 'audio') && active ? (
+                    <ErrorBoundary name={t(`${center}.title`)}>
+                      <MediaFolderView
+                        key={`${center}:${active.id}`}
+                        library={center}
+                        folderId={active.id === 'root' ? null : active.id}
+                      />
+                    </ErrorBoundary>
+                  ) : center === 'journal' ? (
                     <ErrorBoundary name={t('journal.title')}>
                       <JournalEditor />
                     </ErrorBoundary>
@@ -324,7 +336,10 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
           </Panel>
         </Group>
       </div>
-      <StatusBar campaign={campaign} />
+      <div className="app-footer">
+        <CompactAudioPlayers />
+        <StatusBar campaign={campaign} />
+      </div>
       <OfflineEdits isGm={campaign.role === 'gm'} campaignPath={campaign.path} />
     </div>
   );

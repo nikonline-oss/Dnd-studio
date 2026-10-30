@@ -84,7 +84,11 @@ function setup(kinds: ElementKind[]) {
         version: 1,
       },
     ],
-    assets: [picture(30, 'crypt.png'), picture(31, 'ghoul.png')],
+    assets: [
+      picture(30, 'crypt.png'),
+      picture(31, 'ghoul.png'),
+      { ...picture(32, 'Rain.ogg'), usage: 'audio', mime: 'audio/ogg' },
+    ],
     fog: [],
     combats: [],
     combatants: [],
@@ -113,6 +117,12 @@ function setup(kinds: ElementKind[]) {
 }
 
 describe('ElementPicker details', () => {
+  it('separates sound attachments from images and previews their audio', async () => {
+    setup(['audio', 'asset']);
+    await userEvent.click(await screen.findByRole('option', { name: /Rain.ogg/ }));
+    expect(screen.getByLabelText('Rain.ogg').tagName).toBe('AUDIO');
+    expect(screen.queryByRole('option', { name: /crypt.png/ })).not.toBeInTheDocument();
+  });
   it('asks to highlight an element first', async () => {
     setup(['map']);
     await screen.findByRole('option', { name: /Sunken Crypt/ });

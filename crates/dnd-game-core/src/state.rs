@@ -44,7 +44,7 @@ pub struct GameState {
     pub triggers: BTreeMap<TriggerId, TriggerDto>,
     /// Folders of the image and audio libraries (ADR-0026).
     pub library_folders: BTreeMap<LibraryFolderId, LibraryFolderDto>,
-    /// Looping sounds playing now (not stored: a campaign opens in silence).
+    /// Looping or paused sounds (not persisted: a campaign opens in silence).
     pub sounds: BTreeMap<AssetId, SoundDto>,
 }
 

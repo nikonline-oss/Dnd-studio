@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from './useGame';
 import { remoteKey } from './useRemote';
+import { stopSound } from './soundPlayback';
 import { ipc, type CampaignInfo } from '@/shared/ipc/client';
 import { useSelection } from '@/shared/state/selection';
 
@@ -10,6 +11,7 @@ export function useCampaignActions() {
 
   const onOpened = (info: CampaignInfo | null) => {
     if (!info) return; // dialog cancelled
+    stopSound(null);
     useSelection.getState().reset();
     queryClient.setQueryData(queryKeys.campaign, info);
     void queryClient.invalidateQueries({ queryKey: queryKeys.snapshot });
@@ -23,6 +25,7 @@ export function useCampaignActions() {
   const close = useMutation({
     mutationFn: ipc.campaignClose,
     onSuccess: () => {
+      stopSound(null);
       useSelection.getState().reset();
       queryClient.setQueryData(queryKeys.campaign, null);
       queryClient.setQueryData(remoteKey, null);

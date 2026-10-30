@@ -11,6 +11,8 @@ const TAB_ICONS = {
   board: 'board',
   trigger: 'bolt',
   compendium: 'book',
+  images: 'image',
+  audio: 'music',
 } as const;
 
 /**
@@ -30,6 +32,7 @@ export function CenterTabs() {
     s.triggers.map((tr) => ({ id: tr.id, name: tr.definition.name })),
   );
   const tabs = useSelection((s) => s.tabs);
+  const folders = useSnapshotSelect((s) => s.library_folders ?? []);
   const active = useSelection((s) => s.active);
   const activate = useSelection((s) => s.activate);
   const showMap = useSelection((s) => s.showMap);
@@ -48,22 +51,28 @@ export function CenterTabs() {
     };
     // Compendia are not in the snapshot; their tabs stay until closed.
     const listed = (tab: TabRef) =>
-      tab.kind === 'compendium' || lists[tab.kind].some((item) => item.id === tab.id);
+      tab.kind === 'compendium' ||
+      (tab.kind === 'images' || tab.kind === 'audio'
+        ? tab.id === 'root' ||
+          (folders ?? []).some((f) => f.id === tab.id && f.library === tab.kind)
+        : lists[tab.kind].some((item) => item.id === tab.id));
     pruneTabs(listed);
-  }, [maps, entries, characters, boards, triggers, pruneTabs]);
+  }, [maps, entries, characters, boards, triggers, folders, pruneTabs]);
 
   const title = (tab: TabRef) =>
-    tab.kind === 'map'
-      ? (maps?.find((m) => m.id === tab.id)?.name ?? t('panels.map'))
-      : tab.kind === 'journal'
-        ? (entries?.find((e) => e.id === tab.id)?.title ?? t('journal.title'))
-        : tab.kind === 'character'
-          ? (characters?.find((c) => c.id === tab.id)?.name ?? t('characters.title'))
-          : tab.kind === 'board'
-            ? (boards?.find((b) => b.id === tab.id)?.name ?? t('boards.title'))
-            : tab.kind === 'trigger'
-              ? (triggers?.find((tr) => tr.id === tab.id)?.name ?? t('triggers.title'))
-              : t('compendia.title');
+    tab.kind === 'images' || tab.kind === 'audio'
+      ? (folders?.find((f) => f.id === tab.id)?.name ?? t(`${tab.kind}.title`))
+      : tab.kind === 'map'
+        ? (maps?.find((m) => m.id === tab.id)?.name ?? t('panels.map'))
+        : tab.kind === 'journal'
+          ? (entries?.find((e) => e.id === tab.id)?.title ?? t('journal.title'))
+          : tab.kind === 'character'
+            ? (characters?.find((c) => c.id === tab.id)?.name ?? t('characters.title'))
+            : tab.kind === 'board'
+              ? (boards?.find((b) => b.id === tab.id)?.name ?? t('boards.title'))
+              : tab.kind === 'trigger'
+                ? (triggers?.find((tr) => tr.id === tab.id)?.name ?? t('triggers.title'))
+                : t('compendia.title');
 
   // No map opened in a tab (always so for players, who have no navigator): the map view keeps a
   // tab of its own, so opening a journal entry does not hide the map.

@@ -160,10 +160,10 @@ pub fn evolve(state: &mut GameState, event: &Event) {
             state.assets.insert(asset.id, asset.as_ref().clone());
         }
         Event::SoundPlayed { sound } => {
-            if sound.looped {
+            if sound.looped || sound.paused {
                 state.sounds.insert(sound.asset_id, sound.clone());
             } else {
-                // Played once over a looping copy of the same file: that one stops.
+                // An unpaused one-shot replaces any retained copy of the same file.
                 state.sounds.remove(&sound.asset_id);
             }
         }

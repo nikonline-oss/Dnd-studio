@@ -1,4 +1,12 @@
-import { useMemo, useRef, useState, type CSSProperties, type DragEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type DragEvent,
+} from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { assetUrl, type AssetDto, type Library, type LibraryFolderDto } from '@/shared/ipc/client';
@@ -23,12 +31,14 @@ export function LibraryExplorer({
   assets,
   selected,
   onSelect,
+  onOpenFolder,
   assetMenuItems,
 }: {
   library: Library;
   assets: AssetDto[];
   selected: string | null;
   onSelect: (id: string | null) => void;
+  onOpenFolder?: (id: string | null) => void;
   assetMenuItems?: (asset: AssetDto) => (MenuItem | 'separator')[];
 }) {
   const { t } = useTranslation();
@@ -37,6 +47,31 @@ export function LibraryExplorer({
   );
   const submit = useSubmitIntent();
   const dragged = useRef<DragItem | null>(null);
+  const dropTarget = useRef<Element | null>(null);
+  const clearDropTarget = useCallback(() => {
+    dropTarget.current?.removeAttribute('data-drop');
+    dropTarget.current = null;
+  }, []);
+  const finishDrag = useCallback(() => {
+    clearDropTarget();
+    dragged.current = null;
+  }, [clearDropTarget]);
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') finishDrag();
+    };
+    window.addEventListener('dragend', finishDrag);
+    window.addEventListener('drop', finishDrag);
+    window.addEventListener('blur', finishDrag);
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('dragend', finishDrag);
+      window.removeEventListener('drop', finishDrag);
+      window.removeEventListener('blur', finishDrag);
+      window.removeEventListener('keydown', onKeyDown);
+      finishDrag();
+    };
+  }, [finishDrag]);
   const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [expandedState, setExpandedState] = useState<Set<string> | null>(null);
   const [creating, setCreating] = useState<{ parent: string | null; depth: number } | null>(null);
@@ -137,17 +172,30 @@ export function LibraryExplorer({
   };
   const onDragOver = (event: DragEvent, parent: string | null) => {
     const item = dragged.current;
-    if (!item || (item.kind === 'folder' && isDescendant(parent, item.id))) return;
+    if (!item) return;
+    event.stopPropagation();
+    if (item.kind === 'folder' && isDescendant(parent, item.id)) {
+      clearDropTarget();
+      return;
+    }
     event.preventDefault();
     event.dataTransfer.dropEffect = 'move';
+    clearDropTarget();
+    dropTarget.current = event.currentTarget;
     event.currentTarget.setAttribute('data-drop', 'true');
   };
+  const onDragLeave = (event: DragEvent) => {
+    const next = event.relatedTarget;
+    if (next instanceof Node && event.currentTarget.contains(next)) return;
+    if (dropTarget.current === event.currentTarget) clearDropTarget();
+  };
   const onDrop = (event: DragEvent, parent: string | null) => {
-    if (!dragged.current) return;
+    const item = dragged.current;
+    finishDrag();
+    if (!item) return;
     event.preventDefault();
-    event.currentTarget.removeAttribute('data-drop');
-    moveInto(dragged.current, parent);
-    dragged.current = null;
+    event.stopPropagation();
+    moveInto(item, parent);
   };
   const startCreate = (parent: string | null) => {
     setCreating({ parent, depth: parent === null ? 0 : folderDepth(parent) + 1 });
@@ -243,10 +291,13 @@ export function LibraryExplorer({
           key={row.asset.id}
           draggable
           onDragStart={(event) => {
+            finishDrag();
             dragged.current = { kind: 'asset', id: row.asset.id };
             event.dataTransfer.setData(DRAG_TYPE, `asset:${row.asset.id}`);
             event.dataTransfer.effectAllowed = 'move';
           }}
+          onDragEnd={finishDrag}
+          onDragLeave={onDragLeave}
           onDragOver={(event) => {
             onDragOver(event, row.asset.folder_id ?? null);
           }}
@@ -321,13 +372,13 @@ export function LibraryExplorer({
         key={folder.id}
         draggable={!renaming || renaming !== folder.id}
         onDragStart={(event) => {
+          finishDrag();
           dragged.current = { kind: 'folder', id: folder.id };
           event.dataTransfer.setData(DRAG_TYPE, `folder:${folder.id}`);
           event.dataTransfer.effectAllowed = 'move';
         }}
-        onDragEnd={() => {
-          dragged.current = null;
-        }}
+        onDragEnd={finishDrag}
+        onDragLeave={onDragLeave}
         onDragOver={(event) => {
           onDragOver(event, folder.id);
         }}
@@ -336,6 +387,7 @@ export function LibraryExplorer({
         }}
         onClick={() => {
           toggle(folder.id);
+          onOpenFolder?.(folder.id);
         }}
         onDoubleClick={() => {
           setRenaming(folder.id);
@@ -422,9 +474,7 @@ export function LibraryExplorer({
         onDragOver={(event) => {
           onDragOver(event, null);
         }}
-        onDragLeave={(event) => {
-          event.currentTarget.removeAttribute('data-drop');
-        }}
+        onDragLeave={onDragLeave}
         onDrop={(event) => {
           onDrop(event, null);
         }}

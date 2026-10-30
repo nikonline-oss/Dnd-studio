@@ -436,20 +436,12 @@ pub fn serve<R: Runtime>(
             }
             // On a session server: fetched once (hash checked), then from the cache.
             let cache = state.dirs.get().map(|d| d.asset_cache.clone());
-            let mime = remote
-                .with_state(|game| {
-                    game.assets
-                        .values()
-                        .find(|asset| asset.sha256 == sha)
-                        .map(|asset| asset.mime.clone())
-                })
-                .flatten()
-                .unwrap_or_else(|| "image/webp".to_owned());
+            let mime = remote.asset_mime(&sha);
             let bytes = match cache {
-                Some(cache) if is_sha256_hex(&sha) => remote.asset(&sha, &cache, &mime).await.ok(),
+                Some(cache) if is_sha256_hex(&sha) => remote.asset(&sha, &cache, mime).await.ok(),
                 _ => None,
             };
-            responder.respond(file_response(bytes, &mime));
+            responder.respond(file_response(bytes, mime));
             return;
         }
         let (folder, mime) = {

@@ -185,7 +185,10 @@ export function applyEvent(snapshot: Snapshot, event: Event): Snapshot {
     case 'sound_played': {
       // Only looping sounds stay (as in the core); one played once replaces a looping copy.
       const rest = (snapshot.sounds ?? []).filter((s) => s.asset_id !== event.sound.asset_id);
-      return { ...snapshot, sounds: event.sound.looped ? [...rest, event.sound] : rest };
+      return {
+        ...snapshot,
+        sounds: event.sound.looped || event.sound.paused ? [...rest, event.sound] : rest,
+      };
     }
     case 'sound_stopped':
       return {

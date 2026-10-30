@@ -1111,7 +1111,7 @@ async fn project_event(conn: &mut SqliteConnection, event: &Event, at_ms: i64) -
             .await?;
             Ok(())
         }
-        // Sounds play and stop; nothing of them is stored (a campaign opens in silence).
+        // Playback (including pauses/seeks) has no projection rows; a campaign opens in silence.
         Event::SoundPlayed { .. } | Event::SoundStopped { .. } => Ok(()),
         // Only recipients see placeholders; the authority never commits one.
         Event::Redacted => Err(DbError::InvalidData {

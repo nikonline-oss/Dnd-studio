@@ -86,6 +86,21 @@ pub(crate) fn apply(
         Intent::StopSound { asset_id } => Ok(vec![Event::SoundStopped {
             asset_id: *asset_id,
         }]),
+        Intent::SetSoundPlayback {
+            asset_id,
+            position_ms,
+            paused,
+            volume,
+            looped,
+        } => (|| {
+            let asset = state
+                .assets
+                .get(asset_id)
+                .ok_or_else(|| RejectReason::invalid("asset_id"))?;
+            Ok(vec![Event::SoundPlayed {
+                sound: playback(state, asset, *volume, *looped, *position_ms, *paused)?,
+            }])
+        })(),
         _ => return None,
     };
     Some(result)
@@ -106,13 +121,30 @@ pub(crate) fn sound(
     volume: u8,
     looped: bool,
 ) -> Result<SoundDto, RejectReason> {
+    playback(state, asset, volume, looped, 0, false)
+}
+
+fn playback(
+    state: &GameState,
+    asset: &AssetDto,
+    volume: u8,
+    looped: bool,
+    position_ms: u32,
+    paused: bool,
+) -> Result<SoundDto, RejectReason> {
     if asset.usage != AssetUsage::Audio {
         return Err(RejectReason::invalid("asset_id"));
     }
     if volume > MAX_VOLUME {
         return Err(RejectReason::invalid("volume"));
     }
-    if looped && !state.sounds.contains_key(&asset.id) && state.sounds.len() >= MAX_LOOPING_SOUNDS {
+    if position_ms > dnd_protocol::MAX_SOUND_POSITION_MS {
+        return Err(RejectReason::invalid("position_ms"));
+    }
+    if (looped || paused)
+        && !state.sounds.contains_key(&asset.id)
+        && state.sounds.len() >= MAX_LOOPING_SOUNDS
+    {
         return Err(RejectReason::invalid("looped"));
     }
     Ok(SoundDto {
@@ -121,6 +153,8 @@ pub(crate) fn sound(
         mime: asset.mime.clone(),
         volume,
         looped,
+        position_ms,
+        paused,
     })
 }
 

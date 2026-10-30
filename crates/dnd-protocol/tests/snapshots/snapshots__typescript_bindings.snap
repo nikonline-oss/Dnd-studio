@@ -318,9 +318,9 @@ export type Event = { kind: "campaign_meta_updated"; campaign: CampaignMeta } | 
 { kind: "library_folder_created"; folder: LibraryFolderDto } | { kind: "library_folder_updated"; folder: LibraryFolderDto } | { kind: "library_folder_deleted"; id: LibraryFolderId } | 
 /**  An asset was moved to another folder or renamed. */
 { kind: "asset_updated"; asset: AssetDto } | 
-/**  A sound starts for everyone (a looping one stays in `sounds` until stopped). */
+/**  Replaces shared playback; looping or paused sounds stay in `sounds` (ADR-0028). */
 { kind: "sound_played"; sound: SoundDto } | 
-/**  A looping sound stops; `None`: every sound stops. */
+/**  A sound stops; `None`: every sound stops. */
 { kind: "sound_stopped"; asset_id: AssetId | null } | 
 /**
  *  Stands in for an event the recipient may not see, so sequence numbers stay contiguous
@@ -527,7 +527,9 @@ label?: ZoneLabel | null } | { kind: "delete_zone"; id: ZoneId } |
 { kind: "rename_asset"; id: AssetId; name: string } | 
 /**  GM / Co-GM: plays an audio asset to everyone. */
 { kind: "play_sound"; asset_id: AssetId; volume: number; looped: boolean } | 
-/**  GM / Co-GM: stops a looping sound (`None`: all). */
+/**  GM / Co-GM: replaces shared playback, last-write-wins (ADR-0028). */
+{ kind: "set_sound_playback"; asset_id: AssetId; position_ms: number; paused: boolean; volume: number; looped: boolean } | 
+/**  GM / Co-GM: stops a sound (`None`: all). */
 { kind: "stop_sound"; asset_id: AssetId | null };
 
 /**  An intent together with its correlation id and the version it was based on (ADR-0003). */
@@ -820,7 +822,7 @@ export type Snapshot = {
 	triggers: TriggerDto[],
 	/**  Folders of the image and audio libraries (GM roles only; empty for players, ADR-0026). */
 	library_folders?: LibraryFolderDto[],
-	/**  Looping sounds playing now, so a client that (re)connects hears the same music. */
+	/**  Looping or paused sounds, with the last commanded position for reconnecting clients. */
 	sounds?: SoundDto[],
 };
 
@@ -836,6 +838,9 @@ export type SoundDto = {
 	volume: number,
 	/**  Plays until stopped (music); a sound that does not loop plays once. */
 	looped: boolean,
+	/**  Last commanded position; no wall clock or drift correction (ADR-0028). */
+	position_ms?: number,
+	paused?: boolean,
 };
 
 /**  Messages the core posts; the UI localizes them by `code`. */

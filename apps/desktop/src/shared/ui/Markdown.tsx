@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import ReactMarkdown, { defaultUrlTransform, type Components } from 'react-markdown';
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import remarkGfm from 'remark-gfm';
+import { markdownLineBreaks } from './markdownLineBreaks';
 import { useSnapshotSelect } from '@/shared/game/useGame';
 import { assetUrl, type Snapshot } from '@/shared/ipc/client';
 import { useSelection } from '@/shared/state/selection';
@@ -33,7 +34,7 @@ const schema = {
   protocols: {
     ...defaultSchema.protocols,
     src: [...(defaultSchema.protocols?.src ?? []), 'asset'],
-    href: [...(defaultSchema.protocols?.href ?? []), ...LINK_KINDS],
+    href: [...(defaultSchema.protocols?.href ?? []), ...LINK_KINDS, 'asset'],
   },
 };
 
@@ -45,6 +46,16 @@ function urlTransform(url: string): string {
 function AssetImage({ id, alt }: { id: string; alt: string }) {
   const asset = useSnapshotSelect((s) => s.assets.find((a) => a.id === id));
   if (!asset) return <span className="md-image-missing">{alt}</span>;
+  if (asset.usage === 'audio')
+    return (
+      <audio
+        className="media-inline-audio"
+        aria-label={alt}
+        controls
+        preload="metadata"
+        src={assetUrl(asset.sha256)}
+      />
+    );
   return (
     <img
       className="md-image"
@@ -105,6 +116,17 @@ function ElementLink({ kind, id, children }: { kind: LinkKind; id: string; child
  */
 const components: Components = {
   a: ({ href, children }) => {
+    if (href?.startsWith(ASSET_PREFIX)) {
+      return (
+        <span className="md-media-attachment">
+          <span>{children}</span>
+          <AssetImage
+            id={href.slice(ASSET_PREFIX.length)}
+            alt={typeof children === 'string' ? children : ''}
+          />
+        </span>
+      );
+    }
     const link = typeof href === 'string' ? elementLink(href) : null;
     return link ? (
       <ElementLink kind={link.kind} id={link.id}>
@@ -128,7 +150,7 @@ export function Markdown({ source }: { source: string }) {
   return (
     <div className="markdown">
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={[remarkGfm, markdownLineBreaks]}
         rehypePlugins={[[rehypeSanitize, schema]]}
         components={components}
         urlTransform={urlTransform}

@@ -10,6 +10,16 @@ beforeEach(() => {
 });
 
 describe('center tabs', () => {
+  it('opens one media tab per folder and changes the selected file inside it', () => {
+    state().openMedia('images', 'folder', 'a');
+    state().openMedia('images', 'folder', 'b');
+    expect(state().tabs).toEqual([{ kind: 'images', id: 'folder' }]);
+    expect(state().mediaSelection['images:folder']).toBe('b');
+    state().openMedia('audio', null, 'song');
+    expect(state().active).toEqual({ kind: 'audio', id: 'root' });
+    state().reset();
+    expect(state().mediaSelection).toEqual({});
+  });
   it('opening adds a tab once and brings it to the front', () => {
     state().openMap('m1');
     state().openJournal('j1');

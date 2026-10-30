@@ -322,6 +322,7 @@ fn decide(
         | Intent::MoveAsset { .. }
         | Intent::RenameAsset { .. }
         | Intent::PlaySound { .. }
+        | Intent::SetSoundPlayback { .. }
         | Intent::StopSound { .. } => {
             crate::library::apply(state, intent).unwrap_or(Err(RejectReason::invalid("intent")))
         }
@@ -375,6 +376,7 @@ pub fn current_version(state: &GameState, intent: &Intent) -> Result<Version, Re
         Intent::CreateTrigger { .. } | Intent::FireTrigger { .. } => None,
         Intent::CreateLibraryFolder { .. }
         | Intent::PlaySound { .. }
+        | Intent::SetSoundPlayback { .. }
         | Intent::StopSound { .. } => None,
         Intent::RenameLibraryFolder { id, .. }
         | Intent::MoveLibraryFolder { id, .. }

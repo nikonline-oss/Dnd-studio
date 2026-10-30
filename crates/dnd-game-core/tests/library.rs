@@ -100,6 +100,174 @@ fn play(n: u128, looped: bool) -> Intent {
     }
 }
 
+fn playback(n: u128, position_ms: u32, paused: bool, volume: u8, looped: bool) -> Intent {
+    Intent::SetSoundPlayback {
+        asset_id: asset_id(n),
+        position_ms,
+        paused,
+        volume,
+        looped,
+    }
+}
+
+#[test]
+fn shared_playback_roles_pause_seek_and_resume() {
+    for role in [Role::Gm, Role::CoGm, Role::Player, Role::Spectator] {
+        let mut state = library_state();
+        for (position, paused, looped) in [
+            (1234, true, false),
+            (5000, true, true),
+            (7000, false, true),
+            (9000, false, false),
+        ] {
+            let result = run(
+                &mut state,
+                role,
+                playback(0, position, paused, 65, looped),
+                None,
+            );
+            if matches!(role, Role::Player | Role::Spectator) {
+                assert_eq!(result, Err(RejectReason::Forbidden));
+                assert!(state.sounds.is_empty());
+                continue;
+            }
+            let events = result.unwrap();
+            let Event::SoundPlayed { sound } = &events[0] else {
+                panic!("missing sound");
+            };
+            assert_eq!(
+                (sound.position_ms, sound.paused, sound.volume, sound.looped),
+                (position, paused, 65, looped)
+            );
+            assert_eq!(state.sounds.contains_key(&asset_id(0)), paused || looped);
+            assert_eq!(
+                state.to_snapshot(Seq(1)).sounds.len(),
+                usize::from(paused || looped)
+            );
+            assert_eq!(players_state(&state).sounds, state.sounds);
+        }
+    }
+}
+
+#[test]
+fn shared_playback_bounds_and_audio_assets() {
+    let mut state = library_state();
+    for (n, position, volume, field) in [
+        (0, 86_400_001, 100, "position_ms"),
+        (0, 0, 101, "volume"),
+        (2, 0, 100, "asset_id"),
+        (99, 0, 100, "asset_id"),
+    ] {
+        assert_eq!(
+            run(
+                &mut state,
+                Role::Gm,
+                playback(n, position, true, volume, false),
+                None
+            ),
+            Err(RejectReason::invalid(field))
+        );
+        assert!(state.sounds.is_empty());
+    }
+    for (position, volume) in [(0, 0), (86_400_000, 100)] {
+        run(
+            &mut state,
+            Role::Gm,
+            playback(0, position, true, volume, false),
+            Some(Version(999)),
+        )
+        .unwrap();
+        assert_eq!(state.sounds[&asset_id(0)].position_ms, position);
+    }
+}
+
+#[test]
+fn paused_and_looping_sounds_share_cap_and_replacement_releases_slot() {
+    let mut state = library_state();
+    for n in 3..12 {
+        let asset = sound_asset(n);
+        state.assets.insert(asset.id, asset);
+    }
+    for n in 3..11 {
+        run(
+            &mut state,
+            Role::Gm,
+            playback(n, 10, n % 2 == 0, 100, n % 2 != 0),
+            None,
+        )
+        .unwrap();
+    }
+    assert_eq!(state.sounds.len(), 8);
+    assert!(
+        run(
+            &mut state,
+            Role::Gm,
+            playback(11, 10, true, 100, false),
+            None
+        )
+        .is_err()
+    );
+    assert!(run(&mut state, Role::Gm, play(11, true), None).is_err());
+    run(
+        &mut state,
+        Role::Gm,
+        playback(3, 20, true, 100, false),
+        None,
+    )
+    .unwrap();
+    run(&mut state, Role::Gm, play(11, false), None).unwrap();
+    assert_eq!(state.sounds.len(), 8);
+    run(&mut state, Role::Gm, play(3, false), None).unwrap();
+    assert_eq!(state.sounds.len(), 7);
+    run(
+        &mut state,
+        Role::Gm,
+        playback(11, 30, true, 100, false),
+        None,
+    )
+    .unwrap();
+    run(
+        &mut state,
+        Role::Gm,
+        Intent::StopSound { asset_id: None },
+        None,
+    )
+    .unwrap();
+    assert!(state.sounds.is_empty());
+}
+
+#[test]
+fn visible_journal_audio_links_share_metadata_only_when_visible() {
+    let mut state = library_state();
+    let id = JournalEntryId(v7(0x9400));
+    run(
+        &mut state,
+        Role::Gm,
+        Intent::CreateJournalEntry {
+            id,
+            folder_id: None,
+            title: "Audio".into(),
+            markdown: format!("[sound](asset:{})", asset_id(0)),
+            visibility: JournalVisibility::Gm,
+            players_can_edit: false,
+            table: None,
+        },
+        None,
+    )
+    .unwrap();
+    assert!(players_state(&state).assets.is_empty());
+    state.journal.get_mut(&id).unwrap().visibility = JournalVisibility::Players;
+    let seen = players_state(&state);
+    assert_eq!(
+        seen.assets.keys().copied().collect::<Vec<_>>(),
+        [asset_id(0)]
+    );
+    assert!(seen.sounds.is_empty());
+    assert!(seen.library_folders.is_empty());
+    state.journal.get_mut(&id).unwrap().visibility = JournalVisibility::Gm;
+    assert!(players_state(&state).assets.is_empty());
+}
+
 #[test]
 fn only_gm_roles_manage_libraries_and_play_sounds() {
     for (role, allowed) in [
@@ -306,6 +474,7 @@ fn looping_sounds_stay_until_stopped_and_only_sounds_play() {
     let Some(Event::SoundPlayed { sound }) = events.first() else {
         panic!("{events:?}");
     };
+    assert_eq!((sound.position_ms, sound.paused), (0, false));
     assert_eq!(
         (sound.sha256.as_str(), sound.mime.as_str()),
         (hex(0x40).as_str(), "audio/ogg")
@@ -413,6 +582,13 @@ fn a_trigger_plays_and_stops_sounds() {
     )
     .unwrap();
     assert_eq!(state.sounds.keys().collect::<Vec<_>>(), [&asset_id(1)]);
+    assert_eq!(
+        (
+            state.sounds[&asset_id(1)].position_ms,
+            state.sounds[&asset_id(1)].paused
+        ),
+        (0, false)
+    );
 
     // A picture is not a sound.
     let mut bad = definition;

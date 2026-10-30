@@ -226,11 +226,11 @@ pub enum Event {
     AssetUpdated {
         asset: Box<AssetDto>,
     },
-    /// A sound starts for everyone (a looping one stays in `sounds` until stopped).
+    /// Replaces shared playback; looping or paused sounds stay in `sounds` (ADR-0028).
     SoundPlayed {
         sound: SoundDto,
     },
-    /// A looping sound stops; `None`: every sound stops.
+    /// A sound stops; `None`: every sound stops.
     SoundStopped {
         asset_id: Option<AssetId>,
     },

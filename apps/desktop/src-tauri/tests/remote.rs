@@ -283,6 +283,31 @@ async fn host_join_and_play_through_the_server() {
         .await
         .unwrap();
     assert_eq!(heard, audio.file.bytes);
+    assert!(matches!(
+        gm.submit(IntentEnvelope {
+            intent_id: IntentId::new_v7(),
+            expected_version: None,
+            intent: Intent::SetSoundPlayback {
+                asset_id: audio_id,
+                position_ms: 25_000,
+                paused: true,
+                volume: 60,
+                looped: true
+            },
+        })
+        .await
+        .unwrap(),
+        IntentOutcome::Accepted { .. }
+    ));
+    tokio::time::timeout(Duration::from_secs(10), async {
+        while !player.snapshot().unwrap().sounds.iter().any(|s| {
+            s.asset_id == audio_id && s.paused && s.position_ms == 25_000 && s.volume == 60
+        }) {
+            player_rx.recv().await.unwrap();
+        }
+    })
+    .await
+    .unwrap();
     // One original may be both a library picture and a tiled map background. Every
     // derivative must reach the server before its metadata becomes visible to players.
     let image_dir = local.folder().join("assets");

@@ -7,7 +7,16 @@ import { assetUrl, type Snapshot } from '@/shared/ipc/client';
 
 /** What can be picked. */
 export type ElementKind =
-  'map' | 'journal' | 'character' | 'token' | 'board' | 'board_node' | 'zone' | 'asset' | 'trigger';
+  | 'map'
+  | 'journal'
+  | 'character'
+  | 'token'
+  | 'board'
+  | 'board_node'
+  | 'zone'
+  | 'asset'
+  | 'audio'
+  | 'trigger';
 
 export interface PickedElement {
   kind: ElementKind;
@@ -31,6 +40,7 @@ const ICONS: Record<ElementKind, IconName> = {
   board_node: 'note',
   zone: 'zone',
   asset: 'image',
+  audio: 'music',
   trigger: 'bolt',
 };
 
@@ -118,13 +128,16 @@ function rowsOf(snapshot: Snapshot, kind: ElementKind, t: (key: string) => strin
           thumbnail: null,
         }));
       case 'asset':
-        return snapshot.assets.map((a) => ({
-          kind,
-          id: a.id,
-          name: a.original_name ?? a.sha256.slice(0, 8),
-          detail: `${a.width}×${a.height}`,
-          thumbnail: assetUrl(a.thumbnail_sha256),
-        }));
+      case 'audio':
+        return snapshot.assets
+          .filter((a) => (kind === 'audio' ? a.usage === 'audio' : a.usage !== 'audio'))
+          .map((a) => ({
+            kind,
+            id: a.id,
+            name: a.original_name ?? a.sha256.slice(0, 8),
+            detail: a.usage === 'audio' ? a.mime : `${a.width}×${a.height}`,
+            thumbnail: a.usage === 'audio' ? null : assetUrl(a.thumbnail_sha256),
+          }));
     }
   })();
   return rows.sort((a, b) => a.name.localeCompare(b.name));
@@ -240,11 +253,12 @@ function detailsOf(
         ],
       };
     }
-    case 'asset': {
+    case 'asset':
+    case 'audio': {
       const a = snapshot.assets.find((x) => x.id === row.id);
       if (!a) break;
       return {
-        preview: picture(a.id),
+        preview: a.usage === 'audio' ? null : picture(a.id),
         facts: [
           fact('size', `${a.width}×${a.height}, ${formatBytes(a.size_bytes, language)}`),
           fact('file', a.original_name ?? a.sha256.slice(0, 12)),
@@ -276,12 +290,22 @@ function DetailsPane({ snapshot, row }: { snapshot: Snapshot | undefined; row: R
     );
   }
   const { preview, facts } = detailsOf(snapshot, row, t, i18n.language);
+  const audio = row.kind === 'audio' ? snapshot.assets.find((a) => a.id === row.id) : undefined;
   return (
     <aside className="picker-details" aria-label={t('picker.details')}>
       <div className="picker-preview">
         {preview ? <img src={preview} alt="" /> : <Icon name={ICONS[row.kind]} size={48} />}
       </div>
       <h3 className="picker-details-name">{row.name}</h3>
+      {audio && (
+        <audio
+          key={audio.id}
+          aria-label={row.name}
+          controls
+          preload="metadata"
+          src={assetUrl(audio.sha256)}
+        />
+      )}
       <p className="muted">{t(`picker.kind.${row.kind}`)}</p>
       <dl>
         {facts.map((f) => (

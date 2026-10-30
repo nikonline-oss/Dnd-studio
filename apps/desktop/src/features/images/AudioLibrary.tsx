@@ -9,6 +9,7 @@ import { NavSection } from '@/shared/ui/NavSection';
 import { ErrorText } from '@/shared/ui/ErrorText';
 import type { MenuItem } from '@/shared/ui/Menu';
 import { LibraryExplorer } from './LibraryExplorer';
+import { useSelection } from '@/shared/state/selection';
 
 /** Music and sound library. GM playback is broadcast through the authoritative game event stream. */
 export function AudioLibrary() {
@@ -80,7 +81,14 @@ export function AudioLibrary() {
         library="audio"
         assets={sounds}
         selected={selected}
-        onSelect={setSelected}
+        onSelect={(id) => {
+          setSelected(id);
+          const asset = sounds.find((a) => a.id === id);
+          if (asset) useSelection.getState().openMedia('audio', asset.folder_id ?? null, asset.id);
+        }}
+        onOpenFolder={(id) => {
+          useSelection.getState().openMedia('audio', id);
+        }}
         assetMenuItems={soundMenu}
       />
       <ErrorText error={importing.error ?? submit.error} />

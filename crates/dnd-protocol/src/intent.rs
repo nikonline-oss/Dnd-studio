@@ -440,7 +440,15 @@ pub enum Intent {
         volume: u8,
         looped: bool,
     },
-    /// GM / Co-GM: stops a looping sound (`None`: all).
+    /// GM / Co-GM: replaces shared playback, last-write-wins (ADR-0028).
+    SetSoundPlayback {
+        asset_id: AssetId,
+        position_ms: u32,
+        paused: bool,
+        volume: u8,
+        looped: bool,
+    },
+    /// GM / Co-GM: stops a sound (`None`: all).
     StopSound {
         asset_id: Option<AssetId>,
     },
@@ -527,6 +535,7 @@ impl Intent {
             Self::MoveAsset { .. } => "move_asset",
             Self::RenameAsset { .. } => "rename_asset",
             Self::PlaySound { .. } => "play_sound",
+            Self::SetSoundPlayback { .. } => "set_sound_playback",
             Self::StopSound { .. } => "stop_sound",
         }
     }
@@ -557,6 +566,7 @@ impl Intent {
             | Self::MoveBoardNode { .. }
             | Self::FireTrigger { .. }
             | Self::PlaySound { .. }
+            | Self::SetSoundPlayback { .. }
             | Self::StopSound { .. }
             | Self::ResetFog { .. }
             | Self::InstallPlugin { .. }

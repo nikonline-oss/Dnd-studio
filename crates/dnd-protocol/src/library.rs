@@ -41,9 +41,16 @@ pub struct SoundDto {
     pub volume: u8,
     /// Plays until stopped (music); a sound that does not loop plays once.
     pub looped: bool,
+    /// Last commanded position; no wall clock or drift correction (ADR-0028).
+    #[serde(default)]
+    pub position_ms: u32,
+    #[serde(default)]
+    pub paused: bool,
 }
 
 /// Loudest volume of a sound.
 pub const MAX_VOLUME: u8 = 100;
-/// Most sounds looping at once.
+/// Most retained sounds (looping or paused) at once.
 pub const MAX_LOOPING_SOUNDS: usize = 8;
+/// Largest commanded playback position: 24 hours.
+pub const MAX_SOUND_POSITION_MS: u32 = 24 * 60 * 60 * 1000;
