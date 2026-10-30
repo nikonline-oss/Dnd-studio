@@ -6,6 +6,7 @@ use dnd_protocol::{
 };
 
 use crate::state::GameState;
+use crate::visibility::map_visible_to_players;
 
 /// The participant on whose behalf an intent is applied.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -122,9 +123,6 @@ fn player_controls_token(user: UserId, token_id: dnd_protocol::TokenId, state: &
         .character_id
         .and_then(|c| state.characters.get(&c))
         .is_some_and(|c| c.owner == Some(user));
-    let map_visible = state
-        .maps
-        .get(&token.map_id)
-        .is_some_and(|m| m.visible_to_players);
+    let map_visible = map_visible_to_players(state, &token.map_id);
     owns_character && map_visible && token.layer != TokenLayer::Gm
 }

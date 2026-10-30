@@ -16,20 +16,31 @@ function squarePath(from: Point, to: Point, grid: Grid, map: Size): Point[] {
   const countY = Math.max(1, Math.ceil(map.height / cell));
   const index = (value: number, offset: number, count: number) =>
     Math.max(0, Math.min(count - 1, Math.floor((value - offset) / cell)));
-  let x = index(from.x, grid.offset_x, countX);
-  let y = index(from.y, grid.offset_y, countY);
+  const x = index(from.x, grid.offset_x, countX);
+  const y = index(from.y, grid.offset_y, countY);
   const endX = index(to.x, grid.offset_x, countX);
   const endY = index(to.y, grid.offset_y, countY);
-  const path: Point[] = [squareCenter(x, y, grid, map)];
-  while (x !== endX) {
-    x += Math.sign(endX - x);
-    path.push(squareCenter(x, y, grid, map));
+  const steps = Math.max(Math.abs(endX - x), Math.abs(endY - y));
+  if (steps === 0) return [squareCenter(x, y, grid, map)];
+  return Array.from({ length: steps + 1 }, (_, step) =>
+    squareCenter(
+      Math.round(x + ((endX - x) * step) / steps),
+      Math.round(y + ((endY - y) * step) / steps),
+      grid,
+      map,
+    ),
+  );
+}
+
+/** Geometric length, in grid cells (or logical units without a grid). */
+export function movementDistance(path: readonly Point[], grid: Grid): number {
+  let length = 0;
+  for (let i = 1; i < path.length; i++) {
+    const previous = path[i - 1];
+    const current = path[i];
+    if (previous && current) length += Math.hypot(current.x - previous.x, current.y - previous.y);
   }
-  while (y !== endY) {
-    y += Math.sign(endY - y);
-    path.push(squareCenter(x, y, grid, map));
-  }
-  return path;
+  return grid.kind === 'none' ? length : length / grid.cell_size;
 }
 
 function squareCenter(x: number, y: number, grid: Grid, map: Size): Point {

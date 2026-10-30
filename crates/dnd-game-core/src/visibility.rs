@@ -1,7 +1,7 @@
 //! What each recipient may see (ADR-0022). GM and Co-GM see everything; players and spectators
 //! see the players' view:
 //!
-//! - maps marked `visible_to_players`, with their fog and combats;
+//! - maps marked `visible_to_players` or linked by a shared card on a shared board, with their fog and combats;
 //! - tokens that are `visible`, not on the GM layer, on a visible map;
 //! - combatants of visible combats whose token (if any) is visible;
 //! - journal entries open to players, and the folders on their way to the root (ADR-0021);
@@ -20,9 +20,9 @@
 use std::collections::BTreeSet;
 
 use dnd_protocol::{
-    AssetId, BoardEdgeId, BoardId, BoardNodeContent, BoardNodeId, BoardVisibility, ChatMessageDto,
-    ChatVisibility, CombatId, CombatantId, Event, EventBatch, JournalEntryId, JournalFolderId,
-    JournalVisibility, MapId, Role, Seq, Snapshot, TokenId, TokenLayer,
+    AssetId, BoardEdgeId, BoardId, BoardLink, BoardNodeContent, BoardNodeId, BoardVisibility,
+    ChatMessageDto, ChatVisibility, CombatId, CombatantId, Event, EventBatch, JournalEntryId,
+    JournalFolderId, JournalVisibility, MapId, Role, Seq, Snapshot, TokenId, TokenLayer,
 };
 
 use crate::state::GameState;
@@ -47,6 +47,23 @@ pub fn chat_visible_to_players(message: &ChatMessageDto) -> bool {
     message.visibility == ChatVisibility::All
 }
 
+/// Effective visibility, without changing the map's explicit flag (ADR-0024).
+pub(crate) fn map_visible_to_players(state: &GameState, id: &MapId) -> bool {
+    state.maps.get(id).is_some_and(|map| {
+        map.visible_to_players
+            || state.board_nodes.values().any(|node| {
+                node.visibility == BoardVisibility::Players
+                    && matches!(node.content, BoardNodeContent::Link {
+                        target: BoardLink::Map { id: target },
+                    } if target == *id)
+                    && state
+                        .boards
+                        .get(&node.board_id)
+                        .is_some_and(|board| board.visible_to_players)
+            })
+    })
+}
+
 /// Ids visible to players in one state.
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct PlayersSee {
@@ -68,7 +85,7 @@ impl PlayersSee {
         let maps: BTreeSet<_> = state
             .maps
             .values()
-            .filter(|m| m.visible_to_players)
+            .filter(|m| map_visible_to_players(state, &m.id))
             .map(|m| m.id)
             .collect();
         let tokens: BTreeSet<_> = state
@@ -185,6 +202,11 @@ pub fn players_state(state: &GameState) -> GameState {
     let see = PlayersSee::of(state);
     let mut view = state.clone();
     view.maps.retain(|id, _| see.maps.contains(id));
+    // Player-facing flags describe effective access, including board links. Authority and GM
+    // snapshots keep the explicit flag; clients need not reconstruct server visibility rules.
+    for map in view.maps.values_mut() {
+        map.visible_to_players = true;
+    }
     view.tokens.retain(|id, _| see.tokens.contains(id));
     view.journal.retain(|id, _| see.entries.contains(id));
     view.journal_folders
@@ -420,7 +442,20 @@ pub fn filter_for_players(before: &GameState, after: &GameState, batch: &EventBa
                         | Event::Redacted => true,
                     };
             if visible {
-                event.clone()
+                // Keep incremental map events consistent with the player snapshot projection.
+                match event {
+                    Event::MapCreated { map } => {
+                        let mut map = map.clone();
+                        map.visible_to_players = true;
+                        Event::MapCreated { map }
+                    }
+                    Event::MapUpdated { map } => {
+                        let mut map = map.clone();
+                        map.visible_to_players = true;
+                        Event::MapUpdated { map }
+                    }
+                    _ => event.clone(),
+                }
             } else {
                 Event::Redacted
             }
@@ -436,15 +471,10 @@ pub fn filter_for_players(before: &GameState, after: &GameState, batch: &EventBa
 fn cheap_event(after: &GameState, event: &Event) -> Event {
     let token_shown = |id: &TokenId| {
         after.tokens.get(id).is_some_and(|t| {
-            t.visible
-                && t.layer != TokenLayer::Gm
-                && after
-                    .maps
-                    .get(&t.map_id)
-                    .is_some_and(|m| m.visible_to_players)
+            t.visible && t.layer != TokenLayer::Gm && map_visible_to_players(after, &t.map_id)
         })
     };
-    let map_shown = |id: &MapId| after.maps.get(id).is_some_and(|m| m.visible_to_players);
+    let map_shown = |id: &MapId| map_visible_to_players(after, id);
     let visible = match event {
         Event::TokenMoved { id, .. } => token_shown(id),
         Event::BoardNodeMoved { id, .. } => after.board_nodes.get(id).is_some_and(|n| {

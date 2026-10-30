@@ -7,6 +7,7 @@ import {
   Rectangle,
   Sprite,
   Texture,
+  Text,
   TilingSprite,
   type Application,
   type FederatedPointerEvent,
@@ -15,7 +16,8 @@ import { drawShape, FogLayer } from './FogLayer';
 import { BrushStroke, brushRadius16, rectFromDrag } from './fogShapes';
 import { gridPattern } from './gridPattern';
 import { TokenLayer, type TokenView } from './TokenLayer';
-import { shortestMovementPath } from './movementPath';
+import { shortestMovementPath, movementDistance } from './movementPath';
+import i18n from '@/shared/i18n';
 import {
   clampLabel,
   dragHandle,
@@ -61,7 +63,7 @@ const REVEAL_PREVIEW = 0xe3aa45;
 const HIDE_PREVIEW = 0x0b0a10;
 const PREVIEW_ALPHA = 0.45;
 const ZONE_PREVIEW = 0x9b7bff;
-const MOVEMENT_PATH = 0x43e2c5;
+const MOVEMENT_PATH = 0x163e42;
 /** A press that moves less than this (CSS px) is a click, not a drag. */
 const CLICK_SLOP_PX = 4;
 /** Token moves while dragging: ~12 Hz (ADR-0003 asks for 10–15 Hz). */
@@ -123,6 +125,15 @@ export class MapScene {
   private readonly preview = new Graphics();
   /** Shortest-path route preview during combat; drawn above fog and zones. */
   private readonly movementPreview = new Graphics();
+  private readonly movementLabel = new Text({
+    text: '',
+    style: {
+      fontFamily: 'Segoe UI',
+      fontSize: 13,
+      fill: 0xffffff,
+      stroke: { color: 0x16232b, width: 4 },
+    },
+  });
   /** Zones, shown to GM roles only (ADR-0024). */
   private readonly zones = new ZoneLayer();
   private camera: Camera = { x: 0, y: 0, zoom: 1 };
@@ -198,6 +209,8 @@ export class MapScene {
     });
     this.preview.scale.set(1 / 16);
     this.movementPreview.scale.set(1 / 16);
+    this.movementLabel.visible = false;
+    this.movementLabel.eventMode = 'none';
     this.preview.eventMode = 'none';
     // Tokens sit under the fog: players do not see what is hidden.
     this.world.addChild(
@@ -208,6 +221,7 @@ export class MapScene {
       this.zones.view,
       this.preview,
       this.movementPreview,
+      this.movementLabel,
     );
     app.stage.addChild(this.world);
     const stage = app.stage;
@@ -648,6 +662,7 @@ export class MapScene {
       this.movementTokenId = id;
       this.onSelectToken(id);
       this.movementPreview.clear();
+      this.movementLabel.visible = false;
       this.app.canvas.style.cursor = 'crosshair';
       return;
     }
@@ -860,23 +875,32 @@ export class MapScene {
 
   private drawMovementPath(destination: Point): void {
     this.movementPreview.clear();
+    this.movementLabel.visible = false;
     const path = this.movementPathAt(destination);
-    if (!path || path.length < 2) return;
+    if (!path || path.length < 2 || !this.grid) return;
     const first = path[0];
     if (!first) return;
-    const lineWidth = (4 * 16) / this.camera.zoom;
-    const radius = (8 * 16) / this.camera.zoom;
+    const lineWidth = (6 * 16) / this.camera.zoom;
+    const radius = (4 * 16) / this.camera.zoom;
     this.movementPreview.moveTo(first.x * 16, first.y * 16);
     for (const point of path.slice(1)) this.movementPreview.lineTo(point.x * 16, point.y * 16);
-    this.movementPreview.stroke({ color: MOVEMENT_PATH, alpha: 0.95, width: lineWidth });
+    this.movementPreview.stroke({ color: MOVEMENT_PATH, alpha: 0.6, width: lineWidth });
     for (const point of path) {
       this.movementPreview
         .circle(point.x * 16, point.y * 16, radius)
-        .fill({ color: MOVEMENT_PATH, alpha: 0.85 });
+        .fill({ color: MOVEMENT_PATH, alpha: 0.5 });
+    }
+    const end = path.at(-1);
+    if (end) {
+      this.movementLabel.text = `${movementDistance(path, this.grid).toLocaleString(i18n.language, { maximumFractionDigits: 1 })} ${i18n.t(this.grid.kind === 'none' ? 'maps.distanceUnits' : 'maps.distanceCells')}`;
+      this.movementLabel.position.set(end.x + 12 / this.camera.zoom, end.y - 24 / this.camera.zoom);
+      this.movementLabel.scale.set(1 / this.camera.zoom);
+      this.movementLabel.visible = true;
     }
   }
 
   private clearMovementPlan(): void {
+    this.movementLabel.visible = false;
     this.movementTokenId = null;
     this.movementPress = false;
     this.movementPreview.clear();

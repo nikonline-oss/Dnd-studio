@@ -1,10 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import { shortestMovementPath } from './movementPath';
+import { shortestMovementPath, movementDistance } from './movementPath';
 import type { Grid } from '@/shared/ipc/client';
 
 const square: Grid = { kind: 'square', cell_size: 70, offset_x: 0, offset_y: 0 };
 
 describe('shortestMovementPath', () => {
+  it('counts diagonal distance geometrically without assuming a rule system', () => {
+    expect(
+      movementDistance(
+        [
+          { x: 35, y: 35 },
+          { x: 105, y: 105 },
+        ],
+        square,
+      ),
+    ).toBeCloseTo(Math.SQRT2);
+  });
   it('returns a shortest sequence of adjacent square cells', () => {
     expect(
       shortestMovementPath({ x: 35, y: 35 }, { x: 245, y: 175 }, square, {
@@ -13,10 +24,8 @@ describe('shortestMovementPath', () => {
       }),
     ).toEqual([
       { x: 35, y: 35 },
-      { x: 105, y: 35 },
-      { x: 175, y: 35 },
-      { x: 245, y: 35 },
-      { x: 245, y: 105 },
+      { x: 105, y: 105 },
+      { x: 175, y: 105 },
       { x: 245, y: 175 },
     ]);
   });
