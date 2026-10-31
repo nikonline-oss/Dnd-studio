@@ -21,7 +21,8 @@ pub use local_server::{CampaignInfo, LocalServer, folder_name, import};
 pub mod assets_api {
     //! Re-exports for integration tests.
     pub use crate::assets::{
-        MapImported, read_and_import, register_image, register_map, response_for, response_for_mime,
+        MapImported, read_and_import, register_image, register_map, response_for,
+        response_for_mime, with_byte_range,
     };
 }
 

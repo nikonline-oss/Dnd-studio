@@ -145,3 +145,72 @@
 .journal-audio > audio {
   display: none;
 }
+
+/* Small players share a two-row layout: title/transport, then a thin seek bar. */
+.audio-card.compact.audio-card,
+.journal-audio.journal-audio {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  width: 300px;
+  max-width: 100%;
+  min-width: 0;
+  padding: 6px 9px;
+  gap: 3px 8px;
+  border-radius: 9px;
+}
+.audio-card.compact.audio-card {
+  flex: 0 1 300px;
+}
+.audio-card.compact .session-audio-buttons {
+  gap: 3px;
+}
+.audio-card.compact .audio-art,
+.journal-audio .audio-art {
+  display: none;
+}
+.audio-card.compact .audio-heading,
+.journal-audio .audio-heading {
+  gap: 5px;
+}
+.audio-card.compact .audio-heading strong,
+.journal-audio .audio-heading strong {
+  font-size: 12px;
+}
+.audio-card.compact .audio-control,
+.journal-audio .audio-control {
+  width: 26px;
+  height: 26px;
+}
+.audio-card.compact .media-range {
+  grid-column: 1 / -1;
+  font-size: 0;
+  gap: 6px;
+}
+.journal-audio .audio-transport {
+  display: contents;
+}
+.journal-audio .audio-primary {
+  grid-column: 2;
+  grid-row: 1;
+}
+.journal-audio .audio-timeline {
+  grid-column: 1;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+.journal-audio .audio-volume {
+  width: 64px;
+  gap: 3px;
+  grid-column: 2;
+}
+.audio-card.compact .audio-heading > button {
+  font-size: 0;
+  width: 24px;
+  height: 24px;
+  padding: 2px;
+}
+.audio-card.compact .audio-heading > button::after {
+  content: '↗';
+  font-size: 14px;
+}

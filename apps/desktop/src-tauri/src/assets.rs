@@ -412,6 +412,11 @@ pub fn serve<R: Runtime>(
 ) {
     let app = ctx.app_handle().clone();
     let sha = request.uri().path().trim_start_matches('/').to_owned();
+    let range = request
+        .headers()
+        .get(header::RANGE)
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_owned);
     tauri::async_runtime::spawn(async move {
         let state = app.state::<AppState>();
         let remote = state.remote.lock().await.clone();
@@ -430,7 +435,10 @@ pub fn serve<R: Runtime>(
                         .values()
                         .find(|asset| asset.sha256 == sha)
                         .map_or("image/webp", |asset| asset.mime.as_str());
-                    responder.respond(response_for_mime(Some(local.folder()), &sha, mime));
+                    responder.respond(with_byte_range(
+                        response_for_mime(Some(local.folder()), &sha, mime),
+                        range.as_deref(),
+                    ));
                     return;
                 }
             }
@@ -441,7 +449,10 @@ pub fn serve<R: Runtime>(
                 Some(cache) if is_sha256_hex(&sha) => remote.asset(&sha, &cache, mime).await.ok(),
                 _ => None,
             };
-            responder.respond(file_response(bytes, mime));
+            responder.respond(with_byte_range(
+                file_response(bytes, mime),
+                range.as_deref(),
+            ));
             return;
         }
         let (folder, mime) = {
@@ -456,8 +467,75 @@ pub fn serve<R: Runtime>(
                 (Some(s.folder().to_owned()), mime)
             })
         };
-        responder.respond(response_for_mime(folder.as_deref(), &sha, &mime));
+        responder.respond(with_byte_range(
+            response_for_mime(folder.as_deref(), &sha, &mime),
+            range.as_deref(),
+        ));
     });
+}
+
+/// Applies a single byte range to validated local/cached content so media can seek.
+pub fn with_byte_range(mut response: Response<Vec<u8>>, range: Option<&str>) -> Response<Vec<u8>> {
+    if response.status() != StatusCode::OK {
+        return response;
+    }
+    let len = response.body().len();
+    response.headers_mut().insert(
+        header::ACCEPT_RANGES,
+        tauri::http::HeaderValue::from_static("bytes"),
+    );
+    if let Ok(value) = len.to_string().parse() {
+        response.headers_mut().insert(header::CONTENT_LENGTH, value);
+    }
+    let bounds = range
+        .and_then(|r| r.strip_prefix("bytes="))
+        .filter(|r| !r.contains(','))
+        .and_then(|r| r.split_once('-'))
+        .and_then(|(start, end)| {
+            if len == 0 {
+                return None;
+            }
+            if start.is_empty() {
+                let suffix = end.parse::<usize>().ok()?;
+                (suffix > 0).then_some((len.saturating_sub(suffix), len - 1))
+            } else {
+                let start = start.parse::<usize>().ok()?;
+                let end = if end.is_empty() {
+                    len - 1
+                } else {
+                    end.parse::<usize>().ok()?.min(len - 1)
+                };
+                (start <= end && start < len).then_some((start, end))
+            }
+        });
+    let Some(range) = range else {
+        return response;
+    };
+    // Ignore malformed/multiple ranges; an unsatisfiable single byte range returns 416.
+    if !range.starts_with("bytes=") || range.contains(',') {
+        return response;
+    }
+    let (status, content_range, body) = match bounds {
+        Some((start, end)) => (
+            StatusCode::PARTIAL_CONTENT,
+            format!("bytes {start}-{end}/{len}"),
+            response.body()[start..=end].to_vec(),
+        ),
+        None => (
+            StatusCode::RANGE_NOT_SATISFIABLE,
+            format!("bytes */{len}"),
+            Vec::new(),
+        ),
+    };
+    *response.status_mut() = status;
+    if let Ok(value) = content_range.parse() {
+        response.headers_mut().insert(header::CONTENT_RANGE, value);
+    }
+    if let Ok(value) = body.len().to_string().parse() {
+        response.headers_mut().insert(header::CONTENT_LENGTH, value);
+    }
+    *response.body_mut() = body;
+    response
 }
 
 /// Builds the response for a request path. Pure enough to test without a webview.
