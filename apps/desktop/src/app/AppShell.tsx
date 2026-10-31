@@ -101,6 +101,7 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
     ? (['chat', 'initiative', 'logs'] as const)
     : (['chat', 'initiative'] as const);
   const [bottomTab, setBottomTab] = useState<'chat' | 'initiative' | 'logs'>('chat');
+  const [bottomVisible, setBottomVisible] = useState(true);
 
   // Activity Bar: which view the side panel shows, and whether the panel is collapsed.
   const views = isGm ? GM_VIEWS : PLAYER_VIEWS;
@@ -274,38 +275,54 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
                   )}
                 </div>
               </Panel>
-              <Separator className="separator" />
-              <Panel id="bottom" defaultSize="25" minSize="10" collapsible className="bottom-panel">
-                <div role="tablist" className="tabs">
-                  {bottomTabs.map((tab) => (
+              {bottomVisible && <Separator className="separator" />}
+              {bottomVisible && (
+                <Panel
+                  id="bottom"
+                  defaultSize="25"
+                  minSize="10"
+                  collapsible
+                  className="bottom-panel"
+                >
+                  <div role="tablist" className="tabs">
+                    {bottomTabs.map((tab) => (
+                      <button
+                        key={tab}
+                        type="button"
+                        role="tab"
+                        aria-selected={bottomTab === tab}
+                        onClick={() => {
+                          setBottomTab(tab);
+                        }}
+                      >
+                        <Icon name={BOTTOM_TAB_ICONS[tab]} />
+                        {t(`panels.${tab}`)}
+                      </button>
+                    ))}
                     <button
-                      key={tab}
                       type="button"
-                      role="tab"
-                      aria-selected={bottomTab === tab}
                       onClick={() => {
-                        setBottomTab(tab);
+                        setBottomVisible(false);
                       }}
                     >
-                      <Icon name={BOTTOM_TAB_ICONS[tab]} />
-                      {t(`panels.${tab}`)}
+                      {t('panels.hideBottom')}
                     </button>
-                  ))}
-                </div>
-                {bottomTab === 'logs' ? (
-                  <ErrorBoundary name={t('panels.logs')}>
-                    <LogPanel />
-                  </ErrorBoundary>
-                ) : bottomTab === 'initiative' ? (
-                  <ErrorBoundary name={t('panels.initiative')}>
-                    <InitiativePanel />
-                  </ErrorBoundary>
-                ) : (
-                  <ErrorBoundary name={t('panels.chat')}>
-                    <ChatPanel />
-                  </ErrorBoundary>
-                )}
-              </Panel>
+                  </div>
+                  {bottomTab === 'logs' ? (
+                    <ErrorBoundary name={t('panels.logs')}>
+                      <LogPanel />
+                    </ErrorBoundary>
+                  ) : bottomTab === 'initiative' ? (
+                    <ErrorBoundary name={t('panels.initiative')}>
+                      <InitiativePanel />
+                    </ErrorBoundary>
+                  ) : (
+                    <ErrorBoundary name={t('panels.chat')}>
+                      <ChatPanel />
+                    </ErrorBoundary>
+                  )}
+                </Panel>
+              )}
             </Group>
           </Panel>
           <Separator className="separator" />
@@ -337,6 +354,16 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
         </Group>
       </div>
       <div className="app-footer">
+        {!bottomVisible && (
+          <button
+            type="button"
+            onClick={() => {
+              setBottomVisible(true);
+            }}
+          >
+            {t('panels.showBottom')}
+          </button>
+        )}
         <CompactAudioPlayers />
         <StatusBar campaign={campaign} />
       </div>

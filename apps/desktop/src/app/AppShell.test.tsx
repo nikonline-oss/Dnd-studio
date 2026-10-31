@@ -136,6 +136,14 @@ describe('AppShell', () => {
   });
 });
 
+it('hides the bottom panel and restores it from the footer', async () => {
+  renderShell('gm');
+  await userEvent.click(screen.getByRole('button', { name: 'Hide bottom panel' }));
+  expect(screen.queryByRole('tab', { name: 'Logs' })).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Show bottom panel' }));
+  expect(screen.getByRole('tab', { name: 'Logs' })).toBeInTheDocument();
+});
+
 describe('ErrorBoundary', () => {
   it('contains a crashing feature and recovers on retry', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);

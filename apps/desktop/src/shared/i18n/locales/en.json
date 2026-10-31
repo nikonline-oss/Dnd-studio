@@ -205,7 +205,9 @@
     "map": "Map",
     "chat": "Chat",
     "logs": "Logs",
-    "initiative": "Initiative"
+    "initiative": "Initiative",
+    "hideBottom": "Hide bottom panel",
+    "showBottom": "Show bottom panel"
   },
   "tabs": {
     "close": "Close {{name}}"
