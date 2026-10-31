@@ -15,6 +15,7 @@ const MAX_REPORTED: usize = 5;
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum MetaSchema {
+    Theme,
     Manifest,
     System,
     SheetSchema,
@@ -24,6 +25,8 @@ pub(crate) enum MetaSchema {
 }
 
 type Compiled = Result<Validator, String>;
+static THEME: LazyLock<Compiled> =
+    LazyLock::new(|| compile(include_str!("../schemas/theme.schema.json")));
 
 static MANIFEST: LazyLock<Compiled> =
     LazyLock::new(|| compile(include_str!("../schemas/manifest.schema.json")));
@@ -46,6 +49,7 @@ fn compile(source: &str) -> Compiled {
 impl MetaSchema {
     fn validator(self) -> &'static Compiled {
         match self {
+            Self::Theme => &THEME,
             Self::Manifest => &MANIFEST,
             Self::System => &SYSTEM,
             Self::SheetSchema => &SHEET_SCHEMA,
@@ -87,6 +91,7 @@ mod tests {
     #[test]
     fn all_meta_schemas_compile() {
         for schema in [
+            MetaSchema::Theme,
             MetaSchema::Manifest,
             MetaSchema::System,
             MetaSchema::SheetSchema,

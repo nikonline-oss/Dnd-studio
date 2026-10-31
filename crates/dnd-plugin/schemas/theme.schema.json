@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "dndstudio theme palette",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "light": { "$ref": "#/$defs/palette" },
+    "dark": { "$ref": "#/$defs/palette" }
+  },
+  "anyOf": [
+    { "required": ["light"], "properties": { "light": { "minProperties": 1 } } },
+    { "required": ["dark"], "properties": { "dark": { "minProperties": 1 } } }
+  ],
+  "$defs": {
+    "palette": {
+      "type": "object",
+      "maxProperties": 16,
+      "propertyNames": {
+        "enum": [
+          "--color-bg",
+          "--color-surface",
+          "--color-surface-alt",
+          "--color-surface-raised",
+          "--color-hover",
+          "--color-border",
+          "--color-border-strong",
+          "--color-text",
+          "--color-text-muted",
+          "--color-accent",
+          "--color-accent-soft",
+          "--color-accent-contrast",
+          "--color-danger",
+          "--color-danger-soft",
+          "--color-success",
+          "--color-focus"
+        ]
+      },
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "maxLength": 9
+      }
+    }
+  }
+}

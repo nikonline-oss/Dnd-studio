@@ -171,7 +171,11 @@
   "theme": {
     "system": "System theme",
     "light": "Light theme",
-    "dark": "Dark theme"
+    "dark": "Dark theme",
+    "palette": "Palette",
+    "defaultPalette": "Default palette",
+    "usePalette": "Use palette on this device",
+    "resetPalette": "Use default palette"
   },
   "language": {
     "system": "System language"

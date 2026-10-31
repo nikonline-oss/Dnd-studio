@@ -24,6 +24,7 @@ use dnd_protocol::{MAX_TRIGGER_TEMPLATES, TriggerTemplateDto};
 
 pub const MANIFEST_FILE: &str = "manifest.json";
 pub const SYSTEM_FILE: &str = "system.json";
+pub const THEME_FILE: &str = "theme.json";
 const SHEET_DIR: &str = "sheet/";
 const COMPENDIA_DIR: &str = "compendia/";
 const TRIGGERS_DIR: &str = "triggers/";
@@ -65,6 +66,7 @@ impl Default for PackageLimits {
 /// other installed plugins are checked by [`crate::check_install`] and [`crate::resolve`]).
 #[derive(Clone, Debug, PartialEq)]
 pub struct PluginPackage {
+    pub theme: Option<dnd_protocol::ThemeDto>,
     /// Lowercase hex SHA-256 of the whole `.dndplugin` file: the package's identity in a campaign.
     pub sha256: String,
     pub manifest: Manifest,
@@ -147,6 +149,7 @@ pub fn read_package(bytes: &[u8], limits: PackageLimits) -> PluginResult<PluginP
 /// Raw contents of the whitelisted entries.
 #[derive(Default)]
 struct Files {
+    theme: Option<Vec<u8>>,
     manifest: Option<Vec<u8>>,
     system: Option<Vec<u8>>,
     /// Full name (`sheet/x.json`) → bytes.
@@ -157,6 +160,7 @@ struct Files {
 }
 
 enum Entry {
+    Theme,
     Manifest,
     System,
     Sheet,
@@ -215,6 +219,7 @@ fn extract(bytes: &[u8], limits: PackageLimits) -> PluginResult<Files> {
         })?;
         total += content.len() as u64;
         match entry {
+            Entry::Theme => files.theme = Some(content),
             Entry::Manifest => files.manifest = Some(content),
             Entry::System => files.system = Some(content),
             Entry::Sheet => {
@@ -258,6 +263,7 @@ pub(crate) fn is_package_name(name: &str) -> bool {
 /// The only names a package may contain.
 fn classify(name: &str) -> Option<Entry> {
     match name {
+        THEME_FILE => return Some(Entry::Theme),
         MANIFEST_FILE => return Some(Entry::Manifest),
         SYSTEM_FILE => return Some(Entry::System),
         _ => {}
@@ -309,6 +315,26 @@ fn assemble(sha256: String, mut files: Files) -> PluginResult<PluginPackage> {
             name: MANIFEST_FILE.to_owned(),
         })?;
     let manifest = parse_manifest(&manifest_bytes)?;
+    let theme = match (manifest.kind, files.theme.take()) {
+        (PluginKind::Theme, Some(bytes)) => {
+            let theme: dnd_protocol::ThemeDto =
+                parse_document(THEME_FILE, &bytes, MetaSchema::Theme)?;
+            dnd_protocol::validate_theme(&theme)
+                .map_err(|_| invalid_document(THEME_FILE, "invalid theme palette".to_owned()))?;
+            Some(theme)
+        }
+        (PluginKind::Theme, None) => {
+            return Err(PluginError::MissingFile {
+                name: THEME_FILE.to_owned(),
+            });
+        }
+        (_, Some(_)) => {
+            return Err(PluginError::UnexpectedFile {
+                name: THEME_FILE.to_owned(),
+            });
+        }
+        (_, None) => None,
+    };
 
     let system = match (manifest.kind, files.system.take()) {
         (PluginKind::System, Some(bytes)) => Some(parse_system(&bytes, &mut files.sheets)?),
@@ -388,6 +414,7 @@ fn assemble(sha256: String, mut files: Files) -> PluginResult<PluginPackage> {
     }
 
     Ok(PluginPackage {
+        theme,
         sha256,
         manifest,
         system,

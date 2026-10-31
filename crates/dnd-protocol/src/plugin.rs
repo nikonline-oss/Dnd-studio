@@ -169,6 +169,9 @@ pub struct PluginDto {
     pub archive_sha256: String,
     /// Present exactly for `kind: system`.
     pub system: Option<SystemRulesDto>,
+    /// Safe color overrides; old theme plugins without palettes remain a no-op.
+    #[serde(default)]
+    pub theme: Option<crate::theme::ThemeDto>,
     /// Trigger templates (ADR-0024); plugins installed before they existed have none.
     #[serde(default)]
     pub trigger_templates: Vec<TriggerTemplateDto>,

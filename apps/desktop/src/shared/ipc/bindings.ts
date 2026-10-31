@@ -1000,6 +1000,8 @@ export type PluginDto = {
 	archive_sha256: string,
 	/**  Present exactly for `kind: system`. */
 	system: SystemRulesDto | null,
+	/**  Safe color overrides; old theme plugins without palettes remain a no-op. */
+	theme?: ThemeDto | null,
 	/**  Trigger templates (ADR-0024); plugins installed before they existed have none. */
 	trigger_templates?: TriggerTemplateDto[],
 };
@@ -1256,6 +1258,11 @@ export type TemplateParamKind = "zone" | "board_node" | "board" | "map" | "journ
 "resource" | 
 /**  A condition of the system. */
 "condition" | "number" | "text";
+
+export type ThemeDto = {
+	light?: { [key in string]: string },
+	dark?: { [key in string]: string },
+};
 
 /**  A token on a map. */
 export type TokenDto = {

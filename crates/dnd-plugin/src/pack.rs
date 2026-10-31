@@ -11,13 +11,13 @@ use zip::write::SimpleFileOptions;
 use zip::{CompressionMethod, DateTime, ZipWriter};
 
 use crate::error::{PluginError, PluginResult};
-use crate::package::{MANIFEST_FILE, SYSTEM_FILE, is_package_name};
+use crate::package::{MANIFEST_FILE, SYSTEM_FILE, THEME_FILE, is_package_name};
 
 /// Packs the whitelisted files of `dir` into `.dndplugin` bytes. The result still has to pass
 /// [`crate::read_package`]; this only builds the ZIP.
 pub fn pack_directory(dir: &Path) -> PluginResult<Vec<u8>> {
     let mut names = Vec::new();
-    for top in [MANIFEST_FILE, SYSTEM_FILE] {
+    for top in [MANIFEST_FILE, SYSTEM_FILE, THEME_FILE] {
         if dir.join(top).is_file() {
             names.push(top.to_owned());
         }

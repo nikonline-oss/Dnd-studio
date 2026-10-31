@@ -64,6 +64,12 @@ pub(crate) fn apply(
 
 /// Checks a plugin description as sent by a client.
 pub fn check_plugin(plugin: &PluginDto) -> Result<(), RejectReason> {
+    if let Some(theme) = &plugin.theme {
+        if plugin.kind != PluginKind::Theme {
+            return Err(RejectReason::invalid("theme"));
+        }
+        dnd_protocol::validate_theme(theme)?;
+    }
     let sha = &plugin.archive_sha256;
     if sha.len() != 64 || !sha.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f')) {
         return Err(RejectReason::invalid("archive_sha256"));

@@ -1,3 +1,4 @@
+import { ThemePluginMenu } from '@/shared/theme/ThemePluginMenu';
 import { useMutation } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useJournalExchange } from '@/features/journal/useJournalExchange';
@@ -148,6 +149,7 @@ export function MenuBar({ breadcrumbs }: { breadcrumbs: string[] }) {
             option('language', 'en', 'English'),
           ]}
         />
+        <ThemePluginMenu />
         <Menu
           label={t('menu.help')}
           items={[

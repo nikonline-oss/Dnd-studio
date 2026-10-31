@@ -879,6 +879,25 @@ async fn bundled_system_plugin_governs_the_campaign() {
 }
 
 #[tokio::test]
+async fn bundled_theme_survives_reopening_without_changing_rules() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut server = LocalServer::create(dir.path(), "Theme").await.unwrap();
+    let package = dnd_desktop_lib::bundled::package("theme-midnight").unwrap();
+    let (outcome, _) = dnd_desktop_lib::plugins::install(&mut server, package)
+        .await
+        .unwrap();
+    assert!(matches!(outcome, IntentOutcome::Accepted { .. }));
+    let plugin = server.state().plugins["theme-midnight"].clone();
+    assert!(plugin.theme.is_some());
+    assert!(server.state().rules().is_none());
+    let folder = server.folder().to_path_buf();
+    server.close().await.unwrap();
+    let reopened = LocalServer::open(&folder).await.unwrap();
+    assert_eq!(reopened.state().plugins["theme-midnight"], plugin);
+    assert!(reopened.state().rules().is_none());
+}
+
+#[tokio::test]
 async fn an_offline_plugin_is_kept_with_the_durable_install_intent() {
     let dir = tempfile::tempdir().unwrap();
     let mut local = LocalServer::create(dir.path(), "Offline plugins")

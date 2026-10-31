@@ -1,3 +1,5 @@
+import { useSettings } from '@/shared/settings/settings';
+import { pluginPalette } from '@/shared/theme/CampaignThemeSync';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useState, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -18,6 +20,8 @@ import type { MenuItem } from '@/shared/ui/Menu';
  */
 export function PluginsView() {
   const { t, i18n } = useTranslation();
+  const selectedTheme = useSettings((s) => s.themePluginId);
+  const updateSettings = useSettings((s) => s.update);
   const lang = i18n.resolvedLanguage ?? i18n.language;
   const { data: campaign } = useCampaign();
   const remote = useRemote();
@@ -51,6 +55,16 @@ export function PluginsView() {
   };
   const menuItems: (MenuItem | 'separator')[] = [];
   const target = plugins.find((p) => p.id === menu?.id);
+  if (target && pluginPalette(target))
+    menuItems.push({
+      label: t(selectedTheme === target.id ? 'theme.resetPalette' : 'theme.usePalette', {
+        defaultValue:
+          selectedTheme === target.id ? 'Use default palette' : 'Use palette on this device',
+      }),
+      onSelect: () => {
+        updateSettings({ themePluginId: selectedTheme === target.id ? null : target.id });
+      },
+    });
   if (canManage) {
     if (menu?.bundled && notInstalled.some((p) => p.id === menu.id)) {
       menuItems.push({
@@ -127,6 +141,20 @@ export function PluginsView() {
             </span>
           </span>
         </div>
+        {pluginPalette(plugin) && (
+          <button
+            type="button"
+            aria-pressed={selectedTheme === plugin.id}
+            onClick={() => {
+              updateSettings({ themePluginId: selectedTheme === plugin.id ? null : plugin.id });
+            }}
+          >
+            {t(selectedTheme === plugin.id ? 'theme.resetPalette' : 'theme.usePalette', {
+              defaultValue:
+                selectedTheme === plugin.id ? 'Use default palette' : 'Use palette on this device',
+            })}
+          </button>
+        )}
         {canManage && (
           <span className="row-actions">
             {plugin.kind === 'system' && !isSystem && (

@@ -11,6 +11,7 @@ impl PluginPackage {
     pub fn to_dto(&self) -> InstalledPluginDto {
         let m = &self.manifest;
         InstalledPluginDto {
+            theme: self.theme.clone(),
             id: m.id.clone(),
             version: m.version.to_string(),
             kind: m.kind,

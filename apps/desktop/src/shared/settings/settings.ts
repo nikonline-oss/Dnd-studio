@@ -4,6 +4,7 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 
 export const settingsSchema = z.object({
   theme: z.enum(['system', 'light', 'dark']),
+  themePluginId: z.string().min(1).max(256).nullable(),
   language: z.enum(['system', 'ru', 'en']),
   /** Panel preset (CLAUDE.md §5): `player` = map + chat + character sheet, other panels hidden. */
   layoutPreset: z.enum(['gm', 'player']),
@@ -17,6 +18,7 @@ export type Settings = z.infer<typeof settingsSchema>;
 
 export const defaultSettings: Settings = {
   theme: 'system',
+  themePluginId: null,
   language: 'system',
   layoutPreset: 'gm',
   sideView: 'boards',
@@ -42,8 +44,9 @@ export const useSettings = create<SettingsState>()(
       name: 'dndstudio.settings',
       version: 1,
       storage: createJSONStorage(() => localStorage),
-      partialize: ({ theme, language, layoutPreset, sideView }) => ({
+      partialize: ({ theme, themePluginId, language, layoutPreset, sideView }) => ({
         theme,
+        themePluginId,
         language,
         layoutPreset,
         sideView,

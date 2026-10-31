@@ -15,6 +15,7 @@ pub mod model;
 pub mod plugin;
 pub mod sheet_schema;
 mod snapshot;
+pub mod theme;
 pub mod trigger;
 pub mod validate;
 pub mod zone;
@@ -61,6 +62,7 @@ pub use plugin::{
     TriggerTemplateDto,
 };
 pub use snapshot::Snapshot;
+pub use theme::{THEME_COLOR_VARIABLES, ThemeDto, validate_theme};
 pub use trigger::{
     MAX_TRIGGER_STEPS, MAX_TRIGGER_TEXT, MAX_TRIGGERS, MAX_TRIGGERS_PER_INTENT, RevealTarget,
     TriggerAction, TriggerDef, TriggerDto, TriggerEvent, TriggerFiredDto, TriggerStep,

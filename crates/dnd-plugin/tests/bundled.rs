@@ -54,3 +54,14 @@ fn generic_d6_loads() {
     assert!(rules.creature_sheet_layout.is_some());
     assert_eq!(rules.health_thresholds, [66, 33, 0]);
 }
+
+#[test]
+fn midnight_theme_packs_and_loads_both_palettes() {
+    let package = bundled("theme-midnight");
+    assert_eq!(package.manifest.kind, PluginKind::Theme);
+    let theme = package.to_dto().theme.unwrap();
+    assert!(!theme.light.is_empty());
+    assert!(!theme.dark.is_empty());
+    assert!(dnd_protocol::validate_theme(&theme).is_ok());
+    assert!(package.system.is_none());
+}

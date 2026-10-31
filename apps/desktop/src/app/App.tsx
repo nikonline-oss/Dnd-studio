@@ -1,3 +1,4 @@
+import { CampaignThemeSync } from '@/shared/theme/CampaignThemeSync';
 import { AppShell } from './AppShell';
 import { SessionDialogs } from './SessionDialogs';
 import { UpdateBanner } from './UpdateBanner';
@@ -21,7 +22,14 @@ export function App() {
     <ErrorBoundary name="DndStudio">
       <div className="app-root">
         <UpdateBanner />
-        {campaign ? <AppShell campaign={campaign} /> : <CampaignScreen />}
+        {campaign ? (
+          <>
+            <CampaignThemeSync key={campaign.path} />
+            <AppShell campaign={campaign} />
+          </>
+        ) : (
+          <CampaignScreen />
+        )}
         <SessionDialogs />
         <Toaster />
       </div>

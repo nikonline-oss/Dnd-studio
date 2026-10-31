@@ -18,13 +18,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-/// Packs the system plugins shipped with the app (`plugins/`, ADR-0023) into `OUT_DIR`, where
+/// Packs the plugins shipped with the app (`plugins/`, ADR-0023/0030) into `OUT_DIR`, where
 /// `src/bundled.rs` includes them. Packing is deterministic, so the packages' SHA-256 only change
 /// with their sources.
 fn bundle_plugins() -> Result<(), Box<dyn std::error::Error>> {
     let root = std::path::Path::new(&std::env::var("CARGO_MANIFEST_DIR")?).join("../../../plugins");
     let out = std::path::PathBuf::from(std::env::var("OUT_DIR")?);
-    for dir in ["system-srd5", "system-generic-d6"] {
+    for dir in ["system-srd5", "system-generic-d6", "theme-midnight"] {
         let source = root.join(dir);
         println!("cargo:rerun-if-changed={}", source.display());
         for sub in ["sheet", "compendia"] {

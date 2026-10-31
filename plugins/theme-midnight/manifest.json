@@ -1,0 +1,14 @@
+{
+  "format": 1,
+  "id": "theme-midnight",
+  "name": {
+    "en": "Midnight",
+    "ru": "Полночь"
+  },
+  "version": "0.0.1",
+  "kind": "theme",
+  "authors": ["DndStudio"],
+  "license": "MIT OR Apache-2.0",
+  "app_compat": ">=0.0.1",
+  "dependencies": {}
+}

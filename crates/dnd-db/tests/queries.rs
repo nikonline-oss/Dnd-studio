@@ -702,6 +702,7 @@ async fn plugins_and_the_system_are_projected_and_loaded() {
     let dir = tempfile::tempdir().unwrap();
     let db = new_campaign(&dir).await;
     let mut plugin = PluginDto {
+        theme: None,
         id: "srd5".into(),
         version: "0.1.0".into(),
         kind: PluginKind::System,
