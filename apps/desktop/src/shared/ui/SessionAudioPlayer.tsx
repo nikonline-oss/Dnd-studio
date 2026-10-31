@@ -6,6 +6,7 @@ import { useSelection } from '@/shared/state/selection';
 import { AudioButton, audioTime as time } from './AudioControls';
 import { Icon } from './Icon';
 import { ErrorText } from './ErrorText';
+import type { SoundDto } from '@/shared/ipc/client';
 
 /** Shared playback controls issue intents; listeners can only mute their own output. */
 export function SessionAudioPlayer({
@@ -22,7 +23,8 @@ export function SessionAudioPlayer({
   const track = useSoundPlayback((s) => s.tracks.find((p) => p.sound.asset_id === assetId));
   const muted = useSoundPlayback((s) => s.muted);
   const submit = useSubmitIntent();
-  const [seek, setSeek] = useState<number | null>(null);
+  const [seekDraft, setSeek] = useState<{ value: number; base: SoundDto | undefined } | null>(null);
+  const seek = seekDraft?.base === track?.sound ? (seekDraft?.value ?? null) : null;
   const [volume, setVolume] = useState<number | null>(null);
   const paused = track ? (track.sound.paused ?? false) : true;
   const position = track?.position ?? 0;
@@ -32,17 +34,24 @@ export function SessionAudioPlayer({
     volume?: number;
     looped?: boolean;
   }) => {
-    submit.mutate({
-      intent: {
-        kind: 'set_sound_playback',
-        asset_id: assetId,
-        paused,
-        position_ms: Math.min(86_400_000, Math.round(position * 1000)),
-        volume: track?.sound.volume ?? 80,
-        looped: track?.sound.looped ?? true,
-        ...patch,
+    submit.mutate(
+      {
+        intent: {
+          kind: 'set_sound_playback',
+          asset_id: assetId,
+          paused,
+          position_ms: Math.min(86_400_000, Math.round(position * 1000)),
+          volume: track?.sound.volume ?? 80,
+          looped: track?.sound.looped ?? true,
+          ...patch,
+        },
       },
-    });
+      {
+        onError: () => {
+          setSeek(null);
+        },
+      },
+    );
   };
   return (
     <section
@@ -118,18 +127,16 @@ export function SessionAudioPlayer({
               value={seek ?? position}
               disabled={!track || !track.duration}
               onChange={(e) => {
-                setSeek(Number(e.target.value));
+                setSeek({ value: Number(e.target.value), base: track?.sound });
               }}
               onPointerUp={(e) => {
                 change({ position_ms: Math.round(Number(e.currentTarget.value) * 1000) });
-                setSeek(null);
               }}
               onKeyUp={(e) => {
                 if (
                   ['ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown'].includes(e.key)
                 ) {
                   change({ position_ms: Math.round(Number(e.currentTarget.value) * 1000) });
-                  setSeek(null);
                 }
               }}
             />

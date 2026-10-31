@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { mockIPC } from '@tauri-apps/api/mocks';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it } from 'vitest';
 import { SessionAudioPlayer, CompactAudioPlayers } from './SessionAudioPlayer';
@@ -116,6 +116,23 @@ describe('session music controls', () => {
     await waitFor(() => {
       expect(sent[1]?.intent).toMatchObject({ kind: 'set_sound_playback', position_ms: 45000 });
     });
+  });
+  it('keeps the requested position visible while the server confirms the seek', async () => {
+    setup('gm');
+    const slider = await screen.findByRole('slider', { name: /Playback position/ });
+    fireEvent.change(slider, { target: { value: '45' } });
+    fireEvent.pointerUp(slider);
+    expect(slider).toHaveValue('45');
+    act(() => {
+      useSoundPlayback.setState((state) => ({
+        tracks: state.tracks.map((track) => ({
+          ...track,
+          position: 46,
+          sound: { ...track.sound, position_ms: 45000 },
+        })),
+      }));
+    });
+    expect(slider).toHaveValue('46');
   });
   it('allows keyboard seeking in the compact GM player', async () => {
     const sent = setup('gm', true);
