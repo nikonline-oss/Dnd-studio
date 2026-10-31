@@ -46,6 +46,7 @@ pub struct GameState {
     pub library_folders: BTreeMap<LibraryFolderId, LibraryFolderDto>,
     /// Looping or paused sounds (not persisted: a campaign opens in silence).
     pub sounds: BTreeMap<AssetId, SoundDto>,
+    pub playlists: BTreeMap<dnd_protocol::PlaylistId, dnd_protocol::PlaylistDto>,
 }
 
 impl GameState {
@@ -77,6 +78,7 @@ impl GameState {
             triggers: BTreeMap::new(),
             library_folders: BTreeMap::new(),
             sounds: BTreeMap::new(),
+            playlists: BTreeMap::new(),
         }
     }
 
@@ -155,6 +157,7 @@ impl GameState {
                 .into_iter()
                 .map(|f| (f.id, f))
                 .collect(),
+            playlists: snapshot.playlists.into_iter().map(|p| (p.id, p)).collect(),
             sounds: snapshot
                 .sounds
                 .into_iter()
@@ -190,6 +193,7 @@ impl GameState {
             triggers: self.triggers.values().cloned().collect(),
             library_folders: self.library_folders.values().cloned().collect(),
             sounds: self.sounds.values().cloned().collect(),
+            playlists: self.playlists.values().cloned().collect(),
         }
     }
 

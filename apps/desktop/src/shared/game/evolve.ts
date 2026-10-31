@@ -200,6 +200,14 @@ export function applyEvent(snapshot: Snapshot, event: Event): Snapshot {
             ? []
             : (snapshot.sounds ?? []).filter((s) => s.asset_id !== event.asset_id),
       };
+    case 'playlist_created':
+    case 'playlist_updated':
+      return { ...snapshot, playlists: upsert(snapshot.playlists ?? [], event.playlist) };
+    case 'playlist_deleted':
+      return {
+        ...snapshot,
+        playlists: (snapshot.playlists ?? []).filter((p) => p.id !== event.id),
+      };
     case 'redacted':
       // Something the server hides from this recipient: only its sequence number counts.
       return snapshot;

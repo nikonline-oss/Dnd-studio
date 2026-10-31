@@ -421,7 +421,11 @@ async fn run(
                 let sound = state
                     .assets
                     .values()
-                    .any(|a| a.usage == AssetUsage::Audio && a.sha256 == sha256);
+                    .any(|a| a.usage == AssetUsage::Audio && a.sha256 == sha256)
+                    || state
+                        .playlists
+                        .values()
+                        .any(|p| p.tracks.iter().any(|t| t.sha256 == sha256));
                 let visible = sound
                     || state
                         .assets

@@ -443,6 +443,24 @@ pub enum Intent {
         id: AssetId,
         name: String,
     },
+    CreatePlaylist {
+        id: crate::PlaylistId,
+        name: String,
+        folder_id: Option<LibraryFolderId>,
+        asset_ids: Vec<AssetId>,
+    },
+    UpdatePlaylist {
+        id: crate::PlaylistId,
+        name: String,
+        tracks: Vec<crate::PlaylistTrackDto>,
+    },
+    MovePlaylist {
+        id: crate::PlaylistId,
+        folder_id: Option<LibraryFolderId>,
+    },
+    DeletePlaylist {
+        id: crate::PlaylistId,
+    },
     /// GM / Co-GM: plays an audio asset to everyone.
     PlaySound {
         asset_id: AssetId,
@@ -546,6 +564,10 @@ impl Intent {
             Self::MoveAsset { .. } => "move_asset",
             Self::RenameAsset { .. } => "rename_asset",
             Self::PlaySound { .. } => "play_sound",
+            Self::CreatePlaylist { .. } => "create_playlist",
+            Self::UpdatePlaylist { .. } => "update_playlist",
+            Self::MovePlaylist { .. } => "move_playlist",
+            Self::DeletePlaylist { .. } => "delete_playlist",
             Self::SetSoundPlayback { .. } => "set_sound_playback",
             Self::StopSound { .. } => "stop_sound",
         }
@@ -571,7 +593,8 @@ impl Intent {
             | Self::CreateBoardEdge { .. }
             | Self::CreateZone { .. }
             | Self::CreateTrigger { .. }
-            | Self::CreateLibraryFolder { .. } => VersionPolicy::Create,
+            | Self::CreateLibraryFolder { .. }
+            | Self::CreatePlaylist { .. } => VersionPolicy::Create,
             // Plugins are configuration the GM owns: the last choice wins.
             Self::MoveToken { .. }
             | Self::MoveBoardNode { .. }
@@ -583,7 +606,10 @@ impl Intent {
             | Self::InstallPlugin { .. }
             | Self::UninstallPlugin { .. }
             | Self::SetSystemPlugin { .. } => VersionPolicy::LastWriteWins,
-            Self::UpdateCampaignMeta { .. }
+            Self::UpdatePlaylist { .. }
+            | Self::MovePlaylist { .. }
+            | Self::DeletePlaylist { .. }
+            | Self::UpdateCampaignMeta { .. }
             | Self::UpdateMap { .. }
             | Self::DeleteMap { .. }
             | Self::UpdateToken { .. }

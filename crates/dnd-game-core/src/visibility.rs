@@ -35,6 +35,17 @@ pub fn journal_pictures(markdown: &str) -> impl Iterator<Item = AssetId> + '_ {
     })
 }
 
+pub fn journal_playlists(markdown: &str) -> impl Iterator<Item = dnd_protocol::PlaylistId> + '_ {
+    markdown.split("](playlist:").skip(1).filter_map(|rest| {
+        rest.split(')')
+            .next()?
+            .trim()
+            .parse()
+            .ok()
+            .map(dnd_protocol::PlaylistId)
+    })
+}
+
 /// Whether `role` sees the full state.
 #[must_use]
 pub fn sees_everything(role: Role) -> bool {
@@ -67,6 +78,7 @@ pub(crate) fn map_visible_to_players(state: &GameState, id: &MapId) -> bool {
 /// Ids visible to players in one state.
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct PlayersSee {
+    pub playlists: BTreeSet<dnd_protocol::PlaylistId>,
     pub maps: BTreeSet<MapId>,
     pub tokens: BTreeSet<TokenId>,
     pub entries: BTreeSet<JournalEntryId>,
@@ -182,6 +194,13 @@ impl PlayersSee {
             .map(|c| c.id)
             .collect();
         Self {
+            playlists: state
+                .journal
+                .values()
+                .filter(|e| entries.contains(&e.id))
+                .flat_map(|e| journal_playlists(&e.markdown))
+                .filter(|id| state.playlists.contains_key(id))
+                .collect(),
             maps,
             tokens,
             entries,
@@ -223,6 +242,10 @@ pub fn players_state(state: &GameState) -> GameState {
     view.zones.clear();
     view.triggers.clear();
     view.library_folders.clear();
+    view.playlists.retain(|id, _| see.playlists.contains(id));
+    for playlist in view.playlists.values_mut() {
+        playlist.folder_id = None;
+    }
     for asset in view.assets.values_mut() {
         asset.folder_id = None;
     }
@@ -427,6 +450,8 @@ pub fn filter_for_players(before: &GameState, after: &GameState, batch: &EventBa
                             now.assets.contains(&asset.id),
                             was.assets.contains(&asset.id),
                         ),
+                        Event::PlaylistCreated { playlist } | Event::PlaylistUpdated { playlist } => now.playlists.contains(&playlist.id),
+                        Event::PlaylistDeleted { id } => was.playlists.contains(id),
                         Event::ChatMessagePosted { message } => chat_visible_to_players(message),
                         Event::CampaignMetaUpdated { .. }
                         | Event::CharacterCreated { .. }
@@ -445,6 +470,8 @@ pub fn filter_for_players(before: &GameState, after: &GameState, batch: &EventBa
             if visible {
                 // Keep incremental map events consistent with the player snapshot projection.
                 match event {
+                    Event::PlaylistCreated { playlist } => { let mut playlist = playlist.clone(); playlist.folder_id = None; Event::PlaylistCreated { playlist } }
+                    Event::PlaylistUpdated { playlist } => { let mut playlist = playlist.clone(); playlist.folder_id = None; Event::PlaylistUpdated { playlist } }
                     Event::MapCreated { map } => {
                         let mut map = map.clone();
                         map.visible_to_players = true;

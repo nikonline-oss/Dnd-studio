@@ -682,6 +682,14 @@ impl CampaignDb {
             let zone: ZoneDto = serde_json::from_str(&row.try_get::<String, _>("dto")?)?;
             state.zones.insert(zone.id, zone);
         }
+        for row in sqlx::query("SELECT dto FROM playlists ORDER BY id")
+            .fetch_all(&self.pool)
+            .await?
+        {
+            let playlist: dnd_protocol::PlaylistDto =
+                serde_json::from_str(&row.try_get::<String, _>("dto")?)?;
+            state.playlists.insert(playlist.id, playlist);
+        }
         for row in sqlx::query("SELECT dto FROM triggers ORDER BY id")
             .fetch_all(&self.pool)
             .await?
@@ -1120,6 +1128,18 @@ async fn project_event(conn: &mut SqliteConnection, event: &Event, at_ms: i64) -
         }
         // Playback (including pauses/seeks) has no projection rows; a campaign opens in silence.
         Event::SoundPlayed { .. } | Event::SoundStopped { .. } => Ok(()),
+        Event::PlaylistCreated { playlist } | Event::PlaylistUpdated { playlist } => {
+            sqlx::query("INSERT INTO playlists (id, dto, version) VALUES (?, ?, ?) ON CONFLICT (id) DO UPDATE SET dto = excluded.dto, version = excluded.version")
+                .bind(playlist.id.to_string()).bind(serde_json::to_string(playlist)?).bind(playlist.version.0).execute(conn).await?;
+            Ok(())
+        }
+        Event::PlaylistDeleted { id } => {
+            sqlx::query("DELETE FROM playlists WHERE id = ?")
+                .bind(id.to_string())
+                .execute(conn)
+                .await?;
+            Ok(())
+        }
         // Only recipients see placeholders; the authority never commits one.
         Event::Redacted => Err(DbError::InvalidData {
             column: "event_log.event",

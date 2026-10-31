@@ -18,6 +18,7 @@ mod fog;
 mod journal;
 mod library;
 mod permissions;
+mod playlists;
 mod plugins;
 mod recent;
 mod rng;

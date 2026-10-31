@@ -99,6 +99,10 @@ define_id!(
     LibraryFolderId
 );
 define_id!(
+    /// An independent ordered collection of audio tracks.
+    PlaylistId
+);
+define_id!(
     /// Client-chosen identifier of an intent, used to correlate `Rejected`/`Events`.
     IntentId
 );

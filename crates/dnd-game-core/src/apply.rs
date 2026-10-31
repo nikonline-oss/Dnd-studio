@@ -321,6 +321,10 @@ fn decide(
         | Intent::StopSound { .. } => {
             crate::library::apply(state, intent).unwrap_or(Err(RejectReason::invalid("intent")))
         }
+        Intent::CreatePlaylist { .. }
+        | Intent::UpdatePlaylist { .. }
+        | Intent::MovePlaylist { .. }
+        | Intent::DeletePlaylist { .. } => crate::playlists::apply(state, intent),
     }
 }
 
@@ -328,6 +332,10 @@ fn decide(
 /// Version of the intent's target, for explicit rebasing and offline projections.
 pub fn current_version(state: &GameState, intent: &Intent) -> Result<Version, RejectReason> {
     let version = match intent {
+        Intent::CreatePlaylist { .. } => None,
+        Intent::UpdatePlaylist { id, .. }
+        | Intent::MovePlaylist { id, .. }
+        | Intent::DeletePlaylist { id } => state.playlists.get(id).map(|p| p.version),
         Intent::UpdateCampaignMeta { .. } => Some(state.campaign.version),
         Intent::UpdateMap { id, .. } | Intent::DeleteMap { id } => {
             state.maps.get(id).map(|m| m.version)
@@ -460,8 +468,9 @@ fn valid_scale(scale: f64) -> Result<f64, RejectReason> {
 
 /// Whether any entity — of any kind — already uses `id`. Ids are unique across kinds, so an id
 /// never means two things to clients or the database (ADR-0015).
-fn id_in_use(state: &GameState, id: dnd_protocol::Uuid) -> bool {
-    state.maps.contains_key(&dnd_protocol::MapId(id))
+pub(crate) fn id_in_use(state: &GameState, id: dnd_protocol::Uuid) -> bool {
+    state.playlists.contains_key(&dnd_protocol::PlaylistId(id))
+        || state.maps.contains_key(&dnd_protocol::MapId(id))
         || state.tokens.contains_key(&dnd_protocol::TokenId(id))
         || state
             .characters

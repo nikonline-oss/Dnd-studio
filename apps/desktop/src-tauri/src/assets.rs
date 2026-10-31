@@ -434,7 +434,17 @@ pub fn serve<R: Runtime>(
                         .assets
                         .values()
                         .find(|asset| asset.sha256 == sha)
-                        .map_or("image/webp", |asset| asset.mime.as_str());
+                        .map(|asset| asset.mime.as_str())
+                        .or_else(|| {
+                            local
+                                .state()
+                                .playlists
+                                .values()
+                                .flat_map(|p| &p.tracks)
+                                .find(|t| t.sha256 == sha)
+                                .map(|t| t.mime.as_str())
+                        })
+                        .unwrap_or("image/webp");
                     responder.respond(with_byte_range(
                         response_for_mime(Some(local.folder()), &sha, mime),
                         range.as_deref(),
@@ -463,7 +473,16 @@ pub fn serve<R: Runtime>(
                     .assets
                     .values()
                     .find(|asset| asset.sha256 == sha)
-                    .map_or_else(|| "image/webp".to_owned(), |asset| asset.mime.clone());
+                    .map(|asset| asset.mime.clone())
+                    .or_else(|| {
+                        s.state()
+                            .playlists
+                            .values()
+                            .flat_map(|p| &p.tracks)
+                            .find(|t| t.sha256 == sha)
+                            .map(|t| t.mime.clone())
+                    })
+                    .unwrap_or_else(|| "image/webp".to_owned());
                 (Some(s.folder().to_owned()), mime)
             })
         };

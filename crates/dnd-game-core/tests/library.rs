@@ -41,6 +41,102 @@ fn sound_asset(n: u128) -> AssetDto {
     }
 }
 
+#[test]
+fn playlists_are_independent_ordered_snapshots_of_audio() {
+    let mut state = table_state();
+    let a = sound_asset(0);
+    let b = sound_asset(1);
+    state.assets.insert(a.id, a.clone());
+    state.assets.insert(b.id, b.clone());
+    let id = PlaylistId(v7(0xa000));
+    run(
+        &mut state,
+        Role::Gm,
+        Intent::CreatePlaylist {
+            id,
+            name: "Ambience".into(),
+            folder_id: None,
+            asset_ids: vec![a.id, b.id, a.id],
+        },
+        None,
+    )
+    .unwrap();
+    let tracks = state.playlists[&id].tracks.clone();
+    assert_eq!(
+        tracks.iter().map(|t| t.asset_id).collect::<Vec<_>>(),
+        vec![a.id, b.id, a.id]
+    );
+    state.assets.remove(&a.id);
+    state.assets.remove(&b.id);
+    let reordered = vec![tracks[1].clone(), tracks[0].clone()];
+    run(
+        &mut state,
+        Role::CoGm,
+        Intent::UpdatePlaylist {
+            id,
+            name: "Reordered".into(),
+            tracks: reordered.clone(),
+        },
+        Some(Version::INITIAL),
+    )
+    .unwrap();
+    assert_eq!(state.playlists[&id].tracks, reordered);
+    let mut forged = reordered;
+    forged[0].sha256 = "f".repeat(64);
+    assert!(
+        run(
+            &mut state,
+            Role::Gm,
+            Intent::UpdatePlaylist {
+                id,
+                name: "Forged".into(),
+                tracks: forged
+            },
+            Some(Version(2))
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn playlist_creation_checks_every_role_and_version() {
+    for role in [Role::Gm, Role::CoGm, Role::Player, Role::Spectator] {
+        let mut state = table_state();
+        let id = PlaylistId(v7(0xa000));
+        let result = run(
+            &mut state,
+            role,
+            Intent::CreatePlaylist {
+                id,
+                name: "Empty queue".into(),
+                folder_id: None,
+                asset_ids: vec![],
+            },
+            None,
+        );
+        assert_eq!(result.is_ok(), role.is_game_master());
+        if role.is_game_master() {
+            assert!(
+                run(
+                    &mut state,
+                    role,
+                    Intent::DeletePlaylist { id },
+                    Some(Version(20))
+                )
+                .is_err()
+            );
+            run(
+                &mut state,
+                role,
+                Intent::DeletePlaylist { id },
+                Some(Version::INITIAL),
+            )
+            .unwrap();
+            assert!(!state.playlists.contains_key(&id));
+        }
+    }
+}
+
 fn picture_asset(n: u128) -> AssetDto {
     AssetDto {
         id: asset_id(n),

@@ -33,7 +33,7 @@ fn sample_token() -> TokenDto {
 #[test]
 fn client_messages_json() {
     let messages = vec![
-        envelope(ClientMessage::Intent(IntentEnvelope {
+        envelope(ClientMessage::Intent(Box::new(IntentEnvelope {
             intent_id: IntentId(Uuid::from_u128(4)),
             expected_version: Some(Version(3)),
             intent: Intent::UpdateMap {
@@ -42,8 +42,8 @@ fn client_messages_json() {
                 grid: None,
                 visible_to_players: Some(true),
             },
-        })),
-        envelope(ClientMessage::Intent(IntentEnvelope {
+        }))),
+        envelope(ClientMessage::Intent(Box::new(IntentEnvelope {
             intent_id: IntentId(Uuid::from_u128(5)),
             expected_version: None,
             intent: Intent::MoveToken {
@@ -51,7 +51,7 @@ fn client_messages_json() {
                 x: 1120,
                 y: 568,
             },
-        })),
+        }))),
         envelope(ClientMessage::Ping),
         envelope(ClientMessage::Resync { last_seq: Seq(41) }),
         envelope(ClientMessage::GetJournalEntry {

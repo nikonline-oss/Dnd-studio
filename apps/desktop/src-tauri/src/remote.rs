@@ -491,6 +491,14 @@ impl View {
             .values()
             .filter(|a| a.usage == AssetUsage::Audio && a.sha256 == sha256)
             .find_map(|a| audio_mime(&a.mime))
+            .or_else(|| {
+                self.state
+                    .playlists
+                    .values()
+                    .flat_map(|p| &p.tracks)
+                    .filter(|t| t.sha256 == sha256)
+                    .find_map(|t| audio_mime(&t.mime))
+            })
             // Retained music must remain resolvable even after many transient sound effects.
             .or_else(|| {
                 self.state

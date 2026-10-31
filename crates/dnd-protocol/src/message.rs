@@ -61,7 +61,8 @@ impl<B> Envelope<B> {
 #[serde(tag = "type", content = "payload", rename_all = "snake_case")]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum ClientMessage {
-    Intent(IntentEnvelope),
+    /// Boxed like `ServerMessage::Snapshot`: keeps the enum small as `Intent` grows.
+    Intent(Box<IntentEnvelope>),
     Ping,
     Resync {
         last_seq: Seq,

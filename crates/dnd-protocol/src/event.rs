@@ -237,6 +237,15 @@ pub enum Event {
     SoundStopped {
         asset_id: Option<AssetId>,
     },
+    PlaylistCreated {
+        playlist: crate::PlaylistDto,
+    },
+    PlaylistUpdated {
+        playlist: crate::PlaylistDto,
+    },
+    PlaylistDeleted {
+        id: crate::PlaylistId,
+    },
 
     /// Stands in for an event the recipient may not see, so sequence numbers stay contiguous
     /// (ADR-0022). Never stored; applying it changes nothing.

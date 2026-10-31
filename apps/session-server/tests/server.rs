@@ -304,7 +304,7 @@ impl Ws {
     async fn intent(&mut self, intent: Intent) -> IntentId {
         let envelope = gm_intent(intent);
         let id = envelope.intent_id;
-        self.send(ClientMessage::Intent(envelope)).await;
+        self.send(ClientMessage::Intent(Box::new(envelope))).await;
         id
     }
 
@@ -849,7 +849,7 @@ async fn gm_and_player_play_through_the_server() {
 
     // Revealing the hidden map: the player is sent a new snapshot with it.
     gm_ws
-        .send(ClientMessage::Intent(IntentEnvelope {
+        .send(ClientMessage::Intent(Box::new(IntentEnvelope {
             intent_id: IntentId::new_v7(),
             expected_version: Some(Version(1)),
             intent: Intent::UpdateMap {
@@ -858,7 +858,7 @@ async fn gm_and_player_play_through_the_server() {
                 grid: None,
                 visible_to_players: Some(true),
             },
-        }))
+        })))
         .await;
     let revealed = mira_ws.snapshot().await;
     assert_eq!(
@@ -1242,10 +1242,10 @@ async fn limits_and_bad_input_are_refused() {
     let mut old = Envelope::new(
         MessageId::new_v7(),
         0,
-        ClientMessage::Intent(gm_intent(Intent::SendMessage {
+        ClientMessage::Intent(Box::new(gm_intent(Intent::SendMessage {
             id: ChatMessageId::new_v7(),
             body: "hi".into(),
-        })),
+        }))),
     );
     old.v = PROTOCOL_VERSION - 1;
     ws.send_raw(serde_json::to_string(&old).unwrap()).await;
@@ -1504,11 +1504,11 @@ async fn a_trigger_reveals_a_secret_through_the_server() {
     for (intent, expected_version) in setup {
         let intent_id = IntentId::new_v7();
         gm_ws
-            .send(ClientMessage::Intent(IntentEnvelope {
+            .send(ClientMessage::Intent(Box::new(IntentEnvelope {
                 intent_id,
                 expected_version,
                 intent: intent.clone(),
-            }))
+            })))
             .await;
         until(&mut gm_ws, |m| match m {
             ServerMessage::Accepted(a) if a.intent_id == intent_id => Some(()),
@@ -1521,7 +1521,7 @@ async fn a_trigger_reveals_a_secret_through_the_server() {
     }
 
     let roll = |n: u128| {
-        ClientMessage::Intent(IntentEnvelope {
+        ClientMessage::Intent(Box::new(IntentEnvelope {
             intent_id: IntentId(v7(0x70 + n)),
             expected_version: None,
             intent: Intent::RollDice {
@@ -1531,7 +1531,7 @@ async fn a_trigger_reveals_a_secret_through_the_server() {
                 character_id: Some(hero),
                 roll: Some("perception".into()),
             },
-        })
+        }))
     };
 
     // A failed check: the roll, and nothing else.
@@ -1546,14 +1546,14 @@ async fn a_trigger_reveals_a_secret_through_the_server() {
     // Easier now: the next check opens the card.
     let update = IntentId::new_v7();
     gm_ws
-        .send(ClientMessage::Intent(IntentEnvelope {
+        .send(ClientMessage::Intent(Box::new(IntentEnvelope {
             intent_id: update,
             expected_version: Some(Version(1)),
             intent: Intent::UpdateTrigger {
                 id: trigger,
                 definition: secret_trigger(zone, node, "@total >= 1"),
             },
-        }))
+        })))
         .await;
     until(&mut gm_ws, |m| match m {
         ServerMessage::Accepted(a) if a.intent_id == update => Some(()),

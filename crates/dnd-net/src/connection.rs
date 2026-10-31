@@ -76,7 +76,7 @@ pub enum Incoming {
 type Reply<T> = oneshot::Sender<Result<T, NetError>>;
 
 enum Request {
-    Submit(IntentEnvelope, Reply<IntentOutcome>),
+    Submit(Box<IntentEnvelope>, Reply<IntentOutcome>),
     Journal(JournalEntryId, Reply<Option<JournalEntryDto>>),
     Resync,
     Close,
@@ -121,7 +121,7 @@ impl Connection {
     pub async fn submit(&self, envelope: IntentEnvelope) -> Result<IntentOutcome, NetError> {
         let (reply, rx) = oneshot::channel();
         self.tx
-            .send(Request::Submit(envelope, reply))
+            .send(Request::Submit(Box::new(envelope), reply))
             .map_err(|_| self.closed())?;
         rx.await.map_err(|_| self.closed())?
     }
@@ -303,7 +303,7 @@ impl Worker {
                         let _ = reply.send(Err(NetError::Offline));
                     }
                     Some(Request::Submit(envelope, reply)) => self.enqueue(Queued {
-                        envelope,
+                        envelope: *envelope,
                         reply,
                         since: Instant::now(),
                     }),
@@ -419,7 +419,7 @@ impl Worker {
                         }
                     }
                     Some(Request::Submit(envelope, reply)) => {
-                        let queued = Queued { envelope, reply, since: Instant::now() };
+                        let queued = Queued { envelope: *envelope, reply, since: Instant::now() };
                         if !flushed {
                             // Still waiting for the first snapshot: keep the order.
                             self.enqueue(queued);
@@ -478,7 +478,7 @@ impl Worker {
         in_flight: &mut HashMap<IntentId, InFlight>,
     ) -> Result<(), ()> {
         let intent_id = queued.envelope.intent_id;
-        let body = ClientMessage::Intent(queued.envelope.clone());
+        let body = ClientMessage::Intent(Box::new(queued.envelope.clone()));
         in_flight.insert(
             intent_id,
             InFlight {

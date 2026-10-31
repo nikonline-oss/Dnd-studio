@@ -537,7 +537,7 @@ export type Event = { kind: "campaign_meta_updated"; campaign: CampaignMeta } | 
 /**  Replaces shared playback; looping or paused sounds stay in `sounds` (ADR-0028). */
 { kind: "sound_played"; sound: SoundDto } | 
 /**  A sound stops; `None`: every sound stops. */
-{ kind: "sound_stopped"; asset_id: AssetId | null } | 
+{ kind: "sound_stopped"; asset_id: AssetId | null } | { kind: "playlist_created"; playlist: PlaylistDto } | { kind: "playlist_updated"; playlist: PlaylistDto } | { kind: "playlist_deleted"; id: PlaylistId } | 
 /**
  *  Stands in for an event the recipient may not see, so sequence numbers stay contiguous
  *  (ADR-0022). Never stored; applying it changes nothing.
@@ -765,7 +765,7 @@ label?: ZoneLabel | null } |
 /**  GM / Co-GM: into a folder of the asset's library (`None`: its root). */
 { kind: "move_asset"; id: AssetId; folder_id: LibraryFolderId | null } | 
 /**  GM / Co-GM: the name shown in the library. */
-{ kind: "rename_asset"; id: AssetId; name: string } | 
+{ kind: "rename_asset"; id: AssetId; name: string } | { kind: "create_playlist"; id: PlaylistId; name: string; folder_id: LibraryFolderId | null; asset_ids: AssetId[] } | { kind: "update_playlist"; id: PlaylistId; name: string; tracks: PlaylistTrackDto[] } | { kind: "move_playlist"; id: PlaylistId; folder_id: LibraryFolderId | null } | { kind: "delete_playlist"; id: PlaylistId } | 
 /**  GM / Co-GM: plays an audio asset to everyone. */
 { kind: "play_sound"; asset_id: AssetId; volume: number; looped: boolean } | 
 /**  GM / Co-GM: replaces shared playback, last-write-wins (ADR-0028). */
@@ -987,6 +987,25 @@ export type PendingEdits = {
 	edits: PendingEdit[],
 };
 
+export type PlaylistDto = {
+	id: PlaylistId,
+	name: string,
+	folder_id: LibraryFolderId | null,
+	tracks: PlaylistTrackDto[],
+	version: Version,
+};
+
+/**  An independent ordered collection of audio tracks. */
+export type PlaylistId = string;
+
+export type PlaylistTrackDto = {
+	/**  Origin only; deleting the library row does not remove this copied track. */
+	asset_id: AssetId,
+	sha256: string,
+	mime: string,
+	title: string,
+};
+
 /**  A plugin installed in the campaign. */
 export type PluginDto = {
 	id: string,
@@ -1184,6 +1203,7 @@ export type Snapshot = {
 	library_folders?: LibraryFolderDto[],
 	/**  Looping or paused sounds, with the last commanded position for reconnecting clients. */
 	sounds?: SoundDto[],
+	playlists?: PlaylistDto[],
 };
 
 /**

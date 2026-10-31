@@ -185,7 +185,7 @@ impl Connection {
                 let intent_id = intent.intent_id;
                 let outcome = self
                     .session
-                    .submit(intent, actor(self.participant.user_id, role))
+                    .submit(*intent, actor(self.participant.user_id, role))
                     .await
                     .map_err(gone)?;
                 let reply = match outcome {

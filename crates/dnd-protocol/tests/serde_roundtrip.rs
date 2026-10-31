@@ -18,7 +18,7 @@ where
 proptest! {
     #[test]
     fn client_intent_roundtrip(intent in arbitrary::intent_envelope()) {
-        let msg = Envelope::new(MessageId(Uuid::from_u128(1)), 0, ClientMessage::Intent(intent));
+        let msg = Envelope::new(MessageId(Uuid::from_u128(1)), 0, ClientMessage::Intent(Box::new(intent)));
         prop_assert_eq!(roundtrip(&msg), msg);
     }
 

@@ -205,6 +205,14 @@ fn delete_folder(state: &GameState, id: LibraryFolderId) -> Result<Vec<Event>, R
         i += 1;
     }
     let mut events = Vec::new();
+    for playlist in state.playlists.values() {
+        if playlist.folder_id.is_some_and(|f| folders.contains(&f)) {
+            let mut playlist = playlist.clone();
+            playlist.folder_id = None;
+            playlist.version = bump(playlist.version)?;
+            events.push(Event::PlaylistUpdated { playlist });
+        }
+    }
     for asset in state.assets.values() {
         if asset.folder_id.is_some_and(|f| folders.contains(&f)) {
             let mut moved = asset.clone();

@@ -101,6 +101,10 @@ impl Intent {
                 )
                 .collect(),
             Self::UpdateCampaignMeta { .. }
+            | Self::CreatePlaylist { .. }
+            | Self::UpdatePlaylist { .. }
+            | Self::MovePlaylist { .. }
+            | Self::DeletePlaylist { .. }
             | Self::UpdateMap { .. }
             | Self::DeleteMap { .. }
             | Self::UpdateToken { .. }
@@ -193,12 +197,16 @@ impl Intent {
             Self::AddCombatant { id, .. } => Some(id.0),
             Self::CreateJournalFolder { id, .. } => Some(id.0),
             Self::CreateLibraryFolder { id, .. } => Some(id.0),
+            Self::CreatePlaylist { id, .. } => Some(id.0),
             Self::CreateBoard { id, .. } => Some(id.0),
             Self::CreateBoardNode { id, .. } => Some(id.0),
             Self::CreateBoardEdge { id, .. } => Some(id.0),
             Self::CreateZone { id, .. } => Some(id.0),
             Self::CreateTrigger { id, .. } => Some(id.0),
             Self::UpdateCampaignMeta { .. }
+            | Self::UpdatePlaylist { .. }
+            | Self::MovePlaylist { .. }
+            | Self::DeletePlaylist { .. }
             | Self::UpdateMap { .. }
             | Self::DeleteMap { .. }
             | Self::ResetFog { .. }

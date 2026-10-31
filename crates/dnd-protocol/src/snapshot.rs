@@ -54,4 +54,6 @@ pub struct Snapshot {
     /// Looping or paused sounds, with the last commanded position for reconnecting clients.
     #[serde(default)]
     pub sounds: Vec<SoundDto>,
+    #[serde(default)]
+    pub playlists: Vec<crate::PlaylistDto>,
 }

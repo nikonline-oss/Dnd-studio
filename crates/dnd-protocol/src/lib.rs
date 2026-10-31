@@ -12,6 +12,7 @@ pub mod intent;
 pub mod library;
 pub mod message;
 pub mod model;
+pub mod playlist;
 pub mod plugin;
 pub mod sheet_schema;
 mod snapshot;
@@ -31,8 +32,9 @@ pub use error::RejectReason;
 pub use event::{Event, EventBatch};
 pub use ids::{
     AssetId, BoardEdgeId, BoardId, BoardNodeId, CharacterId, ChatMessageId, CombatId, CombatantId,
-    FogOpId, IntentId, JournalEntryId, JournalFolderId, LibraryFolderId, MapId, MessageId, Role,
-    Seq, SessionId, TokenId, TriggerId, UserId, Version, ZoneId, uuid_v7_from_random,
+    FogOpId, IntentId, JournalEntryId, JournalFolderId, LibraryFolderId, MapId, MessageId,
+    PlaylistId, Role, Seq, SessionId, TokenId, TriggerId, UserId, Version, ZoneId,
+    uuid_v7_from_random,
 };
 pub use intent::{Intent, IntentEnvelope, IntentOutcome, PayloadHash, VersionPolicy};
 pub use library::{
@@ -56,6 +58,7 @@ pub use model::{
     MAX_BRUSH_POINTS, MAX_BRUSH_RADIUS, MAX_CELL_SIZE, MAX_COMBATANTS, MAX_FOG_OPS, MAX_FOG_POINTS,
     MAX_FOLDER_DEPTH, MAX_MAP_SIZE, MIN_CELL_SIZE, UNITS16_PER_UNIT,
 };
+pub use playlist::{MAX_PLAYLIST_TRACKS, MAX_PLAYLISTS, PlaylistDto, PlaylistTrackDto};
 pub use plugin::{
     ConditionDef, InventoryDef, Label, LocalizedText, MAX_PLUGIN_BYTES, MAX_TRIGGER_TEMPLATES,
     PluginDto, PluginKind, ResourceDef, RollDef, SystemRulesDto, TemplateParam, TemplateParamKind,
