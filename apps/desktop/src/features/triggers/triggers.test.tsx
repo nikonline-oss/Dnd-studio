@@ -1,11 +1,13 @@
+import { useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { mockIPC } from '@tauri-apps/api/mocks';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it } from 'vitest';
-import { fillTemplate } from './TemplateDialog';
+import { TemplateDialog, fillTemplate } from './TemplateDialog';
 import { TriggerEditor } from './TriggerEditor';
-import { TriggerList } from './TriggerList';
+// eslint-disable-next-line no-restricted-imports -- integration test: trigger creation starts on the board
+import { BoardView } from '@/features/boards/BoardView';
 import type {
   CampaignInfo,
   PluginDto,
@@ -22,6 +24,8 @@ const altar: ZoneDto = {
   id: id(30),
   map_id: id(20),
   name: 'Altar',
+  color: 0x9b7bff,
+  label: null,
   shape: { type: 'rect', x: 0, y: 0, width: 160, height: 160 },
   version: 1,
 };
@@ -30,6 +34,7 @@ const manual: TriggerDto = {
   id: id(40),
   definition: {
     name: 'Collapse',
+    map_ids: [id(20)],
     enabled: true,
     once: false,
     event: { type: 'manual' },
@@ -38,6 +43,7 @@ const manual: TriggerDto = {
     steps: [{ when: null, action: { type: 'chat', text: 'The ceiling falls.', gm_only: false } }],
   },
   fired: false,
+  fired_maps: [],
   version: 3,
 };
 
@@ -45,7 +51,18 @@ function setup(triggers: TriggerDto[] = [manual], plugins: PluginDto[] = []) {
   const snapshot: Snapshot = {
     seq: 1,
     campaign: { name: 'C', description: '', version: 1 },
-    maps: [],
+    maps: [
+      {
+        id: id(20),
+        name: 'Crypt',
+        width: 100,
+        height: 100,
+        grid: { kind: 'square', cell_size: 10, offset_x: 0, offset_y: 0 },
+        background_asset_id: null,
+        visible_to_players: false,
+        version: 1,
+      },
+    ],
     tokens: [],
     characters: [],
     users: [],
@@ -53,8 +70,18 @@ function setup(triggers: TriggerDto[] = [manual], plugins: PluginDto[] = []) {
     journal_folders: [],
     plugins,
     system_plugin: null,
-    boards: [],
-    board_nodes: [],
+    boards: [{ id: id(10), name: 'Plot', sort_order: 0, visible_to_players: false, version: 1 }],
+    board_nodes: triggers.map((tr) => ({
+      id: id(11),
+      board_id: id(10),
+      content: { type: 'trigger', id: tr.id },
+      x: 0,
+      y: 0,
+      width: 3200,
+      height: 1600,
+      visibility: 'gm',
+      version: 1,
+    })),
     board_edges: [],
     zones: [altar],
     triggers,
@@ -69,6 +96,7 @@ function setup(triggers: TriggerDto[] = [manual], plugins: PluginDto[] = []) {
   mockIPC((cmd, args) => {
     if (cmd === 'get_snapshot') return snapshot;
     if (cmd === 'campaign_current') return info;
+    if (cmd === 'remote_current') return null;
     if (cmd === 'submit_intent') {
       sent.push((args as { envelope: IntentEnvelope }).envelope);
       return { status: 'accepted', seq: 2 };
@@ -77,11 +105,33 @@ function setup(triggers: TriggerDto[] = [manual], plugins: PluginDto[] = []) {
   });
   render(
     <QueryClientProvider client={new QueryClient()}>
-      <TriggerList />
-      <TriggerEditor triggerId={manual.id} />
+      <Harness />
     </QueryClientProvider>,
   );
   return sent;
+}
+
+function Harness() {
+  const [template, setTemplate] = useState(false);
+  return (
+    <>
+      <BoardView
+        boardId={id(10)}
+        onTriggerTemplate={() => {
+          setTemplate(true);
+        }}
+      />
+      <TriggerEditor triggerId={manual.id} />
+      {template && (
+        <TemplateDialog
+          boardId={id(10)}
+          onClose={() => {
+            setTemplate(false);
+          }}
+        />
+      )}
+    </>
+  );
 }
 
 afterEach(() => {
@@ -91,7 +141,7 @@ afterEach(() => {
 describe('Triggers', () => {
   it('a new trigger is a disabled manual one, opened in a tab', async () => {
     const sent = setup([]);
-    await userEvent.click(await screen.findByRole('button', { name: 'New trigger' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'New trigger on the board' }));
     await waitFor(() => {
       expect(sent[0]?.intent).toMatchObject({
         kind: 'create_trigger',
@@ -105,10 +155,13 @@ describe('Triggers', () => {
     const sent = setup();
     const form = await screen.findByRole('form', { name: 'Collapse' });
     await userEvent.selectOptions(within(form).getByLabelText('Event'), 'token_entered_zone');
-    await userEvent.click(within(form).getByRole('button', { name: 'Pick: Zones' }));
-    await userEvent.dblClick(screen.getByRole('option', { name: /Altar/ }));
+    await userEvent.selectOptions(within(form).getByLabelText('Zone name'), altar.id);
     await userEvent.type(within(form).getByLabelText('Condition'), '@hp.current > 0');
     await userEvent.click(within(form).getByRole('button', { name: 'Add a step' }));
+    const texts = within(form).getAllByLabelText('Text');
+    const secondText = texts[1];
+    if (!secondText) throw new Error('expected a text field per step');
+    await userEvent.type(secondText, 'The passage opens.');
     await userEvent.click(within(form).getByRole('button', { name: 'Save' }));
     await waitFor(() => {
       expect(sent[0]).toMatchObject({
@@ -129,7 +182,8 @@ describe('Triggers', () => {
 
   it('runs a manual trigger with the GM button', async () => {
     const sent = setup();
-    await userEvent.click(await screen.findByRole('button', { name: 'Run' }));
+    const form = await screen.findByRole('form', { name: 'Collapse' });
+    await userEvent.click(within(form).getByRole('button', { name: 'Run' }));
     await waitFor(() => {
       expect(sent[0]?.intent).toEqual({ kind: 'fire_trigger', id: manual.id, token: null });
     });

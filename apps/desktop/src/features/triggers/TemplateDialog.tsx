@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useSnapshotSelect, useSubmitIntent } from '@/shared/game/useGame';
+import { useCampaign, useSnapshotSelect, useSubmitIntent } from '@/shared/game/useGame';
 import { labelText } from '@/shared/i18n/label';
 import type {
   TemplateParam,
@@ -44,10 +44,21 @@ export function fillTemplate(definition: unknown, values: Record<string, string>
  * Trigger templates of the installed plugins (ADR-0024): pick one, fill in its blanks, and a
  * trigger is created from it. The core checks it like any other.
  */
-export function TemplateDialog({ onClose }: { onClose: () => void }) {
+export function TemplateDialog({
+  onClose,
+  boardId,
+  position = { x: 0, y: 0 },
+}: {
+  onClose: () => void;
+  boardId: string;
+  position?: { x: number; y: number };
+}) {
   const { t, i18n } = useTranslation();
   const lang = i18n.resolvedLanguage ?? i18n.language;
   const submit = useSubmitIntent();
+  const { data: campaign } = useCampaign();
+  const boardExists = useSnapshotSelect((s) => s.boards.some((b) => b.id === boardId));
+  const isGm = campaign?.role === 'gm' || campaign?.role === 'co_gm';
   const openTrigger = useSelection((s) => s.openTrigger);
   const templates =
     useSnapshotSelect((s) =>
@@ -57,6 +68,40 @@ export function TemplateDialog({ onClose }: { onClose: () => void }) {
   const [values, setValues] = useState<Record<string, string>>({});
   const complete = chosen?.params.every((p) => (values[p.id] ?? '').trim() !== '') ?? false;
 
+  const create = async () => {
+    if (!chosen || !complete || submit.isPending) return;
+    const id = uuidv7();
+    // The blanks make it a TriggerDef; the core checks every field.
+    const definition = fillTemplate(chosen.definition, values) as TriggerDef;
+    try {
+      await submit.mutateAsync({
+        intent: {
+          kind: 'create_trigger',
+          id,
+          definition: { ...definition, map_ids: definition.map_ids ?? [] },
+        },
+      });
+      await submit.mutateAsync({
+        intent: {
+          kind: 'create_board_node',
+          id: uuidv7(),
+          board_id: boardId,
+          content: { type: 'trigger', id },
+          x: position.x,
+          y: position.y,
+          width: 4160,
+          height: 2400,
+          visibility: 'gm',
+        },
+      });
+      openTrigger(id);
+      onClose();
+    } catch {
+      // Keep the filled template visible; the mutation displays the rejection.
+    }
+  };
+
+  if (!isGm || !boardExists) return null;
   return (
     <Dialog title={t('triggers.fromTemplate')} closeLabel={t('picker.cancel')} onClose={onClose}>
       {templates.length === 0 && <p className="muted">{t('triggers.noTemplates')}</p>}
@@ -92,6 +137,13 @@ export function TemplateDialog({ onClose }: { onClose: () => void }) {
           ))}
         </div>
       )}
+      {!complete && (
+        <p role="status">
+          {t('triggers.templateIncomplete', {
+            defaultValue: 'Choose a template and fill every parameter to create its board card.',
+          })}
+        </p>
+      )}
       <footer className="dialog-actions">
         <button type="button" onClick={onClose}>
           {t('picker.cancel')}
@@ -101,19 +153,7 @@ export function TemplateDialog({ onClose }: { onClose: () => void }) {
           className="btn-primary"
           disabled={!chosen || !complete || submit.isPending}
           onClick={() => {
-            if (!chosen) return;
-            const id = uuidv7();
-            // The blanks make it a TriggerDef; the core checks every field.
-            const definition = fillTemplate(chosen.definition, values) as TriggerDef;
-            submit.mutate(
-              { intent: { kind: 'create_trigger', id, definition } },
-              {
-                onSuccess: () => {
-                  openTrigger(id);
-                  onClose();
-                },
-              },
-            );
+            void create();
           }}
         >
           {t('triggers.createFromTemplate')}

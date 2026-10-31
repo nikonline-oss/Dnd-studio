@@ -30,6 +30,8 @@ pub fn apply(
     rng: &mut dyn GameRng,
 ) -> Result<Vec<Event>, RuleError> {
     let mut events = decide(state, envelope, actor, rng)?;
+    let bindings = crate::triggers::sync_board_bindings(state, &envelope.intent, &events, rng)?;
+    events.extend(bindings);
     let reactions = crate::triggers::react(state, &envelope.intent, &events, rng);
     events.extend(reactions);
     Ok(events)

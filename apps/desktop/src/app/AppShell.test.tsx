@@ -64,6 +64,13 @@ afterEach(() => {
 });
 
 describe('AppShell', () => {
+  it('restores old trigger navigation to Boards without exposing a trigger activity', () => {
+    useSettings.setState({ sideView: 'triggers' });
+    renderShell('gm');
+    const bar = screen.getByRole('navigation', { name: 'Views' });
+    expect(within(bar).queryByRole('button', { name: 'Triggers' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Boards' })).toBeInTheDocument();
+  });
   it('GM layout has navigator, inspector, breadcrumbs and status bar', async () => {
     renderShell('gm');
     expect(screen.getByRole('heading', { name: 'Boards' })).toBeInTheDocument();

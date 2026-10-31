@@ -477,6 +477,7 @@ fn trigger_blocks_stay_with_the_gm() {
         Intent::CreateTrigger {
             id: trigger,
             definition: TriggerDef {
+                map_ids: Vec::new(),
                 name: "Collapse".into(),
                 enabled: true,
                 once: false,

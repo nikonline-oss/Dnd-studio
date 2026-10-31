@@ -237,6 +237,7 @@ pub fn trigger_def() -> impl Strategy<Value = TriggerDef> {
         proptest::collection::vec(step, 1..3),
     )
         .prop_map(|(name, enabled, once, event, steps)| TriggerDef {
+            map_ids: Vec::new(),
             name,
             enabled,
             once,
@@ -250,6 +251,7 @@ pub fn trigger_def() -> impl Strategy<Value = TriggerDef> {
 pub fn trigger_dto() -> impl Strategy<Value = TriggerDto> {
     (trigger_id(), trigger_def(), any::<bool>(), version()).prop_map(
         |(id, definition, fired, version)| TriggerDto {
+            fired_maps: Vec::new(),
             id,
             definition,
             fired,
@@ -811,6 +813,7 @@ pub fn event() -> impl Strategy<Value = Event> {
         trigger_id().prop_map(|id| Event::TriggerDeleted { id }),
         (trigger_id(), name()).prop_map(|(trigger, name)| Event::TriggerFired {
             fired: TriggerFiredDto {
+                map_id: None,
                 trigger,
                 name,
                 character: None,

@@ -1,0 +1,10 @@
+.trigger-form-fields {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+
+.trigger-form-fields > .trigger-section .inline {
+  margin-inline-end: 1rem;
+}

@@ -14,8 +14,8 @@ import { CompendiumList } from '@/features/compendium/CompendiumList';
 import { CompendiumView } from '@/features/compendium/CompendiumView';
 import { LibraryPanel } from './LibraryPanel';
 import { OfflineEdits } from '@/features/connect/OfflineEdits';
+import { TemplateDialog } from '@/features/triggers/TemplateDialog';
 import { TriggerEditor } from '@/features/triggers/TriggerEditor';
-import { TriggerList } from '@/features/triggers/TriggerList';
 import { CharacterEditor } from '@/features/characters/CharacterEditor';
 import { CharacterList } from '@/features/characters/CharacterList';
 import { ChatPanel } from '@/features/chat/ChatPanel';
@@ -41,14 +41,7 @@ const BOTTOM_TAB_ICONS = { chat: 'send', initiative: 'dice', logs: 'book' } as c
 const MapView = lazy(() => import('@/features/map/MapView').then((m) => ({ default: m.MapView })));
 
 /** Side panel views per preset; players get no map list (§5: the map is chosen for them). */
-const GM_VIEWS: SideView[] = [
-  'boards',
-  'characters',
-  'library',
-  'plugins',
-  'triggers',
-  'compendia',
-];
+const GM_VIEWS: SideView[] = ['boards', 'characters', 'library', 'plugins', 'compendia'];
 const PLAYER_VIEWS: SideView[] = ['characters', 'library', 'boards', 'compendia'];
 const VIEW_ICONS = {
   characters: 'users',
@@ -66,6 +59,11 @@ const VIEW_ICONS = {
  */
 export function AppShell({ campaign }: { campaign: CampaignInfo }) {
   const { t } = useTranslation();
+  const [triggerTemplate, setTriggerTemplate] = useState<{
+    boardId: string;
+    x: number;
+    y: number;
+  } | null>(null);
   const preset = useSettings((s) => (campaign.role === 'player' ? 'player' : s.layoutPreset));
   const mapId = useSelection((s) => s.mapId);
   const inspect = useSelection((s) => s.inspect);
@@ -210,10 +208,6 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
               <ErrorBoundary name={t('library.title')}>
                 <LibraryPanel isGm={isGm} />
               </ErrorBoundary>
-            ) : sideView === 'triggers' ? (
-              <ErrorBoundary name={t('triggers.title')}>
-                <TriggerList />
-              </ErrorBoundary>
             ) : sideView === 'boards' ? (
               <ErrorBoundary name={t('boards.title')}>
                 <BoardList />
@@ -260,7 +254,13 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
                     </ErrorBoundary>
                   ) : center === 'board' && boardId !== null ? (
                     <ErrorBoundary name={t('boards.title')}>
-                      <BoardView key={boardId} boardId={boardId} />
+                      <BoardView
+                        key={boardId}
+                        boardId={boardId}
+                        onTriggerTemplate={(position) => {
+                          setTriggerTemplate({ boardId, ...position });
+                        }}
+                      />
                     </ErrorBoundary>
                   ) : center === 'character' && sheetId !== null ? (
                     <ErrorBoundary name={t('characters.title')}>
@@ -367,6 +367,15 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
         <CompactAudioPlayers />
         <StatusBar campaign={campaign} />
       </div>
+      {triggerTemplate && (
+        <TemplateDialog
+          boardId={triggerTemplate.boardId}
+          position={triggerTemplate}
+          onClose={() => {
+            setTriggerTemplate(null);
+          }}
+        />
+      )}
       <OfflineEdits isGm={campaign.role === 'gm'} campaignPath={campaign.path} />
     </div>
   );

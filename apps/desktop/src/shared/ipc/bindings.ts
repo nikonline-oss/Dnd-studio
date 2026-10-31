@@ -1335,8 +1335,13 @@ export type TriggerAction =
 export type TriggerDef = {
 	name: string,
 	enabled: boolean,
-	/**  Fires at most once (until edited again). */
+	/**  Fires at most once per bound map (until edited again). */
 	once: boolean,
+	/**
+	 *  Maps where this trigger runs. Empty legacy zone definitions infer the zone's map;
+	 *  other empty legacy definitions retain their campaign-wide behavior.
+	 */
+	map_ids?: MapId[],
 	event: TriggerEvent,
 	/**  Tokens that may set it off; empty: any token of a character. */
 	tokens: TokenId[],
@@ -1351,6 +1356,8 @@ export type TriggerDto = {
 	definition: TriggerDef,
 	/**  A `once` trigger that already fired. */
 	fired: boolean,
+	/**  Bound maps already spent by a once trigger; edits clear this list. */
+	fired_maps?: MapId[],
 	version: Version,
 };
 
@@ -1374,6 +1381,8 @@ export type TriggerFiredDto = {
 	name: string,
 	character: CharacterId | null,
 	token: TokenId | null,
+	/**  Map context; absent in legacy/global firings. */
+	map_id?: MapId | null,
 };
 
 /**  A trigger: when → if → then, run by the core (ADR-0024). */

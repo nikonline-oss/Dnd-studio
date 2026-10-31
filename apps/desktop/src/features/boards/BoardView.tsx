@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type PointerEvent, type WheelEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation } from '@tanstack/react-query';
+import { canFireTrigger, triggerMaps } from '@/shared/game/triggerScope';
 import { BoardToolbar } from './BoardToolbar';
 import { cardLine } from './geometry';
 import { useCampaign, useSnapshotSelect, useSubmitIntent } from '@/shared/game/useGame';
@@ -49,7 +50,13 @@ interface View {
  * on a pannable, zoomable canvas. GM roles arrange it and decide what players see; players see
  * what is open to them, read-only. Every change is an intent.
  */
-export function BoardView({ boardId }: { boardId: string }) {
+export function BoardView({
+  boardId,
+  onTriggerTemplate,
+}: {
+  boardId: string;
+  onTriggerTemplate?: (position: { x: number; y: number }) => void;
+}) {
   const { t } = useTranslation();
   const submit = useSubmitIntent();
   const openMap = useSelection((s) => s.openMap);
@@ -166,6 +173,7 @@ export function BoardView({ boardId }: { boardId: string }) {
       {
         onSuccess: () => {
           setSelected({ kind: 'node', id });
+          if (content.type === 'trigger') useSelection.getState().openTrigger(content.id);
         },
       },
     );
@@ -462,6 +470,13 @@ export function BoardView({ boardId }: { boardId: string }) {
     <section className="board-view" aria-label={board.name}>
       {isGm && (
         <BoardToolbar
+          onTemplate={
+            onTriggerTemplate
+              ? () => {
+                  onTriggerTemplate(spawnPoint());
+                }
+              : undefined
+          }
           contextRequest={context && !context.nodeId && !context.edgeId ? context : null}
           onCloseContext={() => {
             setContext(null);
@@ -575,6 +590,15 @@ export function BoardView({ boardId }: { boardId: string }) {
                     name: t('triggers.newName'),
                     enabled: false,
                     once: false,
+                    map_ids: [
+                      ...new Set(
+                        nodes.flatMap((n) =>
+                          n.content.type === 'link' && n.content.target.kind === 'map'
+                            ? [n.content.target.id]
+                            : [],
+                        ),
+                      ),
+                    ],
                     event: { type: 'manual' },
                     tokens: [],
                     condition: null,
@@ -1112,8 +1136,13 @@ function TriggerCard({ triggerId }: { triggerId: string }) {
   const trigger = useSnapshotSelect((s) => s.triggers.find((tr) => tr.id === triggerId));
   const submit = useSubmitIntent();
   const openTrigger = useSelection((s) => s.openTrigger);
+  const { data: campaign } = useCampaign();
+  const zones = useSnapshotSelect((s) => s.zones) ?? [];
+  const maps = useSnapshotSelect((s) => s.maps) ?? [];
+  if (campaign?.role !== 'gm' && campaign?.role !== 'co_gm') return null;
   if (!trigger) return <p className="muted">{t('boards.unavailable')}</p>;
   const def = trigger.definition;
+  const mapIds = triggerMaps(def, zones).filter((id) => maps.some((m) => m.id === id));
   const stop = (e: PointerEvent) => {
     e.stopPropagation();
   };
@@ -1131,6 +1160,10 @@ function TriggerCard({ triggerId }: { triggerId: string }) {
         {def.name}
       </strong>
       <span className="board-trigger-when">{t(`triggers.events.${def.event.type}`)}</span>
+      <span className="muted">
+        {mapIds.map((id) => maps.find((m) => m.id === id)?.name).join(', ') ||
+          t('triggers.unbound', { defaultValue: 'Choose maps in the editor' })}
+      </span>
       <ol className="board-trigger-steps">
         {def.steps.slice(0, 4).map((step, i) => (
           <li key={i}>{t(`triggers.actions.${step.action.type}`)}</li>
@@ -1142,6 +1175,7 @@ function TriggerCard({ triggerId }: { triggerId: string }) {
           <input
             type="checkbox"
             checked={def.enabled}
+            disabled={submit.isPending}
             onChange={(e) => {
               submit.mutate({
                 intent: {
@@ -1158,7 +1192,7 @@ function TriggerCard({ triggerId }: { triggerId: string }) {
         {def.event.type === 'manual' && (
           <button
             type="button"
-            disabled={trigger.fired || submit.isPending}
+            disabled={!canFireTrigger(trigger, mapIds) || submit.isPending}
             onClick={() => {
               submit.mutate({ intent: { kind: 'fire_trigger', id: trigger.id, token: null } });
             }}

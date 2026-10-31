@@ -13,6 +13,7 @@ export function BoardToolbar({
   onLink,
   onImage,
   onTrigger,
+  onTemplate,
   onMap,
   onImportMap,
   connecting,
@@ -28,6 +29,7 @@ export function BoardToolbar({
   onImage: (assetId: string) => void;
   /** Places a trigger as a block; `null`: a new one. */
   onTrigger: (triggerId: string | null) => void;
+  onTemplate?: (() => void) | undefined;
   onMap: () => void;
   onImportMap: (() => void) | undefined;
   connecting: boolean;
@@ -95,6 +97,11 @@ export function BoardToolbar({
           onTrigger(null);
         }}
       />
+      {onTemplate && (
+        <button type="button" disabled={disabled} onClick={onTemplate}>
+          {t('triggers.fromTemplate')}
+        </button>
+      )}
       <IconButton
         icon="link"
         label={t('boards.connect')}
@@ -144,6 +151,9 @@ export function BoardToolbar({
               },
               disabled,
             },
+            ...(onTemplate
+              ? [{ label: t('triggers.fromTemplate'), onSelect: onTemplate, disabled }]
+              : []),
             { label: t('boards.resetView'), onSelect: onResetView },
           ]}
         />

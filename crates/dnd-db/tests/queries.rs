@@ -1803,8 +1803,10 @@ async fn triggers_are_projected_loaded_and_deleted() {
     let dir = tempfile::tempdir().unwrap();
     let db = new_campaign(&dir).await;
     let trigger = TriggerDto {
+        fired_maps: Vec::new(),
         id: TriggerId(v7(0xA00)),
         definition: TriggerDef {
+            map_ids: Vec::new(),
             name: "Secret passage".into(),
             enabled: true,
             once: true,
@@ -1832,6 +1834,7 @@ async fn triggers_are_projected_loaded_and_deleted() {
     .await
     .unwrap();
     let spent = TriggerDto {
+        fired_maps: Vec::new(),
         fired: true,
         version: Version(2),
         ..trigger.clone()
@@ -1842,6 +1845,7 @@ async fn triggers_are_projected_loaded_and_deleted() {
         vec![
             Event::TriggerFired {
                 fired: TriggerFiredDto {
+                    map_id: None,
                     trigger: trigger.id,
                     name: "Secret passage".into(),
                     character: None,

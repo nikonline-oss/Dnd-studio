@@ -1352,6 +1352,7 @@ async fn until<T>(ws: &mut Ws, mut pick: impl FnMut(ServerMessage) -> Option<T>)
 
 fn secret_trigger(zone: ZoneId, node: BoardNodeId, condition: &str) -> TriggerDef {
     TriggerDef {
+        map_ids: Vec::new(),
         name: "Secret passage".into(),
         enabled: true,
         once: true,

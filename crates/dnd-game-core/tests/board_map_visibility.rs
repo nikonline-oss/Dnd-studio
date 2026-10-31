@@ -364,6 +364,7 @@ fn trigger_revealing_a_map_link_resnapshots_the_map() {
         Intent::CreateTrigger {
             id: trigger_id,
             definition: TriggerDef {
+                map_ids: Vec::new(),
                 name: "Reveal route".into(),
                 enabled: true,
                 once: false,

@@ -208,6 +208,7 @@ fn merging_joins_the_parts_moves_triggers_and_deletes_the_rest() {
         Intent::CreateTrigger {
             id: TriggerId(v7(0x7350)),
             definition: TriggerDef {
+                map_ids: Vec::new(),
                 name: "Draft".into(),
                 enabled: true,
                 once: false,

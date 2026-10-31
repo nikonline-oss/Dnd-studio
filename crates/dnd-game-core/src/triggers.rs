@@ -9,8 +9,8 @@ use dnd_expr::{Context, Expr, LookupError, Value as ExprValue};
 use dnd_protocol::{
     BoardVisibility, CharacterDto, CharacterId, ChatKind, ChatMessageDto, ChatVisibility, Event,
     Intent, JournalVisibility, MAX_TRIGGER_STEPS, MAX_TRIGGER_TEXT, MAX_TRIGGERS,
-    MAX_TRIGGERS_PER_INTENT, RejectReason, RevealTarget, SystemMessage, TokenId, TriggerAction,
-    TriggerDef, TriggerDto, TriggerEvent, TriggerFiredDto, TriggerId, Version,
+    MAX_TRIGGERS_PER_INTENT, MapId, RejectReason, RevealTarget, SystemMessage, TokenId,
+    TriggerAction, TriggerDef, TriggerDto, TriggerEvent, TriggerFiredDto, TriggerId, Version,
 };
 use serde_json::Value;
 
@@ -42,6 +42,7 @@ pub(crate) fn apply(
                     id: *id,
                     definition: valid_definition(state, definition)?,
                     fired: false,
+                    fired_maps: Vec::new(),
                     version: Version::INITIAL,
                 },
             }])
@@ -55,6 +56,7 @@ pub(crate) fn apply(
             trigger.definition = valid_definition(state, definition)?;
             // Edited: armed again.
             trigger.fired = false;
+            trigger.fired_maps.clear();
             trigger.version = bump(trigger.version)?;
             Ok(vec![Event::TriggerUpdated { trigger }])
         })(),
@@ -62,34 +64,62 @@ pub(crate) fn apply(
             if !state.triggers.contains_key(id) {
                 return Err(RejectReason::NotFound);
             }
-            Ok(vec![Event::TriggerDeleted { id: *id }])
+            let mut events: Vec<_> = state.board_nodes.values()
+                .filter(|n| matches!(n.content, dnd_protocol::BoardNodeContent::Trigger { id: target } if target == *id))
+                .flat_map(|n| crate::boards::delete_node(state, n.id)).collect();
+            events.push(Event::TriggerDeleted { id: *id });
+            Ok(events)
         })(),
         Intent::FireTrigger { id, token } => (|| {
             let trigger = state.triggers.get(id).ok_or(RejectReason::NotFound)?;
-            if trigger.definition.event != TriggerEvent::Manual || trigger.fired {
+            if trigger.definition.event != TriggerEvent::Manual {
                 return Err(RejectReason::invalid("id"));
             }
-            let character = match token {
-                Some(token) => {
+            let scope = effective_maps(state, &trigger.definition);
+            let selected = token
+                .map(|id| {
                     state
                         .tokens
-                        .get(token)
-                        .ok_or_else(|| RejectReason::invalid("token"))?
-                        .character_id
-                }
-                None => None,
+                        .get(&id)
+                        .ok_or_else(|| RejectReason::invalid("token"))
+                })
+                .transpose()?;
+            if let Some(selected) = selected
+                && ((!scope.is_empty() && !scope.contains(&selected.map_id))
+                    || (!trigger.definition.tokens.is_empty()
+                        && !trigger.definition.tokens.contains(&selected.id)))
+            {
+                return Err(RejectReason::invalid("token"));
+            }
+            let maps: Vec<Option<MapId>> = if scope.is_empty() {
+                vec![None]
+            } else if let Some(selected) = selected {
+                vec![Some(selected.map_id)]
+            } else {
+                scope
+                    .into_iter()
+                    .filter(|id| state.maps.contains_key(id))
+                    .map(Some)
+                    .collect()
             };
-            let mut work = state.clone();
-            Ok(run(
-                &mut work,
-                *id,
-                &Firing {
-                    character,
+            let firings: Vec<_> = maps
+                .into_iter()
+                .filter(|map| available(trigger, *map))
+                .map(|map_id| Firing {
+                    character: selected.and_then(|t| t.character_id),
                     token: *token,
                     total: None,
-                },
-                rng,
-            ))
+                    map_id,
+                })
+                .collect();
+            if firings.is_empty() {
+                return Err(RejectReason::invalid("id"));
+            }
+            let mut work = state.clone();
+            Ok(firings
+                .iter()
+                .flat_map(|firing| run(&mut work, *id, firing, rng))
+                .collect())
         })(),
         _ => return None,
     };
@@ -97,7 +127,8 @@ pub(crate) fn apply(
 }
 
 /// Who set a trigger off and with what roll.
-struct Firing {
+pub(crate) struct Firing {
+    pub(crate) map_id: Option<MapId>,
     character: Option<CharacterId>,
     token: Option<TokenId>,
     total: Option<i64>,
@@ -114,7 +145,7 @@ pub(crate) fn react(
         before
             .triggers
             .values()
-            .any(|t| t.definition.enabled && !t.fired && kind(&t.definition.event))
+            .any(|t| t.definition.enabled && kind(&t.definition.event))
     };
     let roll = match intent {
         Intent::RollDice {
@@ -162,56 +193,85 @@ fn matches(
     });
     for trigger in after.triggers.values() {
         let def = &trigger.definition;
-        if !def.enabled || trigger.fired {
+        if !def.enabled {
             continue;
         }
+        let scope = effective_maps(after, def);
         let allowed = |token: TokenId| def.tokens.is_empty() || def.tokens.contains(&token);
-        let firing = match &def.event {
-            TriggerEvent::RollInZone { zone, rolls } => (|| {
-                let (character, roll) = roll?;
+        let mut candidates = Vec::new();
+        match &def.event {
+            TriggerEvent::RollInZone { zone, rolls } => {
+                let Some((character, roll)) = roll else {
+                    continue;
+                };
                 if !rolls.is_empty() && !rolls.iter().any(|r| r == roll) {
-                    return None;
+                    continue;
                 }
-                let zone = after.zones.get(zone)?;
-                let token = after.tokens_on(zone.map_id).find(|t| {
-                    t.character_id == Some(character)
-                        && allowed(t.id)
-                        && zone.shape.contains(t.x, t.y)
-                })?;
-                Some(Firing {
-                    character: Some(character),
-                    token: Some(token.id),
-                    total,
-                })
-            })(),
-            TriggerEvent::TokenEnteredZone { zone } => (|| {
-                let zone = after.zones.get(zone)?;
-                events.iter().find_map(|e| {
-                    let Event::TokenMoved { id, x, y } = e else {
-                        return None;
+                let Some(anchor) = after.zones.get(zone) else {
+                    continue;
+                };
+                for zone in after
+                    .zones
+                    .values()
+                    .filter(|z| scope.contains(&z.map_id) && z.name.trim() == anchor.name.trim())
+                {
+                    if let Some(token) = after.tokens_on(zone.map_id).find(|t| {
+                        t.character_id == Some(character)
+                            && allowed(t.id)
+                            && zone.shape.contains(t.x, t.y)
+                    }) {
+                        candidates.push(Firing {
+                            character: Some(character),
+                            token: Some(token.id),
+                            total,
+                            map_id: Some(zone.map_id),
+                        });
+                    }
+                }
+            }
+            TriggerEvent::TokenEnteredZone { zone } => {
+                let Some(anchor) = after.zones.get(zone) else {
+                    continue;
+                };
+                for event in events {
+                    let Event::TokenMoved { id, x, y } = event else {
+                        continue;
                     };
-                    let token = after.tokens.get(id)?;
-                    let was = before.tokens.get(id)?;
-                    let entered = token.map_id == zone.map_id
-                        && zone.shape.contains(*x, *y)
-                        && !zone.shape.contains(was.x, was.y);
-                    let eligible = if def.tokens.is_empty() {
-                        token.character_id.is_some()
-                    } else {
-                        def.tokens.contains(id)
+                    let (Some(token), Some(was)) = (after.tokens.get(id), before.tokens.get(id))
+                    else {
+                        continue;
                     };
-                    (entered && eligible).then_some(Firing {
-                        character: token.character_id,
-                        token: Some(*id),
-                        total: None,
-                    })
-                })
-            })(),
-            TriggerEvent::ItemReceived { name } => (|| {
-                let rules = after.rules()?;
-                events.iter().find_map(|e| {
-                    let Event::CharacterUpdated { character } = e else {
-                        return None;
+                    if !scope.contains(&token.map_id)
+                        || !allowed(*id)
+                        || (def.tokens.is_empty() && token.character_id.is_none())
+                    {
+                        continue;
+                    }
+                    // A logical named zone may have several shapes on the same map.
+                    let named: Vec<_> = after
+                        .zones
+                        .values()
+                        .filter(|z| z.map_id == token.map_id && z.name.trim() == anchor.name.trim())
+                        .collect();
+                    if named.iter().any(|z| z.shape.contains(*x, *y))
+                        && !named.iter().any(|z| z.shape.contains(was.x, was.y))
+                    {
+                        candidates.push(Firing {
+                            character: token.character_id,
+                            token: Some(*id),
+                            total: None,
+                            map_id: Some(token.map_id),
+                        });
+                    }
+                }
+            }
+            TriggerEvent::ItemReceived { name } => {
+                let Some(rules) = after.rules() else {
+                    continue;
+                };
+                for event in events {
+                    let Event::CharacterUpdated { character } = event else {
+                        continue;
                     };
                     let old = before
                         .characters
@@ -222,42 +282,81 @@ fn matches(
                     let count = |names: &[String]| {
                         names
                             .iter()
-                            // Ignoring case in any script ("Ключ" = "ключ").
                             .filter(|n| n.to_lowercase() == name.to_lowercase())
                             .count()
                     };
-                    let token = if def.tokens.is_empty() {
-                        None
+                    if count(&new) <= count(&old) {
+                        continue;
+                    }
+                    if scope.is_empty() {
+                        let token = after
+                            .tokens
+                            .values()
+                            .find(|t| t.character_id == Some(character.id) && allowed(t.id))
+                            .map(|t| t.id);
+                        if !def.tokens.is_empty() && token.is_none() {
+                            continue;
+                        }
+                        candidates.push(Firing {
+                            character: Some(character.id),
+                            token,
+                            total: None,
+                            map_id: None,
+                        });
                     } else {
-                        // Limited to tokens: the character must have one of them.
-                        Some(
-                            def.tokens
-                                .iter()
-                                .find(|t| {
-                                    after
-                                        .tokens
-                                        .get(t)
-                                        .is_some_and(|t| t.character_id == Some(character.id))
-                                })
-                                .copied()?,
-                        )
-                    };
-                    (count(&new) > count(&old)).then_some(Firing {
-                        character: Some(character.id),
-                        token,
-                        total: None,
-                    })
-                })
-            })(),
-            TriggerEvent::Manual => None,
-        };
-        if let Some(firing) = firing
-            && condition_holds(after, def.condition.as_deref(), &firing, &BTreeMap::new())
-        {
-            found.push((trigger.id, firing));
+                        for token in after.tokens.values().filter(|t| {
+                            t.character_id == Some(character.id)
+                                && scope.contains(&t.map_id)
+                                && allowed(t.id)
+                        }) {
+                            candidates.push(Firing {
+                                character: Some(character.id),
+                                token: Some(token.id),
+                                total: None,
+                                map_id: Some(token.map_id),
+                            });
+                        }
+                    }
+                }
+            }
+            TriggerEvent::Manual => {}
+        }
+        let mut seen = Vec::new();
+        for firing in candidates {
+            if !seen.contains(&firing.map_id)
+                && available(trigger, firing.map_id)
+                && condition_holds(after, def.condition.as_deref(), &firing, &BTreeMap::new())
+            {
+                seen.push(firing.map_id);
+                found.push((trigger.id, firing));
+            }
         }
     }
     found
+}
+
+/// Resolve old zone definitions without mutating snapshots or replayed events.
+fn effective_maps(state: &GameState, def: &TriggerDef) -> Vec<MapId> {
+    if !def.map_ids.is_empty() {
+        return def.map_ids.clone();
+    }
+    let zone = match def.event {
+        TriggerEvent::RollInZone { zone, .. } | TriggerEvent::TokenEnteredZone { zone } => {
+            Some(zone)
+        }
+        _ => None,
+    };
+    zone.and_then(|id| state.zones.get(&id))
+        .map(|z| vec![z.map_id])
+        .unwrap_or_default()
+}
+
+fn available(trigger: &TriggerDto, map_id: Option<MapId>) -> bool {
+    // A legacy spent record has no map list: preserve its spent state until explicitly edited.
+    if trigger.fired && trigger.fired_maps.is_empty() {
+        return false;
+    }
+    map_id.map_or(!trigger.fired, |id| !trigger.fired_maps.contains(&id))
 }
 
 /// Runs a trigger's steps against `work`, which follows every event produced. Returns the events.
@@ -265,7 +364,7 @@ fn run(work: &mut GameState, id: TriggerId, firing: &Firing, rng: &mut dyn GameR
     let Some(trigger) = work.triggers.get(&id).cloned() else {
         return Vec::new();
     };
-    if trigger.fired {
+    if !available(&trigger, firing.map_id) {
         return Vec::new();
     }
     let mut events = vec![Event::TriggerFired {
@@ -274,18 +373,25 @@ fn run(work: &mut GameState, id: TriggerId, firing: &Firing, rng: &mut dyn GameR
             name: trigger.definition.name.clone(),
             character: firing.character,
             token: firing.token,
+            map_id: firing.map_id,
         },
     }];
     if trigger.definition.once
         && let Ok(version) = bump(trigger.version)
     {
-        events.push(Event::TriggerUpdated {
-            trigger: TriggerDto {
-                fired: true,
-                version,
-                ..trigger.clone()
-            },
-        });
+        let mut next = trigger.clone();
+        next.version = version;
+        if let Some(map_id) = firing.map_id {
+            next.fired_maps.push(map_id);
+            next.fired_maps.sort();
+            next.fired_maps.dedup();
+            next.fired = effective_maps(work, &next.definition)
+                .iter()
+                .all(|id| next.fired_maps.contains(id));
+        } else {
+            next.fired = true;
+        }
+        events.push(Event::TriggerUpdated { trigger: next });
     }
     for event in &events {
         evolve(work, event);
@@ -634,6 +740,14 @@ fn roll_dice(
 fn valid_definition(state: &GameState, def: &TriggerDef) -> Result<TriggerDef, RejectReason> {
     let mut def = def.clone();
     def.name = valid_name(&def.name, "name")?;
+    if def.map_ids.len() > 100 || def.map_ids.iter().any(|id| !state.maps.contains_key(id)) {
+        return Err(RejectReason::invalid("map_ids"));
+    }
+    def.map_ids.sort();
+    def.map_ids.dedup();
+    if def.map_ids.is_empty() {
+        def.map_ids = effective_maps(state, &def);
+    }
     let rules = state.rules();
     match &mut def.event {
         TriggerEvent::RollInZone { zone, rolls } => {
@@ -729,4 +843,147 @@ fn valid_action(state: &GameState, action: &mut TriggerAction) -> Result<(), Rej
         }
     };
     if ok { Ok(()) } else { Err(invalid()) }
+}
+
+/// Binding visuals are part of the same transaction as edits/placing a trigger card.
+/// Edges between trigger and map cards express bindings; map cards themselves are never removed.
+pub(crate) fn sync_board_bindings(
+    state: &GameState,
+    intent: &Intent,
+    events: &[Event],
+    rng: &mut dyn GameRng,
+) -> Result<Vec<Event>, RejectReason> {
+    use dnd_protocol::{
+        BoardEdgeDto, BoardEdgeId, BoardLink, BoardNodeContent, BoardNodeDto, BoardNodeId,
+        MAX_BOARD_COORD, MAX_BOARD_EDGES, MAX_BOARD_NODES,
+    };
+    let trigger_id = match intent {
+        Intent::CreateTrigger { id, .. } | Intent::UpdateTrigger { id, .. } => *id,
+        Intent::CreateBoardNode {
+            content: BoardNodeContent::Trigger { id },
+            ..
+        }
+        | Intent::UpdateBoardNode {
+            content: Some(BoardNodeContent::Trigger { id }),
+            ..
+        } => *id,
+        _ => return Ok(Vec::new()),
+    };
+    let mut work = state.clone();
+    for event in events {
+        evolve(&mut work, event);
+    }
+    let Some(trigger) = work.triggers.get(&trigger_id) else {
+        return Ok(Vec::new());
+    };
+    let maps = effective_maps(&work, &trigger.definition);
+    let cards: Vec<_> = work
+        .board_nodes
+        .values()
+        .filter(|n| matches!(n.content, BoardNodeContent::Trigger { id } if id == trigger_id))
+        .cloned()
+        .collect();
+    let mut out = Vec::new();
+    let fresh = |work: &GameState, rng: &mut dyn GameRng| {
+        // Bounded retries also handle deterministic test RNGs which repeat IDs across intents.
+        for _ in 0..4096 {
+            let id = message_id(rng).0;
+            if !crate::apply::id_in_use(work, id) {
+                return Ok(id);
+            }
+        }
+        Err(RejectReason::invalid("board_id"))
+    };
+    let emit = |work: &mut GameState, out: &mut Vec<Event>, event: Event| {
+        evolve(work, &event);
+        out.push(event);
+    };
+    for card in cards {
+        let removed: Vec<_> = work.board_edges.values().filter(|e| e.from == card.id || e.to == card.id).filter(|e| {
+            let other = if e.from == card.id { e.to } else { e.from };
+            work.board_nodes.get(&other).is_some_and(|n| matches!(n.content, BoardNodeContent::Link { target: BoardLink::Map { id } } if !maps.contains(&id)))
+        }).map(|e| e.id).collect();
+        for id in removed {
+            emit(&mut work, &mut out, Event::BoardEdgeDeleted { id });
+        }
+        for (index, map_id) in maps.iter().enumerate() {
+            if !work.maps.contains_key(map_id) {
+                continue;
+            }
+            let existing = work.board_nodes.values().find(|n| n.board_id == card.board_id && matches!(n.content, BoardNodeContent::Link { target: BoardLink::Map { id } } if id == *map_id)).map(|n| n.id);
+            let map_card = if let Some(id) = existing {
+                id
+            } else {
+                if work
+                    .board_nodes
+                    .values()
+                    .filter(|n| n.board_id == card.board_id)
+                    .count()
+                    >= MAX_BOARD_NODES
+                {
+                    return Err(RejectReason::invalid("board_id"));
+                }
+                let id = BoardNodeId(fresh(&work, rng)?);
+                emit(
+                    &mut work,
+                    &mut out,
+                    Event::BoardNodeCreated {
+                        node: BoardNodeDto {
+                            id,
+                            board_id: card.board_id,
+                            content: BoardNodeContent::Link {
+                                target: BoardLink::Map { id: *map_id },
+                            },
+                            x: card
+                                .x
+                                .saturating_add(card.width)
+                                .saturating_add(640)
+                                .clamp(-MAX_BOARD_COORD, MAX_BOARD_COORD),
+                            y: card
+                                .y
+                                .saturating_add((index as i64).saturating_mul(2560))
+                                .clamp(-MAX_BOARD_COORD, MAX_BOARD_COORD),
+                            width: 3200,
+                            height: 1920,
+                            visibility: BoardVisibility::Gm,
+                            version: Version::INITIAL,
+                        },
+                    },
+                );
+                id
+            };
+            if work.board_edges.values().any(|e| {
+                (e.from == card.id && e.to == map_card) || (e.to == card.id && e.from == map_card)
+            }) {
+                continue;
+            }
+            if work
+                .board_edges
+                .values()
+                .filter(|e| e.board_id == card.board_id)
+                .count()
+                >= MAX_BOARD_EDGES
+            {
+                return Err(RejectReason::invalid("board_id"));
+            }
+            let id = BoardEdgeId(fresh(&work, rng)?);
+            emit(
+                &mut work,
+                &mut out,
+                Event::BoardEdgeCreated {
+                    edge: BoardEdgeDto {
+                        id,
+                        board_id: card.board_id,
+                        from: card.id,
+                        to: map_card,
+                        label: String::new(),
+                        directed: true,
+                        visibility: BoardVisibility::Gm,
+                        version: Version::INITIAL,
+                    },
+                },
+            );
+        }
+    }
+    Ok(out)
 }

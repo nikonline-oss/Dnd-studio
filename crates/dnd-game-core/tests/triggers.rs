@@ -111,6 +111,7 @@ fn step(action: TriggerAction) -> TriggerStep {
 
 fn def(event: TriggerEvent, condition: Option<&str>, steps: Vec<TriggerStep>) -> TriggerDef {
     TriggerDef {
+        map_ids: Vec::new(),
         name: "Secret passage".into(),
         enabled: true,
         once: false,
@@ -167,6 +168,254 @@ fn fired(events: &[Event]) -> usize {
         .iter()
         .filter(|e| matches!(e, Event::TriggerFired { .. }))
         .count()
+}
+
+fn scoped(mut definition: TriggerDef, maps: &[MapId]) -> TriggerDef {
+    // JSON also exercises compatibility with definitions written before map scoping.
+    let mut json = serde_json::to_value(&definition).unwrap();
+    json["map_ids"] = serde_json::to_value(maps).unwrap();
+    definition = serde_json::from_value(json).unwrap();
+    definition
+}
+
+fn second_altar(state: &mut GameState) {
+    let mut zone = state.zones[&ZoneId(v7(ZONE))].clone();
+    zone.id = ZoneId(v7(ZONE + 1));
+    zone.map_id = pooled_map_id(1);
+    state.zones.insert(zone.id, zone);
+}
+
+#[test]
+fn map_scope_matches_zone_names_and_rearms_each_map_after_edit() {
+    let mut state = world();
+    second_altar(&mut state);
+    let mut definition = scoped(
+        def(
+            TriggerEvent::RollInZone {
+                zone: ZoneId(v7(ZONE)),
+                rolls: Vec::new(),
+            },
+            None,
+            vec![reveal_secret()],
+        ),
+        &[pooled_map_id(0), pooled_map_id(1)],
+    );
+    definition.once = true;
+    definition.tokens = vec![pooled_token_id(0)];
+    create(&mut state, 0, definition.clone());
+    assert_eq!(fired(&perception(&mut state, Role::Gm, 0)), 1);
+    assert_eq!(fired(&perception(&mut state, Role::Gm, 0)), 0);
+    state.tokens.get_mut(&pooled_token_id(0)).unwrap().map_id = pooled_map_id(1);
+    let events = perception(&mut state, Role::Gm, 0);
+    assert_eq!(fired(&events), 1, "same zone name on the second bound map");
+    let event = events
+        .iter()
+        .find(|e| matches!(e, Event::TriggerFired { .. }))
+        .unwrap();
+    assert_eq!(
+        serde_json::to_value(event).unwrap()["fired"]["map_id"],
+        serde_json::to_value(pooled_map_id(1)).unwrap()
+    );
+    assert_eq!(fired(&perception(&mut state, Role::Gm, 0)), 0);
+    let version = state.triggers[&trigger(0)].version;
+    run(
+        &mut state,
+        Role::CoGm,
+        Intent::UpdateTrigger {
+            id: trigger(0),
+            definition,
+        },
+        Some(version),
+    )
+    .unwrap();
+    assert_eq!(fired(&perception(&mut state, Role::Gm, 0)), 1);
+    state.tokens.get_mut(&pooled_token_id(0)).unwrap().map_id = pooled_map_id(0);
+    assert_eq!(fired(&perception(&mut state, Role::Gm, 0)), 1);
+}
+
+#[test]
+fn map_scope_excludes_unbound_map_and_rejects_missing_map() {
+    let mut state = world();
+    second_altar(&mut state);
+    let mut definition = scoped(
+        def(
+            TriggerEvent::RollInZone {
+                zone: ZoneId(v7(ZONE)),
+                rolls: Vec::new(),
+            },
+            None,
+            vec![reveal_secret()],
+        ),
+        &[pooled_map_id(1)],
+    );
+    definition.tokens = vec![pooled_token_id(0)];
+    create(&mut state, 0, definition);
+    assert_eq!(fired(&perception(&mut state, Role::Gm, 0)), 0);
+    state.tokens.get_mut(&pooled_token_id(0)).unwrap().map_id = pooled_map_id(1);
+    state.zones.get_mut(&ZoneId(v7(ZONE + 1))).unwrap().name = "Different".into();
+    assert_eq!(fired(&perception(&mut state, Role::Gm, 0)), 0);
+    let bad = scoped(
+        def(TriggerEvent::Manual, None, vec![reveal_secret()]),
+        &[MapId(v7(999))],
+    );
+    assert_eq!(
+        run(
+            &mut state,
+            Role::Gm,
+            Intent::CreateTrigger {
+                id: trigger(9),
+                definition: bad
+            },
+            None
+        ),
+        Err(RejectReason::invalid("map_ids"))
+    );
+}
+
+#[test]
+fn map_scope_manual_runs_each_bound_map_once_and_rejects_outside_token() {
+    let mut state = world();
+    let mut definition = scoped(
+        def(TriggerEvent::Manual, None, vec![reveal_secret()]),
+        &[pooled_map_id(0), pooled_map_id(1)],
+    );
+    definition.once = true;
+    create(&mut state, 0, definition);
+    let events = run(
+        &mut state,
+        Role::CoGm,
+        Intent::FireTrigger {
+            id: trigger(0),
+            token: None,
+        },
+        None,
+    )
+    .unwrap();
+    assert_eq!(fired(&events), 2);
+    assert_eq!(
+        serde_json::to_value(&state.triggers[&trigger(0)]).unwrap()["fired_maps"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    assert!(
+        run(
+            &mut state,
+            Role::Gm,
+            Intent::FireTrigger {
+                id: trigger(0),
+                token: None
+            },
+            None
+        )
+        .is_err()
+    );
+    let definition = scoped(
+        def(TriggerEvent::Manual, None, vec![reveal_secret()]),
+        &[pooled_map_id(1)],
+    );
+    create(&mut state, 1, definition);
+    assert_eq!(
+        run(
+            &mut state,
+            Role::Gm,
+            Intent::FireTrigger {
+                id: trigger(1),
+                token: Some(pooled_token_id(0))
+            },
+            None
+        ),
+        Err(RejectReason::invalid("token"))
+    );
+}
+
+#[test]
+fn map_scope_board_links_are_atomic_reused_and_removed_with_binding() {
+    let mut state = world();
+    create(
+        &mut state,
+        0,
+        scoped(
+            def(TriggerEvent::Manual, None, vec![reveal_secret()]),
+            &[pooled_map_id(0)],
+        ),
+    );
+    let card = BoardNodeId(v7(NODE + 10));
+    run(
+        &mut state,
+        Role::Gm,
+        Intent::CreateBoardNode {
+            id: card,
+            board_id: BoardId(v7(BOARD)),
+            content: BoardNodeContent::Trigger { id: trigger(0) },
+            x: 0,
+            y: 0,
+            width: 3200,
+            height: 1600,
+            visibility: BoardVisibility::Gm,
+        },
+        None,
+    )
+    .unwrap();
+    assert_eq!(state.board_edges.len(), 1);
+    let map_cards = |state: &GameState| {
+        state
+            .board_nodes
+            .values()
+            .filter(|n| {
+                matches!(
+                    n.content,
+                    BoardNodeContent::Link {
+                        target: BoardLink::Map { .. }
+                    }
+                )
+            })
+            .count()
+    };
+    assert_eq!(map_cards(&state), 1);
+    let mut definition = state.triggers[&trigger(0)].definition.clone();
+    definition = scoped(definition, &[pooled_map_id(0), pooled_map_id(1)]);
+    run(
+        &mut state,
+        Role::CoGm,
+        Intent::UpdateTrigger {
+            id: trigger(0),
+            definition: definition.clone(),
+        },
+        Some(Version::INITIAL),
+    )
+    .unwrap();
+    assert_eq!(state.board_edges.len(), 2);
+    assert_eq!(map_cards(&state), 2);
+    definition = scoped(definition, &[pooled_map_id(1)]);
+    let version = state.triggers[&trigger(0)].version;
+    run(
+        &mut state,
+        Role::Gm,
+        Intent::UpdateTrigger {
+            id: trigger(0),
+            definition,
+        },
+        Some(version),
+    )
+    .unwrap();
+    assert_eq!(state.board_edges.len(), 1);
+    assert_eq!(
+        map_cards(&state),
+        2,
+        "unbinding never deletes maps or their cards"
+    );
+    let version = state.triggers[&trigger(0)].version;
+    run(
+        &mut state,
+        Role::Gm,
+        Intent::DeleteTrigger { id: trigger(0) },
+        Some(version),
+    )
+    .unwrap();
+    assert!(!state.board_nodes.contains_key(&card));
+    assert!(state.board_edges.is_empty());
 }
 
 #[test]

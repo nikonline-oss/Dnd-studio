@@ -117,8 +117,12 @@ pub struct TriggerStep {
 pub struct TriggerDef {
     pub name: String,
     pub enabled: bool,
-    /// Fires at most once (until edited again).
+    /// Fires at most once per bound map (until edited again).
     pub once: bool,
+    /// Maps where this trigger runs. Empty legacy zone definitions infer the zone's map;
+    /// other empty legacy definitions retain their campaign-wide behavior.
+    #[serde(default)]
+    pub map_ids: Vec<MapId>,
     pub event: TriggerEvent,
     /// Tokens that may set it off; empty: any token of a character.
     pub tokens: Vec<TokenId>,
@@ -135,6 +139,9 @@ pub struct TriggerDto {
     pub definition: TriggerDef,
     /// A `once` trigger that already fired.
     pub fired: bool,
+    /// Bound maps already spent by a once trigger; edits clear this list.
+    #[serde(default)]
+    pub fired_maps: Vec<MapId>,
     pub version: Version,
 }
 
@@ -146,6 +153,9 @@ pub struct TriggerFiredDto {
     pub name: String,
     pub character: Option<CharacterId>,
     pub token: Option<TokenId>,
+    /// Map context; absent in legacy/global firings.
+    #[serde(default)]
+    pub map_id: Option<MapId>,
 }
 
 /// Most steps of one trigger.

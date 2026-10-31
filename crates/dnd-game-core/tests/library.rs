@@ -634,6 +634,7 @@ fn players_hear_sounds_but_never_see_library_folders() {
 fn a_trigger_plays_and_stops_sounds() {
     let mut state = library_state();
     let definition = TriggerDef {
+        map_ids: Vec::new(),
         name: "Ambush".into(),
         enabled: true,
         once: false,
