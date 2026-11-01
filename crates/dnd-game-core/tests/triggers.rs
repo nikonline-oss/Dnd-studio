@@ -844,11 +844,18 @@ fn players_never_see_triggers() {
     );
 }
 
-/// Fills `{{param}}` blanks the way the editor does: a whole-string blank takes the value, a blank
-/// inside a string is replaced in place.
+/// Fills `{{param}}` blanks the way the editor does: a whole-string blank of a number parameter
+/// becomes a number, any other blank is replaced in place as text.
 fn fill(value: &serde_json::Value, params: &[(&str, &str)]) -> serde_json::Value {
     match value {
         serde_json::Value::String(s) => {
+            for (id, v) in params {
+                if s == &format!("{{{{{id}}}}}")
+                    && let Ok(n) = v.parse::<i64>()
+                {
+                    return serde_json::Value::from(n);
+                }
+            }
             let mut out = s.clone();
             for (id, v) in params {
                 out = out.replace(&format!("{{{{{id}}}}}"), v);
@@ -880,9 +887,10 @@ fn bundled_templates_make_triggers_the_core_accepts() {
         ("damage", "1d6"),
         ("attack", "4"),
         ("target", "8"),
+        ("turns", "3"),
     ];
     let srd = srd();
-    assert_eq!(srd.trigger_templates.len(), 3);
+    assert_eq!(srd.trigger_templates.len(), 4);
     for (n, template) in srd.trigger_templates.iter().enumerate() {
         let definition: TriggerDef =
             serde_json::from_value(fill(&template.definition, &params)).unwrap();
@@ -897,6 +905,42 @@ fn bundled_templates_make_triggers_the_core_accepts() {
         );
         assert!(result.is_ok(), "{}: {result:?}", template.id);
     }
+    // The poison template end to end: the effect lands on the token with its duration.
+    let poison = srd
+        .trigger_templates
+        .iter()
+        .find(|t| t.id == "poison")
+        .unwrap();
+    let definition: TriggerDef = serde_json::from_value(fill(&poison.definition, &params)).unwrap();
+    let mut state = world();
+    run(
+        &mut state,
+        Role::Gm,
+        Intent::CreateTrigger {
+            id: trigger(30),
+            definition,
+        },
+        None,
+    )
+    .unwrap();
+    let events = run(
+        &mut state,
+        Role::Gm,
+        Intent::FireTrigger {
+            id: trigger(30),
+            token: Some(pooled_token_id(0)),
+        },
+        None,
+    )
+    .unwrap();
+    let Some(Event::TokenEffectApplied { effect }) = events
+        .iter()
+        .find(|e| matches!(e, Event::TokenEffectApplied { .. }))
+    else {
+        panic!("the poison template applies an effect: {events:?}");
+    };
+    assert_eq!(effect.condition.as_deref(), Some("poisoned"));
+    assert_eq!(effect.duration, EffectDuration::Turns { remaining: 3 });
 }
 
 fn sound_asset(n: u128) -> AssetDto {

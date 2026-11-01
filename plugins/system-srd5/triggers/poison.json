@@ -1,0 +1,42 @@
+{
+  "id": "poison",
+  "name": { "ru": "Яд", "en": "Poison" },
+  "description": {
+    "ru": "Кнопка мастера: эффект «Отравлен» на токене — урон в начале каждого его хода, на несколько его ходов.",
+    "en": "The GM's button: a poisoned effect on the token — damage at the start of each of its turns, for several of its turns."
+  },
+  "params": [
+    {
+      "id": "damage",
+      "label": { "ru": "Урон за ход (кости)", "en": "Damage per turn (dice)" },
+      "kind": "text"
+    },
+    {
+      "id": "turns",
+      "label": { "ru": "Длительность (ходы токена)", "en": "Duration (the token's turns)" },
+      "kind": "number"
+    }
+  ],
+  "definition": {
+    "name": "Poison",
+    "enabled": true,
+    "once": false,
+    "event": { "type": "manual" },
+    "tokens": [],
+    "condition": null,
+    "steps": [
+      {
+        "when": null,
+        "action": {
+          "type": "apply_effect",
+          "label": "Poison",
+          "condition": "poisoned",
+          "resource": "hp",
+          "dice": "{{damage}}",
+          "heal": false,
+          "duration": { "type": "turns", "turns": "{{turns}}" }
+        }
+      }
+    ]
+  }
+}

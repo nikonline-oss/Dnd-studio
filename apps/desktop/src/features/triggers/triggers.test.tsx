@@ -200,6 +200,23 @@ describe('Trigger templates', () => {
     ).toEqual({ zone: 'z1', condition: '@total >= 13', steps: [{ text: 'z1!' }], n: 1 });
   });
 
+  it('fill whole-string blanks of number parameters as numbers', () => {
+    const params = [{ id: 'turns', label: 'Turns', kind: 'number' }];
+    expect(
+      fillTemplate(
+        { duration: { type: 'turns', turns: '{{turns}}' }, label: '{{turns}} left' },
+        { turns: '3' },
+        params,
+      ),
+    ).toEqual({ duration: { type: 'turns', turns: 3 }, label: '3 left' });
+    // Without the kinds (legacy callers) every blank stays a string.
+    expect(fillTemplate({ turns: '{{turns}}' }, { turns: '3' })).toEqual({ turns: '3' });
+    // A non-numeric value stays a string; the core rejects it.
+    expect(fillTemplate({ turns: '{{turns}}' }, { turns: 'many' }, params)).toEqual({
+      turns: 'many',
+    });
+  });
+
   it('create a trigger from a plugin template', async () => {
     const plugin: PluginDto = {
       id: 'srd5',

@@ -411,8 +411,15 @@ PC использует основной `sheet.layout`. При отсутств
   кампании), `roll`, `resource`, `condition` (из правил системы), `number`, `text`.
 - `definition` — определение триггера (как в протоколе: `event`, `steps` с действиями `reveal`,
   `set_node_visibility`, `chat`, `roll`, `change_resource`, `add_condition`, `remove_condition`,
-  `give_item`), в строках которого `{{id}}` заменяется значением параметра. Пакет проверяет только
-  форму шаблона; заполненный триггер ядро проверяет как любой другой.
+  `give_item`, `play_sound`, `stop_sound`, `play_sting`, `spawn_tokens`, `start_combat`,
+  `apply_effect`), в строках которого `{{id}}` заменяется значением параметра. Пропуск, составляющий
+  строку целиком (`"turns": "{{turns}}"`), у параметра `kind: number` подставляется числом —
+  так задаются длительности и количества. Пакет проверяет только форму шаблона; заполненный
+  триггер ядро проверяет как любой другой.
+- `apply_effect` вешает на токен временный эффект: `label` (подпись), опционально `condition`
+  (id состояния системы) и/или периодическое изменение ресурса — `resource` + `dice` + `heal`
+  (в начале каждого хода токена), `duration`: `{ "type": "rounds" | "turns", "rounds" | "turns": N }`
+  или `{ "type": "real_time", "minutes": N }`.
 
 ## Ассеты (`assets/`)
 

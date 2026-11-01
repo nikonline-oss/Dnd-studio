@@ -24,17 +24,35 @@ const ELEMENT_KINDS: Partial<Record<TemplateParamKind, ElementKind>> = {
 };
 
 /** A template's definition with its `{{param}}` blanks filled in (in every string). */
-export function fillTemplate(definition: unknown, values: Record<string, string>): unknown {
+export function fillTemplate(
+  definition: unknown,
+  values: Record<string, string>,
+  params: { id: string; kind: string }[] = [],
+): unknown {
   if (typeof definition === 'string') {
+    // A whole-string blank of a number parameter becomes a number (durations, counts).
+    const whole = /^\{\{(\w+)\}\}$/.exec(definition);
+    if (whole) {
+      const value = values[whole[1] ?? ''];
+      if (
+        value !== undefined &&
+        params.some((p) => p.id === whole[1] && p.kind === 'number') &&
+        value.trim() !== ''
+      ) {
+        const n = Number(value);
+        if (Number.isFinite(n)) return n;
+      }
+    }
     return Object.entries(values).reduce(
       (text, [id, value]) => text.split(`{{${id}}}`).join(value),
       definition,
     );
   }
-  if (Array.isArray(definition)) return definition.map((item) => fillTemplate(item, values));
+  if (Array.isArray(definition))
+    return definition.map((item) => fillTemplate(item, values, params));
   if (typeof definition === 'object' && definition !== null) {
     return Object.fromEntries(
-      Object.entries(definition).map(([key, value]) => [key, fillTemplate(value, values)]),
+      Object.entries(definition).map(([key, value]) => [key, fillTemplate(value, values, params)]),
     );
   }
   return definition;
@@ -72,7 +90,7 @@ export function TemplateDialog({
     if (!chosen || !complete || submit.isPending) return;
     const id = uuidv7();
     // The blanks make it a TriggerDef; the core checks every field.
-    const definition = fillTemplate(chosen.definition, values) as TriggerDef;
+    const definition = fillTemplate(chosen.definition, values, chosen.params) as TriggerDef;
     try {
       await submit.mutateAsync({
         intent: {
