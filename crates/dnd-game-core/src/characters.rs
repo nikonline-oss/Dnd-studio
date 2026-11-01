@@ -155,6 +155,16 @@ fn valid_conditions(state: &GameState, ids: &[String]) -> Result<Vec<String>, Re
 
 fn delete(state: &GameState, id: dnd_protocol::CharacterId) -> Result<Vec<Event>, RejectReason> {
     let mut events = Vec::new();
+    for request in state
+        .roll_requests
+        .values()
+        .filter(|r| r.character == id && r.status == dnd_protocol::RollRequestStatus::Pending)
+    {
+        let mut request = request.clone();
+        request.status = dnd_protocol::RollRequestStatus::Cancelled;
+        request.version = bump(request.version)?;
+        events.push(Event::RollRequestUpdated { request });
+    }
     for token in state.tokens.values().filter(|t| t.character_id == Some(id)) {
         let mut token = token.clone();
         token.character_id = None;

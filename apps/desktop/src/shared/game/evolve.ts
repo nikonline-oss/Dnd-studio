@@ -81,6 +81,9 @@ export function applyEvent(snapshot: Snapshot, event: Event): Snapshot {
         ...snapshot,
         effects: (snapshot.effects ?? []).filter((e) => e.id !== event.id),
       };
+    case 'roll_requested':
+    case 'roll_request_updated':
+      return { ...snapshot, roll_requests: upsert(snapshot.roll_requests ?? [], event.request) };
     case 'combat_started':
     case 'combat_updated':
       return { ...snapshot, combats: upsert(snapshot.combats, event.combat) };

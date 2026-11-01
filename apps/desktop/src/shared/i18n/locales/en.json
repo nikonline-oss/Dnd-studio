@@ -396,7 +396,9 @@
       "resource_gained": "{{name}} gains {{amount}} ({{resource}})",
       "condition_added": "{{name}} is now {{condition}}",
       "condition_removed": "{{name}} is no longer {{condition}}",
-      "item_given": "{{name}} receives {{item}}"
+      "item_given": "{{name}} receives {{item}}",
+      "roll_requested": "{{name}} must roll ({{label}})",
+      "roll_request_cancelled": "{{name}}'s roll was cancelled ({{label}})"
     }
   },
   "initiative": {
@@ -499,6 +501,16 @@
     },
     "license": "License",
     "remote": "Connect to the server to manage plugins."
+  },
+  "rolls": {
+    "title": "Rolls to make",
+    "unknown": "Unknown character",
+    "pending": "waiting for a roll",
+    "rolled": "rolled {{total}}",
+    "cancelled": "cancelled",
+    "roll": "Roll",
+    "cancel": "Dismiss",
+    "undo": "Undo damage"
   },
   "playlists": {
     "new": "New playlist",
@@ -777,6 +789,12 @@
     },
     "targetZone": "Zone",
     "targetHint": "Zone and map targets hit every character with a token there; one roll is shared by all of them.",
+    "attack": "Attack roll first",
+    "attackDice": "Attack dice",
+    "attackHit": "Hits when",
+    "attackHint": "Rolled per target; the damage applies only when the condition holds (@total is the roll, @ fields are the target's).",
+    "manualRoll": "Players roll it themselves",
+    "manualHint": "Each target's controller gets a die by the status bar; the damage waits for their roll. GM roles can cancel a request or undo its damage.",
     "when": "If",
     "up": "Up",
     "down": "Down",
@@ -915,5 +933,14 @@
     "loop": "Repeat",
     "sound": "Sound",
     "volume": "Volume"
+  },
+  "attention": {
+    "title": "Your attention is needed",
+    "mute": "Mute notification sounds",
+    "unmute": "Enable notification sounds",
+    "dismiss": "Dismiss",
+    "allRequests": "All requests ({{count}})",
+    "yourTurn": "Your turn: {{name}} · round {{round}}",
+    "showTurn": "Show my turn"
   }
 }

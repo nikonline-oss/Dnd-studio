@@ -105,6 +105,8 @@ impl Intent {
             | Self::UpdatePlaylist { .. }
             | Self::MovePlaylist { .. }
             | Self::DeletePlaylist { .. }
+            | Self::FulfillRollRequest { .. }
+            | Self::CancelRollRequest { .. }
             | Self::UpdateMap { .. }
             | Self::DeleteMap { .. }
             | Self::UpdateToken { .. }
@@ -208,6 +210,8 @@ impl Intent {
             | Self::UpdatePlaylist { .. }
             | Self::MovePlaylist { .. }
             | Self::DeletePlaylist { .. }
+            | Self::FulfillRollRequest { .. }
+            | Self::CancelRollRequest { .. }
             | Self::UpdateMap { .. }
             | Self::DeleteMap { .. }
             | Self::ResetFog { .. }

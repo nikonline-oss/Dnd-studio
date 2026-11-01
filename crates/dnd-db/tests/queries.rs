@@ -521,7 +521,7 @@ fn query_inventory_matches_adr_0008() {
         .map(|s| s.matches("sqlx::query").count())
         .sum();
     assert_eq!(
-        count, 90,
+        count, 92,
         "runtime queries changed: add a real-SQLite test and update the table in docs/adr/0008-db-conventions.md"
     );
 }
@@ -1934,4 +1934,57 @@ async fn effects_are_projected_loaded_and_removed() {
     .await
     .unwrap();
     assert!(db.load_state().await.unwrap().0.effects.is_empty());
+}
+
+/// Roll requests (trigger manual rolls) are projected, loaded and updated in place.
+#[tokio::test]
+async fn roll_requests_are_projected_loaded_and_updated() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = new_campaign(&dir).await;
+    let request = RollRequestDto {
+        id: RollRequestId(v7(0xE20)),
+        label: "Poisoned dart".into(),
+        trigger: TriggerId(v7(0xE21)),
+        character: CharacterId(v7(0xE22)),
+        token: Some(TokenId(v7(0xE23))),
+        dice: "1d20 + 5".into(),
+        hit: Some("@total >= @ac".into()),
+        resource: "hp".into(),
+        damage_dice: "2d6".into(),
+        heal: false,
+        status: RollRequestStatus::Pending,
+        total: None,
+        delta: None,
+        version: Version(1),
+    };
+    db.project(&[record(
+        1,
+        Some(0xE2),
+        vec![Event::RollRequested {
+            request: request.clone(),
+        }],
+    )])
+    .await
+    .unwrap();
+    let rolled = RollRequestDto {
+        status: RollRequestStatus::Rolled,
+        total: Some(17),
+        delta: Some(-7),
+        version: Version(2),
+        ..request.clone()
+    };
+    db.project(&[record(
+        2,
+        Some(0xE4),
+        vec![Event::RollRequestUpdated {
+            request: rolled.clone(),
+        }],
+    )])
+    .await
+    .unwrap();
+    let (state, _) = db.load_state().await.unwrap();
+    assert_eq!(
+        state.roll_requests.values().cloned().collect::<Vec<_>>(),
+        vec![rolled]
+    );
 }

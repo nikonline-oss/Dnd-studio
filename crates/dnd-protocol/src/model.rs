@@ -519,6 +519,16 @@ pub enum SystemMessage {
         name: String,
         item: String,
     },
+    /// A trigger asks `name` for a manual roll (`label`).
+    RollRequested {
+        name: String,
+        label: String,
+    },
+    /// A GM role dismissed the roll (`label`) of `name`.
+    RollRequestCancelled {
+        name: String,
+        label: String,
+    },
 }
 
 /// A chat message.

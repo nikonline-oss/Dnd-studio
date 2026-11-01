@@ -58,6 +58,16 @@ export type AssetUsage =
  */
 "audio";
 
+/**
+ *  An attack/check roll the damage waits on (auto mode): rolled per target with the activator's
+ *  fields and the step variables; the damage applies only when `hit` — evaluated against the
+ *  target's fields with `@total` = the attack roll — holds.
+ */
+export type AttackCheck = {
+	dice: string,
+	hit: string,
+};
+
 /**  A board: one center tab of elements. */
 export type BoardDto = {
 	id: BoardId,
@@ -346,6 +356,10 @@ export type Event = { kind: "campaign_meta_updated"; campaign: CampaignMeta } | 
 { kind: "token_effect_updated"; effect: TokenEffectDto } | 
 /**  The GM removed it (`expired: false`) or its time came (`expired: true`). */
 { kind: "token_effect_removed"; id: EffectId; expired: boolean } | 
+/**  A trigger's manual roll step asked `request.character`'s controller for a roll. */
+{ kind: "roll_requested"; request: RollRequestDto } | 
+/**  Fulfilled (rolled and applied) or cancelled by a GM role. */
+{ kind: "roll_request_updated"; request: RollRequestDto } | 
 /**  Library folders (ADR-0026). GM roles only. */
 { kind: "library_folder_created"; folder: LibraryFolderDto } | { kind: "library_folder_updated"; folder: LibraryFolderDto } | { kind: "library_folder_deleted"; id: LibraryFolderId } | 
 /**  An asset was moved to another folder or renamed. */
@@ -565,6 +579,13 @@ label?: ZoneLabel | null } |
 { kind: "move_asset"; id: AssetId; folder_id: LibraryFolderId | null } | 
 /**  GM / Co-GM: the name shown in the library. */
 { kind: "rename_asset"; id: AssetId; name: string } | { kind: "create_playlist"; id: PlaylistId; name: string; folder_id: LibraryFolderId | null; asset_ids: AssetId[] } | { kind: "update_playlist"; id: PlaylistId; name: string; tracks: PlaylistTrackDto[] } | { kind: "move_playlist"; id: PlaylistId; folder_id: LibraryFolderId | null } | { kind: "delete_playlist"; id: PlaylistId } | 
+/**
+ *  The controller of the request's character (a player, or GM roles for NPCs) rolls the
+ *  dice; the core rolls and applies the hit check and the resource change.
+ */
+{ kind: "fulfill_roll_request"; id: RollRequestId } | 
+/**  GM / Co-GM: dismiss a pending request, or reverse the delta of a rolled one. */
+{ kind: "cancel_roll_request"; id: RollRequestId } | 
 /**  GM / Co-GM: plays an audio asset to everyone. */
 { kind: "play_sound"; asset_id: AssetId; volume: number; looped: boolean } | 
 /**  GM / Co-GM: replaces shared playback, last-write-wins (ADR-0028). */
@@ -842,6 +863,47 @@ export type RollDef = {
 };
 
 /**
+ *  One roll someone owes the table. Created by a `change_resource` trigger step with
+ *  `manual: true`; players see the requests of their own characters, GM roles see all of them.
+ */
+export type RollRequestDto = {
+	id: RollRequestId,
+	/**  What the roller sees ("Poisoned dart"). */
+	label: string,
+	trigger: TriggerId,
+	character: CharacterId,
+	token: TokenId | null,
+	/**  The roll the controller makes; `@` fields read the character's sheet. */
+	dice: string,
+	/**
+	 *  An attack/check: `@total` is the roll, the character's fields evaluate the condition;
+	 *  the resource changes only on a hit. `None`: a plain roll always applies.
+	 */
+	hit: string | null,
+	/**  What a hit (or a plain roll) applies to the character's `resource`. */
+	resource: string,
+	damage_dice: string,
+	heal: boolean,
+	status: RollRequestStatus,
+	total: number | null,
+	/**  The applied resource delta, reversed when a GM cancels a rolled request. */
+	delta: number | null,
+	version: Version,
+};
+
+/**  A manual roll a trigger asked a character's controller for. */
+export type RollRequestId = string;
+
+/**  Where a [`RollRequestDto`] stands. */
+export type RollRequestStatus = 
+/**  Waiting for the controller's roll. */
+"pending" | 
+/**  Rolled; `delta` holds the applied resource change, if the roll hit. */
+"rolled" | 
+/**  Dismissed by a GM role; a rolled request's delta has been reversed. */
+"cancelled";
+
+/**
  *  Position of an event in the campaign/session event log.
  * 
  *  Exported to TypeScript as `number` (ADR-0007).
@@ -906,6 +968,11 @@ export type Snapshot = {
 	playlists?: PlaylistDto[],
 	/**  Temporary effects on tokens (ADR-0024); filtered with their tokens. */
 	effects?: TokenEffectDto[],
+	/**
+	 *  Manual rolls triggers asked for; every role receives them (the widget filters by
+	 *  character ownership), GM roles see and manage all of them.
+	 */
+	roll_requests?: RollRequestDto[],
 };
 
 /**
@@ -946,7 +1013,11 @@ export type SystemMessage = { code: "character_submitted"; name: string } | { co
 /**  A trigger put a condition on (`added`) or took it off the character `name`. */
 { code: "condition_changed"; name: string; condition: string; added: boolean } | 
 /**  The character `name` received an item. */
-{ code: "item_given"; name: string; item: string };
+{ code: "item_given"; name: string; item: string } | 
+/**  A trigger asks `name` for a manual roll (`label`). */
+{ code: "roll_requested"; name: string; label: string } | 
+/**  A GM role dismissed the roll (`label`) of `name`. */
+{ code: "roll_request_cancelled"; name: string; label: string };
 
 /**  The rules of a system plugin, self-contained (no package paths). */
 export type SystemRulesDto = {
@@ -1062,11 +1133,12 @@ export type TriggerAction =
 { type: "roll"; dice: string; label: string } | 
 /**
  *  Damage (`heal: false`) or healing by a dice roll, kept within 0..=max of the resource.
- *  One roll is shared by every target.
+ *  Without `attack`, one roll is shared by every target; `attack` rolls per target and
+ *  applies only on a hit. `manual` asks the targets' controllers to roll instead.
  */
 { type: "change_resource"; resource: string; dice: string; heal: boolean; 
 /**  Who takes the change; missing in legacy data: the activator. */
-target?: ResourceTarget } | { type: "add_condition"; condition: string } | { type: "remove_condition"; condition: string } | { type: "give_item"; name: string } | 
+target?: ResourceTarget; attack?: AttackCheck | null; manual?: boolean } | { type: "add_condition"; condition: string } | { type: "remove_condition"; condition: string } | { type: "give_item"; name: string } | 
 /**  Plays an audio asset to everyone (ADR-0026). */
 { type: "play_sound"; asset: AssetId; volume: number; looped: boolean } | 
 /**  Stops a looping sound; `None`: all sounds. */

@@ -15,6 +15,7 @@ pub mod message;
 pub mod model;
 pub mod playlist;
 pub mod plugin;
+pub mod roll;
 pub mod sheet_schema;
 mod snapshot;
 pub mod theme;
@@ -38,8 +39,8 @@ pub use event::{Event, EventBatch};
 pub use ids::{
     AssetId, BoardEdgeId, BoardId, BoardNodeId, CharacterId, ChatMessageId, CombatId, CombatantId,
     EffectId, FogOpId, IntentId, JournalEntryId, JournalFolderId, LibraryFolderId, MapId,
-    MessageId, PlaylistId, Role, Seq, SessionId, TokenId, TriggerId, UserId, Version, ZoneId,
-    uuid_v7_from_random,
+    MessageId, PlaylistId, Role, RollRequestId, Seq, SessionId, TokenId, TriggerId, UserId,
+    Version, ZoneId, uuid_v7_from_random,
 };
 pub use intent::{Intent, IntentEnvelope, IntentOutcome, PayloadHash, VersionPolicy};
 pub use library::{
@@ -69,12 +70,13 @@ pub use plugin::{
     PluginDto, PluginKind, ResourceDef, RollDef, SystemRulesDto, TemplateParam, TemplateParamKind,
     TriggerTemplateDto,
 };
+pub use roll::{MAX_ROLL_REQUESTS, RollRequestDto, RollRequestStatus};
 pub use snapshot::Snapshot;
 pub use theme::{THEME_COLOR_VARIABLES, ThemeDto, validate_theme};
 pub use trigger::{
-    EffectDurationDef, MAX_SPAWN_TOKENS, MAX_TRIGGER_STEPS, MAX_TRIGGER_TEXT, MAX_TRIGGERS,
-    MAX_TRIGGERS_PER_INTENT, ResourceTarget, RevealTarget, SpawnPlacement, TriggerAction,
-    TriggerDef, TriggerDto, TriggerEvent, TriggerFiredDto, TriggerStep,
+    AttackCheck, EffectDurationDef, MAX_SPAWN_TOKENS, MAX_TRIGGER_STEPS, MAX_TRIGGER_TEXT,
+    MAX_TRIGGERS, MAX_TRIGGERS_PER_INTENT, ResourceTarget, RevealTarget, SpawnPlacement,
+    TriggerAction, TriggerDef, TriggerDto, TriggerEvent, TriggerFiredDto, TriggerStep,
 };
 /// Re-exported so dependants use the exact same UUID type.
 pub use uuid::Uuid;

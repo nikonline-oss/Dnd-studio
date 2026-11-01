@@ -160,6 +160,9 @@ pub fn evolve(state: &mut GameState, event: &Event) {
         Event::TokenEffectRemoved { id, .. } => {
             state.effects.remove(id);
         }
+        Event::RollRequested { request } | Event::RollRequestUpdated { request } => {
+            state.roll_requests.insert(request.id, request.clone());
+        }
         // A log line for the GM; its effects are events of their own.
         Event::TriggerFired { .. } => {}
         Event::ZoneDeleted { id } => {

@@ -14,6 +14,8 @@ import { CompendiumList } from '@/features/compendium/CompendiumList';
 import { CompendiumView } from '@/features/compendium/CompendiumView';
 import { LibraryPanel } from './LibraryPanel';
 import { OfflineEdits } from '@/features/connect/OfflineEdits';
+import { RollRequests } from '@/features/triggers/RollRequests';
+import { AttentionNotice } from '@/features/notifications/AttentionNotice';
 import { TemplateDialog } from '@/features/triggers/TemplateDialog';
 import { TriggerEditor } from '@/features/triggers/TriggerEditor';
 import { CharacterEditor } from '@/features/characters/CharacterEditor';
@@ -366,6 +368,8 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
           />
         )}
         <CompactAudioPlayers />
+        <RollRequests />
+        <AttentionNotice key={campaign.path} />
         <StatusBar campaign={campaign} />
       </div>
       {triggerTemplate && (

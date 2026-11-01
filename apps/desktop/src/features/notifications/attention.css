@@ -1,0 +1,46 @@
+.attention-notice {
+  position: fixed;
+  right: 18px;
+  bottom: 65px;
+  z-index: 30;
+  width: min(460px, calc(100vw - 36px));
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+  box-shadow: var(--shadow-md);
+  animation: attention-cue 1s ease-in-out 3;
+}
+.attention-notice header,
+.attention-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.attention-notice header > strong {
+  flex: 1;
+}
+.attention-row {
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+.attention-row > span {
+  flex: 1;
+  min-width: 100px;
+}
+.attention-row small {
+  display: block;
+  color: var(--color-text-muted);
+}
+@keyframes attention-cue {
+  50% {
+    box-shadow: 0 0 0 4px var(--color-accent-soft);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .attention-notice {
+    animation: none;
+  }
+}

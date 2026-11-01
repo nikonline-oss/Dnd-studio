@@ -42,6 +42,8 @@ export function newAction(type: ActionType, rules: SystemRulesDto | null): Trigg
         dice: '1d6',
         heal: false,
         target: { type: 'activator' },
+        attack: null,
+        manual: false,
       };
     case 'add_condition':
     case 'remove_condition':
@@ -352,6 +354,46 @@ export function StepEditor({
                 }}
               />
             </label>
+            <span className="trigger-field">
+              <span />
+              <label className="inline">
+                <input
+                  type="checkbox"
+                  checked={action.attack != null}
+                  onChange={(e) => {
+                    set({
+                      ...action,
+                      attack: e.target.checked ? { dice: '1d20', hit: '@total >= @ac' } : null,
+                    });
+                  }}
+                />
+                {t('triggers.attack')}
+              </label>
+            </span>
+            {action.attack != null && (
+              <AttackFields
+                action={action}
+                onChange={(next) => {
+                  set(next);
+                }}
+              />
+            )}
+            <span className="trigger-field">
+              <span />
+              <label className="inline">
+                <input
+                  type="checkbox"
+                  checked={action.manual ?? false}
+                  onChange={(e) => {
+                    set({ ...action, manual: e.target.checked });
+                  }}
+                />
+                {t('triggers.manualRoll')}
+              </label>
+            </span>
+            {(action.manual ?? false) && (
+              <p className="muted trigger-hint">{t('triggers.manualHint')}</p>
+            )}
           </>
         )}
         {(action.type === 'add_condition' || action.type === 'remove_condition') && (
@@ -740,5 +782,43 @@ export function StepEditor({
         </label>
       </div>
     </li>
+  );
+}
+
+/** The attack/check fields of a damage step (a `change_resource` action with `attack`). */
+function AttackFields({
+  action,
+  onChange,
+}: {
+  action: Extract<TriggerAction, { type: 'change_resource' }>;
+  onChange: (action: TriggerAction) => void;
+}) {
+  const { t } = useTranslation();
+  const attack = action.attack;
+  if (attack == null) return null;
+  return (
+    <>
+      <label className="trigger-field">
+        <span>{t('triggers.attackDice')}</span>
+        <input
+          className="mono"
+          value={attack.dice}
+          onChange={(e) => {
+            onChange({ ...action, attack: { ...attack, dice: e.target.value } });
+          }}
+        />
+      </label>
+      <label className="trigger-field">
+        <span>{t('triggers.attackHit')}</span>
+        <input
+          className="mono"
+          value={attack.hit}
+          onChange={(e) => {
+            onChange({ ...action, attack: { ...attack, hit: e.target.value } });
+          }}
+        />
+      </label>
+      <p className="muted trigger-hint">{t('triggers.attackHint')}</p>
+    </>
   );
 }

@@ -7,12 +7,13 @@ use std::collections::BTreeMap;
 
 use dnd_expr::{Context, Expr, LookupError, Value as ExprValue};
 use dnd_protocol::{
-    BoardVisibility, CharacterDto, CharacterId, ChatKind, ChatMessageDto, ChatVisibility,
-    CombatDto, CombatId, CombatantDto, CombatantId, Event, Intent, JournalVisibility,
-    MAX_COMBATANTS, MAX_SPAWN_TOKENS, MAX_TRIGGER_STEPS, MAX_TRIGGER_TEXT, MAX_TRIGGERS,
-    MAX_TRIGGERS_PER_INTENT, MapId, RejectReason, ResourceTarget, RevealTarget, SpawnPlacement,
-    SystemMessage, TokenDto, TokenId, TokenLayer, TriggerAction, TriggerDef, TriggerDto,
-    TriggerEvent, TriggerFiredDto, TriggerId, Version, ZoneShape, uuid_v7_from_random,
+    AttackCheck, BoardVisibility, CharacterDto, CharacterId, ChatKind, ChatMessageDto,
+    ChatVisibility, CombatDto, CombatId, CombatantDto, CombatantId, Event, Intent,
+    JournalVisibility, MAX_COMBATANTS, MAX_SPAWN_TOKENS, MAX_TRIGGER_STEPS, MAX_TRIGGER_TEXT,
+    MAX_TRIGGERS, MAX_TRIGGERS_PER_INTENT, MapId, RejectReason, ResourceTarget, RevealTarget,
+    RollRequestDto, RollRequestId, RollRequestStatus, SpawnPlacement, SystemMessage, TokenDto,
+    TokenId, TokenLayer, TriggerAction, TriggerDef, TriggerDto, TriggerEvent, TriggerFiredDto,
+    TriggerId, Version, ZoneShape, uuid_v7_from_random,
 };
 use serde_json::Value;
 
@@ -520,12 +521,17 @@ fn perform(
             dice,
             heal,
             target,
+            attack,
+            manual,
         } => change_resource_for_targets(
             work,
+            trigger,
             *target,
             resource,
             dice,
             *heal,
+            attack.as_ref(),
+            *manual,
             firing,
             character.as_ref(),
             vars,
@@ -903,26 +909,93 @@ pub(crate) fn change_resource(
     apply_resource_change(work, character, resource, amount, heal, rng)
 }
 
-/// Damage/healing of the step's targets by one shared dice roll (the activator's fields and the
-/// step variables scope the dice). Zone targets match the zone name on the firing map; without a
-/// map context zone/map targets change nothing. A character takes the change once, however many
-/// of its tokens qualify.
+/// Damage/healing of the step's targets. Zone targets match the zone name on the firing map;
+/// without a map context zone/map targets change nothing. A character takes the change once,
+/// however many of its tokens qualify.
+/// Auto: one shared roll, or — with `attack` — a roll per target applying only on a hit.
+/// Manual: a `RollRequested` event per target instead of any rolls; controllers fulfill them.
 #[allow(clippy::too_many_arguments)]
 fn change_resource_for_targets(
     work: &GameState,
+    trigger: &TriggerDto,
     target: ResourceTarget,
     resource: &str,
     dice: &str,
     heal: bool,
+    attack: Option<&AttackCheck>,
+    manual: bool,
     firing: &Firing,
     activator: Option<&CharacterDto>,
     vars: &BTreeMap<String, i64>,
     rng: &mut dyn GameRng,
 ) -> Vec<Event> {
+    let pairs = target_pairs(work, target, firing, activator);
+    if manual {
+        return request_rolls(work, trigger, pairs, resource, dice, heal, attack, rng);
+    }
+    if pairs.is_empty() {
+        return Vec::new();
+    }
+    if let Some(attack) = attack {
+        // Per target: the attack roll uses the activator's fields and the step variables; the
+        // `hit` condition reads the target's fields with `@total` = the attack roll. Damage on
+        // a hit only; the roll is posted either way.
+        let mut events = Vec::new();
+        for (character, _) in &pairs {
+            let Some(roll) = roll_dice(work, &attack.dice, activator, vars, rng) else {
+                continue;
+            };
+            events.push(posted(ChatMessageDto {
+                id: message_id(rng),
+                kind: ChatKind::Roll,
+                sender: None,
+                sender_name: format!("{} → {}", trigger.definition.name, character.name),
+                body: attack.dice.trim().to_owned(),
+                roll: Some(roll_dto(&roll)),
+                system: None,
+                visibility: ChatVisibility::All,
+                at_ms: None,
+            }));
+            let mut hit_vars = vars.clone();
+            hit_vars.insert("total".to_owned(), roll.total);
+            if !expr_holds(work, character, &hit_vars, &attack.hit) {
+                continue;
+            }
+            let Some(amount) = roll_dice(work, dice, activator, vars, rng).map(|r| r.total.max(0))
+            else {
+                continue;
+            };
+            events.extend(apply_resource_change(
+                work, character, resource, amount, heal, rng,
+            ));
+        }
+        return events;
+    }
+    let Some(amount) = roll_dice(work, dice, activator, vars, rng).map(|roll| roll.total.max(0))
+    else {
+        return Vec::new();
+    };
+    let mut events = Vec::new();
+    for (character, _) in &pairs {
+        events.extend(apply_resource_change(
+            work, character, resource, amount, heal, rng,
+        ));
+    }
+    events
+}
+
+/// Distinct target characters with one qualifying token each.
+fn target_pairs(
+    work: &GameState,
+    target: ResourceTarget,
+    firing: &Firing,
+    activator: Option<&CharacterDto>,
+) -> Vec<(CharacterDto, Option<TokenId>)> {
     if matches!(target, ResourceTarget::Activator) {
         return activator
-            .map(|character| change_resource(work, character, resource, dice, heal, vars, rng))
-            .unwrap_or_default();
+            .map(|character| (character.clone(), firing.token))
+            .into_iter()
+            .collect();
     }
     let Some(map_id) = firing.map_id else {
         return Vec::new();
@@ -941,11 +1014,7 @@ fn change_resource_for_targets(
         ResourceTarget::Map => true,
         ResourceTarget::Activator => unreachable!("handled above"),
     };
-    let Some(amount) = roll_dice(work, dice, activator, vars, rng).map(|roll| roll.total.max(0))
-    else {
-        return Vec::new();
-    };
-    let mut events = Vec::new();
+    let mut pairs = Vec::new();
     let mut seen = std::collections::BTreeSet::new();
     for token in work.tokens.values().filter(|token| token.map_id == map_id) {
         if !inside(token) {
@@ -960,11 +1029,92 @@ fn change_resource_for_targets(
         let Some(character) = work.characters.get(&character_id) else {
             continue;
         };
-        events.extend(apply_resource_change(
-            work, character, resource, amount, heal, rng,
-        ));
+        pairs.push((character.clone(), Some(token.id)));
+    }
+    pairs
+}
+
+/// Manual mode: a pending request per target character, rolled by whoever controls them.
+#[allow(clippy::too_many_arguments)]
+fn request_rolls(
+    work: &GameState,
+    trigger: &TriggerDto,
+    pairs: Vec<(CharacterDto, Option<TokenId>)>,
+    resource: &str,
+    dice: &str,
+    heal: bool,
+    attack: Option<&AttackCheck>,
+    rng: &mut dyn GameRng,
+) -> Vec<Event> {
+    let mut events = Vec::new();
+    for (character, token) in pairs {
+        let pending = events
+            .iter()
+            .filter(|e| matches!(e, Event::RollRequested { .. }))
+            .count();
+        if work.roll_requests.len() + pending >= dnd_protocol::MAX_ROLL_REQUESTS {
+            break;
+        }
+        // One pending request per trigger and character: a re-fire stacks no debt.
+        let duplicate = work.roll_requests.values().any(|r| {
+            r.trigger == trigger.id
+                && r.character == character.id
+                && matches!(r.status, RollRequestStatus::Pending)
+        });
+        if duplicate {
+            continue;
+        }
+        let request = RollRequestDto {
+            id: RollRequestId(fresh_id(rng)),
+            label: trigger.definition.name.clone(),
+            trigger: trigger.id,
+            character: character.id,
+            token,
+            dice: attack
+                .map(|a| a.dice.clone())
+                .unwrap_or_else(|| dice.to_owned()),
+            hit: attack.map(|a| a.hit.clone()),
+            resource: resource.to_owned(),
+            damage_dice: dice.to_owned(),
+            heal,
+            status: RollRequestStatus::Pending,
+            total: None,
+            delta: None,
+            version: Version::INITIAL,
+        };
+        let mut notification = system(
+            SystemMessage::RollRequested {
+                name: character.name.clone(),
+                label: trigger.definition.name.clone(),
+            },
+            rng,
+        );
+        if let Event::ChatMessagePosted { message } = &mut notification {
+            message.visibility = ChatVisibility::Gm;
+        }
+        events.push(notification);
+        events.push(Event::RollRequested { request });
     }
     events
+}
+
+/// A condition against an explicit character and variables (per-target `hit` checks).
+pub(crate) fn expr_holds(
+    state: &GameState,
+    character: &CharacterDto,
+    vars: &BTreeMap<String, i64>,
+    expression: &str,
+) -> bool {
+    if expression.trim().is_empty() {
+        return true;
+    }
+    let scope = Scope::new(state, Some(character), vars);
+    match Expr::parse(expression).and_then(|e| e.eval(&scope)) {
+        Ok(value) => value
+            .as_bool()
+            .unwrap_or_else(|| value.as_integer().is_ok_and(|n| n != 0)),
+        Err(_) => false,
+    }
 }
 
 /// One resource change of a known amount applied to one character, announced in chat.
@@ -976,7 +1126,19 @@ fn apply_resource_change(
     heal: bool,
     rng: &mut dyn GameRng,
 ) -> Vec<Event> {
-    (|| {
+    apply_resource_change_delta(work, character, resource, amount, heal, rng).0
+}
+
+/// Like [`apply_resource_change`], also returning the applied delta (for roll requests).
+pub(crate) fn apply_resource_change_delta(
+    work: &GameState,
+    character: &CharacterDto,
+    resource: &str,
+    amount: i64,
+    heal: bool,
+    rng: &mut dyn GameRng,
+) -> (Vec<Event>, Option<i64>) {
+    let applied = (|| {
         let path = resource_path(work, resource)?;
         let (_, current, max) = sheet_values(work, &character.sheet_json)?
             .resources
@@ -989,24 +1151,30 @@ fn apply_resource_change(
         };
         let sheet = set_integer(&character.sheet_json, &path, next)?;
         let updated = updated_character(work, character, |c| c.sheet_json = sheet)?;
-        Some(vec![
-            updated,
-            system(
-                SystemMessage::ResourceChanged {
-                    name: character.name.clone(),
-                    resource: resource.to_owned(),
-                    delta: next - current,
-                },
-                rng,
-            ),
-        ])
-    })()
-    .unwrap_or_default()
+        Some((
+            vec![
+                updated,
+                system(
+                    SystemMessage::ResourceChanged {
+                        name: character.name.clone(),
+                        resource: resource.to_owned(),
+                        delta: next - current,
+                    },
+                    rng,
+                ),
+            ],
+            next - current,
+        ))
+    })();
+    match applied {
+        Some((events, delta)) => (events, Some(delta)),
+        None => (Vec::new(), None),
+    }
 }
 
 /// The sheet path a resource's value reads (`@hp.current` → `hp.current`), if it is a plain
 /// field; computed resources cannot be changed.
-fn resource_path(state: &GameState, resource: &str) -> Option<String> {
+pub(crate) fn resource_path(state: &GameState, resource: &str) -> Option<String> {
     let def = state.rules()?.resources.iter().find(|r| r.id == resource)?;
     let path = def.value.trim().strip_prefix('@')?;
     let plain = !path.is_empty()
@@ -1096,7 +1264,7 @@ fn condition_holds(
     }
 }
 
-fn roll_dice(
+pub(crate) fn roll_dice(
     state: &GameState,
     dice: &str,
     character: Option<&CharacterDto>,
@@ -1263,6 +1431,7 @@ fn valid_action(state: &GameState, action: &mut TriggerAction) -> Result<(), Rej
             resource,
             dice,
             target,
+            attack,
             ..
         } => {
             dice_ok(dice)
@@ -1271,6 +1440,11 @@ fn valid_action(state: &GameState, action: &mut TriggerAction) -> Result<(), Rej
                     ResourceTarget::Activator | ResourceTarget::Map => true,
                     ResourceTarget::Zone { id } => state.zones.contains_key(id),
                 }
+                && attack.as_ref().is_none_or(|check| {
+                    dice_ok(&check.dice)
+                        && !check.hit.trim().is_empty()
+                        && Expr::parse(&check.hit).is_ok()
+                })
         }
         TriggerAction::AddCondition { condition }
         | TriggerAction::RemoveCondition { condition } => {

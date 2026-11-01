@@ -706,6 +706,14 @@ impl CampaignDb {
                 serde_json::from_str(&row.try_get::<String, _>("dto")?)?;
             state.effects.insert(effect.id, effect);
         }
+        for row in sqlx::query("SELECT dto FROM roll_requests ORDER BY id")
+            .fetch_all(&self.pool)
+            .await?
+        {
+            let request: dnd_protocol::RollRequestDto =
+                serde_json::from_str(&row.try_get::<String, _>("dto")?)?;
+            state.roll_requests.insert(request.id, request);
+        }
         for row in sqlx::query("SELECT dto FROM installed_plugins ORDER BY id")
             .fetch_all(&self.pool)
             .await?
@@ -1119,6 +1127,18 @@ async fn project_event(conn: &mut SqliteConnection, event: &Event, at_ms: i64) -
                 .bind(id.to_string())
                 .execute(conn)
                 .await?;
+            Ok(())
+        }
+        Event::RollRequested { request } | Event::RollRequestUpdated { request } => {
+            sqlx::query(
+                "INSERT INTO roll_requests (id, dto, version) VALUES (?, ?, ?) \
+                 ON CONFLICT (id) DO UPDATE SET dto = excluded.dto, version = excluded.version",
+            )
+            .bind(request.id.to_string())
+            .bind(serde_json::to_string(request)?)
+            .bind(request.version.0)
+            .execute(conn)
+            .await?;
             Ok(())
         }
         Event::LibraryFolderCreated { folder } | Event::LibraryFolderUpdated { folder } => {

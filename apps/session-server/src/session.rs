@@ -31,6 +31,7 @@ pub const SERVER_RESTART: &str = "server_restart";
 pub struct Broadcast {
     pub full: EventBatch,
     pub players: ForPlayers,
+    pub request_owners: std::collections::BTreeMap<dnd_protocol::RollRequestId, Option<UserId>>,
 }
 
 enum Command {
@@ -41,6 +42,7 @@ enum Command {
     },
     Snapshot {
         role: Role,
+        user: Option<UserId>,
         reply: oneshot::Sender<Snapshot>,
     },
     JournalEntry {
@@ -185,7 +187,25 @@ impl SessionHandle {
 
     /// What `role` sees now.
     pub async fn snapshot(&self, role: Role) -> Result<Snapshot, SessionGone> {
-        self.ask(|reply| Command::Snapshot { role, reply }).await
+        self.ask(|reply| Command::Snapshot {
+            role,
+            user: None,
+            reply,
+        })
+        .await
+    }
+
+    pub async fn snapshot_for_user(
+        &self,
+        role: Role,
+        user: UserId,
+    ) -> Result<Snapshot, SessionGone> {
+        self.ask(|reply| Command::Snapshot {
+            role,
+            user: Some(user),
+            reply,
+        })
+        .await
     }
 
     /// The entry's text if `role` may read it.
@@ -346,10 +366,27 @@ async fn run(
                             }
                             None => ForPlayers::Resnapshot,
                         };
+                        let request_owners = batch
+                            .events
+                            .iter()
+                            .filter_map(|event| match event {
+                                dnd_protocol::Event::RollRequested { request }
+                                | dnd_protocol::Event::RollRequestUpdated { request } => Some((
+                                    request.id,
+                                    engine
+                                        .state()
+                                        .characters
+                                        .get(&request.character)
+                                        .and_then(|c| c.owner),
+                                )),
+                                _ => None,
+                            })
+                            .collect();
                         // No receivers is fine: nobody is connected.
                         let _ = events.send(Arc::new(Broadcast {
                             full: batch,
                             players,
+                            request_owners,
                         }));
                         Ok(outcome)
                     }
@@ -358,13 +395,24 @@ async fn run(
                 };
                 let _ = reply.send(outcome);
             }
-            Command::Snapshot { role, reply } => {
-                let _ = reply.send(snapshot_for(
-                    role,
-                    engine.state(),
-                    engine.last_seq(),
-                    engine.recent_chat(),
-                ));
+            Command::Snapshot { role, user, reply } => {
+                let snapshot = if let Some(user) = user {
+                    dnd_game_core::snapshot_for_user(
+                        role,
+                        user,
+                        engine.state(),
+                        engine.last_seq(),
+                        engine.recent_chat(),
+                    )
+                } else {
+                    snapshot_for(
+                        role,
+                        engine.state(),
+                        engine.last_seq(),
+                        engine.recent_chat(),
+                    )
+                };
+                let _ = reply.send(snapshot);
             }
             Command::JournalEntry { id, role, reply } => {
                 let entry = engine.journal_entry(&id).filter(|e| {
@@ -397,6 +445,7 @@ async fn run(
                             let _ = events.send(Arc::new(Broadcast {
                                 full: batch,
                                 players,
+                                request_owners: Default::default(),
                             }));
                             Ok(Ok(()))
                         }

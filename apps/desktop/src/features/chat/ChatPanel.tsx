@@ -183,6 +183,10 @@ function systemText(
     }
     case 'item_given':
       return t('chat.system.item_given', { name: message.name, item: message.item });
+    case 'roll_requested':
+      return t('chat.system.roll_requested', { name: message.name, label: message.label });
+    case 'roll_request_cancelled':
+      return t('chat.system.roll_request_cancelled', { name: message.name, label: message.label });
   }
 }
 

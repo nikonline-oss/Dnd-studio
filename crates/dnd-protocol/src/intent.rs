@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 use crate::board::{BoardNodeContent, BoardVisibility};
 use crate::ids::{
     AssetId, BoardEdgeId, BoardId, BoardNodeId, CharacterId, ChatMessageId, CombatId, CombatantId,
-    IntentId, JournalEntryId, JournalFolderId, LibraryFolderId, MapId, TokenId, TriggerId, UserId,
-    Version, ZoneId,
+    IntentId, JournalEntryId, JournalFolderId, LibraryFolderId, MapId, RollRequestId, TokenId,
+    TriggerId, UserId, Version, ZoneId,
 };
 use crate::library::Library;
 use crate::model::{
@@ -476,6 +476,15 @@ pub enum Intent {
     DeletePlaylist {
         id: crate::PlaylistId,
     },
+    /// The controller of the request's character (a player, or GM roles for NPCs) rolls the
+    /// dice; the core rolls and applies the hit check and the resource change.
+    FulfillRollRequest {
+        id: RollRequestId,
+    },
+    /// GM / Co-GM: dismiss a pending request, or reverse the delta of a rolled one.
+    CancelRollRequest {
+        id: RollRequestId,
+    },
     /// GM / Co-GM: plays an audio asset to everyone.
     PlaySound {
         asset_id: AssetId,
@@ -584,6 +593,8 @@ impl Intent {
             Self::UpdatePlaylist { .. } => "update_playlist",
             Self::MovePlaylist { .. } => "move_playlist",
             Self::DeletePlaylist { .. } => "delete_playlist",
+            Self::FulfillRollRequest { .. } => "fulfill_roll_request",
+            Self::CancelRollRequest { .. } => "cancel_roll_request",
             Self::SetSoundPlayback { .. } => "set_sound_playback",
             Self::StopSound { .. } => "stop_sound",
         }
@@ -625,6 +636,8 @@ impl Intent {
             Self::UpdatePlaylist { .. }
             | Self::MovePlaylist { .. }
             | Self::DeletePlaylist { .. }
+            | Self::FulfillRollRequest { .. }
+            | Self::CancelRollRequest { .. }
             | Self::UpdateCampaignMeta { .. }
             | Self::UpdateMap { .. }
             | Self::DeleteMap { .. }

@@ -99,6 +99,10 @@ define_id!(
     EffectId
 );
 define_id!(
+    /// A manual roll a trigger asked a character's controller for.
+    RollRequestId
+);
+define_id!(
     /// A folder of the image or audio library (ADR-0026).
     LibraryFolderId
 );

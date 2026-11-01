@@ -59,4 +59,8 @@ pub struct Snapshot {
     /// Temporary effects on tokens (ADR-0024); filtered with their tokens.
     #[serde(default)]
     pub effects: Vec<crate::TokenEffectDto>,
+    /// Manual rolls triggers asked for; every role receives them (the widget filters by
+    /// character ownership), GM roles see and manage all of them.
+    #[serde(default)]
+    pub roll_requests: Vec<crate::RollRequestDto>,
 }

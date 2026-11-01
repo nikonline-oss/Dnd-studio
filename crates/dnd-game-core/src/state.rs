@@ -49,6 +49,8 @@ pub struct GameState {
     pub playlists: BTreeMap<dnd_protocol::PlaylistId, dnd_protocol::PlaylistDto>,
     /// Temporary effects on tokens (ADR-0024).
     pub effects: BTreeMap<dnd_protocol::EffectId, dnd_protocol::TokenEffectDto>,
+    /// Manual rolls triggers asked for; fulfilled or cancelled by intents.
+    pub roll_requests: BTreeMap<dnd_protocol::RollRequestId, dnd_protocol::RollRequestDto>,
 }
 
 impl GameState {
@@ -82,6 +84,7 @@ impl GameState {
             sounds: BTreeMap::new(),
             playlists: BTreeMap::new(),
             effects: BTreeMap::new(),
+            roll_requests: BTreeMap::new(),
         }
     }
 
@@ -167,6 +170,11 @@ impl GameState {
                 .map(|s| (s.asset_id, s))
                 .collect(),
             effects: snapshot.effects.into_iter().map(|e| (e.id, e)).collect(),
+            roll_requests: snapshot
+                .roll_requests
+                .into_iter()
+                .map(|r| (r.id, r))
+                .collect(),
         }
     }
 
@@ -199,6 +207,7 @@ impl GameState {
             sounds: self.sounds.values().cloned().collect(),
             playlists: self.playlists.values().cloned().collect(),
             effects: self.effects.values().cloned().collect(),
+            roll_requests: self.roll_requests.values().cloned().collect(),
         }
     }
 

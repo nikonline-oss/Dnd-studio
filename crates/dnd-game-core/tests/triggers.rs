@@ -528,6 +528,8 @@ fn definitions_are_checked() {
             dice: "1d6".into(),
             heal: false,
             target: ResourceTarget::Activator,
+            attack: None,
+            manual: false,
         },
     ];
     for action in bad_steps {
@@ -657,6 +659,8 @@ fn steps_roll_damage_and_put_conditions_when_their_condition_holds() {
                             dice: "3".into(),
                             heal: false,
                             target: ResourceTarget::Activator,
+                            attack: None,
+                            manual: false,
                         },
                     },
                     TriggerStep {
@@ -706,18 +710,24 @@ fn damage_and_healing_stay_within_the_resource() {
                     dice: "50".into(),
                     heal: false,
                     target: ResourceTarget::Activator,
+                    attack: None,
+                    manual: false,
                 }),
                 step(TriggerAction::ChangeResource {
                     resource: "hp".into(),
                     dice: "4".into(),
                     heal: true,
                     target: ResourceTarget::Activator,
+                    attack: None,
+                    manual: false,
                 }),
                 step(TriggerAction::ChangeResource {
                     resource: "hp".into(),
                     dice: "100".into(),
                     heal: true,
                     target: ResourceTarget::Activator,
+                    attack: None,
+                    manual: false,
                 }),
             ],
         ),
@@ -781,6 +791,8 @@ fn change_resource_zone_target_hits_each_character_in_the_zone_once() {
             target: ResourceTarget::Zone {
                 id: ZoneId(v7(ZONE)),
             },
+            attack: None,
+            manual: false,
         })]),
     );
     // Token 0 (inside the zone) fires; the zone also holds token 2 of the same character and
@@ -813,6 +825,8 @@ fn change_resource_map_target_shares_one_roll_with_every_character_on_the_map() 
             dice: "1d6".into(),
             heal: false,
             target: ResourceTarget::Map,
+            attack: None,
+            manual: false,
         })]),
     );
     // Map 0 holds tokens of characters 0 (twice) and 1 and a token without a character; the
@@ -856,6 +870,8 @@ fn change_resource_rejects_an_unknown_zone_target() {
                     target: ResourceTarget::Zone {
                         id: ZoneId(v7(0xDEAD_BEEF)),
                     },
+                    attack: None,
+                    manual: false,
                 })],
             ),
         },
@@ -1393,4 +1409,399 @@ fn play_sting_requires_an_audio_asset_and_valid_volume() {
         None,
     );
     assert!(result.is_err(), "volume above the max must be rejected");
+}
+
+fn requests_for(state: &GameState, character: u128) -> Vec<dnd_protocol::RollRequestDto> {
+    state
+        .roll_requests
+        .values()
+        .filter(|r| r.character == pooled_character_id(character))
+        .cloned()
+        .collect()
+}
+
+#[test]
+fn manual_change_resource_asks_each_target_controller() {
+    let mut state = world();
+    create(
+        &mut state,
+        0,
+        manual_scoped(vec![step(TriggerAction::ChangeResource {
+            resource: "hp".into(),
+            dice: "1d6".into(),
+            heal: false,
+            target: ResourceTarget::Map,
+            attack: None,
+            manual: true,
+        })]),
+    );
+    let events = run(
+        &mut state,
+        Role::Gm,
+        Intent::FireTrigger {
+            id: trigger(0),
+            token: Some(pooled_token_id(0)),
+        },
+        None,
+    )
+    .unwrap();
+    let requested = events
+        .iter()
+        .filter(|e| matches!(e, Event::RollRequested { .. }))
+        .count();
+    assert_eq!(requested, 2, "one request per character on the map");
+    assert_eq!(state.roll_requests.len(), 2);
+    let user = state.characters[&pooled_character_id(0)].owner.unwrap();
+    let own = dnd_game_core::snapshot_for_user(Role::Player, user, &state, Seq(1), []);
+    assert!(
+        own.roll_requests
+            .iter()
+            .all(|r| state.characters[&r.character].owner == Some(user))
+    );
+    assert!(!own.roll_requests.is_empty());
+    assert!(
+        dnd_game_core::snapshot_for_user(Role::Player, UserId(v7(0xffff)), &state, Seq(1), [])
+            .roll_requests
+            .is_empty()
+    );
+    assert!(
+        dnd_game_core::snapshot_for_user(Role::Spectator, user, &state, Seq(1), [])
+            .roll_requests
+            .is_empty()
+    );
+    assert!(
+        dnd_game_core::players_state(&state)
+            .roll_requests
+            .is_empty()
+    );
+    let filtered = dnd_game_core::filter_for_players(
+        &state,
+        &state,
+        &EventBatch {
+            seq: Seq(1),
+            caused_by: None,
+            events: events.clone(),
+        },
+    );
+    let dnd_game_core::ForPlayers::Batch(filtered) = filtered else {
+        panic!("requests must keep their event sequence")
+    };
+    for (original, public) in events.iter().zip(&filtered.events) {
+        if matches!(original, Event::RollRequested { .. }) {
+            assert!(matches!(public, Event::Redacted));
+        }
+        if matches!(original, Event::ChatMessagePosted { message } if matches!(message.system,Some(SystemMessage::RollRequested {..})))
+        {
+            assert!(matches!(public, Event::Redacted));
+        }
+    }
+    assert_eq!(
+        dnd_game_core::snapshot_for_user(Role::Gm, user, &state, Seq(1), [])
+            .roll_requests
+            .len(),
+        2
+    );
+    let mut reassigned = state.clone();
+    reassigned
+        .characters
+        .get_mut(&pooled_character_id(0))
+        .unwrap()
+        .owner = Some(UserId(v7(0xffff)));
+    let character = reassigned.characters[&pooled_character_id(0)].clone();
+    assert!(matches!(
+        dnd_game_core::filter_for_players(
+            &state,
+            &reassigned,
+            &EventBatch {
+                seq: Seq(10),
+                caused_by: None,
+                events: vec![Event::CharacterUpdated { character }]
+            }
+        ),
+        dnd_game_core::ForPlayers::Resnapshot
+    ));
+    assert!(
+        requests_for(&state, 0)
+            .iter()
+            .all(|r| r.status == RollRequestStatus::Pending && r.total.is_none())
+    );
+    // Nothing is applied until the controllers roll.
+    assert_eq!(hp_of(&state, 0), 10);
+    assert_eq!(hp_of(&state, 1), 10);
+    // A re-fire while requests are pending stacks no debt.
+    fire(&mut state, 0);
+    assert_eq!(state.roll_requests.len(), 2);
+}
+
+#[test]
+fn controllers_roll_their_own_requests_and_apply_the_damage() {
+    let mut state = world();
+    create(
+        &mut state,
+        0,
+        manual_scoped(vec![step(TriggerAction::ChangeResource {
+            resource: "hp".into(),
+            dice: "3".into(),
+            heal: false,
+            target: ResourceTarget::Map,
+            attack: None,
+            manual: true,
+        })]),
+    );
+    fire(&mut state, 0);
+    // A stranger cannot roll someone else's request.
+    let foreign = requests_for(&state, 1)[0].clone();
+    assert_eq!(
+        run(
+            &mut state,
+            Role::Player,
+            Intent::FulfillRollRequest { id: foreign.id },
+            Some(foreign.version),
+        ),
+        Err(RejectReason::Forbidden)
+    );
+    // The owner rolls: the core rolls the request's dice and applies the change.
+    let own = requests_for(&state, 0)[0].clone();
+    run(
+        &mut state,
+        Role::Player,
+        Intent::FulfillRollRequest { id: own.id },
+        Some(own.version),
+    )
+    .unwrap();
+    let rolled = requests_for(&state, 0)[0].clone();
+    assert_eq!(rolled.status, RollRequestStatus::Rolled);
+    assert_eq!(rolled.total, Some(3));
+    assert_eq!(rolled.delta, Some(-3));
+    assert_eq!(hp_of(&state, 0), 7);
+    // A fulfilled request cannot be rolled again.
+    assert_eq!(
+        run(
+            &mut state,
+            Role::Player,
+            Intent::FulfillRollRequest { id: own.id },
+            Some(rolled.version),
+        ),
+        Err(RejectReason::invalid("id"))
+    );
+}
+
+#[test]
+fn attack_check_applies_damage_only_on_a_hit() {
+    let attack = |bonus: i64| TriggerAction::ChangeResource {
+        resource: "hp".into(),
+        dice: "2".into(),
+        heal: false,
+        target: ResourceTarget::Map,
+        attack: Some(AttackCheck {
+            dice: if bonus >= 0 {
+                format!("1d20 + {bonus}")
+            } else {
+                format!("1d20 - {}", -bonus)
+            },
+            hit: "@total >= @ac".into(),
+        }),
+        manual: false,
+    };
+    // AC is 10; +100 hits, -100 misses. Damage is 2 per hit.
+    let mut hits = world();
+    create(&mut hits, 0, manual_scoped(vec![step(attack(100))]));
+    let events = run(
+        &mut hits,
+        Role::Gm,
+        Intent::FireTrigger {
+            id: trigger(0),
+            token: Some(pooled_token_id(0)),
+        },
+        None,
+    )
+    .unwrap();
+    let rolls = events
+        .iter()
+        .filter(|e| matches!(e, Event::ChatMessagePosted { message } if message.roll.is_some()))
+        .count();
+    assert_eq!(rolls, 2, "every attack roll is posted");
+    assert_eq!(hp_of(&hits, 0), 8);
+    assert_eq!(hp_of(&hits, 1), 8);
+
+    let mut misses = world();
+    create(&mut misses, 0, manual_scoped(vec![step(attack(-100))]));
+    run(
+        &mut misses,
+        Role::Gm,
+        Intent::FireTrigger {
+            id: trigger(0),
+            token: Some(pooled_token_id(0)),
+        },
+        None,
+    )
+    .unwrap();
+    assert_eq!(hp_of(&misses, 0), 10);
+    assert_eq!(hp_of(&misses, 1), 10);
+}
+
+#[test]
+fn manual_attack_fulfills_hit_checks_and_damage() {
+    let mut state = world();
+    create(
+        &mut state,
+        0,
+        manual_scoped(vec![step(TriggerAction::ChangeResource {
+            resource: "hp".into(),
+            dice: "4".into(),
+            heal: false,
+            target: ResourceTarget::Map,
+            attack: Some(AttackCheck {
+                dice: "1d20 + 100".into(),
+                hit: "@total >= @ac".into(),
+            }),
+            manual: true,
+        })]),
+    );
+    fire(&mut state, 0);
+    let own = requests_for(&state, 0)[0].clone();
+    run(
+        &mut state,
+        Role::Player,
+        Intent::FulfillRollRequest { id: own.id },
+        Some(own.version),
+    )
+    .unwrap();
+    let rolled = requests_for(&state, 0)[0].clone();
+    assert_eq!(rolled.status, RollRequestStatus::Rolled);
+    assert_eq!(rolled.delta, Some(-4), "hit: the damage dice applied");
+    assert_eq!(hp_of(&state, 0), 6);
+}
+
+#[test]
+fn gm_cancel_reverses_an_applied_request() {
+    let mut state = world();
+    create(
+        &mut state,
+        0,
+        manual_scoped(vec![step(TriggerAction::ChangeResource {
+            resource: "hp".into(),
+            dice: "5".into(),
+            heal: false,
+            target: ResourceTarget::Map,
+            attack: None,
+            manual: true,
+        })]),
+    );
+    fire(&mut state, 0);
+    let own = requests_for(&state, 0)[0].clone();
+    run(
+        &mut state,
+        Role::Player,
+        Intent::FulfillRollRequest { id: own.id },
+        Some(own.version),
+    )
+    .unwrap();
+    assert_eq!(hp_of(&state, 0), 5);
+    // Players cannot cancel.
+    let rolled = requests_for(&state, 0)[0].clone();
+    assert_eq!(
+        run(
+            &mut state,
+            Role::Player,
+            Intent::CancelRollRequest { id: rolled.id },
+            Some(rolled.version),
+        ),
+        Err(RejectReason::Forbidden)
+    );
+    // The GM reverses the applied damage (the artifact saves the hero).
+    run(
+        &mut state,
+        Role::Gm,
+        Intent::CancelRollRequest { id: rolled.id },
+        Some(rolled.version),
+    )
+    .unwrap();
+    assert_eq!(hp_of(&state, 0), 10);
+    let cancelled = requests_for(&state, 0)[0].clone();
+    assert_eq!(cancelled.status, RollRequestStatus::Cancelled);
+    // A cancelled request is done: neither roll nor second cancel.
+    assert_eq!(
+        run(
+            &mut state,
+            Role::Gm,
+            Intent::CancelRollRequest { id: rolled.id },
+            Some(cancelled.version),
+        ),
+        Err(RejectReason::invalid("id"))
+    );
+}
+
+#[test]
+fn gm_cancel_pending_dismisses_the_request() {
+    let mut state = world();
+    create(
+        &mut state,
+        0,
+        manual_scoped(vec![step(TriggerAction::ChangeResource {
+            resource: "hp".into(),
+            dice: "5".into(),
+            heal: false,
+            target: ResourceTarget::Map,
+            attack: None,
+            manual: true,
+        })]),
+    );
+    fire(&mut state, 0);
+    let own = requests_for(&state, 0)[0].clone();
+    run(
+        &mut state,
+        Role::Gm,
+        Intent::CancelRollRequest { id: own.id },
+        Some(own.version),
+    )
+    .unwrap();
+    assert_eq!(
+        requests_for(&state, 0)[0].status,
+        RollRequestStatus::Cancelled
+    );
+    assert_eq!(hp_of(&state, 0), 10, "no damage without a roll");
+    let cancelled = requests_for(&state, 0)[0].clone();
+    assert_eq!(
+        run(
+            &mut state,
+            Role::Player,
+            Intent::FulfillRollRequest { id: own.id },
+            Some(cancelled.version),
+        ),
+        Err(RejectReason::invalid("id"))
+    );
+}
+
+#[test]
+fn deleting_a_character_cancels_its_pending_roll_requests() {
+    let mut state = world();
+    create(
+        &mut state,
+        0,
+        manual_scoped(vec![step(TriggerAction::ChangeResource {
+            resource: "hp".into(),
+            dice: "1d6".into(),
+            heal: false,
+            target: ResourceTarget::Map,
+            attack: None,
+            manual: true,
+        })]),
+    );
+    fire(&mut state, 0);
+    assert!(!requests_for(&state, 0).is_empty());
+    let id = pooled_character_id(0);
+    let version = state.characters[&id].version;
+    run(
+        &mut state,
+        Role::Gm,
+        Intent::DeleteCharacter { id },
+        Some(version),
+    )
+    .unwrap();
+    assert!(
+        requests_for(&state, 0)
+            .iter()
+            .all(|r| r.status == RollRequestStatus::Cancelled)
+    );
 }

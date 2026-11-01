@@ -253,6 +253,8 @@ pub fn players_state(state: &GameState) -> GameState {
     view.effects.retain(|id, _| see.effects.contains(id));
     view.zones.clear();
     view.triggers.clear();
+    // Ownership is recipient-specific; the common players projection must never disclose requests.
+    view.roll_requests.clear();
     view.library_folders.clear();
     view.playlists.retain(|id, _| see.playlists.contains(id));
     for playlist in view.playlists.values_mut() {
@@ -286,6 +288,31 @@ pub fn snapshot_for<'a>(
     snapshot
 }
 
+/// Personal roll requests are filtered by the authority, never only by client UI.
+pub fn snapshot_for_user<'a>(
+    role: Role,
+    user: dnd_protocol::UserId,
+    state: &GameState,
+    seq: Seq,
+    chat: impl IntoIterator<Item = &'a ChatMessageDto>,
+) -> Snapshot {
+    let mut snapshot = snapshot_for(role, state, seq, chat);
+    if role == Role::Player {
+        snapshot.roll_requests = state
+            .roll_requests
+            .values()
+            .filter(|r| {
+                state
+                    .characters
+                    .get(&r.character)
+                    .is_some_and(|c| c.owner == Some(user))
+            })
+            .cloned()
+            .collect();
+    }
+    snapshot
+}
+
 /// A batch as players receive it.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ForPlayers {
@@ -313,6 +340,8 @@ pub fn may_change_visibility(batch: &EventBatch) -> bool {
                 | Event::CampaignMetaUpdated { .. }
                 | Event::UserJoined { .. }
                 | Event::CombatUpdated { .. }
+                | Event::RollRequested { .. }
+                | Event::RollRequestUpdated { .. }
                 | Event::Redacted
         )
     })
@@ -321,6 +350,12 @@ pub fn may_change_visibility(batch: &EventBatch) -> bool {
 /// Filters a committed `batch` for players; `before` and `after` are the full states around it.
 #[must_use]
 pub fn filter_for_players(before: &GameState, after: &GameState, batch: &EventBatch) -> ForPlayers {
+    if before.roll_requests.values().any(|r| {
+        before.characters.get(&r.character).and_then(|c| c.owner)
+            != after.characters.get(&r.character).and_then(|c| c.owner)
+    }) {
+        return ForPlayers::Resnapshot;
+    }
     if !may_change_visibility(batch) {
         return ForPlayers::Batch(EventBatch {
             events: batch.events.iter().map(|e| cheap_event(after, e)).collect(),
@@ -452,6 +487,8 @@ pub fn filter_for_players(before: &GameState, after: &GameState, batch: &EventBa
                             was.effects.contains(&effect.id),
                         ),
                         Event::TokenEffectRemoved { id, .. } => was.effects.contains(id),
+                        // The connection adds back only this recipient's private requests.
+                        Event::RollRequested { .. } | Event::RollRequestUpdated { .. } => false,
                         // Zones are the GM's tool (ADR-0024).
                         Event::ZoneCreated { .. }
                         | Event::ZoneUpdated { .. }
@@ -523,6 +560,7 @@ fn cheap_event(after: &GameState, event: &Event) -> Event {
     };
     let map_shown = |id: &MapId| map_visible_to_players(after, id);
     let visible = match event {
+        Event::RollRequested { .. } | Event::RollRequestUpdated { .. } => false,
         Event::TokenMoved { id, .. } => token_shown(id),
         Event::BoardNodeMoved { id, .. } => after.board_nodes.get(id).is_some_and(|n| {
             n.visibility == BoardVisibility::Players

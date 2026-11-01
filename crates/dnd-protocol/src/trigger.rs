@@ -41,6 +41,16 @@ pub enum ResourceTarget {
     Map,
 }
 
+/// An attack/check roll the damage waits on (auto mode): rolled per target with the activator's
+/// fields and the step variables; the damage applies only when `hit` — evaluated against the
+/// target's fields with `@total` = the attack roll — holds.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct AttackCheck {
+    pub dice: String,
+    pub hit: String,
+}
+
 /// What sets a trigger off.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -108,7 +118,8 @@ pub enum TriggerAction {
         label: String,
     },
     /// Damage (`heal: false`) or healing by a dice roll, kept within 0..=max of the resource.
-    /// One roll is shared by every target.
+    /// Without `attack`, one roll is shared by every target; `attack` rolls per target and
+    /// applies only on a hit. `manual` asks the targets' controllers to roll instead.
     ChangeResource {
         resource: String,
         dice: String,
@@ -116,6 +127,10 @@ pub enum TriggerAction {
         /// Who takes the change; missing in legacy data: the activator.
         #[serde(default)]
         target: ResourceTarget,
+        #[serde(default)]
+        attack: Option<AttackCheck>,
+        #[serde(default)]
+        manual: bool,
     },
     AddCondition {
         condition: String,

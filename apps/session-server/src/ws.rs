@@ -226,7 +226,7 @@ impl Connection {
     async fn send_snapshot(&mut self) -> Result<(), ()> {
         let snapshot = self
             .session
-            .snapshot(self.participant.role)
+            .snapshot_for_user(self.participant.role, self.participant.user_id)
             .await
             .map_err(|_| ())?;
         let seq = snapshot.seq;
@@ -244,8 +244,13 @@ impl Connection {
         match &batch.players {
             ForPlayers::Batch(players) => {
                 let seq = players.last_seq();
-                self.send(ServerMessage::Events(players.clone()), Some(seq))
-                    .await
+                let personal = personal_requests(
+                    players,
+                    batch,
+                    self.participant.role,
+                    self.participant.user_id,
+                );
+                self.send(ServerMessage::Events(personal), Some(seq)).await
             }
             ForPlayers::Resnapshot => self.send_snapshot().await,
         }
@@ -260,5 +265,74 @@ impl Connection {
             .send(Message::Text(json.into()))
             .await
             .map_err(|_| ())
+    }
+}
+
+fn personal_requests(
+    public: &dnd_protocol::EventBatch,
+    batch: &crate::session::Broadcast,
+    role: dnd_protocol::Role,
+    user: dnd_protocol::UserId,
+) -> dnd_protocol::EventBatch {
+    let mut personal = public.clone();
+    for (event, full) in personal.events.iter_mut().zip(&batch.full.events) {
+        if let dnd_protocol::Event::RollRequested { request }
+        | dnd_protocol::Event::RollRequestUpdated { request } = full
+        {
+            *event = if role == dnd_protocol::Role::Player
+                && batch.request_owners.get(&request.id) == Some(&Some(user))
+            {
+                full.clone()
+            } else {
+                dnd_protocol::Event::Redacted
+            };
+        }
+    }
+    personal
+}
+
+#[cfg(test)]
+mod private_roll_tests {
+    #![allow(clippy::unwrap_used)]
+    use super::*;
+    use dnd_protocol::*;
+    #[test]
+    fn wire_batches_reveal_requests_only_to_the_owner_and_keep_sequence() {
+        let owner = UserId::new_v7();
+        let request: RollRequestDto = serde_json::from_value(serde_json::json!({
+            "id": RollRequestId::new_v7(), "label":"Secret trap", "trigger":TriggerId::new_v7(),
+            "character":CharacterId::new_v7(), "token":null, "dice":"1d20", "hit":null,
+            "resource":"hp", "damage_dice":"1d6", "heal":false, "status":"pending", "total":null,"delta":null,"version":1
+        })).unwrap();
+        let full = EventBatch {
+            seq: Seq(23),
+            caused_by: None,
+            events: vec![Event::RollRequested {
+                request: request.clone(),
+            }],
+        };
+        let public = EventBatch {
+            events: vec![Event::Redacted],
+            ..full.clone()
+        };
+        let broadcast = crate::session::Broadcast {
+            full: full.clone(),
+            players: ForPlayers::Batch(public.clone()),
+            request_owners: std::collections::BTreeMap::from([(request.id, Some(owner))]),
+        };
+        assert_eq!(
+            personal_requests(&public, &broadcast, Role::Player, owner),
+            full
+        );
+        for (role, user) in [(Role::Player, UserId::new_v7()), (Role::Spectator, owner)] {
+            let seen = personal_requests(&public, &broadcast, role, user);
+            assert_eq!(seen.seq, Seq(23));
+            assert_eq!(seen.events, vec![Event::Redacted]);
+            assert!(
+                !serde_json::to_string(&seen)
+                    .unwrap()
+                    .contains("Secret trap")
+            );
+        }
     }
 }

@@ -335,6 +335,11 @@ fn decide(
             crate::effects::apply(state, intent).unwrap_or(Err(RejectReason::invalid("intent")))
         }
 
+        Intent::FulfillRollRequest { .. } | Intent::CancelRollRequest { .. } => {
+            crate::roll_requests::apply(state, intent, rng)
+                .unwrap_or(Err(RejectReason::invalid("intent")))
+        }
+
         Intent::CreateZone { .. }
         | Intent::UpdateZone { .. }
         | Intent::SetZoneColor { .. }
@@ -426,6 +431,9 @@ pub fn current_version(state: &GameState, intent: &Intent) -> Result<Version, Re
             state.triggers.get(id).map(|t| t.version)
         }
         Intent::RemoveTokenEffect { id } => state.effects.get(id).map(|e| e.version),
+        Intent::FulfillRollRequest { id } | Intent::CancelRollRequest { id } => {
+            state.roll_requests.get(id).map(|r| r.version)
+        }
         Intent::MoveBoardNode { .. } => None,
         Intent::UpdateBoard { id, .. } | Intent::DeleteBoard { id } => {
             state.boards.get(id).map(|b| b.version)

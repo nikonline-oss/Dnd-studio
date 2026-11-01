@@ -17,6 +17,7 @@ use crate::model::{
     JournalEntryDto, JournalFolderDto, MapDto, TokenDto, UserDto,
 };
 use crate::plugin::PluginDto;
+use crate::roll::RollRequestDto;
 use crate::trigger::{TriggerDto, TriggerFiredDto};
 use crate::zone::ZoneDto;
 
@@ -228,6 +229,15 @@ pub enum Event {
     TokenEffectRemoved {
         id: EffectId,
         expired: bool,
+    },
+
+    /// A trigger's manual roll step asked `request.character`'s controller for a roll.
+    RollRequested {
+        request: RollRequestDto,
+    },
+    /// Fulfilled (rolled and applied) or cancelled by a GM role.
+    RollRequestUpdated {
+        request: RollRequestDto,
     },
 
     /// Library folders (ADR-0026). GM roles only.

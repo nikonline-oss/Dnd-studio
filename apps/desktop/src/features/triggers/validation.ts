@@ -16,7 +16,8 @@ export function incompleteSteps(def: TriggerDef, snapshot: Snapshot): number[] {
         incomplete =
           !action.resource ||
           !action.dice.trim() ||
-          (action.target?.type === 'zone' && !action.target.id);
+          (action.target?.type === 'zone' && !action.target.id) ||
+          (action.attack != null && (!action.attack.dice.trim() || !action.attack.hit.trim()));
         break;
       case 'add_condition':
       case 'remove_condition':

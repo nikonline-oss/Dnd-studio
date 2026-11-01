@@ -50,6 +50,16 @@ pub fn authorize(actor: &Actor, intent: &Intent, state: &GameState) -> Result<()
             }
             // Hidden rolls and sheets of other characters are checked in `chat`.
             Intent::SendMessage { .. } | Intent::RollDice { .. } => Ok(()),
+            // A manual roll request of one's own character (GM roles pass above, also for NPCs);
+            // the handler rejects requests that are already rolled or cancelled.
+            Intent::FulfillRollRequest { id }
+                if state
+                    .roll_requests
+                    .get(id)
+                    .is_some_and(|r| owns(actor.user_id, Some(r.character), state)) =>
+            {
+                Ok(())
+            }
             // Players create only their own player characters (they start as drafts).
             Intent::CreateCharacter {
                 character_kind: CharacterKind::Pc,
