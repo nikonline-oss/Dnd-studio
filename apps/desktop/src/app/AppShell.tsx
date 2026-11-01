@@ -33,6 +33,7 @@ import { useSettings, type SideView } from '@/shared/settings/settings';
 import { useSelection } from '@/shared/state/selection';
 import { ErrorBoundary } from '@/shared/ui/ErrorBoundary';
 import { Icon } from '@/shared/ui/Icon';
+import { IconButton } from '@/shared/ui/IconButton';
 import { useToast } from '@/shared/ui/Toast';
 
 const BOTTOM_TAB_ICONS = { chat: 'send', initiative: 'dice', logs: 'book' } as const;
@@ -299,14 +300,14 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
                         {t(`panels.${tab}`)}
                       </button>
                     ))}
-                    <button
-                      type="button"
+                    <IconButton
+                      icon="chevron"
+                      className="panel-toggle panel-toggle-hide"
+                      label={t('panels.hideBottom')}
                       onClick={() => {
                         setBottomVisible(false);
                       }}
-                    >
-                      {t('panels.hideBottom')}
-                    </button>
+                    />
                   </div>
                   {bottomTab === 'logs' ? (
                     <ErrorBoundary name={t('panels.logs')}>
@@ -355,14 +356,14 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
       </div>
       <div className="app-footer">
         {!bottomVisible && (
-          <button
-            type="button"
+          <IconButton
+            icon="chevron"
+            className="panel-toggle panel-toggle-show"
+            label={t('panels.showBottom')}
             onClick={() => {
               setBottomVisible(true);
             }}
-          >
-            {t('panels.showBottom')}
-          </button>
+          />
         )}
         <CompactAudioPlayers />
         <StatusBar campaign={campaign} />

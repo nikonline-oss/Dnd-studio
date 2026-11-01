@@ -152,6 +152,19 @@ button:disabled {
   padding: 0 var(--space-2);
 }
 
+/* Compact chevron toggles for hiding/showing the bottom panel (AppShell). */
+.panel-toggle-hide {
+  margin-left: auto;
+}
+
+.panel-toggle-hide .icon {
+  transform: rotate(90deg);
+}
+
+.panel-toggle-show .icon {
+  transform: rotate(-90deg);
+}
+
 .danger-hover:hover:not(:disabled) {
   color: var(--color-danger);
   background: var(--color-danger-soft);
