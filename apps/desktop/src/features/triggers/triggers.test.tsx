@@ -47,7 +47,11 @@ const manual: TriggerDto = {
   version: 3,
 };
 
-function setup(triggers: TriggerDto[] = [manual], plugins: PluginDto[] = []) {
+function setup(
+  triggers: TriggerDto[] = [manual],
+  plugins: PluginDto[] = [],
+  patch: Partial<Snapshot> = {},
+) {
   const snapshot: Snapshot = {
     seq: 1,
     campaign: { name: 'C', description: '', version: 1 },
@@ -90,6 +94,7 @@ function setup(triggers: TriggerDto[] = [manual], plugins: PluginDto[] = []) {
     combats: [],
     combatants: [],
     chat: [],
+    ...patch,
   };
   const info: CampaignInfo = { name: 'C', path: '/c', user_id: id(99), role: 'gm' };
   const sent: IntentEnvelope[] = [];
@@ -186,6 +191,68 @@ describe('Triggers', () => {
     await userEvent.click(within(form).getByRole('button', { name: 'Run' }));
     await waitFor(() => {
       expect(sent[0]?.intent).toEqual({ kind: 'fire_trigger', id: manual.id, token: null });
+    });
+  });
+
+  it('binds one map in a dropdown, several in checkboxes, with a preview', async () => {
+    const harbor: Snapshot['maps'][number] = {
+      id: id(21),
+      name: 'Harbor',
+      width: 100,
+      height: 100,
+      grid: { kind: 'square', cell_size: 10, offset_x: 0, offset_y: 0 },
+      background_asset_id: null,
+      visible_to_players: true,
+      version: 1,
+    };
+    const cryptWithBackground: Snapshot['maps'][number] = {
+      ...harbor,
+      id: id(20),
+      name: 'Crypt',
+      visible_to_players: false,
+      background_asset_id: 'bg',
+    };
+    const background: Snapshot['assets'][number] = {
+      id: 'bg',
+      usage: 'map',
+      sha256: 'b'.repeat(64),
+      mime: 'image/png',
+      size_bytes: 10,
+      original_name: 'bg.png',
+      width: 10,
+      height: 10,
+      display_sha256: null,
+      thumbnail_sha256: 't'.repeat(64),
+      tiles: [],
+      folder_id: null,
+      version: 1,
+    };
+    const sent = setup([manual], [], {
+      maps: [cryptWithBackground, harbor],
+      assets: [background],
+    });
+    // assetUrl goes through Tauri's convertFileSrc.
+    (window as unknown as { __TAURI_INTERNALS__: Record<string, unknown> }).__TAURI_INTERNALS__[
+      'convertFileSrc'
+    ] = (hash: string) => `asset://${hash}`;
+    const form = await screen.findByRole('form', { name: 'Collapse' });
+    // One bound map: a dropdown (not checkboxes), its preview is the background thumbnail.
+    const mapSelect = within(form).getByLabelText('Map');
+    expect(mapSelect).toHaveValue(id(20));
+    expect(within(form).queryByRole('checkbox', { name: 'Crypt' })).not.toBeInTheDocument();
+    const preview = within(form).getByRole('img', { name: 'Crypt' });
+    expect(preview.getAttribute('src')).toContain(background.thumbnail_sha256);
+    // Several maps: checkboxes; ticking Harbor keeps Crypt and both are saved.
+    await userEvent.click(within(form).getByRole('radio', { name: 'Several maps' }));
+    const harborBox = within(form).getByRole('checkbox', { name: 'Harbor' });
+    expect(harborBox).not.toBeChecked();
+    await userEvent.click(harborBox);
+    await userEvent.click(within(form).getByRole('button', { name: 'Save' }));
+    await waitFor(() => {
+      expect(sent[0]?.intent).toMatchObject({
+        kind: 'update_trigger',
+        definition: { map_ids: [id(20), id(21)] },
+      });
     });
   });
 });

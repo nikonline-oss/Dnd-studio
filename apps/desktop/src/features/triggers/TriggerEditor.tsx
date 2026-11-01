@@ -5,6 +5,7 @@ import { incompleteSteps } from './validation';
 import { canFireTrigger, triggerMaps } from '@/shared/game/triggerScope';
 import { IntentRejected } from '@/shared/ipc/client';
 import { useSelection } from '@/shared/state/selection';
+import { assetUrl } from '@/shared/ipc/client';
 import { newAction, StepEditor } from './StepEditor';
 import { useCampaign, useSnapshotSelect, useSubmitIntent } from '@/shared/game/useGame';
 import { labelText } from '@/shared/i18n/label';
@@ -77,6 +78,9 @@ function Form({ trigger, rules }: { trigger: TriggerDto; rules: SystemRulesDto |
   const mapIds = draft.map_ids ?? [];
   const maps = snapshot?.maps ?? [];
   const zones = snapshot?.zones ?? [];
+  // One bound map is a dropdown, several are checkboxes; the editor starts in the matching mode.
+  const [manyMaps, setManyMaps] = useState(initial.map_ids.length > 1);
+  const boundMaps = maps.filter((map) => mapIds.includes(map.id));
   const errors: string[] = [];
   if (!draft.name.trim())
     errors.push(t('triggers.nameRequired', { defaultValue: 'Enter a trigger name.' }));
@@ -180,36 +184,115 @@ function Form({ trigger, rules }: { trigger: TriggerDto; rules: SystemRulesDto |
                 'Map cards and connections are created on each board containing this trigger when you save.',
             })}
           </p>
-          {maps.map((map) => (
-            <label className="inline" key={map.id}>
-              <input
-                type="checkbox"
-                checked={mapIds.includes(map.id)}
-                onChange={(e) => {
-                  update({
-                    map_ids: e.target.checked
-                      ? [...mapIds, map.id]
-                      : mapIds.filter((id) => id !== map.id),
-                  });
-                }}
-              />
-              {map.name}
-            </label>
-          ))}
-          {mapIds
-            .filter((id) => !maps.some((m) => m.id === id))
-            .map((id) => (
-              <label key={id} className="inline">
+          {maps.length > 1 && (
+            <div
+              className="trigger-maps-mode"
+              role="radiogroup"
+              aria-label={t('triggers.mapsTitle', { defaultValue: 'Maps' })}
+            >
+              <label className="inline">
                 <input
-                  type="checkbox"
-                  checked
+                  type="radio"
+                  checked={!manyMaps}
                   onChange={() => {
-                    update({ map_ids: mapIds.filter((m) => m !== id) });
+                    setManyMaps(false);
+                    update({ map_ids: mapIds.slice(0, 1) });
                   }}
                 />
-                {t('picker.gone')}
+                {t('triggers.oneMap', { defaultValue: 'One map' })}
               </label>
-            ))}
+              <label className="inline">
+                <input
+                  type="radio"
+                  checked={manyMaps}
+                  onChange={() => {
+                    setManyMaps(true);
+                  }}
+                />
+                {t('triggers.manyMaps', { defaultValue: 'Several maps' })}
+              </label>
+            </div>
+          )}
+          {manyMaps ? (
+            <>
+              {maps.map((map) => (
+                <label className="inline" key={map.id}>
+                  <input
+                    type="checkbox"
+                    checked={mapIds.includes(map.id)}
+                    onChange={(e) => {
+                      update({
+                        map_ids: e.target.checked
+                          ? [...mapIds, map.id]
+                          : mapIds.filter((id) => id !== map.id),
+                      });
+                    }}
+                  />
+                  {map.name}
+                </label>
+              ))}
+              {mapIds
+                .filter((id) => !maps.some((m) => m.id === id))
+                .map((id) => (
+                  <label key={id} className="inline">
+                    <input
+                      type="checkbox"
+                      checked
+                      onChange={() => {
+                        update({ map_ids: mapIds.filter((m) => m !== id) });
+                      }}
+                    />
+                    {t('picker.gone')}
+                  </label>
+                ))}
+            </>
+          ) : (
+            <label className="trigger-field">
+              <span>{t('triggers.map', { defaultValue: 'Map' })}</span>
+              <select
+                value={mapIds[0] ?? ''}
+                onChange={(e) => {
+                  update({ map_ids: e.target.value ? [e.target.value] : [] });
+                }}
+              >
+                <option value="">
+                  {t('triggers.chooseMap', { defaultValue: 'Choose a map…' })}
+                </option>
+                {maps.map((map) => (
+                  <option key={map.id} value={map.id}>
+                    {map.name}
+                  </option>
+                ))}
+                {mapIds
+                  .filter((id) => !maps.some((m) => m.id === id))
+                  .map((id) => (
+                    <option key={id} value={id}>
+                      {t('picker.gone')}
+                    </option>
+                  ))}
+              </select>
+            </label>
+          )}
+          {boundMaps.length > 0 && (
+            <div className="trigger-map-previews">
+              {boundMaps.map((map) => {
+                const asset = snapshot?.assets.find((a) => a.id === map.background_asset_id);
+                return asset?.thumbnail_sha256 ? (
+                  <img
+                    key={map.id}
+                    className="trigger-map-preview"
+                    src={assetUrl(asset.thumbnail_sha256)}
+                    alt={map.name}
+                    title={map.name}
+                  />
+                ) : (
+                  <span key={map.id} className="trigger-map-preview placeholder" title={map.name}>
+                    {map.name}
+                  </span>
+                );
+              })}
+            </div>
+          )}
           <p className="muted trigger-hint">
             {t('triggers.rearmHint', {
               defaultValue: 'Saving any edit rearms this trigger on every selected map.',
