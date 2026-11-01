@@ -1,17 +1,29 @@
 import { createEvent, fireEvent, render, screen } from '@testing-library/react';
 import { mockConvertFileSrc } from '@tauri-apps/api/mocks';
-import { describe, expect, it, vi } from 'vitest';
+import userEvent from '@testing-library/user-event';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { LibraryExplorer } from './LibraryExplorer';
-import type { AssetDto, Library } from '@/shared/ipc/client';
+import type { AssetDto, Library, PlaylistDto } from '@/shared/ipc/client';
 
 const { mutate } = vi.hoisted(() => ({ mutate: vi.fn() }));
+const state = vi.hoisted(() => ({ playlists: [] as PlaylistDto[] }));
 vi.mock('@/shared/game/useGame', () => ({
-  useSnapshotSelect: () => [
-    { id: 'folder', library: 'images', name: 'Pictures', parent: null, version: 2 },
-    { id: 'audio-folder', library: 'audio', name: 'Sounds', parent: null, version: 2 },
-  ],
+  useSnapshotSelect: (
+    select: (snapshot: { library_folders: unknown[]; playlists: unknown[] }) => unknown,
+  ) =>
+    select({
+      library_folders: [
+        { id: 'folder', library: 'images', name: 'Pictures', parent: null, version: 2 },
+        { id: 'audio-folder', library: 'audio', name: 'Sounds', parent: null, version: 2 },
+      ],
+      playlists: state.playlists,
+    }),
   useSubmitIntent: () => ({ mutate }),
 }));
+
+beforeEach(() => {
+  state.playlists = [];
+});
 
 function setup(library: Library) {
   mockConvertFileSrc('windows');
@@ -153,4 +165,73 @@ describe.each<Library>(['images', 'audio'])('%s library drag cleanup', (library)
       expect(mutate).not.toHaveBeenCalled();
     },
   );
+});
+
+describe('audio playlists in the explorer', () => {
+  it('creates a playlist from the toolbar', async () => {
+    setup('audio');
+    await userEvent.click(screen.getByRole('button', { name: 'New playlist' }));
+    await userEvent.type(
+      screen.getByRole('textbox', { name: 'New playlist' }),
+      'Boss themes{Enter}',
+    );
+    expect(mutate).toHaveBeenCalledWith({
+      intent: {
+        kind: 'create_playlist',
+        id: expect.any(String) as string,
+        name: 'Boss themes',
+        folder_id: null,
+        asset_ids: [],
+      },
+    });
+  });
+
+  it('offers no playlist toolbar in the image library', () => {
+    setup('images');
+    expect(screen.queryByRole('button', { name: 'New playlist' })).not.toBeInTheDocument();
+  });
+
+  it('drops an audio asset onto a playlist row as a new track', () => {
+    state.playlists = [{ id: 'pl', name: 'Themes', folder_id: null, tracks: [], version: 7 }];
+    const dataTransfer = { setData: vi.fn(), effectAllowed: 'none', dropEffect: 'none' };
+    const { source } = setup('audio');
+    const row = screen.getByRole('treeitem', { name: /Themes/ });
+    fireEvent.dragStart(source, { dataTransfer });
+    fireEvent.dragOver(row, { dataTransfer });
+    expect(row).toHaveAttribute('data-drop', 'true');
+    fireEvent.drop(row, { dataTransfer });
+    expect(mutate).toHaveBeenCalledWith({
+      intent: {
+        kind: 'update_playlist',
+        id: 'pl',
+        name: 'Themes',
+        tracks: [
+          { asset_id: 'asset', sha256: 'a'.repeat(64), mime: 'audio/mpeg', title: 'Source' },
+        ],
+      },
+      expectedVersion: 7,
+    });
+  });
+
+  it('does not duplicate a track already in the playlist', () => {
+    state.playlists = [
+      {
+        id: 'pl',
+        name: 'Themes',
+        folder_id: null,
+        version: 7,
+        tracks: [
+          { asset_id: 'asset', sha256: 'a'.repeat(64), mime: 'audio/mpeg', title: 'Source' },
+        ],
+      },
+    ];
+    const dataTransfer = { setData: vi.fn(), effectAllowed: 'none', dropEffect: 'none' };
+    const { source } = setup('audio');
+    const row = screen.getByRole('treeitem', { name: /Themes/ });
+    fireEvent.dragStart(source, { dataTransfer });
+    fireEvent.dragOver(row, { dataTransfer });
+    expect(row).not.toHaveAttribute('data-drop', 'true');
+    fireEvent.drop(row, { dataTransfer });
+    expect(mutate).not.toHaveBeenCalled();
+  });
 });

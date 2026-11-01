@@ -30,6 +30,7 @@ export function AudioLibrary() {
   const submit = useSubmitIntent();
   const importing = useMutation({ mutationFn: ipc.assetImportAudio });
   const current = useSnapshotSelect((s) => s.sounds ?? []) ?? [];
+  const playlists = useSnapshotSelect((s) => s.playlists ?? []) ?? [];
   const soundMenu = (asset: (typeof sounds)[number]): MenuItem[] => [
     {
       label: t('audio.playOnce'),
@@ -83,6 +84,12 @@ export function AudioLibrary() {
         selected={selected}
         onSelect={(id) => {
           setSelected(id);
+          if (id?.startsWith('playlist:')) {
+            const playlist = playlists.find((p) => `playlist:${p.id}` === id);
+            if (playlist)
+              useSelection.getState().openMedia('audio', playlist.folder_id ?? null, id);
+            return;
+          }
           const asset = sounds.find((a) => a.id === id);
           if (asset) useSelection.getState().openMedia('audio', asset.folder_id ?? null, asset.id);
         }}

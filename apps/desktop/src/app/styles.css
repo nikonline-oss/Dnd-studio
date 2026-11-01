@@ -3416,6 +3416,12 @@ span.trigger-map-preview {
   opacity: 1;
 }
 
+.playlist-track-count {
+  margin-left: auto;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
 .library-row-actions .icon-button {
   width: 24px;
   height: 24px;

@@ -10,6 +10,7 @@ import {
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { assetUrl, type AssetDto, type Library, type LibraryFolderDto } from '@/shared/ipc/client';
+import type { PlaylistDto } from '@/shared/ipc/client';
 import { useSnapshotSelect, useSubmitIntent } from '@/shared/game/useGame';
 import { uuidv7 } from '@/shared/ipc/uuid';
 import { ContextMenu } from '@/shared/ui/ContextMenu';
@@ -22,9 +23,13 @@ import { NAV_ROW_HEIGHT, VirtualList } from '@/shared/ui/VirtualList';
 type Row =
   | { kind: 'folder'; folder: LibraryFolderDto; depth: number; expanded: boolean }
   | { kind: 'asset'; asset: AssetDto; depth: number }
-  | { kind: 'new'; parent: string | null; depth: number };
+  | { kind: 'playlist'; playlist: PlaylistDto; depth: number }
+  | { kind: 'new'; parent: string | null; depth: number }
+  | { kind: 'newPlaylist'; depth: number };
 type DragItem = { kind: 'folder' | 'asset'; id: string };
 const DRAG_TYPE = 'application/x-dndstudio-library';
+/// Protocol `MAX_PLAYLIST_TRACKS`.
+const MAX_TRACKS = 100;
 
 /** Folder and file tree shared by the campaign's image and audio libraries. */
 export function LibraryExplorer({
@@ -47,6 +52,9 @@ export function LibraryExplorer({
   const { t } = useTranslation();
   const folders = (useSnapshotSelect((s) => s.library_folders ?? []) ?? []).filter(
     (folder) => folder.library === library,
+  );
+  const playlists = (useSnapshotSelect((s) => s.playlists ?? []) ?? []).sort((a, b) =>
+    a.name.localeCompare(b.name),
   );
   const submit = useSubmitIntent();
   const dragged = useRef<DragItem | null>(null);
@@ -78,6 +86,7 @@ export function LibraryExplorer({
   const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [expandedState, setExpandedState] = useState<Set<string> | null>(null);
   const [creating, setCreating] = useState<{ parent: string | null; depth: number } | null>(null);
+  const [creatingPlaylist, setCreatingPlaylist] = useState(false);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [assetRename, setAssetRename] = useState<{ asset: AssetDto; name: string } | null>(null);
   const [query, setQuery] = useState('');
@@ -121,6 +130,13 @@ export function LibraryExplorer({
   };
   const rows = useMemo(() => {
     const result: Row[] = [];
+    if (library === 'audio') {
+      for (const playlist of playlists) {
+        if (search && !playlist.name.toLocaleLowerCase().includes(search)) continue;
+        result.push({ kind: 'playlist', playlist, depth: 0 });
+      }
+      if (creatingPlaylist) result.push({ kind: 'newPlaylist', depth: 0 });
+    }
     const visit = (parent: string | null, depth: number) => {
       for (const folder of children(parent)) {
         if (search && !containsMatch(folder.id)) continue;
@@ -139,7 +155,7 @@ export function LibraryExplorer({
     return result;
     // Data is snapshotted; tree construction depends on current folder expansion and query.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [folders, matchingAssets, expanded, creating, search]);
+  }, [folders, matchingAssets, expanded, creating, creatingPlaylist, playlists, library, search]);
 
   const toggle = (id: string) => {
     setExpandedState((previous) => {
@@ -165,6 +181,55 @@ export function LibraryExplorer({
       intent: { kind: 'move_library_folder', id: folder.id, parent },
       expectedVersion: folder.version,
     });
+  };
+
+  /// Dropping an audio asset on a playlist appends it as a copied track.
+  const addToPlaylist = (playlist: PlaylistDto, assetId: string) => {
+    const asset = assets.find((candidate) => candidate.id === assetId);
+    if (!asset || asset.usage !== 'audio') return;
+    if (playlist.tracks.length >= MAX_TRACKS) return;
+    if (playlist.tracks.some((track) => track.asset_id === asset.id)) return;
+    submit.mutate({
+      intent: {
+        kind: 'update_playlist',
+        id: playlist.id,
+        name: playlist.name,
+        tracks: [
+          ...playlist.tracks,
+          {
+            asset_id: asset.id,
+            sha256: asset.sha256,
+            mime: asset.mime,
+            title: asset.original_name ?? asset.sha256.slice(0, 8),
+          },
+        ],
+      },
+      expectedVersion: playlist.version,
+    });
+  };
+
+  const onPlaylistDragOver = (event: DragEvent, playlist: PlaylistDto) => {
+    const item = dragged.current;
+    if (!item || item.kind !== 'asset') return;
+    const asset = assets.find((candidate) => candidate.id === item.id);
+    if (!asset || asset.usage !== 'audio') return;
+    if (playlist.tracks.length >= MAX_TRACKS) return;
+    if (playlist.tracks.some((track) => track.asset_id === asset.id)) return;
+    event.stopPropagation();
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'copy';
+    clearDropTarget();
+    dropTarget.current = event.currentTarget;
+    event.currentTarget.setAttribute('data-drop', 'true');
+  };
+
+  const onPlaylistDrop = (event: DragEvent, playlist: PlaylistDto) => {
+    const item = dragged.current;
+    finishDrag();
+    if (!item || item.kind !== 'asset') return;
+    event.preventDefault();
+    event.stopPropagation();
+    addToPlaylist(playlist, item.id);
   };
   const isDescendant = (candidate: string | null, ancestor: string): boolean => {
     let id = candidate;
@@ -230,6 +295,20 @@ export function LibraryExplorer({
       },
     });
   };
+  const finishCreatePlaylist = (name: string) => {
+    setCreatingPlaylist(false);
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    submit.mutate({
+      intent: {
+        kind: 'create_playlist',
+        id: uuidv7(),
+        name: trimmed,
+        folder_id: null,
+        asset_ids: [],
+      },
+    });
+  };
   const removeFolder = (folder: LibraryFolderDto) => {
     setConfirm(null);
     submit.mutate({
@@ -273,6 +352,52 @@ export function LibraryExplorer({
   };
   const renderRow = (row: Row) => {
     const style = { '--depth': row.depth } as CSSProperties;
+    if (row.kind === 'newPlaylist') {
+      return (
+        <li role="none" className="nav-row tree-row library-tree-row" style={style}>
+          <span className="tree-chevron-space" />
+          <Icon name="playlist" className="row-icon" />
+          <LibraryNameInput
+            label={t('playlists.new')}
+            onDone={finishCreatePlaylist}
+            onCancel={() => {
+              setCreatingPlaylist(false);
+            }}
+          />
+        </li>
+      );
+    }
+    if (row.kind === 'playlist') {
+      const isSelected = selected === `playlist:${row.playlist.id}`;
+      return (
+        <li
+          role="treeitem"
+          aria-selected={isSelected}
+          className="nav-row tree-row library-tree-row"
+          style={style}
+          key={row.playlist.id}
+          onDragOver={(event) => {
+            onPlaylistDragOver(event, row.playlist);
+          }}
+          onDragLeave={onDragLeave}
+          onDrop={(event) => {
+            onPlaylistDrop(event, row.playlist);
+          }}
+          onClick={() => {
+            onSelect(`playlist:${row.playlist.id}`);
+          }}
+        >
+          <span className="tree-chevron-space" />
+          <Icon name="playlist" className="row-icon" />
+          <span className="row-name" title={row.playlist.name}>
+            {row.playlist.name}
+          </span>
+          <span className="muted playlist-track-count">
+            {t('playlists.tracksCount', { count: row.playlist.tracks.length })}
+          </span>
+        </li>
+      );
+    }
     if (row.kind === 'new') {
       return (
         <li role="none" className="nav-row tree-row library-tree-row" style={style}>
@@ -473,6 +598,16 @@ export function LibraryExplorer({
           }}
           disabled={creating !== null}
         />
+        {library === 'audio' && (
+          <IconButton
+            icon="playlist"
+            label={t('playlists.new')}
+            onClick={() => {
+              setCreatingPlaylist(true);
+            }}
+            disabled={creating !== null || creatingPlaylist}
+          />
+        )}
         <IconButton
           icon="collapse"
           label={t('journal.collapseAll')}
@@ -504,7 +639,11 @@ export function LibraryExplorer({
               ? row.folder.id
               : row.kind === 'asset'
                 ? row.asset.id
-                : 'new-folder'
+                : row.kind === 'playlist'
+                  ? row.playlist.id
+                  : row.kind === 'newPlaylist'
+                    ? 'new-playlist'
+                    : 'new-folder'
           }
           renderRow={renderRow}
           label={t('library.folders')}
