@@ -10,10 +10,12 @@ use uuid::{Builder, Uuid};
 use crate::board::{
     BoardDto, BoardEdgeDto, BoardLink, BoardNodeContent, BoardNodeDto, BoardVisibility,
 };
+use crate::effect::{EffectDuration, TokenEffectDto};
 use crate::event::{Event, EventBatch};
 use crate::ids::{
-    AssetId, BoardEdgeId, BoardId, BoardNodeId, CharacterId, CombatId, CombatantId, FogOpId,
-    IntentId, JournalFolderId, MapId, Role, Seq, TokenId, TriggerId, UserId, Version, ZoneId,
+    AssetId, BoardEdgeId, BoardId, BoardNodeId, CharacterId, CombatId, CombatantId, EffectId,
+    FogOpId, IntentId, JournalFolderId, MapId, Role, Seq, TokenId, TriggerId, UserId, Version,
+    ZoneId,
 };
 use crate::intent::{Intent, IntentEnvelope};
 use crate::model::{
@@ -21,8 +23,8 @@ use crate::model::{
     GridKind, JournalFolderDto, MapDto, TokenDto, TokenLayer, UserDto,
 };
 use crate::trigger::{
-    RevealTarget, SpawnPlacement, TriggerAction, TriggerDef, TriggerDto, TriggerEvent,
-    TriggerFiredDto, TriggerStep,
+    EffectDurationDef, RevealTarget, SpawnPlacement, TriggerAction, TriggerDef, TriggerDto,
+    TriggerEvent, TriggerFiredDto, TriggerStep,
 };
 use crate::zone::{ZoneDto, ZoneLabel, ZoneShape};
 
@@ -258,6 +260,17 @@ pub fn trigger_def() -> impl Strategy<Value = TriggerDef> {
                 volume,
             },
         }),
+        (name(), effect_duration_def()).prop_map(|(label, duration)| TriggerStep {
+            when: None,
+            action: TriggerAction::ApplyEffect {
+                label,
+                condition: None,
+                resource: None,
+                dice: None,
+                heal: false,
+                duration,
+            },
+        }),
     ];
     (
         name(),
@@ -452,6 +465,47 @@ pub fn layer() -> impl Strategy<Value = TokenLayer> {
     ])
 }
 
+pub fn effect_id() -> impl Strategy<Value = EffectId> {
+    (0x5_6000u128..0x5_6008).prop_map(|n| EffectId(v7(n)))
+}
+
+pub fn effect_duration_def() -> impl Strategy<Value = EffectDurationDef> {
+    prop_oneof![
+        (1u8..=10).prop_map(|rounds| EffectDurationDef::Rounds { rounds }),
+        (1u8..=10).prop_map(|turns| EffectDurationDef::Turns { turns }),
+        (1u32..=10_080).prop_map(|minutes| EffectDurationDef::RealTime { minutes }),
+    ]
+}
+
+pub fn effect_duration() -> impl Strategy<Value = EffectDuration> {
+    prop_oneof![
+        (1u8..=10).prop_map(|remaining| EffectDuration::Rounds { remaining }),
+        (1u8..=10).prop_map(|remaining| EffectDuration::Turns { remaining }),
+        (0i64..1_000_000_000_000).prop_map(|until_ts| EffectDuration::RealTime { until_ts }),
+    ]
+}
+
+pub fn token_effect_dto() -> impl Strategy<Value = TokenEffectDto> {
+    (
+        effect_id(),
+        token_id(),
+        name(),
+        effect_duration(),
+        version(),
+    )
+        .prop_map(|(id, token, label, duration, version)| TokenEffectDto {
+            id,
+            token,
+            label,
+            condition: None,
+            resource: None,
+            dice: None,
+            heal: false,
+            duration,
+            version,
+        })
+}
+
 pub fn intent() -> impl Strategy<Value = Intent> {
     prop_oneof![
         (proptest::option::of(name()), proptest::option::of(name()))
@@ -511,6 +565,7 @@ pub fn intent() -> impl Strategy<Value = Intent> {
             .prop_map(|(id, initiative)| Intent::SetInitiative { id, initiative }),
         combat_id().prop_map(|combat_id| Intent::NextTurn { combat_id }),
         combat_id().prop_map(|id| Intent::EndCombat { id }),
+        effect_id().prop_map(|id| Intent::RemoveTokenEffect { id }),
         (
             journal_folder_id(),
             proptest::option::of(journal_folder_id()),
@@ -727,6 +782,7 @@ pub fn intent_envelope() -> impl Strategy<Value = IntentEnvelope> {
         |(intent_id, expected_version, intent)| IntentEnvelope {
             intent_id,
             expected_version,
+            ts_ms: 0,
             intent,
         },
     )
@@ -850,6 +906,10 @@ pub fn event() -> impl Strategy<Value = Event> {
                 token: None,
             }
         }),
+        token_effect_dto().prop_map(|effect| Event::TokenEffectApplied { effect }),
+        token_effect_dto().prop_map(|effect| Event::TokenEffectUpdated { effect }),
+        (effect_id(), any::<bool>())
+            .prop_map(|(id, expired)| Event::TokenEffectRemoved { id, expired }),
         Just(Event::Redacted),
     ]
 }

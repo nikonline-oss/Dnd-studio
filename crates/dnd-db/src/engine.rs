@@ -236,8 +236,14 @@ impl CampaignEngine {
         if let Some(outcome) = self.recall_intent(envelope, now_ms).await? {
             return Ok((outcome, None));
         }
+        // The core has no clock: the server stamps the arrival time, and the core reads
+        // `ts_ms` only from there (deadlines of real-time token effects, ADR-0024).
+        let stamped = IntentEnvelope {
+            ts_ms: now_ms,
+            ..envelope.clone()
+        };
         let events =
-            match precondition.and_then(|()| apply(&self.state, envelope, actor, &mut self.rng)) {
+            match precondition.and_then(|()| apply(&self.state, &stamped, actor, &mut self.rng)) {
                 Ok(events) => events,
                 Err(reason) => {
                     tracing::debug!(
@@ -294,6 +300,7 @@ impl CampaignEngine {
                 continue;
             }
             let mut preview = original.clone();
+            preview.ts_ms = now_ms;
             if preview.intent.version_policy() == dnd_protocol::VersionPolicy::Checked {
                 let Ok(version) = dnd_game_core::current_version(&self.state, &preview.intent)
                 else {

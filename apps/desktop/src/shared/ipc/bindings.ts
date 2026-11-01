@@ -478,6 +478,30 @@ export type DieDto = {
 	kept: boolean,
 };
 
+/**  How a [`TokenEffectDto`] ends. */
+export type EffectDuration = 
+/**  Combat rounds on the token's map; `remaining` counts down when a new round starts. */
+{ type: "rounds"; remaining: number } | 
+/**  The token's own turns; `remaining` counts down at the start of each of its turns. */
+{ type: "turns"; remaining: number } | 
+/**
+ *  Real time, for out of combat: expires at this Unix-ms timestamp. The core has no clock,
+ *  so the deadline is set from the envelope's `ts_ms` and checked lazily on later intents.
+ */
+{ type: "real_time"; until_ts: number };
+
+/**  The duration a trigger gives to an effect (the entity stores the countdown). */
+export type EffectDurationDef = 
+/**  Combat rounds on the token's map. */
+{ type: "rounds"; rounds: number } | 
+/**  The token's own turns. */
+{ type: "turns"; turns: number } | 
+/**  Real time, for out of combat. */
+{ type: "real_time"; minutes: number };
+
+/**  A temporary effect on a token (ADR-0024). */
+export type EffectId = string;
+
 /**  A fact about a state change. */
 export type Event = { kind: "campaign_meta_updated"; campaign: CampaignMeta } | { kind: "map_created"; map: MapDto } | { kind: "map_updated"; map: MapDto } | { kind: "map_deleted"; id: MapId } | 
 /**  Appended to the map's fog; applying the same `op.id` twice adds it once. */
@@ -530,6 +554,12 @@ export type Event = { kind: "campaign_meta_updated"; campaign: CampaignMeta } | 
 { kind: "trigger_updated"; trigger: TriggerDto } | { kind: "trigger_deleted"; id: TriggerId } | 
 /**  A trigger fired; its effects follow as ordinary events. GM roles only. */
 { kind: "trigger_fired"; fired: TriggerFiredDto } | 
+/**  A temporary effect appeared on a token (ADR-0024). */
+{ kind: "token_effect_applied"; effect: TokenEffectDto } | 
+/**  Its countdown ticked. */
+{ kind: "token_effect_updated"; effect: TokenEffectDto } | 
+/**  The GM removed it (`expired: false`) or its time came (`expired: true`). */
+{ kind: "token_effect_removed"; id: EffectId; expired: boolean } | 
 /**  Library folders (ADR-0026). GM roles only. */
 { kind: "library_folder_created"; folder: LibraryFolderDto } | { kind: "library_folder_updated"; folder: LibraryFolderDto } | { kind: "library_folder_deleted"; id: LibraryFolderId } | 
 /**  An asset was moved to another folder or renamed. */
@@ -754,6 +784,8 @@ label?: ZoneLabel | null } |
 { kind: "update_trigger"; id: TriggerId; definition: TriggerDef } | { kind: "delete_trigger"; id: TriggerId } | 
 /**  The GM's button: runs a `manual` trigger, for the character of `token` if given. */
 { kind: "fire_trigger"; id: TriggerId; token: TokenId | null } | 
+/**  GM / Co-GM: removes a temporary effect from a token (ADR-0024). */
+{ kind: "remove_token_effect"; id: EffectId } | 
 /**  GM / Co-GM (ADR-0026). A folder in `parent` of the same library (`None`: its root). */
 { kind: "create_library_folder"; id: LibraryFolderId; library: Library; parent: LibraryFolderId | null; name: string } | 
 /**  GM / Co-GM. */
@@ -781,6 +813,12 @@ export type IntentEnvelope = {
 	 *  (last-write-wins). Ignored for creations.
 	 */
 	expected_version: Version | null,
+	/**
+	 *  Unix ms when the sender created it; servers overwrite it on receipt. The core has no
+	 *  clock of its own: this input sets the deadlines of real-time token effects (ADR-0024).
+	 *  Outside the payload hash, so a repeat with a fresh timestamp stays the same intent.
+	 */
+	ts_ms?: number,
 	intent: Intent,
 };
 
@@ -1204,6 +1242,8 @@ export type Snapshot = {
 	/**  Looping or paused sounds, with the last commanded position for reconnecting clients. */
 	sounds?: SoundDto[],
 	playlists?: PlaylistDto[],
+	/**  Temporary effects on tokens (ADR-0024); filtered with their tokens. */
+	effects?: TokenEffectDto[],
 };
 
 /**
@@ -1314,6 +1354,23 @@ export type TokenDto = {
 	version: Version,
 };
 
+/**  A temporary effect hanging on a token. */
+export type TokenEffectDto = {
+	id: EffectId,
+	token: TokenId,
+	/**  Shown name (the potion, the trap, ...). */
+	label: string,
+	/**  A condition id of the system, shown as a badge. */
+	condition: string | null,
+	/**  Resource changed by `dice` at the start of each of the token's turns, if any. */
+	resource: string | null,
+	dice: string | null,
+	/**  `true`: the recurring change heals instead of damaging. */
+	heal: boolean,
+	duration: EffectDuration,
+	version: Version,
+};
+
 /**  A token placed on a map. */
 export type TokenId = string;
 
@@ -1353,7 +1410,13 @@ export type TriggerAction =
  *  A one-shot sound: background music pauses for everyone and resumes from its position
  *  when the sting ends.
  */
-{ type: "play_sting"; asset: AssetId; volume: number };
+{ type: "play_sting"; asset: AssetId; volume: number } | 
+/**  Puts a temporary effect on the firing token (ADR-0024). */
+{ type: "apply_effect"; label: string; 
+/**  A condition id of the system to show, if any. */
+condition: string | null; 
+/**  A resource changed by `dice` at the start of each of the token's turns, if any. */
+resource: string | null; dice: string | null; heal: boolean; duration: EffectDurationDef };
 
 /**  What the GM edits: everything of a trigger but its id, state and version. */
 export type TriggerDef = {

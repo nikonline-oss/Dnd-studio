@@ -88,6 +88,7 @@ async fn host_join_and_play_through_the_server() {
         .submit(&IntentEnvelope {
             intent_id: IntentId::new_v7(),
             expected_version: None,
+            ts_ms: 0,
             intent: Intent::CreateMap {
                 id: map,
                 name: "Cave".into(),
@@ -253,6 +254,7 @@ async fn host_join_and_play_through_the_server() {
     gm.submit(IntentEnvelope {
         intent_id: IntentId::new_v7(),
         expected_version: None,
+        ts_ms: 0,
         intent: Intent::PlaySound {
             asset_id: audio_id,
             volume: 80,
@@ -287,6 +289,7 @@ async fn host_join_and_play_through_the_server() {
         gm.submit(IntentEnvelope {
             intent_id: IntentId::new_v7(),
             expected_version: None,
+            ts_ms: 0,
             intent: Intent::SetSoundPlayback {
                 asset_id: audio_id,
                 position_ms: 25_000,
@@ -337,6 +340,7 @@ async fn host_join_and_play_through_the_server() {
         gm.submit(IntentEnvelope {
             intent_id: IntentId::new_v7(),
             expected_version: None,
+            ts_ms: 0,
             intent: Intent::CreateJournalEntry {
                 id: entry_id,
                 folder_id: None,
@@ -407,6 +411,7 @@ async fn host_join_and_play_through_the_server() {
         gm.submit(IntentEnvelope {
             intent_id: IntentId::new_v7(),
             expected_version: Some(imported_map.version),
+            ts_ms: 0,
             intent: Intent::UpdateMap {
                 id: imported_map.id,
                 name: None,
@@ -503,6 +508,7 @@ async fn host_join_and_play_through_the_server() {
         .submit(IntentEnvelope {
             intent_id: IntentId::new_v7(),
             expected_version: None,
+            ts_ms: 0,
             intent: Intent::SendMessage {
                 id: ChatMessageId::new_v7(),
                 body: "hello".into(),
@@ -583,6 +589,7 @@ async fn host_join_and_play_through_the_server() {
                 &IntentEnvelope {
                     intent_id: IntentId::new_v7(),
                     expected_version: Some(Version(1)),
+                    ts_ms: 0,
                     intent: Intent::UpdateMap {
                         id: map,
                         name: Some(name.into()),
@@ -611,6 +618,7 @@ async fn host_join_and_play_through_the_server() {
         .submit_offline(&IntentEnvelope {
             intent_id: IntentId::new_v7(),
             expected_version: None,
+            ts_ms: 0,
             intent: Intent::CreateJournalEntry {
                 id: offline_note,
                 folder_id: None,
@@ -638,6 +646,7 @@ async fn host_join_and_play_through_the_server() {
         .submit_offline(&IntentEnvelope {
             intent_id: IntentId::new_v7(),
             expected_version: Some(Version(1)),
+            ts_ms: 0,
             intent: Intent::UpdateJournalEntry {
                 id: offline_note,
                 title: None,

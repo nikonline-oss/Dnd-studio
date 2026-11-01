@@ -73,6 +73,14 @@ export function applyEvent(snapshot: Snapshot, event: Event): Snapshot {
           c.token_id === event.id ? { ...c, token_id: null } : c,
         ),
       };
+    case 'token_effect_applied':
+    case 'token_effect_updated':
+      return { ...snapshot, effects: upsert(snapshot.effects ?? [], event.effect) };
+    case 'token_effect_removed':
+      return {
+        ...snapshot,
+        effects: (snapshot.effects ?? []).filter((e) => e.id !== event.id),
+      };
     case 'combat_started':
     case 'combat_updated':
       return { ...snapshot, combats: upsert(snapshot.combats, event.combat) };

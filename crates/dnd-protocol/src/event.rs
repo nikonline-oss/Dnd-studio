@@ -6,9 +6,10 @@
 use serde::{Deserialize, Serialize};
 
 use crate::board::{BoardDto, BoardEdgeDto, BoardNodeDto};
+use crate::effect::TokenEffectDto;
 use crate::ids::{
-    AssetId, BoardEdgeId, BoardId, BoardNodeId, CombatId, CombatantId, IntentId, JournalEntryId,
-    JournalFolderId, LibraryFolderId, MapId, Seq, TokenId, TriggerId, ZoneId,
+    AssetId, BoardEdgeId, BoardId, BoardNodeId, CombatId, CombatantId, EffectId, IntentId,
+    JournalEntryId, JournalFolderId, LibraryFolderId, MapId, Seq, TokenId, TriggerId, ZoneId,
 };
 use crate::library::{LibraryFolderDto, SoundDto};
 use crate::model::{
@@ -213,6 +214,20 @@ pub enum Event {
     /// A trigger fired; its effects follow as ordinary events. GM roles only.
     TriggerFired {
         fired: TriggerFiredDto,
+    },
+
+    /// A temporary effect appeared on a token (ADR-0024).
+    TokenEffectApplied {
+        effect: TokenEffectDto,
+    },
+    /// Its countdown ticked.
+    TokenEffectUpdated {
+        effect: TokenEffectDto,
+    },
+    /// The GM removed it (`expired: false`) or its time came (`expired: true`).
+    TokenEffectRemoved {
+        id: EffectId,
+        expired: bool,
     },
 
     /// Library folders (ADR-0026). GM roles only.

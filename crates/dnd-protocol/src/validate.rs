@@ -151,6 +151,7 @@ impl Intent {
             | Self::UpdateTrigger { .. }
             | Self::DeleteTrigger { .. }
             | Self::FireTrigger { .. }
+            | Self::RemoveTokenEffect { .. }
             | Self::CreateLibraryFolder { .. }
             | Self::RenameLibraryFolder { .. }
             | Self::MoveLibraryFolder { .. }
@@ -250,6 +251,7 @@ impl Intent {
             | Self::UpdateTrigger { .. }
             | Self::DeleteTrigger { .. }
             | Self::FireTrigger { .. }
+            | Self::RemoveTokenEffect { .. }
             | Self::RenameLibraryFolder { .. }
             | Self::MoveLibraryFolder { .. }
             | Self::DeleteLibraryFolder { .. }

@@ -95,6 +95,10 @@ define_id!(
     TriggerId
 );
 define_id!(
+    /// A temporary effect on a token (ADR-0024).
+    EffectId
+);
+define_id!(
     /// A folder of the image or audio library (ADR-0026).
     LibraryFolderId
 );

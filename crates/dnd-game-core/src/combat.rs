@@ -90,7 +90,7 @@ pub(crate) fn apply(
             };
             updated(combatant, *initiative)
         }
-        Intent::NextTurn { combat_id } => next_turn(state, *combat_id),
+        Intent::NextTurn { combat_id } => next_turn(state, *combat_id, rng),
         Intent::EndCombat { id } => Ok(vec![Event::CombatEnded { id: *id }]),
         _ => return None,
     })
@@ -238,7 +238,11 @@ fn updated(combatant: &CombatantDto, initiative: Option<i64>) -> Result<Vec<Even
     }])
 }
 
-fn next_turn(state: &GameState, combat_id: CombatId) -> Result<Vec<Event>, RejectReason> {
+fn next_turn(
+    state: &GameState,
+    combat_id: CombatId,
+    rng: &mut dyn GameRng,
+) -> Result<Vec<Event>, RejectReason> {
     let combat = state
         .combats
         .get(&combat_id)
@@ -264,12 +268,37 @@ fn next_turn(state: &GameState, combat_id: CombatId) -> Result<Vec<Event>, Rejec
             ),
         },
     };
-    Ok(vec![Event::CombatUpdated {
+    let mut work = state.clone();
+    let updated = Event::CombatUpdated {
         combat: CombatDto {
             turn: Some(turn),
             round,
             version: bump(combat.version)?,
             ..combat.clone()
         },
-    }])
+    };
+    let mut events = vec![updated];
+    for event in &events {
+        crate::evolve::evolve(&mut work, event);
+    }
+    // A wrapped order opens a new round: round effects of the map's tokens count down.
+    if round > combat.round {
+        for event in crate::effects::tick_round(&mut work, combat.map_id) {
+            crate::evolve::evolve(&mut work, &event);
+            events.push(event);
+        }
+    }
+    // The turn's combatant: recurring changes of their token's effects, then the countdown.
+    let token = work
+        .combatants
+        .get(&turn)
+        .and_then(|c| c.token_id)
+        .filter(|id| work.tokens.contains_key(id));
+    if let Some(token) = token {
+        for event in crate::effects::tick_turn(&mut work, token, rng) {
+            crate::evolve::evolve(&mut work, &event);
+            events.push(event);
+        }
+    }
+    Ok(events)
 }

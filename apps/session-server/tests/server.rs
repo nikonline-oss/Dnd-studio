@@ -42,6 +42,7 @@ fn gm_intent(intent: Intent) -> IntentEnvelope {
     IntentEnvelope {
         intent_id: IntentId::new_v7(),
         expected_version: None,
+        ts_ms: 0,
         intent,
     }
 }
@@ -852,6 +853,7 @@ async fn gm_and_player_play_through_the_server() {
         .send(ClientMessage::Intent(Box::new(IntentEnvelope {
             intent_id: IntentId::new_v7(),
             expected_version: Some(Version(1)),
+            ts_ms: 0,
             intent: Intent::UpdateMap {
                 id: MapId(v7(HIDDEN_MAP)),
                 name: None,
@@ -1508,6 +1510,7 @@ async fn a_trigger_reveals_a_secret_through_the_server() {
             .send(ClientMessage::Intent(Box::new(IntentEnvelope {
                 intent_id,
                 expected_version,
+                ts_ms: 0,
                 intent: intent.clone(),
             })))
             .await;
@@ -1525,6 +1528,7 @@ async fn a_trigger_reveals_a_secret_through_the_server() {
         ClientMessage::Intent(Box::new(IntentEnvelope {
             intent_id: IntentId(v7(0x70 + n)),
             expected_version: None,
+            ts_ms: 0,
             intent: Intent::RollDice {
                 id: ChatMessageId(v7(0x80 + n)),
                 expression: "1d20 + @perception".into(),
@@ -1550,6 +1554,7 @@ async fn a_trigger_reveals_a_secret_through_the_server() {
         .send(ClientMessage::Intent(Box::new(IntentEnvelope {
             intent_id: update,
             expected_version: Some(Version(1)),
+            ts_ms: 0,
             intent: Intent::UpdateTrigger {
                 id: trigger,
                 definition: secret_trigger(zone, node, "@total >= 1"),

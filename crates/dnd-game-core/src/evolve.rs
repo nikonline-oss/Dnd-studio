@@ -154,6 +154,12 @@ pub fn evolve(state: &mut GameState, event: &Event) {
         Event::TriggerDeleted { id } => {
             state.triggers.remove(id);
         }
+        Event::TokenEffectApplied { effect } | Event::TokenEffectUpdated { effect } => {
+            state.effects.insert(effect.id, effect.clone());
+        }
+        Event::TokenEffectRemoved { id, .. } => {
+            state.effects.remove(id);
+        }
         // A log line for the GM; its effects are events of their own.
         Event::TriggerFired { .. } => {}
         Event::ZoneDeleted { id } => {

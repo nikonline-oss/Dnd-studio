@@ -916,6 +916,7 @@ impl RemoteSession {
             .submit(IntentEnvelope {
                 intent_id: dnd_protocol::IntentId::new_v7(),
                 expected_version: None,
+                ts_ms: 0,
                 intent: dnd_protocol::Intent::InstallPlugin { plugin },
             })
             .await?;
@@ -976,6 +977,7 @@ impl RemoteSession {
             .submit(IntentEnvelope {
                 intent_id: dnd_protocol::IntentId::new_v7(),
                 expected_version: None,
+                ts_ms: 0,
                 intent: dnd_protocol::Intent::CreateMap {
                     id: map_id,
                     name,
@@ -1033,6 +1035,7 @@ impl RemoteSession {
             .submit(IntentEnvelope {
                 intent_id: dnd_protocol::IntentId::new_v7(),
                 expected_version: None,
+                ts_ms: 0,
                 intent: Intent::RegisterAsset {
                     asset: Box::new(asset),
                 },

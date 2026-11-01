@@ -118,6 +118,9 @@ ADR-0002 выбрал SQLite. Нужно зафиксировать, как им
 | `INSERT … ON CONFLICT` `triggers`                                    | `project_event`                    | `queries.rs::triggers_are_projected_loaded_and_deleted` (срабатывание `once`)                   |
 | `DELETE FROM triggers`                                               | `project_event`                    | `queries.rs::triggers_are_projected_loaded_and_deleted`                                         |
 | `SELECT dto FROM triggers`                                           | `load_state`                       | `queries.rs::triggers_are_projected_loaded_and_deleted`                                         |
+| `INSERT … ON CONFLICT` `token_effects`                               | `project_event`                    | `queries.rs::effects_are_projected_loaded_and_removed`                                          |
+| `DELETE FROM token_effects`                                          | `project_event`                    | `queries.rs::effects_are_projected_loaded_and_removed`                                          |
+| `SELECT dto FROM token_effects`                                      | `load_state`                       | `queries.rs::effects_are_projected_loaded_and_removed`                                          |
 | `INSERT … ON CONFLICT` `library_folders`                             | `project_event`                    | queries.rs::library_folders_and_sounds_are_projected                                            |
 | `DELETE FROM library_folders` (+ cascade, `assets.folder_id` → NULL) | `project_event`                    | queries.rs::library_folders_and_sounds_are_projected                                            |
 | `SELECT dto FROM library_folders`                                    | `load_state`                       | queries.rs::library_folders_and_sounds_are_projected                                            |

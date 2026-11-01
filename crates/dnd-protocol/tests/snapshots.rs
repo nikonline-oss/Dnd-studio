@@ -36,6 +36,7 @@ fn client_messages_json() {
         envelope(ClientMessage::Intent(Box::new(IntentEnvelope {
             intent_id: IntentId(Uuid::from_u128(4)),
             expected_version: Some(Version(3)),
+            ts_ms: 0,
             intent: Intent::UpdateMap {
                 id: MapId(Uuid::from_u128(10)),
                 name: Some("Crypt".into()),
@@ -46,6 +47,7 @@ fn client_messages_json() {
         envelope(ClientMessage::Intent(Box::new(IntentEnvelope {
             intent_id: IntentId(Uuid::from_u128(5)),
             expected_version: None,
+            ts_ms: 0,
             intent: Intent::MoveToken {
                 id: TokenId(Uuid::from_u128(20)),
                 x: 1120,
@@ -150,7 +152,7 @@ fn shared_playback_wire_contract_and_legacy_defaults() {
     }))
     .unwrap();
     assert_eq!((legacy.position_ms, legacy.paused), (0, false));
-    assert_eq!(PROTOCOL_VERSION, 8);
+    assert_eq!(PROTOCOL_VERSION, 9);
     let mut old = envelope(ClientMessage::Ping);
     old.v = 7;
     assert!(old.check_version().is_err());

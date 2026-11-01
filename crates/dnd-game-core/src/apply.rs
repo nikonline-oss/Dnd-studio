@@ -5,6 +5,7 @@ use dnd_protocol::{
     TokenDto, Version, VersionPolicy,
 };
 
+use crate::evolve::evolve;
 use crate::permissions::{Actor, authorize};
 use crate::rng::GameRng;
 use crate::state::GameState;
@@ -29,10 +30,16 @@ pub fn apply(
     actor: &Actor,
     rng: &mut dyn GameRng,
 ) -> Result<Vec<Event>, RuleError> {
-    let mut events = decide(state, envelope, actor, rng)?;
-    let bindings = crate::triggers::sync_board_bindings(state, &envelope.intent, &events, rng)?;
+    // Real-time effects due by the envelope's timestamp expire first (the core has no clock).
+    let mut events = crate::effects::expire_by_clock(state, envelope.ts_ms);
+    let mut work = state.clone();
+    for event in &events {
+        evolve(&mut work, event);
+    }
+    events.extend(decide(&work, envelope, actor, rng)?);
+    let bindings = crate::triggers::sync_board_bindings(&work, &envelope.intent, &events, rng)?;
     events.extend(bindings);
-    let reactions = crate::triggers::react(state, &envelope.intent, &events, rng);
+    let reactions = crate::triggers::react(&work, &envelope.intent, &events, envelope.ts_ms, rng);
     events.extend(reactions);
     Ok(events)
 }
@@ -228,7 +235,20 @@ fn decide(
             Ok(vec![Event::TokenMoved { id: *id, x, y }])
         }
 
-        Intent::DeleteToken { id } => Ok(vec![Event::TokenDeleted { id: *id }]),
+        Intent::DeleteToken { id } => {
+            // Its effects go first (children before the parent, like folders).
+            let mut events: Vec<_> = state
+                .effects
+                .values()
+                .filter(|e| e.token == *id)
+                .map(|e| Event::TokenEffectRemoved {
+                    id: e.id,
+                    expired: false,
+                })
+                .collect();
+            events.push(Event::TokenDeleted { id: *id });
+            Ok(events)
+        }
 
         Intent::CreateCharacter { .. }
         | Intent::DeleteCharacter { .. }
@@ -301,8 +321,12 @@ fn decide(
         Intent::CreateTrigger { .. }
         | Intent::UpdateTrigger { .. }
         | Intent::DeleteTrigger { .. }
-        | Intent::FireTrigger { .. } => crate::triggers::apply(state, intent, rng)
+        | Intent::FireTrigger { .. } => crate::triggers::apply(state, intent, envelope.ts_ms, rng)
             .unwrap_or(Err(RejectReason::invalid("intent"))),
+
+        Intent::RemoveTokenEffect { .. } => {
+            crate::effects::apply(state, intent).unwrap_or(Err(RejectReason::invalid("intent")))
+        }
 
         Intent::CreateZone { .. }
         | Intent::UpdateZone { .. }
@@ -394,6 +418,7 @@ pub fn current_version(state: &GameState, intent: &Intent) -> Result<Version, Re
         Intent::UpdateTrigger { id, .. } | Intent::DeleteTrigger { id } => {
             state.triggers.get(id).map(|t| t.version)
         }
+        Intent::RemoveTokenEffect { id } => state.effects.get(id).map(|e| e.version),
         Intent::MoveBoardNode { .. } => None,
         Intent::UpdateBoard { id, .. } | Intent::DeleteBoard { id } => {
             state.boards.get(id).map(|b| b.version)
@@ -501,6 +526,7 @@ pub(crate) fn id_in_use(state: &GameState, id: dnd_protocol::Uuid) -> bool {
             .contains_key(&dnd_protocol::BoardEdgeId(id))
         || state.zones.contains_key(&dnd_protocol::ZoneId(id))
         || state.triggers.contains_key(&dnd_protocol::TriggerId(id))
+        || state.effects.contains_key(&dnd_protocol::EffectId(id))
 }
 
 /// Next version, rejected once it would leave the JS-safe range (ADR-0015).

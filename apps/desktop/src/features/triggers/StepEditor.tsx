@@ -21,6 +21,7 @@ export const ACTION_TYPES: ActionType[] = [
   'play_sting',
   'spawn_tokens',
   'start_combat',
+  'apply_effect',
 ];
 
 /** A fresh action of `type`, with the first sensible choices filled in. */
@@ -51,6 +52,16 @@ export function newAction(type: ActionType, rules: SystemRulesDto | null): Trigg
       return { type, character: '', count: 1, placement: { type: 'point', x: 0, y: 0 } };
     case 'start_combat':
       return { type };
+    case 'apply_effect':
+      return {
+        type,
+        label: '',
+        condition: null,
+        resource: null,
+        dice: null,
+        heal: false,
+        duration: { type: 'rounds', rounds: 3 },
+      };
   }
 }
 
@@ -499,6 +510,163 @@ export function StepEditor({
         )}
         {action.type === 'start_combat' && (
           <p className="muted trigger-hint">{t('triggers.startCombatHint')}</p>
+        )}
+        {action.type === 'apply_effect' && (
+          <>
+            <label className="trigger-field">
+              <span>{t('effects.label')}</span>
+              <input
+                value={action.label}
+                maxLength={200}
+                onChange={(e) => {
+                  set({ ...action, label: e.target.value });
+                }}
+              />
+            </label>
+            <label className="trigger-field">
+              <span>{t('conditions.title')}</span>
+              <select
+                value={action.condition ?? ''}
+                onChange={(e) => {
+                  set({ ...action, condition: e.target.value || null });
+                }}
+              >
+                <option value="">{t('effects.noCondition')}</option>
+                {(rules?.conditions ?? []).map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {labelText(c.label, lang)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="inline">
+              <input
+                type="checkbox"
+                checked={action.resource !== null}
+                onChange={(e) => {
+                  set({
+                    ...action,
+                    resource: e.target.checked ? (rules?.resources[0]?.id ?? '') : null,
+                    dice: e.target.checked ? '1d6' : null,
+                  });
+                }}
+              />
+              {t('effects.recurring')}
+            </label>
+            {action.resource !== null && (
+              <>
+                <label className="trigger-field">
+                  <span>{t('triggers.resource')}</span>
+                  <select
+                    value={action.resource}
+                    onChange={(e) => {
+                      set({ ...action, resource: e.target.value });
+                    }}
+                  >
+                    {(rules?.resources ?? []).map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {labelText(r.label, lang)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="trigger-field">
+                  <span>{t('triggers.change')}</span>
+                  <select
+                    value={action.heal ? 'heal' : 'damage'}
+                    onChange={(e) => {
+                      set({ ...action, heal: e.target.value === 'heal' });
+                    }}
+                  >
+                    <option value="damage">{t('triggers.damage')}</option>
+                    <option value="heal">{t('triggers.heal')}</option>
+                  </select>
+                </label>
+                <label className="trigger-field">
+                  <span>{t('triggers.dice')}</span>
+                  <input
+                    className="mono"
+                    value={action.dice ?? ''}
+                    onChange={(e) => {
+                      set({ ...action, dice: e.target.value });
+                    }}
+                  />
+                </label>
+              </>
+            )}
+            <label className="trigger-field">
+              <span>{t('effects.duration')}</span>
+              <select
+                value={action.duration.type}
+                onChange={(e) => {
+                  const type = e.target.value;
+                  set({
+                    ...action,
+                    duration:
+                      type === 'rounds'
+                        ? { type, rounds: 3 }
+                        : type === 'turns'
+                          ? { type, turns: 3 }
+                          : { type: 'real_time', minutes: 60 },
+                  });
+                }}
+              >
+                <option value="rounds">{t('effects.rounds')}</option>
+                <option value="turns">{t('effects.turns')}</option>
+                <option value="real_time">{t('effects.realTime')}</option>
+              </select>
+            </label>
+            {action.duration.type === 'real_time' ? (
+              <label className="trigger-field">
+                <span>{t('effects.minutes')}</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={10080}
+                  value={action.duration.minutes}
+                  onChange={(e) => {
+                    if (action.duration.type !== 'real_time') return;
+                    const minutes = Math.round(Number(e.target.value));
+                    set({
+                      ...action,
+                      duration: {
+                        type: 'real_time',
+                        minutes: Number.isFinite(minutes) ? minutes : 1,
+                      },
+                    });
+                  }}
+                />
+              </label>
+            ) : (
+              <label className="trigger-field">
+                <span>
+                  {action.duration.type === 'rounds' ? t('effects.rounds') : t('effects.turns')}
+                </span>
+                <input
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={
+                    action.duration.type === 'rounds'
+                      ? action.duration.rounds
+                      : action.duration.turns
+                  }
+                  onChange={(e) => {
+                    if (action.duration.type === 'real_time') return;
+                    const span = Math.round(Number(e.target.value));
+                    const value = Number.isFinite(span) ? span : 1;
+                    set({
+                      ...action,
+                      duration:
+                        action.duration.type === 'rounds'
+                          ? { type: 'rounds', rounds: value }
+                          : { type: 'turns', turns: value },
+                    });
+                  }}
+                />
+              </label>
+            )}
+          </>
         )}
         <label className="trigger-field">
           <span>{t('triggers.when')}</span>

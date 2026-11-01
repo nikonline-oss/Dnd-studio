@@ -73,6 +73,7 @@ pub async fn install(
     let envelope = IntentEnvelope {
         intent_id: IntentId::new_v7(),
         expected_version: None,
+        ts_ms: 0,
         intent: Intent::InstallPlugin {
             plugin: Box::new(package.to_dto()),
         },

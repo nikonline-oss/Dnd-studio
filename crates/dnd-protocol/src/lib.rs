@@ -5,6 +5,7 @@
 //! See `docs/protocol.md`.
 
 pub mod board;
+pub mod effect;
 pub mod error;
 pub mod event;
 pub mod ids;
@@ -28,12 +29,16 @@ pub use board::{
     BoardDto, BoardEdgeDto, BoardLink, BoardNodeContent, BoardNodeDto, BoardVisibility,
     MAX_BOARD_COORD, MAX_BOARD_EDGES, MAX_BOARD_NODES, MAX_NODE_SIZE, MAX_NOTE_LEN, MIN_NODE_SIZE,
 };
+pub use effect::{
+    EffectDuration, MAX_EFFECT_LABEL, MAX_EFFECT_MINUTES, MAX_EFFECT_SPAN, MAX_EFFECTS_PER_TOKEN,
+    TokenEffectDto,
+};
 pub use error::RejectReason;
 pub use event::{Event, EventBatch};
 pub use ids::{
     AssetId, BoardEdgeId, BoardId, BoardNodeId, CharacterId, ChatMessageId, CombatId, CombatantId,
-    FogOpId, IntentId, JournalEntryId, JournalFolderId, LibraryFolderId, MapId, MessageId,
-    PlaylistId, Role, Seq, SessionId, TokenId, TriggerId, UserId, Version, ZoneId,
+    EffectId, FogOpId, IntentId, JournalEntryId, JournalFolderId, LibraryFolderId, MapId,
+    MessageId, PlaylistId, Role, Seq, SessionId, TokenId, TriggerId, UserId, Version, ZoneId,
     uuid_v7_from_random,
 };
 pub use intent::{Intent, IntentEnvelope, IntentOutcome, PayloadHash, VersionPolicy};
@@ -67,9 +72,9 @@ pub use plugin::{
 pub use snapshot::Snapshot;
 pub use theme::{THEME_COLOR_VARIABLES, ThemeDto, validate_theme};
 pub use trigger::{
-    MAX_SPAWN_TOKENS, MAX_TRIGGER_STEPS, MAX_TRIGGER_TEXT, MAX_TRIGGERS, MAX_TRIGGERS_PER_INTENT,
-    RevealTarget, SpawnPlacement, TriggerAction, TriggerDef, TriggerDto, TriggerEvent,
-    TriggerFiredDto, TriggerStep,
+    EffectDurationDef, MAX_SPAWN_TOKENS, MAX_TRIGGER_STEPS, MAX_TRIGGER_TEXT, MAX_TRIGGERS,
+    MAX_TRIGGERS_PER_INTENT, RevealTarget, SpawnPlacement, TriggerAction, TriggerDef, TriggerDto,
+    TriggerEvent, TriggerFiredDto, TriggerStep,
 };
 /// Re-exported so dependants use the exact same UUID type.
 pub use uuid::Uuid;
@@ -80,7 +85,7 @@ pub use zone::{MAX_ZONE_PARTS, MAX_ZONE_POINTS, MAX_ZONES_PER_MAP, ZoneDto, Zone
 
 /// Protocol version. Peers with a different version are refused with
 /// [`RejectReason::ProtocolMismatch`].
-pub const PROTOCOL_VERSION: u32 = 8;
+pub const PROTOCOL_VERSION: u32 = 9;
 
 /// Registers every protocol type that is exported to TypeScript.
 #[cfg(feature = "specta")]

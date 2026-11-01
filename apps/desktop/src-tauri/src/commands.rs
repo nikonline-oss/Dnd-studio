@@ -106,6 +106,7 @@ pub async fn campaign_create<R: Runtime>(
         let envelope = IntentEnvelope {
             intent_id: dnd_protocol::IntentId::new_v7(),
             expected_version: None,
+            ts_ms: 0,
             intent: dnd_protocol::Intent::SetSystemPlugin { id: Some(system) },
         };
         server.submit(&envelope).await?;

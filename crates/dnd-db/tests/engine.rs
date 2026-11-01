@@ -29,6 +29,7 @@ fn create_map() -> IntentEnvelope {
     IntentEnvelope {
         intent_id: IntentId::new_v7(),
         expected_version: None,
+        ts_ms: 0,
         intent: Intent::CreateMap {
             id: MapId::new_v7(),
             name: "Cave".into(),
@@ -77,6 +78,7 @@ async fn a_durable_retry_after_the_cache_expires_never_rewinds_a_token() {
     let first = IntentEnvelope {
         intent_id: IntentId::new_v7(),
         expected_version: None,
+        ts_ms: 0,
         intent: Intent::MoveToken {
             id: token,
             x: 16,
@@ -87,6 +89,7 @@ async fn a_durable_retry_after_the_cache_expires_never_rewinds_a_token() {
     let later = IntentEnvelope {
         intent_id: IntentId::new_v7(),
         expected_version: None,
+        ts_ms: 0,
         intent: Intent::MoveToken {
             id: token,
             x: 32,

@@ -4,7 +4,7 @@ expression: messages
 ---
 [
   {
-    "v": 8,
+    "v": 9,
     "id": "00000000-0000-0000-0000-000000000001",
     "ts": 1760000000000,
     "seq": null,
@@ -14,6 +14,7 @@ expression: messages
     "payload": {
       "intent_id": "00000000-0000-0000-0000-000000000004",
       "expected_version": 3,
+      "ts_ms": 0,
       "intent": {
         "kind": "update_map",
         "id": "00000000-0000-0000-0000-00000000000a",
@@ -24,7 +25,7 @@ expression: messages
     }
   },
   {
-    "v": 8,
+    "v": 9,
     "id": "00000000-0000-0000-0000-000000000001",
     "ts": 1760000000000,
     "seq": null,
@@ -34,6 +35,7 @@ expression: messages
     "payload": {
       "intent_id": "00000000-0000-0000-0000-000000000005",
       "expected_version": null,
+      "ts_ms": 0,
       "intent": {
         "kind": "move_token",
         "id": "00000000-0000-0000-0000-000000000014",
@@ -43,7 +45,7 @@ expression: messages
     }
   },
   {
-    "v": 8,
+    "v": 9,
     "id": "00000000-0000-0000-0000-000000000001",
     "ts": 1760000000000,
     "seq": null,
@@ -52,7 +54,7 @@ expression: messages
     "type": "ping"
   },
   {
-    "v": 8,
+    "v": 9,
     "id": "00000000-0000-0000-0000-000000000001",
     "ts": 1760000000000,
     "seq": null,
@@ -64,7 +66,7 @@ expression: messages
     }
   },
   {
-    "v": 8,
+    "v": 9,
     "id": "00000000-0000-0000-0000-000000000001",
     "ts": 1760000000000,
     "seq": null,

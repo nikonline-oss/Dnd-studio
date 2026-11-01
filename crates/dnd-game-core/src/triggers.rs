@@ -33,6 +33,7 @@ const MAX_TRIGGER_TOKENS: usize = 100;
 pub(crate) fn apply(
     state: &GameState,
     intent: &Intent,
+    ts_ms: i64,
     rng: &mut dyn GameRng,
 ) -> Option<Result<Vec<Event>, RejectReason>> {
     let result = match intent {
@@ -121,7 +122,7 @@ pub(crate) fn apply(
             let mut work = state.clone();
             Ok(firings
                 .iter()
-                .flat_map(|firing| run(&mut work, *id, firing, rng))
+                .flat_map(|firing| run(&mut work, *id, firing, ts_ms, rng))
                 .collect())
         })(),
         _ => return None,
@@ -142,6 +143,7 @@ pub(crate) fn react(
     before: &GameState,
     intent: &Intent,
     events: &[Event],
+    ts_ms: i64,
     rng: &mut dyn GameRng,
 ) -> Vec<Event> {
     let armed = |kind: fn(&TriggerEvent) -> bool| {
@@ -177,7 +179,7 @@ pub(crate) fn react(
     let mut work = after;
     let mut out = Vec::new();
     for (id, firing) in firings.into_iter().take(MAX_TRIGGERS_PER_INTENT) {
-        out.extend(run(&mut work, id, &firing, rng));
+        out.extend(run(&mut work, id, &firing, ts_ms, rng));
     }
     out
 }
@@ -363,7 +365,13 @@ fn available(trigger: &TriggerDto, map_id: Option<MapId>) -> bool {
 }
 
 /// Runs a trigger's steps against `work`, which follows every event produced. Returns the events.
-fn run(work: &mut GameState, id: TriggerId, firing: &Firing, rng: &mut dyn GameRng) -> Vec<Event> {
+fn run(
+    work: &mut GameState,
+    id: TriggerId,
+    firing: &Firing,
+    ts_ms: i64,
+    rng: &mut dyn GameRng,
+) -> Vec<Event> {
     let Some(trigger) = work.triggers.get(&id).cloned() else {
         return Vec::new();
     };
@@ -407,7 +415,7 @@ fn run(work: &mut GameState, id: TriggerId, firing: &Firing, rng: &mut dyn GameR
         if !condition_holds(work, step.when.as_deref(), firing, &vars) {
             continue;
         }
-        for event in perform(work, &trigger, &step.action, firing, &mut vars, rng) {
+        for event in perform(work, &trigger, &step.action, firing, &mut vars, ts_ms, rng) {
             evolve(work, &event);
             events.push(event);
         }
@@ -422,6 +430,7 @@ fn perform(
     action: &TriggerAction,
     firing: &Firing,
     vars: &mut BTreeMap<String, i64>,
+    ts_ms: i64,
     rng: &mut dyn GameRng,
 ) -> Vec<Event> {
     let character = firing
@@ -446,6 +455,16 @@ fn perform(
             placement,
         } => spawn_tokens(work, *character, *count, *placement, firing, rng),
         TriggerAction::StartCombat => start_combat(work, firing, rng),
+        TriggerAction::ApplyEffect {
+            label,
+            condition,
+            resource,
+            dice,
+            heal,
+            duration,
+        } => apply_effect(
+            work, label, condition, resource, dice, *heal, *duration, firing, ts_ms, rng,
+        ),
         TriggerAction::PlaySting { asset, volume } => work
             .assets
             .get(asset)
@@ -500,36 +519,10 @@ fn perform(
             resource,
             dice,
             heal,
-        } => (|| {
-            let character = character?;
-            let path = resource_path(work, resource)?;
-            let amount = roll_dice(work, dice, Some(&character), vars, rng)?
-                .total
-                .max(0);
-            let (_, current, max) = sheet_values(work, &character.sheet_json)?
-                .resources
-                .into_iter()
-                .find(|(id, _, _)| id == resource)?;
-            let next = if *heal {
-                current.saturating_add(amount).min(max.max(0))
-            } else {
-                current.saturating_sub(amount).max(0)
-            };
-            let sheet = set_integer(&character.sheet_json, &path, next)?;
-            let updated = updated_character(work, &character, |c| c.sheet_json = sheet)?;
-            Some(vec![
-                updated,
-                system(
-                    SystemMessage::ResourceChanged {
-                        name: character.name.clone(),
-                        resource: resource.clone(),
-                        delta: next - current,
-                    },
-                    rng,
-                ),
-            ])
-        })()
-        .unwrap_or_default(),
+        } => match &character {
+            Some(character) => change_resource(work, character, resource, dice, *heal, vars, rng),
+            None => Vec::new(),
+        },
         TriggerAction::AddCondition { condition }
         | TriggerAction::RemoveCondition { condition } => (|| {
             let character = character?;
@@ -701,6 +694,51 @@ fn shape_bounds(shape: &ZoneShape) -> Option<(i64, i64, i64, i64)> {
     bounds
 }
 
+/// Puts a temporary effect on the firing token; nothing applies without a token context.
+#[allow(clippy::too_many_arguments)]
+fn apply_effect(
+    work: &GameState,
+    label: &str,
+    condition: &Option<String>,
+    resource: &Option<String>,
+    dice: &Option<String>,
+    heal: bool,
+    duration: dnd_protocol::EffectDurationDef,
+    firing: &Firing,
+    ts_ms: i64,
+    rng: &mut dyn GameRng,
+) -> Vec<Event> {
+    use dnd_protocol::{EffectDuration, EffectDurationDef};
+    let Some(token) = firing.token else {
+        return Vec::new();
+    };
+    if work.effects.values().filter(|e| e.token == token).count()
+        >= dnd_protocol::MAX_EFFECTS_PER_TOKEN
+    {
+        return Vec::new();
+    }
+    let duration = match duration {
+        EffectDurationDef::Rounds { rounds } => EffectDuration::Rounds { remaining: rounds },
+        EffectDurationDef::Turns { turns } => EffectDuration::Turns { remaining: turns },
+        EffectDurationDef::RealTime { minutes } => EffectDuration::RealTime {
+            until_ts: ts_ms.saturating_add(i64::from(minutes).saturating_mul(60_000)),
+        },
+    };
+    vec![Event::TokenEffectApplied {
+        effect: dnd_protocol::TokenEffectDto {
+            id: dnd_protocol::EffectId(fresh_id(rng)),
+            token,
+            label: label.to_owned(),
+            condition: condition.clone(),
+            resource: resource.clone(),
+            dice: dice.clone(),
+            heal,
+            duration,
+            version: Version::INITIAL,
+        },
+    }]
+}
+
 /// Opens a combat on the firing map: visible character tokens join and roll initiative at once.
 fn start_combat(work: &GameState, firing: &Firing, rng: &mut dyn GameRng) -> Vec<Event> {
     let Some(map_id) = firing.map_id else {
@@ -835,6 +873,48 @@ fn updated_character(
     next.sheet_json = normalize_sheet(work, &next.sheet_json).ok()?;
     next.version = bump(next.version).ok()?;
     Some(Event::CharacterUpdated { character: next })
+}
+
+/// Damage or healing of `character`'s `resource` by a dice roll, kept within 0..=max, with the
+/// change announced in chat. Shared by the trigger action and the effects' recurring ticks.
+pub(crate) fn change_resource(
+    work: &GameState,
+    character: &CharacterDto,
+    resource: &str,
+    dice: &str,
+    heal: bool,
+    vars: &BTreeMap<String, i64>,
+    rng: &mut dyn GameRng,
+) -> Vec<Event> {
+    (|| {
+        let path = resource_path(work, resource)?;
+        let amount = roll_dice(work, dice, Some(character), vars, rng)?
+            .total
+            .max(0);
+        let (_, current, max) = sheet_values(work, &character.sheet_json)?
+            .resources
+            .into_iter()
+            .find(|(id, _, _)| id == resource)?;
+        let next = if heal {
+            current.saturating_add(amount).min(max.max(0))
+        } else {
+            current.saturating_sub(amount).max(0)
+        };
+        let sheet = set_integer(&character.sheet_json, &path, next)?;
+        let updated = updated_character(work, character, |c| c.sheet_json = sheet)?;
+        Some(vec![
+            updated,
+            system(
+                SystemMessage::ResourceChanged {
+                    name: character.name.clone(),
+                    resource: resource.to_owned(),
+                    delta: next - current,
+                },
+                rng,
+            ),
+        ])
+    })()
+    .unwrap_or_default()
 }
 
 /// The sheet path a resource's value reads (`@hp.current` → `hp.current`), if it is a plain
@@ -1043,6 +1123,40 @@ fn valid_action(state: &GameState, action: &mut TriggerAction) -> Result<(), Rej
                 }
         }
         TriggerAction::StartCombat => true,
+        TriggerAction::ApplyEffect {
+            label,
+            condition,
+            resource,
+            dice,
+            duration,
+            ..
+        } => {
+            *label = label.trim().to_owned();
+            let span_ok = match duration {
+                dnd_protocol::EffectDurationDef::Rounds { rounds }
+                | dnd_protocol::EffectDurationDef::Turns { turns: rounds } => {
+                    *rounds >= 1 && *rounds <= dnd_protocol::MAX_EFFECT_SPAN
+                }
+                dnd_protocol::EffectDurationDef::RealTime { minutes } => {
+                    *minutes >= 1 && *minutes <= dnd_protocol::MAX_EFFECT_MINUTES
+                }
+            };
+            let condition_ok = condition.as_ref().is_none_or(|c| {
+                rules.is_some_and(|r| r.conditions.iter().any(|known| known.id == *c))
+            });
+            let change_ok = match (resource, dice) {
+                (None, None) => true,
+                (Some(resource), Some(dice)) => {
+                    dice_ok(dice) && resource_path(state, resource).is_some()
+                }
+                _ => false,
+            };
+            span_ok
+                && condition_ok
+                && change_ok
+                && !label.is_empty()
+                && label.chars().count() <= dnd_protocol::MAX_EFFECT_LABEL
+        }
         TriggerAction::PlaySting { asset, volume } => {
             *volume <= dnd_protocol::MAX_VOLUME
                 && state

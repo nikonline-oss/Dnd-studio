@@ -13,6 +13,7 @@ mod boards;
 mod characters;
 mod chat;
 mod combat;
+mod effects;
 mod evolve;
 mod fog;
 mod journal;

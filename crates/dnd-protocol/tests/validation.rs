@@ -63,6 +63,7 @@ fn created_entity_ids_must_be_v7() {
     let create = |id: Uuid| IntentEnvelope {
         intent_id: IntentId(v7(1)),
         expected_version: None,
+        ts_ms: 0,
         intent: Intent::CreateMap {
             id: MapId(id),
             name: "M".into(),
@@ -112,6 +113,7 @@ fn payload_hash_is_stable_and_ignores_intent_id() {
     let env = IntentEnvelope {
         intent_id: IntentId(v7(1)),
         expected_version: Some(Version(3)),
+        ts_ms: 0,
         intent: Intent::MoveToken {
             id: TokenId(v7(2)),
             x: 1120,

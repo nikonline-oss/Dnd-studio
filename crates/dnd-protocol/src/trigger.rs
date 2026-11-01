@@ -132,6 +132,30 @@ pub enum TriggerAction {
         asset: AssetId,
         volume: u8,
     },
+    /// Puts a temporary effect on the firing token (ADR-0024).
+    ApplyEffect {
+        label: String,
+        /// A condition id of the system to show, if any.
+        condition: Option<String>,
+        /// A resource changed by `dice` at the start of each of the token's turns, if any.
+        resource: Option<String>,
+        dice: Option<String>,
+        heal: bool,
+        duration: EffectDurationDef,
+    },
+}
+
+/// The duration a trigger gives to an effect (the entity stores the countdown).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub enum EffectDurationDef {
+    /// Combat rounds on the token's map.
+    Rounds { rounds: u8 },
+    /// The token's own turns.
+    Turns { turns: u8 },
+    /// Real time, for out of combat.
+    RealTime { minutes: u32 },
 }
 
 /// One action and, optionally, the expression that must hold for it to run.

@@ -592,6 +592,30 @@
     "add": "Добавить состояние…",
     "remove": "Снять: {{name}}"
   },
+  "effects": {
+    "title": "Эффекты",
+    "label": "Название",
+    "noCondition": "Без состояния",
+    "recurring": "Менять ресурс в начале каждого его хода",
+    "duration": "Длительность",
+    "rounds": "Раунды",
+    "turns": "Его ходы",
+    "realTime": "Реальное время",
+    "minutes": "Минуты",
+    "roundsLeft_one": "остался {{count}} раунд",
+    "roundsLeft_few": "осталось {{count}} раунда",
+    "roundsLeft_many": "осталось {{count}} раундов",
+    "roundsLeft_other": "осталось {{count}} раундов",
+    "turnsLeft_one": "остался {{count}} ход",
+    "turnsLeft_few": "осталось {{count}} хода",
+    "turnsLeft_many": "осталось {{count}} ходов",
+    "turnsLeft_other": "осталось {{count}} ходов",
+    "minutesLeft_one": "осталась {{count}} минута",
+    "minutesLeft_few": "осталось {{count}} минуты",
+    "minutesLeft_many": "осталось {{count}} минут",
+    "minutesLeft_other": "осталось {{count}} минуты",
+    "remove": "Снять эффект"
+  },
   "items": {
     "name": "Предмет",
     "give": "Выдать предмет"
@@ -704,7 +728,8 @@
       "stop_sound": "Остановить звук",
       "play_sting": "Одноразовый сигнал",
       "spawn_tokens": "Создать токены",
-      "start_combat": "Начать бой"
+      "start_combat": "Начать бой",
+      "apply_effect": "Наложить эффект"
     },
     "reveal": {
       "node": "Карточка доски",

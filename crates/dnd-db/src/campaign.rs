@@ -697,6 +697,14 @@ impl CampaignDb {
             let trigger: TriggerDto = serde_json::from_str(&row.try_get::<String, _>("dto")?)?;
             state.triggers.insert(trigger.id, trigger);
         }
+        for row in sqlx::query("SELECT dto FROM token_effects ORDER BY id")
+            .fetch_all(&self.pool)
+            .await?
+        {
+            let effect: dnd_protocol::TokenEffectDto =
+                serde_json::from_str(&row.try_get::<String, _>("dto")?)?;
+            state.effects.insert(effect.id, effect);
+        }
         for row in sqlx::query("SELECT dto FROM installed_plugins ORDER BY id")
             .fetch_all(&self.pool)
             .await?
@@ -1093,6 +1101,25 @@ async fn project_event(conn: &mut SqliteConnection, event: &Event, at_ms: i64) -
         }
         // The GM's log: kept in event_log only; its effects are events of their own.
         Event::TriggerFired { .. } => Ok(()),
+        Event::TokenEffectApplied { effect } | Event::TokenEffectUpdated { effect } => {
+            sqlx::query(
+                "INSERT INTO token_effects (id, dto, version) VALUES (?, ?, ?) \
+                 ON CONFLICT (id) DO UPDATE SET dto = excluded.dto, version = excluded.version",
+            )
+            .bind(effect.id.to_string())
+            .bind(serde_json::to_string(effect)?)
+            .bind(effect.version.0)
+            .execute(conn)
+            .await?;
+            Ok(())
+        }
+        Event::TokenEffectRemoved { id, .. } => {
+            sqlx::query("DELETE FROM token_effects WHERE id = ?")
+                .bind(id.to_string())
+                .execute(conn)
+                .await?;
+            Ok(())
+        }
         Event::LibraryFolderCreated { folder } | Event::LibraryFolderUpdated { folder } => {
             sqlx::query(
                 "INSERT INTO library_folders (id, parent_id, dto, version) VALUES (?, ?, ?, ?) \

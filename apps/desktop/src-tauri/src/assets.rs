@@ -363,6 +363,7 @@ async fn submit(server: &mut LocalServer, intent: Intent) -> Result<EventBatch, 
     let envelope = IntentEnvelope {
         intent_id: IntentId::new_v7(),
         expected_version: None,
+        ts_ms: 0,
         intent,
     };
     match server.submit(&envelope).await? {

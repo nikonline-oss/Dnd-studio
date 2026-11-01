@@ -47,6 +47,8 @@ pub struct GameState {
     /// Looping or paused sounds (not persisted: a campaign opens in silence).
     pub sounds: BTreeMap<AssetId, SoundDto>,
     pub playlists: BTreeMap<dnd_protocol::PlaylistId, dnd_protocol::PlaylistDto>,
+    /// Temporary effects on tokens (ADR-0024).
+    pub effects: BTreeMap<dnd_protocol::EffectId, dnd_protocol::TokenEffectDto>,
 }
 
 impl GameState {
@@ -79,6 +81,7 @@ impl GameState {
             library_folders: BTreeMap::new(),
             sounds: BTreeMap::new(),
             playlists: BTreeMap::new(),
+            effects: BTreeMap::new(),
         }
     }
 
@@ -163,6 +166,7 @@ impl GameState {
                 .into_iter()
                 .map(|s| (s.asset_id, s))
                 .collect(),
+            effects: snapshot.effects.into_iter().map(|e| (e.id, e)).collect(),
         }
     }
 
@@ -194,6 +198,7 @@ impl GameState {
             library_folders: self.library_folders.values().cloned().collect(),
             sounds: self.sounds.values().cloned().collect(),
             playlists: self.playlists.values().cloned().collect(),
+            effects: self.effects.values().cloned().collect(),
         }
     }
 

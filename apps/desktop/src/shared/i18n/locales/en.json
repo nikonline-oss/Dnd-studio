@@ -582,6 +582,24 @@
     "add": "Add a condition…",
     "remove": "Remove {{name}}"
   },
+  "effects": {
+    "title": "Effects",
+    "label": "Name",
+    "noCondition": "No condition",
+    "recurring": "Change a resource at the start of each of its turns",
+    "duration": "Duration",
+    "rounds": "Rounds",
+    "turns": "Its turns",
+    "realTime": "Real time",
+    "minutes": "Minutes",
+    "roundsLeft_one": "{{count}} round left",
+    "roundsLeft_other": "{{count}} rounds left",
+    "turnsLeft_one": "{{count}} turn left",
+    "turnsLeft_other": "{{count}} turns left",
+    "minutesLeft_one": "{{count}} min left",
+    "minutesLeft_other": "{{count}} min left",
+    "remove": "Remove the effect"
+  },
   "items": {
     "name": "Item",
     "give": "Give item"
@@ -694,7 +712,8 @@
       "stop_sound": "Stop a sound",
       "play_sting": "One-shot sting",
       "spawn_tokens": "Spawn tokens",
-      "start_combat": "Start a combat"
+      "start_combat": "Start a combat",
+      "apply_effect": "Apply an effect"
     },
     "reveal": {
       "node": "Board card",

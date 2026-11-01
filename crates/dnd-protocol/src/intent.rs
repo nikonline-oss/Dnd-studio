@@ -24,6 +24,12 @@ pub struct IntentEnvelope {
     /// Required for intents that modify or delete an existing entity, except `move_token`
     /// (last-write-wins). Ignored for creations.
     pub expected_version: Option<Version>,
+    /// Unix ms when the sender created it; servers overwrite it on receipt. The core has no
+    /// clock of its own: this input sets the deadlines of real-time token effects (ADR-0024).
+    /// Outside the payload hash, so a repeat with a fresh timestamp stays the same intent.
+    #[serde(default)]
+    #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
+    pub ts_ms: i64,
     pub intent: Intent,
 }
 
@@ -411,6 +417,10 @@ pub enum Intent {
         id: TriggerId,
         token: Option<TokenId>,
     },
+    /// GM / Co-GM: removes a temporary effect from a token (ADR-0024).
+    RemoveTokenEffect {
+        id: crate::ids::EffectId,
+    },
 
     /// GM / Co-GM (ADR-0026). A folder in `parent` of the same library (`None`: its root).
     CreateLibraryFolder {
@@ -557,6 +567,7 @@ impl Intent {
             Self::UpdateTrigger { .. } => "update_trigger",
             Self::DeleteTrigger { .. } => "delete_trigger",
             Self::FireTrigger { .. } => "fire_trigger",
+            Self::RemoveTokenEffect { .. } => "remove_token_effect",
             Self::CreateLibraryFolder { .. } => "create_library_folder",
             Self::RenameLibraryFolder { .. } => "rename_library_folder",
             Self::MoveLibraryFolder { .. } => "move_library_folder",
@@ -646,6 +657,7 @@ impl Intent {
             | Self::GiveItem { .. }
             | Self::UpdateTrigger { .. }
             | Self::DeleteTrigger { .. }
+            | Self::RemoveTokenEffect { .. }
             | Self::RenameLibraryFolder { .. }
             | Self::MoveLibraryFolder { .. }
             | Self::DeleteLibraryFolder { .. }

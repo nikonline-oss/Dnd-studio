@@ -56,4 +56,7 @@ pub struct Snapshot {
     pub sounds: Vec<SoundDto>,
     #[serde(default)]
     pub playlists: Vec<crate::PlaylistDto>,
+    /// Temporary effects on tokens (ADR-0024); filtered with their tokens.
+    #[serde(default)]
+    pub effects: Vec<crate::TokenEffectDto>,
 }

@@ -35,7 +35,7 @@ pub struct Broadcast {
 
 enum Command {
     Submit {
-        envelope: IntentEnvelope,
+        envelope: Box<IntentEnvelope>,
         actor: Actor,
         reply: oneshot::Sender<anyhow::Result<IntentOutcome>>,
     },
@@ -176,7 +176,7 @@ impl SessionHandle {
         actor: Actor,
     ) -> Result<anyhow::Result<IntentOutcome>, SessionGone> {
         self.ask(|reply| Command::Submit {
-            envelope,
+            envelope: Box::new(envelope),
             actor,
             reply,
         })

@@ -369,6 +369,7 @@ async fn offline_intents_are_ordered_and_conflicts_can_be_rebased_or_discarded()
     let first = IntentEnvelope {
         intent_id: IntentId(v7(0xA10)),
         expected_version: Some(Version(3)),
+        ts_ms: 0,
         intent: Intent::UpdateMap {
             id: MapId(v7(0xA11)),
             name: Some("Misty cave".into()),
@@ -379,6 +380,7 @@ async fn offline_intents_are_ordered_and_conflicts_can_be_rebased_or_discarded()
     let second = IntentEnvelope {
         intent_id: IntentId(v7(0xA12)),
         expected_version: None,
+        ts_ms: 0,
         intent: Intent::CreateMap {
             id: MapId(v7(0xA13)),
             name: "Hidden room".into(),
@@ -518,7 +520,7 @@ fn query_inventory_matches_adr_0008() {
         .map(|s| s.matches("sqlx::query").count())
         .sum();
     assert_eq!(
-        count, 87,
+        count, 90,
         "runtime queries changed: add a real-SQLite test and update the table in docs/adr/0008-db-conventions.md"
     );
 }
@@ -1874,4 +1876,61 @@ async fn triggers_are_projected_loaded_and_deleted() {
     .await
     .unwrap();
     assert!(db.load_state().await.unwrap().0.triggers.is_empty());
+}
+
+/// Token effects (ADR-0024): stored as their DTO, updated (countdown), loaded, removed.
+#[tokio::test]
+async fn effects_are_projected_loaded_and_removed() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = new_campaign(&dir).await;
+    let effect = TokenEffectDto {
+        id: EffectId(v7(0xE10)),
+        token: TokenId(v7(0xE11)),
+        label: "Poison".into(),
+        condition: Some("poisoned".into()),
+        resource: Some("hp".into()),
+        dice: Some("3".into()),
+        heal: false,
+        duration: EffectDuration::Turns { remaining: 3 },
+        version: Version(1),
+    };
+    db.project(&[record(
+        1,
+        Some(0xE1),
+        vec![Event::TokenEffectApplied {
+            effect: effect.clone(),
+        }],
+    )])
+    .await
+    .unwrap();
+    let spent = TokenEffectDto {
+        duration: EffectDuration::Turns { remaining: 2 },
+        version: Version(2),
+        ..effect.clone()
+    };
+    db.project(&[record(
+        2,
+        Some(0xE2),
+        vec![Event::TokenEffectUpdated {
+            effect: spent.clone(),
+        }],
+    )])
+    .await
+    .unwrap();
+    let (state, _) = db.load_state().await.unwrap();
+    assert_eq!(
+        state.effects.values().cloned().collect::<Vec<_>>(),
+        vec![spent]
+    );
+    db.project(&[record(
+        3,
+        Some(0xE3),
+        vec![Event::TokenEffectRemoved {
+            id: effect.id,
+            expired: true,
+        }],
+    )])
+    .await
+    .unwrap();
+    assert!(db.load_state().await.unwrap().0.effects.is_empty());
 }

@@ -115,6 +115,7 @@ pub fn envelope(intent: Intent, expected_version: Option<Version>) -> IntentEnve
     IntentEnvelope {
         intent_id: IntentId(dnd_protocol::arbitrary::v7(0xFFFF)),
         expected_version,
+        ts_ms: 0,
         intent,
     }
 }
@@ -126,12 +127,20 @@ pub fn run(
     intent: Intent,
     expected_version: Option<Version>,
 ) -> Result<Vec<Event>, RuleError> {
-    let events = apply(
-        state,
-        &envelope(intent, expected_version),
-        &actor(role),
-        &mut SplitMix64::new(0),
-    )?;
+    run_at(state, role, intent, expected_version, 0)
+}
+
+/// `run` with an explicit envelope timestamp (real-time effects read it).
+pub fn run_at(
+    state: &mut GameState,
+    role: Role,
+    intent: Intent,
+    expected_version: Option<Version>,
+    ts_ms: i64,
+) -> Result<Vec<Event>, RuleError> {
+    let mut envelope = envelope(intent, expected_version);
+    envelope.ts_ms = ts_ms;
+    let events = apply(state, &envelope, &actor(role), &mut SplitMix64::new(0))?;
     evolve_all(state, &events);
     Ok(events)
 }

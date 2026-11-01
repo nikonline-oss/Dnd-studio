@@ -27,6 +27,7 @@ async fn pending_projection_migration_marks_only_locally_recorded_operations() {
     let first = IntentEnvelope {
         intent_id: IntentId::new_v7(),
         expected_version: Some(Version(1)),
+        ts_ms: 0,
         intent: Intent::UpdateCampaignMeta {
             name: Some("Offline".into()),
             description: None,
@@ -54,6 +55,7 @@ async fn pending_projection_migration_marks_only_locally_recorded_operations() {
     let rebased = IntentEnvelope {
         intent_id: IntentId::new_v7(),
         expected_version: Some(Version(2)),
+        ts_ms: 0,
         ..first
     };
     db.rebase_pending_op(operations[0].id, &rebased, 2)

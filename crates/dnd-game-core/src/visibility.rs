@@ -10,6 +10,7 @@
 //! - boards shown to players, their nodes open to players, and edges open to players between two
 //!   visible nodes (ADR-0024); pictures on visible nodes;
 //! - characters, users and campaign metadata as they are;
+//! - effects on visible tokens (ADR-0024);
 //! - never zones or triggers (ADR-0024).
 //!
 //! A batch reaches players with hidden events replaced by [`Event::Redacted`], so sequence numbers
@@ -21,8 +22,9 @@ use std::collections::BTreeSet;
 
 use dnd_protocol::{
     AssetId, BoardEdgeId, BoardId, BoardLink, BoardNodeContent, BoardNodeId, BoardVisibility,
-    ChatMessageDto, ChatVisibility, CombatId, CombatantId, Event, EventBatch, JournalEntryId,
-    JournalFolderId, JournalVisibility, MapId, Role, Seq, Snapshot, TokenId, TokenLayer,
+    ChatMessageDto, ChatVisibility, CombatId, CombatantId, EffectId, Event, EventBatch,
+    JournalEntryId, JournalFolderId, JournalVisibility, MapId, Role, Seq, Snapshot, TokenId,
+    TokenLayer,
 };
 
 use crate::state::GameState;
@@ -89,6 +91,8 @@ pub struct PlayersSee {
     pub boards: BTreeSet<BoardId>,
     pub board_nodes: BTreeSet<BoardNodeId>,
     pub board_edges: BTreeSet<BoardEdgeId>,
+    /// Effects ride on their token's visibility (ADR-0024).
+    pub effects: BTreeSet<EffectId>,
 }
 
 impl PlayersSee {
@@ -105,6 +109,12 @@ impl PlayersSee {
             .values()
             .filter(|t| t.visible && t.layer != TokenLayer::Gm && maps.contains(&t.map_id))
             .map(|t| t.id)
+            .collect();
+        let effects: BTreeSet<_> = state
+            .effects
+            .values()
+            .filter(|e| tokens.contains(&e.token))
+            .map(|e| e.id)
             .collect();
         let entries: BTreeSet<_> = state
             .journal
@@ -203,6 +213,7 @@ impl PlayersSee {
                 .collect(),
             maps,
             tokens,
+            effects,
             entries,
             folders,
             assets,
@@ -239,6 +250,7 @@ pub fn players_state(state: &GameState) -> GameState {
         .retain(|id, _| see.board_nodes.contains(id));
     view.board_edges
         .retain(|id, _| see.board_edges.contains(id));
+    view.effects.retain(|id, _| see.effects.contains(id));
     view.zones.clear();
     view.triggers.clear();
     view.library_folders.clear();
@@ -433,6 +445,13 @@ pub fn filter_for_players(before: &GameState, after: &GameState, batch: &EventBa
                             )
                         }
                         Event::BoardEdgeDeleted { id } => was.board_edges.contains(id),
+                        Event::TokenEffectApplied { effect }
+                        | Event::TokenEffectUpdated { effect } => shown(
+                            after.effects.contains_key(&effect.id),
+                            now.effects.contains(&effect.id),
+                            was.effects.contains(&effect.id),
+                        ),
+                        Event::TokenEffectRemoved { id, .. } => was.effects.contains(id),
                         // Zones are the GM's tool (ADR-0024).
                         Event::ZoneCreated { .. }
                         | Event::ZoneUpdated { .. }

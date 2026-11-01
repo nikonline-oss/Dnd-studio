@@ -10,6 +10,7 @@ fn envelope(intent: Intent, expected_version: Option<Version>) -> IntentEnvelope
     IntentEnvelope {
         intent_id: IntentId::new_v7(),
         expected_version,
+        ts_ms: 0,
         intent,
     }
 }
