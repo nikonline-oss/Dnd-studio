@@ -188,7 +188,7 @@ export function MapView() {
   });
 
   // Token clicks follow the freshest snapshot (the scene outlives renders): a token with a
-  // character opens its sheet; other tokens are edited through the inspector.
+  // character shows its sheet in the inspector; other tokens are edited through the inspector.
   const tokenClick = useRef<(tokenId: string | null) => void>(() => undefined);
   useEffect(() => {
     tokenClick.current = (tokenId) => {
@@ -199,7 +199,8 @@ export function MapView() {
       }
       const token = snapshot?.tokens.find((entry) => entry.id === tokenId);
       if (token?.character_id) {
-        selection.openCharacter(token.character_id);
+        selection.selectToken(null);
+        selection.selectCharacter(token.character_id);
       } else {
         selection.selectToken(tokenId);
       }

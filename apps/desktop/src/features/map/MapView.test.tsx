@@ -591,7 +591,7 @@ describe('MapView tokens', () => {
     expect(scene.tokens[0]).toMatchObject({ movable: true, colorKey: knight.id });
   });
 
-  it('a token with a character opens its sheet', async () => {
+  it('a token with a character shows its sheet in the inspector', async () => {
     useSelection.setState({ mapId: id(1) });
     setup(<MapView />, [map(1)], 'gm', [], {
       tokens: [token],
@@ -607,8 +607,12 @@ describe('MapView tokens', () => {
     act(() => {
       scene.onSelect?.(token.id);
     });
-    expect(useSelection.getState().active).toEqual({ kind: 'character', id: knight.id });
-    expect(useSelection.getState().tokenId).toBeNull();
+    expect(useSelection.getState()).toMatchObject({
+      characterId: knight.id,
+      inspect: 'character',
+      tokenId: null,
+    });
+    expect(useSelection.getState().active).toBeNull();
   });
 
   it('a plain token is selected and drawn as selected; the empty map clears it', async () => {
