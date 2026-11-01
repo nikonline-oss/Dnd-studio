@@ -806,6 +806,18 @@ export type ResourceDef = {
 	max: string,
 };
 
+/**
+ *  Who a damage/healing step applies to. Zone and map targets need a firing map; the zone is
+ *  matched by name on that map, like zone events.
+ */
+export type ResourceTarget = 
+/**  The character who set the trigger off (legacy behavior). */
+{ type: "activator" } | 
+/**  Every distinct character with a token inside the zone of this name on the firing map. */
+{ type: "zone"; id: ZoneId } | 
+/**  Every distinct character with a token on the firing map. */
+{ type: "map" };
+
 /**  Something triggers can show to players. */
 export type RevealTarget = 
 /**  A board node becomes open to players. */
@@ -1041,8 +1053,13 @@ export type TriggerAction =
 { type: "chat"; text: string; gm_only: boolean } | 
 /**  Rolls dice (with the character's fields); later steps see the total as `@roll`. */
 { type: "roll"; dice: string; label: string } | 
-/**  Damage (`heal: false`) or healing by a dice roll, kept within 0..=max of the resource. */
-{ type: "change_resource"; resource: string; dice: string; heal: boolean } | { type: "add_condition"; condition: string } | { type: "remove_condition"; condition: string } | { type: "give_item"; name: string } | 
+/**
+ *  Damage (`heal: false`) or healing by a dice roll, kept within 0..=max of the resource.
+ *  One roll is shared by every target.
+ */
+{ type: "change_resource"; resource: string; dice: string; heal: boolean; 
+/**  Who takes the change; missing in legacy data: the activator. */
+target?: ResourceTarget } | { type: "add_condition"; condition: string } | { type: "remove_condition"; condition: string } | { type: "give_item"; name: string } | 
 /**  Plays an audio asset to everyone (ADR-0026). */
 { type: "play_sound"; asset: AssetId; volume: number; looped: boolean } | 
 /**  Stops a looping sound; `None`: all sounds. */

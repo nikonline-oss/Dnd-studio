@@ -73,8 +73,8 @@ pub use snapshot::Snapshot;
 pub use theme::{THEME_COLOR_VARIABLES, ThemeDto, validate_theme};
 pub use trigger::{
     EffectDurationDef, MAX_SPAWN_TOKENS, MAX_TRIGGER_STEPS, MAX_TRIGGER_TEXT, MAX_TRIGGERS,
-    MAX_TRIGGERS_PER_INTENT, RevealTarget, SpawnPlacement, TriggerAction, TriggerDef, TriggerDto,
-    TriggerEvent, TriggerFiredDto, TriggerStep,
+    MAX_TRIGGERS_PER_INTENT, ResourceTarget, RevealTarget, SpawnPlacement, TriggerAction,
+    TriggerDef, TriggerDto, TriggerEvent, TriggerFiredDto, TriggerStep,
 };
 /// Re-exported so dependants use the exact same UUID type.
 pub use uuid::Uuid;

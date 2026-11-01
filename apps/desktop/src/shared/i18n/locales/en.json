@@ -763,6 +763,14 @@
     "change": "Change",
     "damage": "Damage",
     "heal": "Healing",
+    "target": "Target",
+    "targets": {
+      "activator": "Who set it off",
+      "zone": "Characters in a zone",
+      "map": "Everyone on the map"
+    },
+    "targetZone": "Zone",
+    "targetHint": "Zone and map targets hit every character with a token there; one roll is shared by all of them.",
     "when": "If",
     "up": "Up",
     "down": "Down",

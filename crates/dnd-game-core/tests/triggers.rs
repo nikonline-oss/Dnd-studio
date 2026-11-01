@@ -527,6 +527,7 @@ fn definitions_are_checked() {
             resource: "nope".into(),
             dice: "1d6".into(),
             heal: false,
+            target: ResourceTarget::Activator,
         },
     ];
     for action in bad_steps {
@@ -655,6 +656,7 @@ fn steps_roll_damage_and_put_conditions_when_their_condition_holds() {
                             resource: "hp".into(),
                             dice: "3".into(),
                             heal: false,
+                            target: ResourceTarget::Activator,
                         },
                     },
                     TriggerStep {
@@ -703,16 +705,19 @@ fn damage_and_healing_stay_within_the_resource() {
                     resource: "hp".into(),
                     dice: "50".into(),
                     heal: false,
+                    target: ResourceTarget::Activator,
                 }),
                 step(TriggerAction::ChangeResource {
                     resource: "hp".into(),
                     dice: "4".into(),
                     heal: true,
+                    target: ResourceTarget::Activator,
                 }),
                 step(TriggerAction::ChangeResource {
                     resource: "hp".into(),
                     dice: "100".into(),
                     heal: true,
+                    target: ResourceTarget::Activator,
                 }),
             ],
         ),
@@ -738,6 +743,147 @@ fn damage_and_healing_stay_within_the_resource() {
         })
         .collect();
     assert_eq!(deltas, [-10, 4, 6]);
+}
+
+/// (character name, delta) announcements of resource changes.
+fn resource_deltas(events: &[Event]) -> Vec<(String, i64)> {
+    events
+        .iter()
+        .filter_map(|e| match e {
+            Event::ChatMessagePosted { message } => match &message.system {
+                Some(SystemMessage::ResourceChanged { name, delta, .. }) => {
+                    Some((name.clone(), *delta))
+                }
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect()
+}
+
+fn hp_of(state: &GameState, character: u128) -> i64 {
+    let sheet: serde_json::Value =
+        serde_json::from_str(&state.characters[&pooled_character_id(character)].sheet_json)
+            .unwrap();
+    sheet["hp"]["current"].as_i64().unwrap()
+}
+
+#[test]
+fn change_resource_zone_target_hits_each_character_in_the_zone_once() {
+    let mut state = world();
+    create(
+        &mut state,
+        0,
+        manual_scoped(vec![step(TriggerAction::ChangeResource {
+            resource: "hp".into(),
+            dice: "1d6".into(),
+            heal: false,
+            target: ResourceTarget::Zone {
+                id: ZoneId(v7(ZONE)),
+            },
+        })]),
+    );
+    // Token 0 (inside the zone) fires; the zone also holds token 2 of the same character and
+    // token 3 without a character. Token 1 (another character) stands outside.
+    let events = run(
+        &mut state,
+        Role::Gm,
+        Intent::FireTrigger {
+            id: trigger(0),
+            token: Some(pooled_token_id(0)),
+        },
+        None,
+    )
+    .unwrap();
+    let deltas = resource_deltas(&events);
+    assert_eq!(deltas.len(), 1);
+    assert_eq!(deltas[0].0, "Hero 0");
+    assert_eq!(hp_of(&state, 0), 10 + deltas[0].1);
+    assert_eq!(hp_of(&state, 1), 10);
+}
+
+#[test]
+fn change_resource_map_target_shares_one_roll_with_every_character_on_the_map() {
+    let mut state = world();
+    create(
+        &mut state,
+        0,
+        manual_scoped(vec![step(TriggerAction::ChangeResource {
+            resource: "hp".into(),
+            dice: "1d6".into(),
+            heal: false,
+            target: ResourceTarget::Map,
+        })]),
+    );
+    // Map 0 holds tokens of characters 0 (twice) and 1 and a token without a character; the
+    // same character also has a token on map 1, which the firing map does not cover.
+    let events = run(
+        &mut state,
+        Role::Gm,
+        Intent::FireTrigger {
+            id: trigger(0),
+            token: Some(pooled_token_id(0)),
+        },
+        None,
+    )
+    .unwrap();
+    let mut deltas: Vec<i64> = resource_deltas(&events)
+        .into_iter()
+        .map(|(_, d)| d)
+        .collect();
+    deltas.sort();
+    assert_eq!(deltas.len(), 2);
+    assert_eq!(deltas[0], deltas[1], "one roll is shared by all targets");
+    assert!(hp_of(&state, 0) < 10);
+    assert_eq!(hp_of(&state, 0), hp_of(&state, 1));
+}
+
+#[test]
+fn change_resource_rejects_an_unknown_zone_target() {
+    let mut state = world();
+    let result = run(
+        &mut state,
+        Role::Gm,
+        Intent::CreateTrigger {
+            id: trigger(0),
+            definition: def(
+                TriggerEvent::Manual,
+                None,
+                vec![step(TriggerAction::ChangeResource {
+                    resource: "hp".into(),
+                    dice: "3".into(),
+                    heal: false,
+                    target: ResourceTarget::Zone {
+                        id: ZoneId(v7(0xDEAD_BEEF)),
+                    },
+                })],
+            ),
+        },
+        None,
+    );
+    assert_eq!(result, Err(RejectReason::invalid("steps")));
+}
+
+#[test]
+fn legacy_change_resource_without_target_still_hits_the_activator() {
+    let json = serde_json::json!({
+        "name": "Poisoned dart",
+        "enabled": true,
+        "once": false,
+        "map_ids": [],
+        "event": { "type": "manual" },
+        "tokens": [],
+        "condition": null,
+        "steps": [{
+            "when": null,
+            "action": { "type": "change_resource", "resource": "hp", "dice": "3", "heal": false }
+        }]
+    });
+    let definition: TriggerDef = serde_json::from_value(json).unwrap();
+    let TriggerAction::ChangeResource { target, .. } = &definition.steps[0].action else {
+        panic!("change_resource step expected");
+    };
+    assert_eq!(*target, ResourceTarget::Activator);
 }
 
 #[test]

@@ -352,6 +352,7 @@ function Form({ trigger, rules }: { trigger: TriggerDto; rules: SystemRulesDto |
                 index={index}
                 count={draft.steps.length}
                 rules={rules}
+                mapIds={mapIds}
                 onChange={(next) => {
                   update({ steps: draft.steps.map((s, i) => (i === index ? next : s)) });
                 }}

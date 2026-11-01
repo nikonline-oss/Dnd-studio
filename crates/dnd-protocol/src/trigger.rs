@@ -26,6 +26,21 @@ pub enum SpawnPlacement {
     Zone { id: ZoneId },
 }
 
+/// Who a damage/healing step applies to. Zone and map targets need a firing map; the zone is
+/// matched by name on that map, like zone events.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub enum ResourceTarget {
+    /// The character who set the trigger off (legacy behavior).
+    #[default]
+    Activator,
+    /// Every distinct character with a token inside the zone of this name on the firing map.
+    Zone { id: ZoneId },
+    /// Every distinct character with a token on the firing map.
+    Map,
+}
+
 /// What sets a trigger off.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -93,10 +108,14 @@ pub enum TriggerAction {
         label: String,
     },
     /// Damage (`heal: false`) or healing by a dice roll, kept within 0..=max of the resource.
+    /// One roll is shared by every target.
     ChangeResource {
         resource: String,
         dice: String,
         heal: bool,
+        /// Who takes the change; missing in legacy data: the activator.
+        #[serde(default)]
+        target: ResourceTarget,
     },
     AddCondition {
         condition: String,

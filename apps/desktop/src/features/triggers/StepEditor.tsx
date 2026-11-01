@@ -36,7 +36,13 @@ export function newAction(type: ActionType, rules: SystemRulesDto | null): Trigg
     case 'roll':
       return { type, dice: '1d20', label: '' };
     case 'change_resource':
-      return { type, resource: rules?.resources[0]?.id ?? '', dice: '1d6', heal: false };
+      return {
+        type,
+        resource: rules?.resources[0]?.id ?? '',
+        dice: '1d6',
+        heal: false,
+        target: { type: 'activator' },
+      };
     case 'add_condition':
     case 'remove_condition':
       return { type, condition: rules?.conditions?.[0]?.id ?? '' };
@@ -79,6 +85,7 @@ export function StepEditor({
   index,
   count,
   rules,
+  mapIds,
   onChange,
   onMove,
   onRemove,
@@ -87,6 +94,8 @@ export function StepEditor({
   index: number;
   count: number;
   rules: SystemRulesDto | null;
+  /** Maps the trigger is bound to; zone targets are chosen from their zones. */
+  mapIds: string[];
   onChange: (step: TriggerStep) => void;
   onMove: (delta: -1 | 1) => void;
   onRemove: () => void;
@@ -97,6 +106,11 @@ export function StepEditor({
   const sounds = (useSnapshotSelect((s) => s.assets) ?? [])
     .filter((a) => a.usage === 'audio')
     .sort((a, b) => (a.original_name ?? '').localeCompare(b.original_name ?? ''));
+  const zones = useSnapshotSelect((s) => s.zones) ?? [];
+  const maps = useSnapshotSelect((s) => s.maps) ?? [];
+  const chosenZoneId =
+    action.type === 'change_resource' && action.target?.type === 'zone' ? action.target.id : null;
+  const targetZones = zones.filter((z) => mapIds.includes(z.map_id) || z.id === chosenZoneId);
   const set = (next: TriggerAction) => {
     onChange({ ...step, action: next });
   };
@@ -283,6 +297,51 @@ export function StepEditor({
                 <option value="heal">{t('triggers.heal')}</option>
               </select>
             </label>
+            <label className="trigger-field">
+              <span>{t('triggers.target')}</span>
+              <select
+                value={action.target?.type ?? 'activator'}
+                onChange={(e) => {
+                  const type = e.target.value;
+                  set({
+                    ...action,
+                    target:
+                      type === 'zone'
+                        ? { type: 'zone', id: targetZones[0]?.id ?? '' }
+                        : { type: type as 'activator' | 'map' },
+                  });
+                }}
+              >
+                <option value="activator">{t('triggers.targets.activator')}</option>
+                <option value="zone">{t('triggers.targets.zone')}</option>
+                <option value="map">{t('triggers.targets.map')}</option>
+              </select>
+            </label>
+            {(action.target?.type ?? 'activator') === 'zone' && (
+              <label className="trigger-field">
+                <span>{t('triggers.targetZone')}</span>
+                <select
+                  value={action.target?.type === 'zone' ? action.target.id : ''}
+                  aria-invalid={
+                    !targetZones.some(
+                      (z) => z.id === (action.target?.type === 'zone' ? action.target.id : ''),
+                    )
+                  }
+                  onChange={(e) => {
+                    set({ ...action, target: { type: 'zone', id: e.target.value } });
+                  }}
+                >
+                  <option value="">{t('triggers.chooseZone')}</option>
+                  {targetZones.map((zone) => (
+                    <option key={zone.id} value={zone.id}>
+                      {zone.name} —{' '}
+                      {maps.find((m) => m.id === zone.map_id)?.name ?? t('picker.gone')}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <p className="muted trigger-hint">{t('triggers.targetHint')}</p>
             <label className="trigger-field">
               <span>{t('triggers.dice')}</span>
               <input
