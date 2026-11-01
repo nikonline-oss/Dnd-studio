@@ -591,16 +591,40 @@ describe('MapView tokens', () => {
     expect(scene.tokens[0]).toMatchObject({ movable: true, colorKey: knight.id });
   });
 
-  it('a clicked token is selected and drawn as selected; the empty map clears it', async () => {
+  it('a token with a character opens its sheet', async () => {
     useSelection.setState({ mapId: id(1) });
-    setup(<MapView />, [map(1)], 'gm', [], { tokens: [token] });
+    setup(<MapView />, [map(1)], 'gm', [], {
+      tokens: [token],
+      characters: [knight],
+    });
     await waitFor(() => {
       expect(scene.onSelect).not.toBeNull();
+    });
+    // The click reads the snapshot: wait until it has reached the scene.
+    await waitFor(() => {
+      expect(scene.tokens).toHaveLength(1);
     });
     act(() => {
       scene.onSelect?.(token.id);
     });
-    expect(useSelection.getState()).toMatchObject({ tokenId: token.id, inspect: 'token' });
+    expect(useSelection.getState().active).toEqual({ kind: 'character', id: knight.id });
+    expect(useSelection.getState().tokenId).toBeNull();
+  });
+
+  it('a plain token is selected and drawn as selected; the empty map clears it', async () => {
+    useSelection.setState({ mapId: id(1) });
+    const plain = { ...token, character_id: null, name: 'Statue' };
+    setup(<MapView />, [map(1)], 'gm', [], { tokens: [plain] });
+    await waitFor(() => {
+      expect(scene.onSelect).not.toBeNull();
+    });
+    await waitFor(() => {
+      expect(scene.tokens).toHaveLength(1);
+    });
+    act(() => {
+      scene.onSelect?.(plain.id);
+    });
+    expect(useSelection.getState()).toMatchObject({ tokenId: plain.id, inspect: 'token' });
     await waitFor(() => {
       expect(scene.tokens[0]?.selected).toBe(true);
     });

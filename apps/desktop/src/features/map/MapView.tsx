@@ -187,6 +187,25 @@ export function MapView() {
     };
   });
 
+  // Token clicks follow the freshest snapshot (the scene outlives renders): a token with a
+  // character opens its sheet; other tokens are edited through the inspector.
+  const tokenClick = useRef<(tokenId: string | null) => void>(() => undefined);
+  useEffect(() => {
+    tokenClick.current = (tokenId) => {
+      const selection = useSelection.getState();
+      if (tokenId === null) {
+        selection.selectToken(null);
+        return;
+      }
+      const token = snapshot?.tokens.find((entry) => entry.id === tokenId);
+      if (token?.character_id) {
+        selection.openCharacter(token.character_id);
+      } else {
+        selection.selectToken(tokenId);
+      }
+    };
+  });
+
   // The scene is created once; its fog callback reads the current map through this ref.
   const sendFog = useRef<(kind: FogOpKind, shapes: FogShape[]) => void>(() => undefined);
   useEffect(() => {
@@ -221,7 +240,7 @@ export function MapView() {
         sendMove.current(move);
       },
       (tokenId) => {
-        useSelection.getState().selectToken(tokenId);
+        tokenClick.current(tokenId);
       },
       (shape) => {
         sendZone.current(shape);
