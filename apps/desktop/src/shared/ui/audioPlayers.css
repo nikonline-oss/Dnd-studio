@@ -214,3 +214,29 @@
   content: '↗';
   font-size: 14px;
 }
+
+/* Playlists: a full player in the library view, a compact embed in journal entries. */
+.playlist-player > audio {
+  display: none;
+}
+.playlist-player.playlist-player:not(.compact) {
+  display: flex;
+  flex-direction: column;
+}
+.playlist-player .playlist-current {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.playlist-player.compact.playlist-player {
+  margin: 8px 0;
+  vertical-align: middle;
+}
+.playlist-player.compact .audio-art {
+  display: none;
+}
+.playlist-player.compact .audio-transport {
+  grid-column: 1 / -1;
+}

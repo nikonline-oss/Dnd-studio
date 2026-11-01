@@ -3662,6 +3662,75 @@ input.table-column-name {
   display: block;
 }
 
+.playlist-view {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+  max-width: 640px;
+}
+.playlist-view .playlist-player {
+  align-self: stretch;
+}
+.playlist-header {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.playlist-header h2 {
+  margin: 0;
+}
+.playlist-shared {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.playlist-tracks {
+  align-self: stretch;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.playlist-tracks li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: 8px;
+}
+.playlist-tracks li[data-shared] {
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  outline: 1px solid var(--color-accent);
+}
+.playlist-track-name {
+  flex: 1;
+  min-width: 0;
+  padding: 4px;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.playlist-track-name:hover {
+  color: var(--color-accent);
+}
+.playlist-track-actions {
+  display: flex;
+  gap: 2px;
+}
+.playlist-track-actions button {
+  padding: 4px;
+}
+
 .compendium-character {
   display: flex;
   gap: 8px;

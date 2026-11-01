@@ -53,6 +53,12 @@ const PATHS = {
   volumeOff: 'M4 9h4l5-4v14l-5-4H4zM16 9l5 6M21 9l-5 6',
   play: 'M7 4l13 8-13 8z',
   stop: 'M6 6h12v12H6z',
+  prev: 'M19 5l-9 7 9 7zM6 5v14',
+  next: 'M5 5l9 7-9 7zM18 5v14',
+  arrowUp: 'M12 19V5M5 12l7-7 7 7',
+  arrowDown: 'M12 5v14M19 12l-7 7-7-7',
+  playlist:
+    'M3 6h8M3 10h8M3 14h5M15 17.5V7l6-1.5V15M15 17.5a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM21 15a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z',
 } as const;
 
 export type IconName = keyof typeof PATHS;

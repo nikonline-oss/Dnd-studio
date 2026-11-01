@@ -16,6 +16,7 @@ export type ElementKind =
   | 'zone'
   | 'asset'
   | 'audio'
+  | 'playlist'
   | 'trigger';
 
 export interface PickedElement {
@@ -41,6 +42,7 @@ const ICONS: Record<ElementKind, IconName> = {
   zone: 'zone',
   asset: 'image',
   audio: 'music',
+  playlist: 'playlist',
   trigger: 'bolt',
 };
 
@@ -125,6 +127,14 @@ function rowsOf(snapshot: Snapshot, kind: ElementKind, t: (key: string) => strin
           id: tr.id,
           name: tr.definition.name,
           detail: t(`triggers.events.${tr.definition.event.type}`),
+          thumbnail: null,
+        }));
+      case 'playlist':
+        return (snapshot.playlists ?? []).map((p) => ({
+          kind,
+          id: p.id,
+          name: p.name,
+          detail: `${t('picker.fact.tracks')}: ${p.tracks.length}`,
           thumbnail: null,
         }));
       case 'asset':
@@ -252,6 +262,11 @@ function detailsOf(
           fact('steps', steps.length > 0 ? steps.join(' → ') : t('picker.fact.noSteps')),
         ],
       };
+    }
+    case 'playlist': {
+      const p = (snapshot.playlists ?? []).find((x) => x.id === row.id);
+      if (!p) break;
+      return { preview: null, facts: [fact('tracks', String(p.tracks.length))] };
     }
     case 'asset':
     case 'audio': {

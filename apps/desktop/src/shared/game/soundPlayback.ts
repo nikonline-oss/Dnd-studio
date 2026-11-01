@@ -12,6 +12,16 @@ export const useSoundPlayback = create<{ muted: boolean; tracks: PlayingTrack[] 
   tracks: [],
 }));
 const active = new Map<string, { player: HTMLAudioElement; sound: SoundDto }>();
+/** Listeners for a track reaching its natural end (not an explicit stop). */
+const endedListeners = new Set<(assetId: string) => void>();
+
+/** Subscribe to natural track endings; returns an unsubscribe function. */
+export function onSoundEnded(cb: (assetId: string) => void): () => void {
+  endedListeners.add(cb);
+  return () => {
+    endedListeners.delete(cb);
+  };
+}
 /** Looping tracks paused by a sting, resumed when the last sting ends. */
 const ducked = new Set<string>();
 const stings = new Set<string>();
@@ -97,6 +107,8 @@ export function playSound(sound: SoundDto): void {
     publish(id);
   };
   player.onended = () => {
+    if (active.get(id)?.player !== player) return;
+    for (const cb of endedListeners) cb(id);
     if (active.get(id)?.player === player) stopSound(id);
   };
   player.onerror = () => {

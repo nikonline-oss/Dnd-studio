@@ -494,6 +494,27 @@
     "license": "License",
     "remote": "Connect to the server to manage plugins."
   },
+  "playlists": {
+    "new": "New playlist",
+    "fromFolder": "Playlist from this folder",
+    "defaultName": "New playlist",
+    "rename": "Rename playlist \"{{name}}\"",
+    "delete": "Delete playlist \"{{name}}\"",
+    "confirmDelete": "Delete playlist \"{{name}}\"? The tracks stay in the library.",
+    "addTracks": "Add tracks…",
+    "empty": "No tracks yet — add them from the library.",
+    "tracksCount_one": "{{count}} track",
+    "tracksCount_other": "{{count}} tracks",
+    "previous": "Previous track",
+    "next": "Next track",
+    "playForAll": "Play for everyone",
+    "playFromHere": "Play for everyone from this track",
+    "sharedIdle": "Not playing for the session",
+    "sharedNow": "Playing for everyone: {{title}}",
+    "moveUp": "Move up",
+    "moveDown": "Move down",
+    "removeTrack": "Remove \"{{title}}\" from the playlist"
+  },
   "boards": {
     "addMap": "New map",
     "importMap": "Import map…",
@@ -628,7 +649,8 @@
       "zone": "Zones",
       "asset": "Pictures",
       "audio": "Music and sounds",
-      "trigger": "Triggers"
+      "trigger": "Triggers",
+      "playlist": "Playlists"
     },
     "pick": "Pick…",
     "none": "None",
@@ -653,7 +675,8 @@
       "steps": "Steps",
       "noSteps": "No steps",
       "file": "File",
-      "parts": "Parts"
+      "parts": "Parts",
+      "tracks": "Tracks"
     },
     "yes": "yes",
     "no": "no",

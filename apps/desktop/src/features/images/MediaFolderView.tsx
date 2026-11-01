@@ -5,10 +5,12 @@ import { assetUrl, type Library } from '@/shared/ipc/client';
 import { useSelection } from '@/shared/state/selection';
 import { ContextMenu } from '@/shared/ui/ContextMenu';
 import { ErrorText } from '@/shared/ui/ErrorText';
+import { Icon } from '@/shared/ui/Icon';
 import type { MenuItem } from '@/shared/ui/Menu';
 import { uuidv7 } from '@/shared/ipc/uuid';
-import type { AssetDto, LibraryFolderDto, Intent } from '@/shared/ipc/client';
+import type { AssetDto, LibraryFolderDto, Intent, PlaylistDto } from '@/shared/ipc/client';
 import { SessionAudioPlayer } from '@/shared/ui/SessionAudioPlayer';
+import { PlaylistView } from './PlaylistView';
 
 /** A folder's files stay alongside the selected image or session music player. */
 export function MediaFolderView({
@@ -22,9 +24,10 @@ export function MediaFolderView({
   const { data: campaign } = useCampaign();
   const isGm = campaign?.role === 'gm' || campaign?.role === 'co_gm';
   const submit = useSubmitIntent();
-  type Target = { file: AssetDto } | { folder: LibraryFolderDto } | null;
+  type Target =
+    { file: AssetDto } | { folder: LibraryFolderDto } | { playlist: PlaylistDto } | null;
   type Edit = {
-    kind: 'rename' | 'move' | 'create' | 'delete';
+    kind: 'rename' | 'move' | 'create' | 'createPlaylist' | 'delete';
     target: Target;
     parent: string | null;
   };
@@ -40,14 +43,22 @@ export function MediaFolderView({
   const begin = (kind: Edit['kind'], target: Target, parent: string | null = folderId) => {
     submit.reset();
     setName(
-      target && 'file' in target ? (target.file.original_name ?? '') : (target?.folder.name ?? ''),
+      !target
+        ? ''
+        : 'file' in target
+          ? (target.file.original_name ?? '')
+          : 'playlist' in target
+            ? target.playlist.name
+            : target.folder.name,
     );
     setDestination(
-      target
-        ? 'file' in target
+      !target
+        ? (parent ?? '')
+        : 'file' in target
           ? (target.file.folder_id ?? '')
-          : (target.folder.parent ?? '')
-        : (parent ?? ''),
+          : 'playlist' in target
+            ? (target.playlist.folder_id ?? '')
+            : (target.folder.parent ?? ''),
     );
     setEdit({ kind, target, parent });
   };
@@ -63,9 +74,15 @@ export function MediaFolderView({
         (a.folder_id ?? null) === folderId,
     )
     .sort((a, b) => (a.original_name ?? '').localeCompare(b.original_name ?? ''));
+  const playlists = (useSnapshotSelect((s) => s.playlists ?? []) ?? [])
+    .filter((p) => library === 'audio' && (p.folder_id ?? null) === folderId)
+    .sort((a, b) => a.name.localeCompare(b.name));
   const children = folders.filter((f) => f.library === library && f.parent === folderId);
   const folder = folders.find((f) => f.id === folderId);
-  const asset = files.find((a) => a.id === selected);
+  const selectedPlaylist = selected?.startsWith('playlist:')
+    ? playlists.find((p) => p.id === selected.slice('playlist:'.length))
+    : undefined;
+  const asset = selectedPlaylist ? undefined : files.find((a) => a.id === selected);
   const descendants = (id: string) => {
     const ids = new Set([id]);
     let changed = true;
@@ -87,6 +104,8 @@ export function MediaFolderView({
       label: t('media.open', { defaultValue: 'Open' }),
       onSelect: () => {
         if ('file' in target) openMedia(library, target.file.folder_id ?? null, target.file.id);
+        else if ('playlist' in target)
+          openMedia(library, target.playlist.folder_id ?? null, `playlist:${target.playlist.id}`);
         else openMedia(library, target.folder.id);
       },
     });
@@ -97,7 +116,9 @@ export function MediaFolderView({
           label:
             'file' in target
               ? t('library.renameAsset')
-              : t('library.renameFolder', { name: target.folder.name }),
+              : 'playlist' in target
+                ? t('playlists.rename', { name: target.playlist.name })
+                : t('library.renameFolder', { name: target.folder.name }),
           onSelect: () => {
             begin('rename', target);
           },
@@ -124,6 +145,13 @@ export function MediaFolderView({
             },
           },
         );
+      } else if ('playlist' in target) {
+        items.push({
+          label: t('playlists.delete', { name: target.playlist.name }),
+          onSelect: () => {
+            begin('delete', target);
+          },
+        });
       }
     }
   } else {
@@ -141,6 +169,30 @@ export function MediaFolderView({
           begin('create', null);
         },
       });
+    if (isGm && library === 'audio') {
+      items.push({
+        label: t('playlists.new'),
+        onSelect: () => {
+          begin('createPlaylist', null);
+        },
+      });
+      if (files.length > 0)
+        items.push({
+          label: t('playlists.fromFolder'),
+          onSelect: () => {
+            // One click: every audio file of this folder, by name, as a new playlist.
+            submit.mutate({
+              intent: {
+                kind: 'create_playlist',
+                id: uuidv7(),
+                name: folder?.name ?? t('playlists.defaultName'),
+                folder_id: folderId,
+                asset_ids: files.map((f) => f.id),
+              },
+            });
+          },
+        });
+    }
     if (folder && isGm)
       items.push(
         {
@@ -180,8 +232,33 @@ export function MediaFolderView({
         parent: edit.parent,
         name: name.trim(),
       };
+    else if (edit.kind === 'createPlaylist')
+      intent = {
+        kind: 'create_playlist',
+        id: uuidv7(),
+        name: name.trim(),
+        folder_id: edit.parent,
+        asset_ids: [],
+      };
     else if (!current) return;
-    else {
+    else if ('playlist' in current) {
+      version = current.playlist.version;
+      if (edit.kind === 'delete') intent = { kind: 'delete_playlist', id: current.playlist.id };
+      else if (edit.kind === 'rename')
+        intent = {
+          kind: 'update_playlist',
+          id: current.playlist.id,
+          name: name.trim(),
+          tracks: current.playlist.tracks,
+        };
+      // The only remaining edit a playlist supports.
+      else
+        intent = {
+          kind: 'move_playlist',
+          id: current.playlist.id,
+          folder_id: destination || null,
+        };
+    } else {
       version = 'file' in current ? current.file.version : current.folder.version;
       if (edit.kind === 'delete' && 'folder' in current)
         intent = { kind: 'delete_library_folder', id: current.folder.id };
@@ -256,6 +333,22 @@ export function MediaFolderView({
                 ▸ {child.name}
               </button>
             ))}
+            {playlists.map((playlist) => (
+              <button
+                key={playlist.id}
+                onContextMenu={(event) => {
+                  context(event, { playlist });
+                }}
+                role="option"
+                aria-selected={selectedPlaylist?.id === playlist.id}
+                onClick={() => {
+                  openMedia(library, folderId, `playlist:${playlist.id}`);
+                }}
+              >
+                <Icon name="playlist" />
+                <span>{playlist.name}</span>
+              </button>
+            ))}
             {files.map((file) => (
               <button
                 key={file.id}
@@ -273,17 +366,22 @@ export function MediaFolderView({
               </button>
             ))}
           </div>
-          {files.length === 0 && children.length === 0 && (
+          {files.length === 0 && children.length === 0 && playlists.length === 0 && (
             <p className="muted">{t('media.empty')}</p>
           )}
         </aside>
         <div
           className="media-folder-preview"
           onContextMenu={(event) => {
-            context(event, asset ? { file: asset } : null);
+            context(
+              event,
+              selectedPlaylist ? { playlist: selectedPlaylist } : asset ? { file: asset } : null,
+            );
           }}
         >
-          {!asset ? (
+          {selectedPlaylist ? (
+            <PlaylistView key={selectedPlaylist.id} playlist={selectedPlaylist} />
+          ) : !asset ? (
             <p className="muted">{t('media.selectFile')}</p>
           ) : library === 'audio' ? (
             <SessionAudioPlayer key={asset.id} assetId={asset.id} />
@@ -346,7 +444,7 @@ export function MediaFolderView({
             if (event.key === 'Escape' && !submit.isPending) setEdit(null);
           }}
         >
-          {edit.kind === 'rename' || edit.kind === 'create' ? (
+          {edit.kind === 'rename' || edit.kind === 'create' || edit.kind === 'createPlaylist' ? (
             <label>
               {t('media.itemName', { defaultValue: 'Name' })}
               <input
@@ -380,6 +478,8 @@ export function MediaFolderView({
                   ))}
               </select>
             </label>
+          ) : edit.target && 'playlist' in edit.target ? (
+            <p>{t('playlists.confirmDelete', { name: edit.target.playlist.name })}</p>
           ) : edit.target && 'folder' in edit.target ? (
             <p>
               {t('library.confirmDeleteFolder', {
@@ -394,7 +494,10 @@ export function MediaFolderView({
               type="submit"
               disabled={
                 submit.isPending ||
-                ((edit.kind === 'create' || edit.kind === 'rename') && !name.trim())
+                ((edit.kind === 'create' ||
+                  edit.kind === 'createPlaylist' ||
+                  edit.kind === 'rename') &&
+                  !name.trim())
               }
             >
               {edit.kind === 'delete'

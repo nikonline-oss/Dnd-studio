@@ -184,7 +184,7 @@ function Editor({ entry }: { entry: JournalEntryDto }) {
       {picking === 'link' && (
         <ElementPicker
           title={t('journal.insertLink')}
-          kinds={['journal', 'map', 'character', 'board', 'asset', 'audio']}
+          kinds={['journal', 'map', 'character', 'board', 'asset', 'audio', 'playlist']}
           onClose={() => {
             setPicking(null);
           }}
@@ -192,6 +192,9 @@ function Editor({ entry }: { entry: JournalEntryDto }) {
             if (kind === 'asset' || kind === 'audio') {
               const label = name.replace(/[[\]\\]/g, '');
               editor.current?.insert(`${kind === 'asset' ? '!' : ''}[${label}](asset:${id})`);
+            }
+            if (kind === 'playlist') {
+              editor.current?.insert(`[${name.replace(/[[\]\\]/g, '')}](playlist:${id})`);
             }
             if (kind === 'journal' || kind === 'map' || kind === 'character' || kind === 'board') {
               editor.current?.insert(linkMarkdown(kind, id, name));

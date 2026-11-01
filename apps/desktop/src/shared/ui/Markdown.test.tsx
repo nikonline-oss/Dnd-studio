@@ -4,12 +4,12 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it } from 'vitest';
 import { elementLink, linkMarkdown, Markdown } from './Markdown';
-import type { Snapshot, AssetDto } from '@/shared/ipc/client';
+import type { Snapshot, AssetDto, PlaylistDto } from '@/shared/ipc/client';
 import { useSelection } from '@/shared/state/selection';
 
 const id = (n: number) => `0190a000-0000-7000-8000-${n.toString(16).padStart(12, '0')}`;
 
-function setup(source: string, assets: AssetDto[] = []) {
+function setup(source: string, assets: AssetDto[] = [], playlists: PlaylistDto[] = []) {
   const snapshot: Snapshot = {
     seq: 1,
     campaign: { name: 'C', description: '', version: 1 },
@@ -42,6 +42,7 @@ function setup(source: string, assets: AssetDto[] = []) {
     combats: [],
     combatants: [],
     chat: [],
+    playlists,
   };
   mockIPC((cmd) => {
     if (cmd === 'get_snapshot') return snapshot;
@@ -96,6 +97,25 @@ describe('Links in texts', () => {
     expect(elementLink(`map:${id(2)}`)).toEqual({ kind: 'map', id: id(2) });
     expect(elementLink('https://example.com')).toBeNull();
     expect(elementLink(`token:${id(2)}`)).toBeNull();
+  });
+
+  it('embeds a visible playlist as a personal player; hidden ones stay plain text', async () => {
+    const mix: PlaylistDto = {
+      id: id(20),
+      name: 'Battle mix',
+      folder_id: null,
+      tracks: [
+        { asset_id: id(1), sha256: 'a'.repeat(64), mime: 'audio/ogg', title: 'Drums' },
+        { asset_id: id(2), sha256: 'b'.repeat(64), mime: 'audio/ogg', title: 'Horns' },
+      ],
+      version: 1,
+    };
+    setup(`[Battle mix](playlist:${mix.id})\n[Secret mix](playlist:${id(21)})`, [], [mix]);
+    expect(await screen.findByRole('group', { name: 'Battle mix' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Play' })).toBeInTheDocument();
+    expect(screen.getAllByText('2 tracks')).not.toHaveLength(0);
+    expect(screen.queryByRole('group', { name: 'Secret mix' })).not.toBeInTheDocument();
+    expect(screen.getByText('Secret mix')).toBeInTheDocument();
   });
 
   it('open another journal entry; hidden or deleted ones stay plain text', async () => {

@@ -3,6 +3,7 @@ import ReactMarkdown, { defaultUrlTransform, type Components } from 'react-markd
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import remarkGfm from 'remark-gfm';
 import { InlineAudioPlayer } from './InlineAudioPlayer';
+import { PlaylistPlayer } from './PlaylistPlayer';
 import { markdownLineBreaks } from './markdownLineBreaks';
 import { useSnapshotSelect } from '@/shared/game/useGame';
 import { assetUrl, type Snapshot } from '@/shared/ipc/client';
@@ -10,6 +11,9 @@ import { useSelection } from '@/shared/state/selection';
 
 /** Pictures of the campaign's library: `![alt](asset:<asset id>)` (ADR-0024). */
 const ASSET_PREFIX = 'asset:';
+
+/** A playlist embedded in a text: `[name](playlist:<id>)` — personal listening (ADR-0026). */
+const PLAYLIST_LINK = /^playlist:([0-9a-f-]{36})$/;
 
 /** What a text may link to inside the campaign: `[text](journal:<id>)` and the like (ADR-0026). */
 export type LinkKind = 'journal' | 'map' | 'character' | 'board';
@@ -35,12 +39,14 @@ const schema = {
   protocols: {
     ...defaultSchema.protocols,
     src: [...(defaultSchema.protocols?.src ?? []), 'asset'],
-    href: [...(defaultSchema.protocols?.href ?? []), ...LINK_KINDS, 'asset'],
+    href: [...(defaultSchema.protocols?.href ?? []), ...LINK_KINDS, 'asset', 'playlist'],
   },
 };
 
 function urlTransform(url: string): string {
-  return url.startsWith(ASSET_PREFIX) || elementLink(url) ? url : defaultUrlTransform(url);
+  return url.startsWith(ASSET_PREFIX) || elementLink(url) || PLAYLIST_LINK.test(url)
+    ? url
+    : defaultUrlTransform(url);
 }
 
 /** A library picture; its alt text when the viewer may not see it (or it is gone). */
@@ -76,6 +82,16 @@ function exists(s: Snapshot, kind: LinkKind, id: string): boolean {
     case 'board':
       return s.boards.some((b) => b.id === id);
   }
+}
+
+/**
+ * An embedded playlist: a compact personal player. A playlist the viewer may not see (shared only
+ * through a visible entry, ADR-0026) stays plain text, so the link does not reveal it.
+ */
+function PlaylistLink({ id, children }: { id: string; children: ReactNode }) {
+  const playlist = useSnapshotSelect((s) => (s.playlists ?? []).find((p) => p.id === id));
+  if (!playlist) return <span className="md-link-missing">{children}</span>;
+  return <PlaylistPlayer playlist={playlist} compact />;
 }
 
 /**
@@ -126,6 +142,8 @@ const components: Components = {
         </span>
       );
     }
+    const playlistId = typeof href === 'string' ? PLAYLIST_LINK.exec(href)?.[1] : undefined;
+    if (playlistId) return <PlaylistLink id={playlistId}>{children}</PlaylistLink>;
     const link = typeof href === 'string' ? elementLink(href) : null;
     return link ? (
       <ElementLink kind={link.kind} id={link.id}>
