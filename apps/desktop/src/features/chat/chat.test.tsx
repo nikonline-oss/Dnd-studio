@@ -111,6 +111,7 @@ function renderChat(
   mockIPC((cmd, args) => {
     if (cmd === 'get_snapshot') return snapshot;
     if (cmd === 'campaign_current') return info;
+    if (cmd === 'roll_statistics') return [];
     if (cmd === 'chat_history') {
       const { before, limit } = args as { before: string | null; limit: number };
       return history(before, limit);
@@ -130,6 +131,16 @@ function renderChat(
 }
 
 describe('ChatPanel', () => {
+  it('opens statistics and returns to the chat without losing a draft', async () => {
+    renderChat('player', []);
+    const input = await screen.findByRole('textbox', { name: 'Message' });
+    await userEvent.type(input, 'Keep this draft');
+    await userEvent.click(screen.getByRole('button', { name: 'Statistics' }));
+    expect(await screen.findByText('No visible rolls yet.')).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Message' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'All' }));
+    expect(screen.getByRole('textbox', { name: 'Message' })).toHaveValue('Keep this draft');
+  });
   it('switches between all messages and the personal feed without losing the shared chat', async () => {
     const own = {
       ...systemMessage,

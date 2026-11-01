@@ -144,6 +144,21 @@ impl HttpClient {
         .await
     }
 
+    pub async fn roll_statistics(
+        &self,
+        id: SessionId,
+        token: &str,
+    ) -> Result<Vec<dnd_protocol::RollStatisticsDto>, NetError> {
+        json(
+            self.http
+                .get(self.url(&format!("/api/sessions/{id}/roll-statistics")))
+                .bearer_auth(token)
+                .send()
+                .await,
+        )
+        .await
+    }
+
     pub async fn chat_history(
         &self,
         id: SessionId,

@@ -62,6 +62,10 @@ pub fn router(app: App) -> Router {
         )
         .route("/api/sessions/{id}", get(http::session_info))
         .route("/api/sessions/{id}/chat", get(http::chat_history))
+        .route(
+            "/api/sessions/{id}/roll-statistics",
+            get(http::roll_statistics),
+        )
         .route("/api/sessions/{id}/stop", post(http::stop_session))
         .route("/api/sessions/{id}/export", get(http::export_session))
         .route("/api/sessions/{id}/assets/{sha256}", get(http::asset))

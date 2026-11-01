@@ -248,6 +248,23 @@ pub async fn campaign_current(
     Ok(state.server.lock().await.as_ref().map(LocalServer::info))
 }
 
+#[tauri::command]
+#[specta::specta]
+pub async fn roll_statistics(
+    state: State<'_, AppState>,
+) -> Result<Vec<dnd_protocol::RollStatisticsDto>, IpcError> {
+    let remote = state.remote.lock().await.clone();
+    if let Some(remote) = remote {
+        return remote.roll_statistics().await;
+    }
+    let guard = state.server.lock().await;
+    guard
+        .as_ref()
+        .ok_or_else(IpcError::no_campaign)?
+        .roll_statistics()
+        .await
+}
+
 /// Older chat messages (oldest first) before `before`, at most `limit` (capped at 200).
 #[tauri::command]
 #[specta::specta]

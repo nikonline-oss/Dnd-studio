@@ -641,6 +641,19 @@ export async function installMockIpc(
           };
         case 'journal_export_write':
           return 'C:\\mock\\journal';
+        case 'roll_statistics':
+          return [
+            {
+              user_id: snapshot.users[0]?.id ?? null,
+              name: 'GM',
+              rolls: 12,
+              average: 11.5,
+              minimum: 1,
+              maximum: 24,
+              natural_ones: 1,
+              natural_twenties: 2,
+            },
+          ];
         case 'chat_history':
           return [];
         case 'logs_recent':

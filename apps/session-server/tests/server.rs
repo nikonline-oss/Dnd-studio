@@ -442,6 +442,48 @@ async fn chat_history_pages_visible_messages_without_leaking_hidden_rolls() {
         .json()
         .await
         .unwrap();
+    let stats_url = h.url(&format!(
+        "/api/sessions/{}/roll-statistics",
+        created.session_id
+    ));
+    assert_eq!(h.http.get(&stats_url).send().await.unwrap().status(), 401);
+    let public_stats: Vec<RollStatisticsDto> = h
+        .http
+        .get(&stats_url)
+        .bearer_auth(&player.token)
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert!(public_stats.is_empty());
+    let private_stats: Vec<RollStatisticsDto> = h
+        .http
+        .get(&stats_url)
+        .bearer_auth(&gm.token)
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(private_stats.len(), 1);
+    assert_eq!(private_stats[0].rolls, 222);
+    let other_session = h.create().await;
+    assert_eq!(
+        h.http
+            .get(h.url(&format!(
+                "/api/sessions/{}/roll-statistics",
+                other_session.session_id
+            )))
+            .bearer_auth(&player.token)
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        401
+    );
     assert_eq!(gm_page.len(), 200);
     assert_eq!(gm_page.iter().map(|m| m.id).collect::<Vec<_>>(), all[26..]);
     assert!(

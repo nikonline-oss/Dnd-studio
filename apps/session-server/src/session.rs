@@ -35,6 +35,10 @@ pub struct Broadcast {
 }
 
 enum Command {
+    RollStatistics {
+        role: Role,
+        reply: oneshot::Sender<anyhow::Result<Vec<dnd_protocol::RollStatisticsDto>>>,
+    },
     Submit {
         envelope: Box<IntentEnvelope>,
         actor: Actor,
@@ -215,6 +219,14 @@ impl SessionHandle {
         role: Role,
     ) -> Result<Option<JournalEntryDto>, SessionGone> {
         self.ask(|reply| Command::JournalEntry { id, role, reply })
+            .await
+    }
+
+    pub async fn roll_statistics(
+        &self,
+        role: Role,
+    ) -> Result<anyhow::Result<Vec<dnd_protocol::RollStatisticsDto>>, SessionGone> {
+        self.ask(|reply| Command::RollStatistics { role, reply })
             .await
     }
 
@@ -419,6 +431,10 @@ async fn run(
                     sees_everything(role) || e.visibility == JournalVisibility::Players
                 });
                 let _ = reply.send(entry);
+            }
+            Command::RollStatistics { role, reply } => {
+                let result = engine.db().roll_statistics(role).await.map_err(Into::into);
+                let _ = reply.send(result);
             }
             Command::ChatHistory {
                 before,

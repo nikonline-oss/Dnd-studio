@@ -405,7 +405,23 @@
     "myFeed": "Mine",
     "mineHint": "Your messages, mentions and events of your characters. Legacy events match unique current names.",
     "mineEmpty": "Your messages, mentions and character events will appear here.",
-    "mineHistoryHint": "Load earlier messages to continue searching."
+    "mineHistoryHint": "Load earlier messages to continue searching.",
+    "statistics": {
+      "title": "Statistics",
+      "scope": "All saved rolls in this campaign / session. Hidden rolls are included for GM roles only.",
+      "refresh": "Refresh statistics",
+      "loading": "Loading statistics…",
+      "empty": "No visible rolls yet.",
+      "participant": "Participant",
+      "rolls": "Rolls",
+      "average": "Mean total",
+      "minimum": "Min",
+      "maximum": "Max",
+      "ones": "d20: 1",
+      "twenties": "d20: 20",
+      "you": "(you)",
+      "explanation": "Kept d20 dice only count towards natural 1 / 20; dropped dice are excluded. These are face values, not system-specific critical outcomes. Mean totals combine different expressions. Updates every 10 seconds while open."
+    }
   },
   "initiative": {
     "noMap": "Open a map to track initiative on it",

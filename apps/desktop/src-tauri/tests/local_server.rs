@@ -31,6 +31,36 @@ fn create_map(id: MapId) -> IntentEnvelope {
 }
 
 #[tokio::test]
+async fn roll_statistics_include_saved_hidden_rolls_for_the_local_gm_after_reopen() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut local = LocalServer::create(dir.path(), "Roll stats").await.unwrap();
+    assert!(local.roll_statistics().await.unwrap().is_empty());
+    let folder = local.folder().to_owned();
+    let intent = envelope(
+        Intent::RollDice {
+            id: ChatMessageId::new_v7(),
+            expression: "d1+4".into(),
+            hidden: true,
+            character_id: None,
+            roll: None,
+        },
+        None,
+    );
+    assert!(matches!(
+        local.submit(&intent).await.unwrap().0,
+        IntentOutcome::Accepted { .. }
+    ));
+    local.close().await.unwrap();
+    let reopened = LocalServer::open(&folder).await.unwrap();
+    let stats = reopened.roll_statistics().await.unwrap();
+    assert_eq!(stats.len(), 1);
+    assert_eq!(stats[0].rolls, 1);
+    assert_eq!(stats[0].average, 5.0);
+    assert_eq!(stats[0].natural_ones, 0);
+    reopened.close().await.unwrap();
+}
+
+#[tokio::test]
 async fn offline_edits_survive_reopen_and_retries_do_not_duplicate_the_queue() {
     let dir = tempfile::tempdir().unwrap();
     let mut local = LocalServer::create(dir.path(), "Offline").await.unwrap();

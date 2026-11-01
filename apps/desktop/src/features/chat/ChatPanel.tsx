@@ -2,6 +2,7 @@ import { useMutation } from '@tanstack/react-query';
 import type { TFunction } from 'i18next';
 import { useEffect, useMemo, useRef, useState, type SyntheticEvent } from 'react';
 import { personalFeedFilter } from './personalFeed';
+import { RollStatistics } from './RollStatistics';
 import './personalFeed.css';
 import { useTranslation } from 'react-i18next';
 import { useCampaign, useSnapshotSelect, useSubmitIntent } from '@/shared/game/useGame';
@@ -45,7 +46,7 @@ export function ChatPanel() {
   const submit = useSubmitIntent();
   const characterId = useSelection((s) => s.characterId);
   const [input, setInput] = useState('');
-  const [feed, setFeed] = useState<'all' | 'mine'>('all');
+  const [feed, setFeed] = useState<'all' | 'mine' | 'statistics'>('all');
   const [older, setOlder] = useState<ChatMessageDto[]>([]);
   const [noMore, setNoMore] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
@@ -131,60 +132,77 @@ export function ChatPanel() {
         >
           {t('chat.myFeed')}
         </button>
-      </div>
-      <ol className="chat-list">
-        {!noMore && (
-          <li className="chat-more">
-            <button
-              type="button"
-              disabled={history.isPending}
-              onClick={() => {
-                history.mutate();
-              }}
-            >
-              {t('chat.loadOlder')}
-            </button>
-          </li>
-        )}
-        {feed === 'mine' && visibleMessages.length === 0 && (
-          <li className="chat-feed-empty">
-            {t('chat.mineEmpty')}
-            {!noMore && <small>{t('chat.mineHistoryHint')}</small>}
-          </li>
-        )}
-        {visibleMessages.map((m) => (
-          <ChatLine key={m.id} message={m} />
-        ))}
-        <div ref={bottom} />
-      </ol>
-      <form className="chat-input" onSubmit={send}>
-        <Icon name="dice" className="chat-input-icon" />
-        <input
-          aria-label={t('chat.input')}
-          placeholder={t('chat.placeholder')}
-          value={input}
-          maxLength={4000}
-          onChange={(e) => {
-            setInput(e.target.value);
-          }}
-        />
-        {rollAs && <span className="chat-as">{t('chat.rollingAs', { name: rollAs.name })}</span>}
         <button
-          type="submit"
-          className="icon-button btn-primary"
-          aria-label={t('chat.send')}
-          title={t('chat.send')}
-          disabled={submit.isPending}
+          type="button"
+          aria-pressed={feed === 'statistics'}
+          onClick={() => {
+            setFeed('statistics');
+          }}
         >
-          <Icon name="send" />
+          {t('chat.statistics.title')}
         </button>
-      </form>
-      {localError && (
-        <p role="alert" className="error-text">
-          {localError}
-        </p>
+      </div>
+      {feed === 'statistics' ? (
+        <RollStatistics />
+      ) : (
+        <>
+          <ol className="chat-list">
+            {!noMore && (
+              <li className="chat-more">
+                <button
+                  type="button"
+                  disabled={history.isPending}
+                  onClick={() => {
+                    history.mutate();
+                  }}
+                >
+                  {t('chat.loadOlder')}
+                </button>
+              </li>
+            )}
+            {feed === 'mine' && visibleMessages.length === 0 && (
+              <li className="chat-feed-empty">
+                {t('chat.mineEmpty')}
+                {!noMore && <small>{t('chat.mineHistoryHint')}</small>}
+              </li>
+            )}
+            {visibleMessages.map((m) => (
+              <ChatLine key={m.id} message={m} />
+            ))}
+            <div ref={bottom} />
+          </ol>
+          <form className="chat-input" onSubmit={send}>
+            <Icon name="dice" className="chat-input-icon" />
+            <input
+              aria-label={t('chat.input')}
+              placeholder={t('chat.placeholder')}
+              value={input}
+              maxLength={4000}
+              onChange={(e) => {
+                setInput(e.target.value);
+              }}
+            />
+            {rollAs && (
+              <span className="chat-as">{t('chat.rollingAs', { name: rollAs.name })}</span>
+            )}
+            <button
+              type="submit"
+              className="icon-button btn-primary"
+              aria-label={t('chat.send')}
+              title={t('chat.send')}
+              disabled={submit.isPending}
+            >
+              <Icon name="send" />
+            </button>
+          </form>
+          {localError && (
+            <p role="alert" className="error-text">
+              {localError}
+            </p>
+          )}
+          <ErrorText error={submit.error ?? history.error} />
+        </>
       )}
-      <ErrorText error={submit.error ?? history.error} />
     </section>
   );
 }

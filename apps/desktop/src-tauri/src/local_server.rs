@@ -238,6 +238,10 @@ impl LocalServer {
     }
 
     /// Older chat messages, oldest first, before message `before` (or the newest).
+    pub async fn roll_statistics(&self) -> Result<Vec<dnd_protocol::RollStatisticsDto>, IpcError> {
+        Ok(self.engine.db().roll_statistics(self.info().role).await?)
+    }
+
     pub async fn chat_history(
         &self,
         before: Option<ChatMessageId>,

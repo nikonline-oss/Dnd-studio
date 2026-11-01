@@ -80,6 +80,7 @@ ADR-0002 выбрал SQLite. Нужно зафиксировать, как им
 | `INSERT INTO chat_messages`                                          | `insert_chat_message`              | `queries.rs::chat_messages_and_rolls_are_stored_and_paged`                                      |
 | `INSERT INTO dice_rolls`                                             | `insert_chat_message`              | `queries.rs::chat_messages_and_rolls_are_stored_and_paged`                                      |
 | `SELECT … chat_messages JOIN dice_rolls`                             | `read_chat_history`                | `queries.rs::history_filters_before_limit_for_every_role` (роли, страницы)                      |
+| `WITH visible … dice_rolls JOIN chat_messages … GROUP BY`            | `roll_statistics`                  | `queries.rs::roll_statistics_*` (роли, история, имена, грани)                                   |
 | `INSERT INTO assets`                                                 | `insert_asset`                     | `queries.rs::assets_are_registered_and_loaded` (уникальность `type`+`usage`+`sha256`, ADR-0027) |
 | `SELECT … FROM assets`                                               | `load_state`                       | `queries.rs::assets_are_registered_and_loaded`                                                  |
 | `INSERT INTO event_log`                                              | `project`                          | `queries.rs::every_event_kind_is_projected`, `project_is_atomic`                                |

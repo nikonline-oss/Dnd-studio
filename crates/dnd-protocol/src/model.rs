@@ -483,6 +483,26 @@ pub struct DiceRollDto {
     pub total: i64,
 }
 
+/// Read-only statistics over authorized, persisted dice rolls.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct RollStatisticsDto {
+    pub user_id: Option<UserId>,
+    /// Last recorded name in the authorized history, not an identity key.
+    pub name: String,
+    #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
+    pub rolls: i64,
+    pub average: f64,
+    #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
+    pub minimum: i64,
+    #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
+    pub maximum: i64,
+    #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
+    pub natural_ones: i64,
+    #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
+    pub natural_twenties: i64,
+}
+
 /// Messages the core posts; the UI localizes them by `code`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "code", rename_all = "snake_case")]

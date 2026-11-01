@@ -875,6 +875,13 @@ impl RemoteSession {
             .ok_or_else(|| IpcError::user("not_found", "journal entry not found"))
     }
 
+    pub async fn roll_statistics(&self) -> Result<Vec<dnd_protocol::RollStatisticsDto>, IpcError> {
+        Ok(self
+            .http
+            .roll_statistics(self.entry.session_id, &self.token)
+            .await?)
+    }
+
     pub async fn chat_history(
         &self,
         before: Option<dnd_protocol::ChatMessageId>,

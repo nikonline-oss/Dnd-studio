@@ -905,6 +905,19 @@ export type RollRequestStatus =
 /**  Dismissed by a GM role; a rolled request's delta has been reversed. */
 "cancelled";
 
+/**  Read-only statistics over authorized, persisted dice rolls. */
+export type RollStatisticsDto = {
+	user_id: UserId | null,
+	/**  Last recorded name in the authorized history, not an identity key. */
+	name: string,
+	rolls: number,
+	average: number | null,
+	minimum: number,
+	maximum: number,
+	natural_ones: number,
+	natural_twenties: number,
+};
+
 /**
  *  Position of an event in the campaign/session event log.
  * 

@@ -1,0 +1,50 @@
+.roll-statistics {
+  min-height: 0;
+  overflow: auto;
+  flex: 1;
+  padding: 8px 2px;
+}
+.roll-statistics-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.roll-statistics-heading p,
+.roll-statistics-note {
+  margin: 4px 0;
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+.roll-statistics-heading button {
+  flex-shrink: 0;
+}
+.roll-statistics-scroll {
+  overflow-x: auto;
+}
+.roll-statistics table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.roll-statistics caption {
+  text-align: left;
+  font-weight: 600;
+  padding: 4px 8px;
+}
+.roll-statistics th,
+.roll-statistics td {
+  padding: 7px 10px;
+  text-align: right;
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+.roll-statistics th:first-child {
+  text-align: left;
+}
+.roll-statistics th small {
+  margin-left: 6px;
+  color: var(--color-text-muted);
+  font-weight: normal;
+}

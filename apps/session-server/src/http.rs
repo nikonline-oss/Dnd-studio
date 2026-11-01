@@ -385,6 +385,21 @@ pub struct ChatPage {
     limit: Option<u32>,
 }
 
+pub async fn roll_statistics(
+    State(app): State<App>,
+    Path(id): Path<SessionId>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<dnd_protocol::RollStatisticsDto>>, ApiError> {
+    let participant = app.participant(id, &headers).await?;
+    let session = app.session(id).await?;
+    let statistics = session
+        .roll_statistics(participant.role)
+        .await
+        .map_err(ApiError::internal)?
+        .map_err(ApiError::internal)?;
+    Ok(Json(statistics))
+}
+
 /// Older messages, oldest first. Hidden rolls count towards GM pages only.
 pub async fn chat_history(
     State(app): State<App>,

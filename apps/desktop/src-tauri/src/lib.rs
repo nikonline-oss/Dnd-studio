@@ -59,6 +59,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             journal_files::journal_import_read::<tauri::Wry>,
             journal_files::journal_export_write::<tauri::Wry>,
             commands::chat_history,
+            commands::roll_statistics,
             assets::asset_import_map::<tauri::Wry>,
             assets::asset_import_images::<tauri::Wry>,
             assets::asset_import_audio::<tauri::Wry>,

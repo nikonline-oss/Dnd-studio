@@ -521,7 +521,7 @@ fn query_inventory_matches_adr_0008() {
         .map(|s| s.matches("sqlx::query").count())
         .sum();
     assert_eq!(
-        count, 92,
+        count, 93,
         "runtime queries changed: add a real-SQLite test and update the table in docs/adr/0008-db-conventions.md"
     );
 }
@@ -872,6 +872,131 @@ async fn journal_entries_are_projected_and_loaded() {
     .unwrap();
     let (state, _) = db.load_state().await.unwrap();
     assert_eq!(state.journal.keys().collect::<Vec<_>>(), [&sheet.id]);
+}
+
+#[tokio::test]
+async fn roll_statistics_filter_hidden_rolls_and_count_only_kept_d20_faces() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = new_campaign(&dir).await;
+    assert!(db.roll_statistics(Role::Player).await.unwrap().is_empty());
+    let mut first = chat(10, ChatKind::Roll);
+    first.roll = Some(DiceRollDto {
+        expression: "2d20kh1+5".into(),
+        total: 25,
+        terms: vec![DiceTermDto {
+            negative: false,
+            notation: "2d20kh1".into(),
+            subtotal: 20,
+            dice: vec![
+                DieDto {
+                    value: 1,
+                    kept: false,
+                },
+                DieDto {
+                    value: 20,
+                    kept: true,
+                },
+            ],
+        }],
+    });
+    let mut hidden = first.clone();
+    hidden.id = ChatMessageId(v7(0x999));
+    hidden.visibility = ChatVisibility::Gm;
+    hidden.sender_name = "Renamed GM".into();
+    hidden.roll = Some(DiceRollDto {
+        expression: "d200".into(),
+        total: 1,
+        terms: vec![DiceTermDto {
+            negative: false,
+            notation: "d200".into(),
+            subtotal: 1,
+            dice: vec![DieDto {
+                value: 1,
+                kept: true,
+            }],
+        }],
+    });
+    db.project(&[record(
+        1,
+        None,
+        vec![
+            Event::ChatMessagePosted { message: first },
+            Event::ChatMessagePosted { message: hidden },
+        ],
+    )])
+    .await
+    .unwrap();
+    for role in [Role::Player, Role::Spectator] {
+        let stats = db.roll_statistics(role).await.unwrap();
+        assert_eq!(stats.len(), 1);
+        assert_eq!(stats[0].rolls, 1);
+        assert_eq!(stats[0].average, 25.0);
+        assert_eq!(stats[0].natural_ones, 0);
+        assert_eq!(stats[0].natural_twenties, 1);
+        assert_eq!(stats[0].name, "GM");
+    }
+    for role in [Role::Gm, Role::CoGm] {
+        let stats = db.roll_statistics(role).await.unwrap();
+        assert_eq!(stats.len(), 1);
+        assert_eq!(stats[0].rolls, 2);
+        assert_eq!(stats[0].average, 13.0);
+        assert_eq!(stats[0].natural_ones, 0);
+        assert_eq!(stats[0].natural_twenties, 1);
+        assert_eq!(stats[0].name, "Renamed GM");
+    }
+}
+
+#[tokio::test]
+async fn roll_statistics_keep_distinct_users_with_equal_names_and_count_natural_ones() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = new_campaign(&dir).await;
+    let user = UserDto {
+        id: UserId(v7(2)),
+        name: "GM".into(),
+        role: Role::Player,
+    };
+    let mut a = chat(30, ChatKind::Roll);
+    a.roll = Some(DiceRollDto {
+        expression: "d20".into(),
+        total: 1,
+        terms: vec![DiceTermDto {
+            negative: false,
+            notation: "d20".into(),
+            subtotal: 1,
+            dice: vec![DieDto {
+                value: 1,
+                kept: true,
+            }],
+        }],
+    });
+    let mut b = chat(31, ChatKind::Roll);
+    b.sender = Some(user.id);
+    db.project(&[record(
+        1,
+        None,
+        vec![
+            Event::UserJoined { user },
+            Event::ChatMessagePosted { message: a },
+            Event::ChatMessagePosted { message: b },
+        ],
+    )])
+    .await
+    .unwrap();
+    let stats = db.roll_statistics(Role::Player).await.unwrap();
+    assert_eq!(stats.len(), 2);
+    let gm = stats
+        .iter()
+        .find(|s| s.user_id == Some(UserId(v7(1))))
+        .unwrap();
+    assert_eq!(gm.natural_ones, 1);
+    assert_eq!(gm.minimum, 1);
+    assert_eq!(gm.maximum, 1);
+    let other = stats
+        .iter()
+        .find(|s| s.user_id == Some(UserId(v7(2))))
+        .unwrap();
+    assert_eq!(other.natural_ones, 0);
+    assert_eq!(other.average, 8.0);
 }
 
 fn chat(n: u128, kind: ChatKind) -> ChatMessageDto {

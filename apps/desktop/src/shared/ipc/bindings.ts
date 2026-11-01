@@ -85,6 +85,7 @@ export const commands = {
 	journalExportWrite: (files: JournalFile[]) => typedError<string | null, IpcError>(__TAURI_INVOKE("journal_export_write", { files })),
 	/**  Older chat messages (oldest first) before `before`, at most `limit` (capped at 200). */
 	chatHistory: (before: string | null, limit: number) => typedError<ChatMessageDto[], IpcError>(__TAURI_INVOKE("chat_history", { before, limit })),
+	rollStatistics: () => typedError<RollStatisticsDto[], IpcError>(__TAURI_INVOKE("roll_statistics")),
 	/**
 	 *  Asks for an image, imports it as a map background and creates a map of the same logical size
 	 *  (ADR-0016). `None` if the dialog was cancelled.
@@ -1247,6 +1248,19 @@ export type RollRequestStatus =
 "rolled" | 
 /**  Dismissed by a GM role; a rolled request's delta has been reversed. */
 "cancelled";
+
+/**  Read-only statistics over authorized, persisted dice rolls. */
+export type RollStatisticsDto = {
+	user_id: UserId | null,
+	/**  Last recorded name in the authorized history, not an identity key. */
+	name: string,
+	rolls: number,
+	average: number | null,
+	minimum: number,
+	maximum: number,
+	natural_ones: number,
+	natural_twenties: number,
+};
 
 /**
  *  Position of an event in the campaign/session event log.

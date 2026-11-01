@@ -395,6 +395,55 @@ impl CampaignDb {
         self.read_chat_history(before, limit, true).await
     }
 
+    /// Aggregate all authorized saved rolls, independently of the chat snapshot/page limit.
+    pub async fn roll_statistics(
+        &self,
+        role: Role,
+    ) -> DbResult<Vec<dnd_protocol::RollStatisticsDto>> {
+        let rows = sqlx::query(
+            "WITH visible AS ( \
+                SELECT d.*, COALESCE(d.user_id, 'name:' || d.user_name) AS identity_key, \
+                ROW_NUMBER() OVER (PARTITION BY COALESCE(d.user_id, 'name:' || d.user_name) ORDER BY d.rowid DESC) AS recent \
+                FROM dice_rolls d JOIN chat_messages c ON c.id = d.chat_message_id \
+                WHERE (? OR c.visibility = 'all') \
+            ), faces AS ( \
+                SELECT v.id, \
+                SUM(CASE WHEN json_extract(die.value, '$.value') = 1 THEN 1 ELSE 0 END) AS ones, \
+                SUM(CASE WHEN json_extract(die.value, '$.value') = 20 THEN 1 ELSE 0 END) AS twenties \
+                FROM visible v, json_each(v.result, '$.terms') term, json_each(term.value, '$.dice') die \
+                WHERE json_extract(die.value, '$.kept') = 1 \
+                AND instr(json_extract(term.value, '$.notation'), 'd') > 0 \
+                AND CAST(substr(json_extract(term.value, '$.notation'), instr(json_extract(term.value, '$.notation'), 'd') + 1) AS INTEGER) = 20 \
+                GROUP BY v.id \
+            ) SELECT v.user_id, MAX(CASE WHEN v.recent = 1 THEN v.user_name END) AS name, \
+                COUNT(*) AS rolls, AVG(v.total) AS average, MIN(v.total) AS minimum, MAX(v.total) AS maximum, \
+                SUM(COALESCE(f.ones, 0)) AS natural_ones, SUM(COALESCE(f.twenties, 0)) AS natural_twenties \
+                FROM visible v LEFT JOIN faces f ON f.id = v.id GROUP BY v.identity_key \
+                ORDER BY name COLLATE NOCASE, v.identity_key",
+        )
+        .bind(matches!(role, Role::Gm | Role::CoGm))
+        .fetch_all(&self.pool)
+        .await?;
+        rows.into_iter()
+            .map(|r| {
+                Ok(dnd_protocol::RollStatisticsDto {
+                    user_id: opt_uuid_from_str(
+                        "dice_rolls.user_id",
+                        r.try_get::<Option<String>, _>("user_id")?,
+                    )?
+                    .map(UserId),
+                    name: r.try_get("name")?,
+                    rolls: r.try_get("rolls")?,
+                    average: r.try_get("average")?,
+                    minimum: r.try_get("minimum")?,
+                    maximum: r.try_get("maximum")?,
+                    natural_ones: r.try_get("natural_ones")?,
+                    natural_twenties: r.try_get("natural_twenties")?,
+                })
+            })
+            .collect()
+    }
+
     async fn read_chat_history(
         &self,
         before: Option<ChatMessageId>,
