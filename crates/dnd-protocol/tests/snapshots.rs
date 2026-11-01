@@ -25,6 +25,7 @@ fn sample_token() -> TokenDto {
         rotation: 0.0,
         scale: 1.0,
         layer: TokenLayer::Tokens,
+        disposition: TokenDisposition::Neutral,
         visible: true,
         version: Version::INITIAL,
     }

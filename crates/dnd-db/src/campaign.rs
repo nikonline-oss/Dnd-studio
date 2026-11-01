@@ -9,7 +9,8 @@ use dnd_protocol::{
     CombatId, CombatantDto, CombatantId, DiceRollDto, Event, EventBatch, FogDto, FogOp, Grid,
     GridKind, IntentId, JournalEntryDto, JournalEntryId, JournalFolderDto, JournalFolderId,
     LibraryFolderDto, LibraryFolderId, MapDto, MapId, PayloadHash, PluginDto, Role, Seq,
-    SystemMessage, TokenDto, TokenId, TokenLayer, TriggerDto, UserDto, UserId, Version, ZoneDto,
+    SystemMessage, TokenDisposition, TokenDto, TokenId, TokenLayer, TriggerDto, UserDto, UserId,
+    Version, ZoneDto,
 };
 use serde::{Deserialize, Serialize};
 use sqlx::sqlite::SqliteRow;
@@ -1351,13 +1352,14 @@ async fn upsert_map(conn: &mut SqliteConnection, map: &MapDto) -> DbResult<()> {
 async fn upsert_token(conn: &mut SqliteConnection, token: &TokenDto) -> DbResult<()> {
     sqlx::query(
         "INSERT INTO tokens (id, map_id, character_id, asset_id, name, x, y, rotation, scale, \
-             layer, visible, version) \
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) \
+             layer, disposition, visible, version) \
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) \
          ON CONFLICT (id) DO UPDATE SET \
              map_id = excluded.map_id, character_id = excluded.character_id, \
              asset_id = excluded.asset_id, name = excluded.name, x = excluded.x, y = excluded.y, \
              rotation = excluded.rotation, scale = excluded.scale, layer = excluded.layer, \
-             visible = excluded.visible, version = excluded.version",
+             disposition = excluded.disposition, visible = excluded.visible, \
+             version = excluded.version",
     )
     .bind(token.id.to_string())
     .bind(token.map_id.to_string())
@@ -1369,6 +1371,7 @@ async fn upsert_token(conn: &mut SqliteConnection, token: &TokenDto) -> DbResult
     .bind(token.rotation)
     .bind(token.scale)
     .bind(enum_to_str(&token.layer)?)
+    .bind(enum_to_str(&token.disposition)?)
     .bind(token.visible)
     .bind(token.version.0)
     .execute(conn)
@@ -1421,6 +1424,10 @@ fn token_from_row(row: &SqliteRow) -> DbResult<TokenDto> {
         rotation: row.try_get("rotation")?,
         scale: row.try_get("scale")?,
         layer: enum_from_str::<TokenLayer>("tokens.layer", &row.try_get::<String, _>("layer")?)?,
+        disposition: enum_from_str::<TokenDisposition>(
+            "tokens.disposition",
+            &row.try_get::<String, _>("disposition")?,
+        )?,
         visible: row.try_get("visible")?,
         version: Version(row.try_get("version")?),
     })

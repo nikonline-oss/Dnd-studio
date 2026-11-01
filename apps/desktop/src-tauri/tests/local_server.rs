@@ -192,6 +192,7 @@ async fn intents_persist_across_reopen() {
                 scale: 1.0,
                 layer: TokenLayer::Tokens,
                 visible: true,
+                disposition: TokenDisposition::Enemy,
             },
             None,
         ))

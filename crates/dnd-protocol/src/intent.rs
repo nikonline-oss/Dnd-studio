@@ -10,7 +10,8 @@ use crate::ids::{
 };
 use crate::library::Library;
 use crate::model::{
-    AssetDto, CharacterKind, FogOp, Grid, JournalTable, JournalVisibility, TokenLayer,
+    AssetDto, CharacterKind, FogOp, Grid, JournalTable, JournalVisibility, TokenDisposition,
+    TokenLayer,
 };
 use crate::plugin::PluginDto;
 use crate::trigger::TriggerDef;
@@ -130,6 +131,9 @@ pub enum Intent {
         scale: f64,
         layer: TokenLayer,
         visible: bool,
+        /// Whose side the token is on; absent in stored offline ops: neutral.
+        #[serde(default)]
+        disposition: TokenDisposition,
     },
     UpdateToken {
         id: TokenId,
@@ -140,6 +144,7 @@ pub enum Intent {
         scale: Option<f64>,
         layer: Option<TokenLayer>,
         visible: Option<bool>,
+        disposition: Option<TokenDisposition>,
     },
     /// Last-write-wins: no version check, does not bump the token version (ADR-0003).
     MoveToken {

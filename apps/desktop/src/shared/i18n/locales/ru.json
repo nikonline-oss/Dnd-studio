@@ -83,6 +83,12 @@
       "tokens": "Токены",
       "gm": "Только мастер"
     },
+    "disposition": "Отношение",
+    "dispositions": {
+      "neutral": "Нейтрал",
+      "ally": "Союзник",
+      "enemy": "Враг"
+    },
     "size": "Размер",
     "cells_one": "{{count}} клетка",
     "cells_few": "{{count}} клетки",

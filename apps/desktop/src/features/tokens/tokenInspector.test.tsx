@@ -120,6 +120,20 @@ describe('TokenInspector', () => {
     ]);
   });
 
+  it('GM changes the disposition with the token version', async () => {
+    const sent = setup('gm');
+    await userEvent.selectOptions(await screen.findByLabelText('Disposition'), 'enemy');
+    await waitFor(() => {
+      expect(sent).toHaveLength(1);
+    });
+    expect(sent[0]?.intent).toMatchObject({
+      kind: 'update_token',
+      id: 't1',
+      disposition: 'enemy',
+    });
+    expect(sent[0]?.expected_version).toBe(4);
+  });
+
   it('GM renames on blur; an unchanged name sends nothing', async () => {
     const sent = setup('gm');
     const name = await screen.findByLabelText('Name');

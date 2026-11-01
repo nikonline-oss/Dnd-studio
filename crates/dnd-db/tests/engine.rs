@@ -66,6 +66,7 @@ async fn a_durable_retry_after_the_cache_expires_never_rewinds_a_token() {
                     rotation: 0.0,
                     scale: 1.0,
                     layer: TokenLayer::Tokens,
+                    disposition: TokenDisposition::Ally,
                     visible: true,
                     version: Version(1),
                 },

@@ -41,6 +41,7 @@ export function TokenList() {
         scale: 1,
         layer: 'tokens',
         visible: true,
+        disposition: 'neutral',
       },
     });
   };
@@ -112,6 +113,7 @@ export function TokenList() {
                                     scale: null,
                                     layer: null,
                                     visible: null,
+                                    disposition: null,
                                   },
                                   expectedVersion: token.version,
                                 });
@@ -131,6 +133,7 @@ export function TokenList() {
                                 scale: null,
                                 layer: null,
                                 visible: !token.visible,
+                                disposition: null,
                               },
                               expectedVersion: token.version,
                             });

@@ -283,6 +283,7 @@ export function MapView() {
         scale: 1,
         layer: 'tokens',
         visible: true,
+        disposition: 'neutral',
       },
     });
   };

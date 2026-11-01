@@ -82,6 +82,17 @@ pub enum TokenLayer {
     Gm,
 }
 
+/// Whose side a token is on: GM bookkeeping for frames and quick scans.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub enum TokenDisposition {
+    #[default]
+    Neutral,
+    Ally,
+    Enemy,
+}
+
 /// A token on a map.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
@@ -102,6 +113,9 @@ pub struct TokenDto {
     #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
     pub scale: f64,
     pub layer: TokenLayer,
+    /// Whose side the token is on; missing in legacy data: neutral.
+    #[serde(default)]
+    pub disposition: TokenDisposition,
     pub visible: bool,
     pub version: Version,
 }

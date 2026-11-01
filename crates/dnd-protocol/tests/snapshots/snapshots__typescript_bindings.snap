@@ -442,7 +442,9 @@ width: number; height: number; grid: Grid; visible_to_players: boolean } | { kin
  */
 { kind: "next_turn"; combat_id: CombatId } | 
 /**  GM / Co-GM. Removes the combat with its combatants. */
-{ kind: "end_combat"; id: CombatId } | { kind: "create_token"; id: TokenId; map_id: MapId; character_id: CharacterId | null; asset_id: AssetId | null; name: string; x: number; y: number; rotation: number; scale: number; layer: TokenLayer; visible: boolean } | { kind: "update_token"; id: TokenId; name: string | null; rotation: number | null; scale: number | null; layer: TokenLayer | null; visible: boolean | null } | 
+{ kind: "end_combat"; id: CombatId } | { kind: "create_token"; id: TokenId; map_id: MapId; character_id: CharacterId | null; asset_id: AssetId | null; name: string; x: number; y: number; rotation: number; scale: number; layer: TokenLayer; visible: boolean; 
+/**  Whose side the token is on; absent in stored offline ops: neutral. */
+disposition?: TokenDisposition } | { kind: "update_token"; id: TokenId; name: string | null; rotation: number | null; scale: number | null; layer: TokenLayer | null; visible: boolean | null; disposition: TokenDisposition | null } | 
 /**  Last-write-wins: no version check, does not bump the token version (ADR-0003). */
 { kind: "move_token"; id: TokenId; x: number; y: number } | { kind: "delete_token"; id: TokenId } | 
 /**
@@ -996,6 +998,9 @@ export type ThemeDto = {
 	dark?: { [key in string]: string },
 };
 
+/**  Whose side a token is on: GM bookkeeping for frames and quick scans. */
+export type TokenDisposition = "neutral" | "ally" | "enemy";
+
 /**  A token on a map. */
 export type TokenDto = {
 	id: TokenId,
@@ -1010,6 +1015,8 @@ export type TokenDto = {
 	rotation: number,
 	scale: number,
 	layer: TokenLayer,
+	/**  Whose side the token is on; missing in legacy data: neutral. */
+	disposition?: TokenDisposition,
 	visible: boolean,
 	version: Version,
 };

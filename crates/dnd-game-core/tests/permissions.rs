@@ -59,6 +59,7 @@ fn intents() -> Vec<(&'static str, Intent)> {
                 scale: 1.0,
                 layer: TokenLayer::Tokens,
                 visible: true,
+                disposition: TokenDisposition::Neutral,
             },
         ),
         (
@@ -70,6 +71,7 @@ fn intents() -> Vec<(&'static str, Intent)> {
                 scale: None,
                 layer: None,
                 visible: None,
+                disposition: None,
             },
         ),
         (

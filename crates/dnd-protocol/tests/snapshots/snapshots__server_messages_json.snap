@@ -28,6 +28,7 @@ expression: messages
             "rotation": 0.0,
             "scale": 1.0,
             "layer": "tokens",
+            "disposition": "neutral",
             "visible": true,
             "version": 1
           }

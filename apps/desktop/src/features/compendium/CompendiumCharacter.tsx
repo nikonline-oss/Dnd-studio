@@ -174,6 +174,7 @@ export function CompendiumCharacter({ entry }: { entry: CompendiumEntryDto }) {
                     scale: 1,
                     layer: 'tokens',
                     visible: true,
+                    disposition: 'neutral',
                   },
                 },
                 {

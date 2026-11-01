@@ -124,6 +124,7 @@ async fn campaign_archive(dir: &Path) -> Vec<u8> {
         scale: 1.0,
         layer,
         visible: true,
+        disposition: TokenDisposition::Neutral,
     };
     let entry = |n, visibility| Intent::CreateJournalEntry {
         id: JournalEntryId(v7(n)),
@@ -1448,6 +1449,7 @@ async fn a_trigger_reveals_a_secret_through_the_server() {
                 scale: 1.0,
                 layer: TokenLayer::Tokens,
                 visible: true,
+                disposition: TokenDisposition::Ally,
             },
             None,
         ),

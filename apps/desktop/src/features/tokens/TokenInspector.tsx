@@ -10,10 +10,13 @@ import { Icon } from '@/shared/ui/Icon';
 import { ConfirmDelete, IconButton } from '@/shared/ui/IconButton';
 
 const LAYERS: TokenLayer[] = ['background', 'tokens', 'gm'];
+const DISPOSITIONS = ['neutral', 'ally', 'enemy'] as const;
 /** Sizes offered in grid cells; the core accepts any positive scale. */
 const SCALES = [0.5, 1, 2, 3, 4];
 
-type Changes = Partial<Pick<TokenDto, 'name' | 'rotation' | 'scale' | 'layer' | 'visible'>>;
+type Changes = Partial<
+  Pick<TokenDto, 'name' | 'rotation' | 'scale' | 'layer' | 'visible' | 'disposition'>
+>;
 
 /** Inspector for the token selected on the map: GM roles change its properties (§5). */
 export function TokenInspector() {
@@ -174,6 +177,7 @@ function TokenForm({ token, onDeleted }: { token: TokenDto; onDeleted: () => voi
         scale: changes.scale ?? null,
         layer: changes.layer ?? null,
         visible: changes.visible ?? null,
+        disposition: changes.disposition ?? null,
       },
       expectedVersion: token.version,
     });
@@ -211,6 +215,20 @@ function TokenForm({ token, onDeleted }: { token: TokenDto; onDeleted: () => voi
         {LAYERS.map((layer) => (
           <option key={layer} value={layer}>
             {t(`tokens.layers.${layer}`)}
+          </option>
+        ))}
+      </select>
+      <label htmlFor="token-disposition">{t('tokens.disposition')}</label>
+      <select
+        id="token-disposition"
+        value={token.disposition ?? 'neutral'}
+        onChange={(e) => {
+          update({ disposition: e.target.value as NonNullable<TokenDto['disposition']> });
+        }}
+      >
+        {DISPOSITIONS.map((disposition) => (
+          <option key={disposition} value={disposition}>
+            {t(`tokens.dispositions.${disposition}`)}
           </option>
         ))}
       </select>

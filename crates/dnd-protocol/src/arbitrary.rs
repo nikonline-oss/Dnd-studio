@@ -20,7 +20,7 @@ use crate::ids::{
 use crate::intent::{Intent, IntentEnvelope};
 use crate::model::{
     CampaignMeta, CharacterKind, CombatDto, CombatantDto, FogOp, FogOpKind, FogShape, Grid,
-    GridKind, JournalFolderDto, MapDto, TokenDto, TokenLayer, UserDto,
+    GridKind, JournalFolderDto, MapDto, TokenDisposition, TokenDto, TokenLayer, UserDto,
 };
 use crate::trigger::{
     EffectDurationDef, RevealTarget, SpawnPlacement, TriggerAction, TriggerDef, TriggerDto,
@@ -465,6 +465,14 @@ pub fn layer() -> impl Strategy<Value = TokenLayer> {
     ])
 }
 
+pub fn disposition() -> impl Strategy<Value = TokenDisposition> {
+    select(vec![
+        TokenDisposition::Neutral,
+        TokenDisposition::Ally,
+        TokenDisposition::Enemy,
+    ])
+}
+
 pub fn effect_id() -> impl Strategy<Value = EffectId> {
     (0x5_6000u128..0x5_6008).prop_map(|n| EffectId(v7(n)))
 }
@@ -707,10 +715,20 @@ pub fn intent() -> impl Strategy<Value = Intent> {
             name(),
             (position(), position(), 0.0f64..360.0, 0.1f64..10.0),
             layer(),
-            any::<bool>()
+            any::<bool>(),
+            disposition()
         )
             .prop_map(
-                |(id, map_id, character_id, name, (x, y, rotation, scale), layer, visible)| {
+                |(
+                    id,
+                    map_id,
+                    character_id,
+                    name,
+                    (x, y, rotation, scale),
+                    layer,
+                    visible,
+                    disposition,
+                )| {
                     Intent::CreateToken {
                         id,
                         map_id,
@@ -723,6 +741,7 @@ pub fn intent() -> impl Strategy<Value = Intent> {
                         scale,
                         layer,
                         visible,
+                        disposition,
                     }
                 }
             ),
@@ -732,18 +751,20 @@ pub fn intent() -> impl Strategy<Value = Intent> {
             proptest::option::of(0.0f64..360.0),
             proptest::option::of(0.1f64..10.0),
             proptest::option::of(layer()),
-            proptest::option::of(any::<bool>())
+            proptest::option::of(any::<bool>()),
+            proptest::option::of(disposition())
         )
-            .prop_map(
-                |(id, name, rotation, scale, layer, visible)| Intent::UpdateToken {
+            .prop_map(|(id, name, rotation, scale, layer, visible, disposition)| {
+                Intent::UpdateToken {
                     id,
                     name,
                     rotation,
                     scale,
                     layer,
                     visible,
+                    disposition,
                 }
-            ),
+            }),
         (token_id(), position(), position()).prop_map(|(id, x, y)| Intent::MoveToken { id, x, y }),
         token_id().prop_map(|id| Intent::DeleteToken { id }),
         (
@@ -821,10 +842,21 @@ pub fn token_dto() -> impl Strategy<Value = TokenDto> {
         (position(), position(), 0.0f64..360.0, 0.1f64..10.0),
         layer(),
         any::<bool>(),
+        disposition(),
         version(),
     )
         .prop_map(
-            |(id, map_id, character_id, name, (x, y, rotation, scale), layer, visible, version)| {
+            |(
+                id,
+                map_id,
+                character_id,
+                name,
+                (x, y, rotation, scale),
+                layer,
+                visible,
+                disposition,
+                version,
+            )| {
                 TokenDto {
                     id,
                     map_id,
@@ -836,6 +868,7 @@ pub fn token_dto() -> impl Strategy<Value = TokenDto> {
                     rotation,
                     scale,
                     layer,
+                    disposition,
                     visible,
                     version,
                 }

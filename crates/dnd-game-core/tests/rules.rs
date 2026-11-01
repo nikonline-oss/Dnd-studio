@@ -96,6 +96,7 @@ fn move_token_is_last_write_wins_and_keeps_version() {
             scale: None,
             layer: None,
             visible: Some(false),
+            disposition: None,
         },
         Some(Version::INITIAL),
     )
@@ -136,6 +137,7 @@ fn create_rejects_duplicates_and_dangling_references() {
         scale: 1.0,
         layer: TokenLayer::Tokens,
         visible: true,
+        disposition: TokenDisposition::Neutral,
     };
     assert_eq!(
         run(&mut state, Role::Gm, create(0, 0, None), None),
@@ -203,6 +205,7 @@ fn validation() {
                 scale: Some(-1.0),
                 layer: None,
                 visible: None,
+                disposition: None,
             },
             "scale",
         ),
@@ -259,6 +262,7 @@ fn rotation_is_normalized_and_names_trimmed() {
             scale: None,
             layer: None,
             visible: None,
+            disposition: None,
         },
         Some(Version(1)),
     )
@@ -436,6 +440,7 @@ fn created_ids_must_not_collide_with_any_entity_kind() {
         scale: 1.0,
         layer: TokenLayer::Tokens,
         visible: true,
+        disposition: TokenDisposition::Enemy,
     };
     assert_eq!(
         run(&mut state, Role::Gm, token_with_map_id, None),
@@ -538,4 +543,76 @@ fn map_size_is_bounded() {
     let mut state = table_state();
     run(&mut state, Role::Gm, create(max, 1), None).unwrap();
     assert_eq!(state.maps[&pooled_map_id(2)].width, max);
+}
+
+#[test]
+fn token_disposition_defaults_to_neutral_and_updates_like_other_fields() {
+    let mut state = table_state();
+    // Token JSON written before the field existed reads as neutral.
+    let mut legacy = serde_json::to_value(state.tokens[&pooled_token_id(0)].clone()).unwrap();
+    legacy.as_object_mut().unwrap().remove("disposition");
+    let legacy: TokenDto = serde_json::from_value(legacy).unwrap();
+    assert_eq!(legacy.disposition, TokenDisposition::Neutral);
+    let events = run(
+        &mut state,
+        Role::Gm,
+        Intent::CreateToken {
+            id: pooled_token_id(9),
+            map_id: pooled_map_id(0),
+            character_id: None,
+            asset_id: None,
+            name: "Orc".into(),
+            x: 0,
+            y: 0,
+            rotation: 0.0,
+            scale: 1.0,
+            layer: TokenLayer::Tokens,
+            visible: true,
+            disposition: TokenDisposition::Enemy,
+        },
+        None,
+    )
+    .unwrap();
+    assert!(matches!(
+        events.first(),
+        Some(Event::TokenCreated { token }) if token.disposition == TokenDisposition::Enemy
+    ));
+    run(
+        &mut state,
+        Role::Gm,
+        Intent::UpdateToken {
+            id: pooled_token_id(9),
+            name: None,
+            rotation: None,
+            scale: None,
+            layer: None,
+            visible: None,
+            disposition: Some(TokenDisposition::Ally),
+        },
+        Some(Version::INITIAL),
+    )
+    .unwrap();
+    assert_eq!(
+        state.tokens[&pooled_token_id(9)].disposition,
+        TokenDisposition::Ally
+    );
+    // An update touching nothing at all is still rejected.
+    let version = state.tokens[&pooled_token_id(9)].version;
+    assert_eq!(
+        run(
+            &mut state,
+            Role::Gm,
+            Intent::UpdateToken {
+                id: pooled_token_id(9),
+                name: None,
+                rotation: None,
+                scale: None,
+                layer: None,
+                visible: None,
+                disposition: None,
+            },
+            Some(version),
+        ),
+        Err(RejectReason::invalid("intent"))
+    );
 }

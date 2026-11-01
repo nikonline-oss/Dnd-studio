@@ -155,6 +155,7 @@ fn decide(
             scale,
             layer,
             visible,
+            disposition,
         } => {
             let map = state.maps.get(map_id).ok_or(RejectReason::NotFound)?;
             let (x, y) = on_map(map, *x, *y)?;
@@ -179,6 +180,7 @@ fn decide(
                 rotation: valid_rotation(*rotation)?,
                 scale: valid_scale(*scale)?,
                 layer: *layer,
+                disposition: *disposition,
                 visible: *visible,
                 version: Version::INITIAL,
             };
@@ -192,12 +194,14 @@ fn decide(
             scale,
             layer,
             visible,
+            disposition,
         } => {
             if name.is_none()
                 && rotation.is_none()
                 && scale.is_none()
                 && layer.is_none()
                 && visible.is_none()
+                && disposition.is_none()
             {
                 return Err(RejectReason::invalid("intent"));
             }
@@ -220,6 +224,9 @@ fn decide(
             }
             if let Some(visible) = visible {
                 token.visible = *visible;
+            }
+            if let Some(disposition) = disposition {
+                token.disposition = *disposition;
             }
             token.version = bump(token.version)?;
             Ok(vec![Event::TokenUpdated { token }])

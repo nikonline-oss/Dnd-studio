@@ -52,8 +52,8 @@ pub use model::{
     CharacterKind, CharacterStatus, ChatKind, ChatMessageDto, ChatVisibility, CombatDto,
     CombatantDto, DiceRollDto, DiceTermDto, DieDto, FogDto, FogOp, FogOpKind, FogShape, Grid,
     GridKind, JournalEntryDto, JournalEntryMeta, JournalFolderDto, JournalVisibility, MAX_CHAT_LEN,
-    MAX_CONDITIONS, MAX_JOURNAL_BYTES, MAX_SHEET_BYTES, MapDto, SystemMessage, TokenDto,
-    TokenLayer, UserDto,
+    MAX_CONDITIONS, MAX_JOURNAL_BYTES, MAX_SHEET_BYTES, MapDto, SystemMessage, TokenDisposition,
+    TokenDto, TokenLayer, UserDto,
 };
 pub use model::{
     JournalEntryKind, JournalTable, MAX_CELL_LEN, MAX_COLUMN_WIDTH, MAX_TABLE_COLUMNS,

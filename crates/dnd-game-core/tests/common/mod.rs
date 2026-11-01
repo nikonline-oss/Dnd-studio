@@ -86,6 +86,7 @@ pub fn token(n: u128, map_n: u128, character: Option<u128>, layer: TokenLayer) -
         rotation: 0.0,
         scale: 1.0,
         layer,
+        disposition: TokenDisposition::Neutral,
         visible: true,
         version: Version::INITIAL,
     }

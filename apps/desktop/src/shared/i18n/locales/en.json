@@ -83,6 +83,12 @@
       "tokens": "Tokens",
       "gm": "GM only"
     },
+    "disposition": "Disposition",
+    "dispositions": {
+      "neutral": "Neutral",
+      "ally": "Ally",
+      "enemy": "Enemy"
+    },
     "size": "Size",
     "cells_one": "{{count}} cell",
     "cells_other": "{{count}} cells",

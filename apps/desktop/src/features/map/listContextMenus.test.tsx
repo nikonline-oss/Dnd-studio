@@ -93,6 +93,7 @@ it('renames token using a checked existing intent', () => {
       scale: null,
       layer: null,
       visible: null,
+      disposition: null,
     },
     expectedVersion: 5,
   });

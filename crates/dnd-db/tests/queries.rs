@@ -47,6 +47,7 @@ fn token(n: u128, map_n: u128, version: i64) -> TokenDto {
         rotation: 90.0,
         scale: 1.5,
         layer: TokenLayer::Gm,
+        disposition: TokenDisposition::Enemy,
         visible: false,
         version: Version(version),
     }

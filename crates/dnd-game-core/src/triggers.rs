@@ -622,6 +622,7 @@ fn spawn_tokens(
                 rotation: 0.0,
                 scale: 1.0,
                 layer: TokenLayer::Tokens,
+                disposition: dnd_protocol::TokenDisposition::Neutral,
                 visible: true,
                 version: Version::INITIAL,
             },
