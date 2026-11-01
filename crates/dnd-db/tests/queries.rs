@@ -925,6 +925,7 @@ fn chat(n: u128, kind: ChatKind) -> ChatMessageDto {
             ChatVisibility::All
         },
         at_ms: None,
+        related_characters: Vec::new(),
     }
 }
 
@@ -934,12 +935,13 @@ fn chat(n: u128, kind: ChatKind) -> ChatMessageDto {
 async fn chat_messages_and_rolls_are_stored_and_paged() {
     let dir = tempfile::tempdir().unwrap();
     let db = new_campaign(&dir).await;
-    let messages = [
+    let mut messages = [
         chat(1, ChatKind::Text),
         chat(2, ChatKind::Roll),
         chat(3, ChatKind::System),
         chat(4, ChatKind::Text),
     ];
+    messages[2].related_characters = vec![CharacterId(v7(0xabc))];
     for (i, m) in messages.iter().enumerate() {
         let mut r = record(
             i64::try_from(i).unwrap() + 1,

@@ -399,7 +399,13 @@
       "item_given": "{{name}} receives {{item}}",
       "roll_requested": "{{name}} must roll ({{label}})",
       "roll_request_cancelled": "{{name}}'s roll was cancelled ({{label}})"
-    }
+    },
+    "feedFilter": "Message filter",
+    "allFeed": "All",
+    "myFeed": "Mine",
+    "mineHint": "Your messages, mentions and events of your characters. Legacy events match unique current names.",
+    "mineEmpty": "Your messages, mentions and character events will appear here.",
+    "mineHistoryHint": "Load earlier messages to continue searching."
   },
   "initiative": {
     "noMap": "Open a map to track initiative on it",

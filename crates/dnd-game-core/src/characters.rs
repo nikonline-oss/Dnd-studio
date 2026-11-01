@@ -228,11 +228,11 @@ fn announce(
 ) -> Result<Vec<Event>, RejectReason> {
     let mut events = result?;
     let name = events.iter().find_map(|e| match e {
-        Event::CharacterUpdated { character } => Some(character.name.clone()),
+        Event::CharacterUpdated { character } => Some((character.id, character.name.clone())),
         _ => None,
     });
-    if let Some(name) = name {
-        events.push(crate::chat::system(message(name), rng));
+    if let Some((id, name)) = name {
+        events.push(crate::chat::system_for_character(id, message(name), rng));
     }
     Ok(events)
 }

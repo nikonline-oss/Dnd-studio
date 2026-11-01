@@ -182,6 +182,8 @@ export type ChatMessageDto = {
 	sender: UserId | null,
 	/**  The sender's name when the message was written (ADR-0008). */
 	sender_name: string,
+	/**  Stable character identities for personal feeds; absent from legacy rows/events. */
+	related_characters?: CharacterId[],
 	/**  Text for `text`; the expression as typed for `roll`; empty for `system`. */
 	body: string,
 	roll: DiceRollDto | null,

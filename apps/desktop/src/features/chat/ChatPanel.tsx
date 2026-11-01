@@ -1,6 +1,8 @@
 import { useMutation } from '@tanstack/react-query';
 import type { TFunction } from 'i18next';
-import { useEffect, useRef, useState, type SyntheticEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type SyntheticEvent } from 'react';
+import { personalFeedFilter } from './personalFeed';
+import './personalFeed.css';
 import { useTranslation } from 'react-i18next';
 import { useCampaign, useSnapshotSelect, useSubmitIntent } from '@/shared/game/useGame';
 import { labelText } from '@/shared/i18n/label';
@@ -43,13 +45,21 @@ export function ChatPanel() {
   const submit = useSubmitIntent();
   const characterId = useSelection((s) => s.characterId);
   const [input, setInput] = useState('');
+  const [feed, setFeed] = useState<'all' | 'mine'>('all');
   const [older, setOlder] = useState<ChatMessageDto[]>([]);
   const [noMore, setNoMore] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const bottom = useRef<HTMLDivElement>(null);
 
   const recent = useSnapshotSelect((s) => s.chat) ?? [];
+  const characters = useSnapshotSelect((s) => s.characters);
+  const userName = useSnapshotSelect((s) => s.users.find((u) => u.id === campaign?.user_id)?.name);
+  const mine = useMemo(
+    () => personalFeedFilter(campaign?.user_id, userName, characters ?? []),
+    [campaign?.user_id, userName, characters],
+  );
   const messages = [...new Map([...older, ...recent].map((m) => [m.id, m])).values()];
+  const visibleMessages = feed === 'mine' ? messages.filter(mine) : messages;
   const isGm = campaign?.role === 'gm' || campaign?.role === 'co_gm';
   const character = useSnapshotSelect((s) => s.characters.find((c) => c.id === characterId));
   // Field references (@str_mod) read the selected character's sheet if the user may use it.
@@ -58,7 +68,7 @@ export function ChatPanel() {
 
   useEffect(() => {
     bottom.current?.scrollIntoView({ block: 'end' });
-  }, [recent.length]);
+  }, [recent.length, feed]);
 
   const history = useMutation({
     mutationFn: () => unwrap(commands.chatHistory(messages[0]?.id ?? null, PAGE)),
@@ -101,6 +111,27 @@ export function ChatPanel() {
 
   return (
     <section className="chat-panel" aria-label={t('panels.chat')}>
+      <div className="chat-feed-tabs" role="group" aria-label={t('chat.feedFilter')}>
+        <button
+          type="button"
+          aria-pressed={feed === 'all'}
+          onClick={() => {
+            setFeed('all');
+          }}
+        >
+          {t('chat.allFeed')}
+        </button>
+        <button
+          type="button"
+          aria-pressed={feed === 'mine'}
+          title={t('chat.mineHint')}
+          onClick={() => {
+            setFeed('mine');
+          }}
+        >
+          {t('chat.myFeed')}
+        </button>
+      </div>
       <ol className="chat-list">
         {!noMore && (
           <li className="chat-more">
@@ -115,7 +146,13 @@ export function ChatPanel() {
             </button>
           </li>
         )}
-        {messages.map((m) => (
+        {feed === 'mine' && visibleMessages.length === 0 && (
+          <li className="chat-feed-empty">
+            {t('chat.mineEmpty')}
+            {!noMore && <small>{t('chat.mineHistoryHint')}</small>}
+          </li>
+        )}
+        {visibleMessages.map((m) => (
           <ChatLine key={m.id} message={m} />
         ))}
         <div ref={bottom} />

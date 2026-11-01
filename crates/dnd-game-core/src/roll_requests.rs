@@ -62,6 +62,7 @@ fn fulfill(
         roll: Some(roll_dto(&roll)),
         system: None,
         visibility: ChatVisibility::All,
+        related_characters: vec![request.character],
         at_ms: None,
     })];
     let mut next = request.clone();

@@ -54,6 +54,7 @@ fn message(n: u128, visibility: ChatVisibility) -> ChatMessageDto {
         system: None,
         visibility,
         at_ms: None,
+        related_characters: Vec::new(),
     }
 }
 

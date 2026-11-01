@@ -44,6 +44,7 @@ pub(crate) fn apply(
                 roll: None,
                 system: None,
                 visibility: ChatVisibility::All,
+                related_characters: Vec::new(),
                 at_ms: None,
             })])
         })(),
@@ -104,6 +105,7 @@ pub(crate) fn apply(
                 } else {
                     ChatVisibility::All
                 },
+                related_characters: character_id.iter().copied().collect(),
                 at_ms: None,
             })])
         })(),
@@ -123,8 +125,21 @@ pub(crate) fn system(system: SystemMessage, rng: &mut dyn GameRng) -> Event {
         roll: None,
         system: Some(system),
         visibility: ChatVisibility::All,
+        related_characters: Vec::new(),
         at_ms: None,
     })
+}
+
+pub(crate) fn system_for_character(
+    character: dnd_protocol::CharacterId,
+    message: SystemMessage,
+    rng: &mut dyn GameRng,
+) -> Event {
+    let mut event = system(message, rng);
+    if let Event::ChatMessagePosted { message } = &mut event {
+        message.related_characters = vec![character];
+    }
+    event
 }
 
 /// A chat message id drawn from the core's RNG (deterministic for a seed).

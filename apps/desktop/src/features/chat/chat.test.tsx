@@ -82,13 +82,14 @@ function renderChat(
   chat: ChatMessageDto[] = [],
   history: (before: string | null, limit: number) => Promise<ChatMessageDto[]> = () =>
     Promise.resolve([]),
+  characters: Snapshot['characters'] = [],
 ) {
   const snapshot: Snapshot = {
     seq: 1,
     campaign: { name: 'C', description: '', version: 1 },
     maps: [],
     tokens: [],
-    characters: [],
+    characters,
     users: [],
     journal: [],
     journal_folders: [],
@@ -129,6 +130,81 @@ function renderChat(
 }
 
 describe('ChatPanel', () => {
+  it('switches between all messages and the personal feed without losing the shared chat', async () => {
+    const own = {
+      ...systemMessage,
+      kind: 'text' as const,
+      system: null,
+      sender: ME,
+      body: 'My message',
+    };
+    const other = {
+      ...own,
+      id: 'other-message',
+      sender: 'someone-else',
+      body: 'Unrelated message',
+    };
+    renderChat('player', [own, other]);
+    await userEvent.click(await screen.findByRole('button', { name: 'Mine' }));
+    expect(screen.getByText('My message')).toBeInTheDocument();
+    expect(screen.queryByText('Unrelated message')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'All' }));
+    expect(screen.getByText('Unrelated message')).toBeInTheDocument();
+  });
+  it('pages with the unfiltered cursor even when a whole page contains no personal messages', async () => {
+    const latest = {
+      ...systemMessage,
+      kind: 'text' as const,
+      system: null,
+      sender: 'other',
+      body: 'Unrelated latest',
+    };
+    const page = Array.from({ length: 50 }, (_, i) => ({
+      ...latest,
+      id: `0190a000-0000-7000-8000-${String(i + 100).padStart(12, '0')}`,
+      body: `Older unrelated ${i}`,
+    }));
+    const cursors: (string | null)[] = [];
+    renderChat('player', [latest], (before) => {
+      cursors.push(before);
+      return Promise.resolve(
+        cursors.length === 1
+          ? page
+          : [{ ...latest, id: 'old-mine', sender: ME, body: 'Older personal message' }],
+      );
+    });
+    await userEvent.click(await screen.findByRole('button', { name: 'Mine' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Load earlier messages' }));
+    await waitFor(() => {
+      expect(cursors).toHaveLength(1);
+    });
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Load earlier messages' })).toBeEnabled();
+    });
+    await userEvent.click(screen.getByRole('button', { name: 'Load earlier messages' }));
+    expect(await screen.findByText('Older personal message')).toBeInTheDocument();
+    expect(cursors).toEqual([latest.id, page[0]?.id]);
+  });
+  it('finds a linked character event after that character has been renamed', async () => {
+    const message = {
+      ...systemMessage,
+      related_characters: ['hero'],
+      system: { code: 'resource_changed' as const, name: 'Old name', resource: 'hp', delta: -2 },
+    };
+    renderChat('player', [message], () => Promise.resolve([]), [
+      {
+        id: 'hero',
+        kind: 'pc',
+        name: 'New name',
+        owner: ME,
+        status: 'active',
+        sheet_json: '{}',
+        version: 2,
+      },
+    ]);
+    await userEvent.click(await screen.findByRole('button', { name: 'Mine' }));
+    expect(screen.getByText(/Old name/)).toBeInTheDocument();
+  });
   it('can request visible history even when the snapshot chat is empty', async () => {
     const calls: unknown[] = [];
     renderChat('player', [], (before, limit) => {

@@ -541,6 +541,9 @@ pub struct ChatMessageDto {
     pub sender: Option<UserId>,
     /// The sender's name when the message was written (ADR-0008).
     pub sender_name: String,
+    /// Stable character identities for personal feeds; absent from legacy rows/events.
+    #[serde(default)]
+    pub related_characters: Vec<CharacterId>,
     /// Text for `text`; the expression as typed for `roll`; empty for `system`.
     pub body: String,
     pub roll: Option<DiceRollDto>,

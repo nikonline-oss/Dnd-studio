@@ -39,6 +39,16 @@ fn posted(events: &[Event]) -> &ChatMessageDto {
 }
 
 #[test]
+fn rolls_retain_character_identity_for_personal_history() {
+    let mut state = table_state();
+    let events = run(&mut state, Role::Player, roll("1d20", false, Some(0)), None).unwrap();
+    assert_eq!(
+        serde_json::to_value(posted(&events)).unwrap()["related_characters"],
+        serde_json::json!([pooled_character_id(0)])
+    );
+}
+
+#[test]
 fn everyone_but_spectators_chats_and_rolls() {
     for (role, allowed) in [
         (Role::Gm, true),

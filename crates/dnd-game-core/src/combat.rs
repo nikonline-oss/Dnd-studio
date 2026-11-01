@@ -223,6 +223,7 @@ fn roll(
         } else {
             ChatVisibility::All
         },
+        related_characters: combatant.character_id.into_iter().collect(),
         at_ms: None,
     }));
     Ok(events)

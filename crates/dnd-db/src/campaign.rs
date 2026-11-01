@@ -404,7 +404,7 @@ impl CampaignDb {
         let limit = i64::try_from(limit).unwrap_or(i64::MAX);
         let rows = sqlx::query(
             "SELECT c.id, c.sender_user_id, c.kind, c.body, c.created_at, c.sender_name, \
-                 c.visibility, d.result \
+                 c.visibility, c.related_characters, d.result \
              FROM chat_messages AS c LEFT JOIN dice_rolls AS d ON d.chat_message_id = c.id \
              WHERE (?1 IS NULL OR c.rowid < (SELECT rowid FROM chat_messages WHERE id = ?1)) \
                  AND (?3 OR c.visibility = 'all') \
@@ -441,6 +441,9 @@ impl CampaignDb {
                     )?
                     .map(UserId),
                     sender_name: r.try_get("sender_name")?,
+                    related_characters: serde_json::from_str(
+                        &r.try_get::<String, _>("related_characters")?,
+                    )?,
                     body,
                     roll: r
                         .try_get::<Option<String>, _>("result")?
@@ -1263,7 +1266,7 @@ async fn insert_chat_message(
     };
     sqlx::query(
         "INSERT INTO chat_messages (id, sender_user_id, kind, body, created_at, sender_name, \
-             visibility) VALUES (?, ?, ?, ?, ?, ?, ?)",
+             visibility, related_characters) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(m.id.to_string())
     .bind(m.sender.map(|u| u.to_string()))
@@ -1272,6 +1275,7 @@ async fn insert_chat_message(
     .bind(at_ms)
     .bind(&m.sender_name)
     .bind(enum_to_str(&m.visibility)?)
+    .bind(serde_json::to_string(&m.related_characters)?)
     .execute(&mut *conn)
     .await?;
     if let Some(roll) = &m.roll {

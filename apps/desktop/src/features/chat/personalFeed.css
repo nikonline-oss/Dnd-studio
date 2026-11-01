@@ -1,0 +1,27 @@
+.chat-feed-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.chat-feed-tabs button {
+  padding: 3px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--color-text-muted);
+}
+.chat-feed-tabs button[aria-pressed='true'] {
+  background: var(--color-accent-soft);
+  border-color: var(--color-accent);
+  color: var(--color-text);
+}
+.chat-feed-empty {
+  color: var(--color-text-muted);
+  padding: 10px 0;
+  list-style: none;
+}
+.chat-feed-empty small {
+  display: block;
+  margin-top: 4px;
+}

@@ -492,6 +492,9 @@ fn perform(
             if *gm_only && let Event::ChatMessagePosted { message } = &mut event {
                 message.visibility = ChatVisibility::Gm;
             }
+            if let Event::ChatMessagePosted { message } = &mut event {
+                message.related_characters = firing.character.into_iter().collect();
+            }
             vec![event]
         }
         TriggerAction::Roll { dice, label } => {
@@ -513,6 +516,7 @@ fn perform(
                 roll: Some(roll_dto(&roll)),
                 system: None,
                 visibility: ChatVisibility::All,
+                related_characters: firing.character.into_iter().collect(),
                 at_ms: None,
             })]
         }
@@ -560,7 +564,8 @@ fn perform(
             let updated = updated_character(work, &character, |c| c.conditions = conditions)?;
             Some(vec![
                 updated,
-                system(
+                crate::chat::system_for_character(
+                    character.id,
                     SystemMessage::ConditionChanged {
                         name: character.name.clone(),
                         condition: condition.clone(),
@@ -577,7 +582,8 @@ fn perform(
             let updated = updated_character(work, &character, |c| c.sheet_json = sheet)?;
             Some(vec![
                 updated,
-                system(
+                crate::chat::system_for_character(
+                    character.id,
                     SystemMessage::ItemGiven {
                         name: character.name.clone(),
                         item: name.clone(),
@@ -805,6 +811,7 @@ fn start_combat(work: &GameState, firing: &Firing, rng: &mut dyn GameRng) -> Vec
                 roll: Some(roll_dto(roll)),
                 system: None,
                 visibility: ChatVisibility::All,
+                related_characters: character.map(|c| c.id).into_iter().collect(),
                 at_ms: None,
             }));
         }
@@ -954,6 +961,10 @@ fn change_resource_for_targets(
                 roll: Some(roll_dto(&roll)),
                 system: None,
                 visibility: ChatVisibility::All,
+                related_characters: [Some(character.id), activator.map(|c| c.id)]
+                    .into_iter()
+                    .flatten()
+                    .collect(),
                 at_ms: None,
             }));
             let mut hit_vars = vars.clone();
@@ -1082,7 +1093,8 @@ fn request_rolls(
             delta: None,
             version: Version::INITIAL,
         };
-        let mut notification = system(
+        let mut notification = crate::chat::system_for_character(
+            character.id,
             SystemMessage::RollRequested {
                 name: character.name.clone(),
                 label: trigger.definition.name.clone(),
@@ -1154,7 +1166,8 @@ pub(crate) fn apply_resource_change_delta(
         Some((
             vec![
                 updated,
-                system(
+                crate::chat::system_for_character(
+                    character.id,
                     SystemMessage::ResourceChanged {
                         name: character.name.clone(),
                         resource: resource.to_owned(),
