@@ -8,11 +8,15 @@ import { remoteKey } from '@/shared/game/useRemote';
 import type { PendingEdit, RemoteInfo } from '@/shared/ipc/client';
 
 describe('Offline edits', () => {
-  it('marks a local campaign that is still hosted even when no edits are queued', async () => {
+  it('stays hidden for a clean offline copy with nothing to resolve', async () => {
+    let pendingCalls = 0;
     mockIPC(
       (cmd) => {
         if (cmd === 'remote_current') return null;
-        if (cmd === 'remote_pending') return { binding: 'https://server/session', edits: [] };
+        if (cmd === 'remote_pending') {
+          pendingCalls++;
+          return { binding: 'https://server/session', edits: [] };
+        }
         throw new Error(`unexpected ${cmd}`);
       },
       { shouldMockEvents: true },
@@ -22,9 +26,41 @@ describe('Offline edits', () => {
         <OfflineEdits isGm campaignPath="/offline" />
       </QueryClientProvider>,
     );
-    expect(await screen.findByRole('status')).toHaveTextContent(
-      'Offline copy of a hosted campaign',
+    await waitFor(() => {
+      expect(pendingCalls).toBeGreaterThan(0);
+    });
+    expect(screen.queryByText('Offline edits')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Offline copy of a hosted campaign/)).not.toBeInTheDocument();
+  });
+  it('stays hidden while edits wait to sync without a conflict', async () => {
+    const edits: PendingEdit[] = [
+      {
+        id: '1',
+        envelope: {
+          intent_id: 'intent',
+          expected_version: 1,
+          intent: { kind: 'update_campaign_meta', name: 'My name', description: null },
+        },
+        conflict: null,
+        server_data: null,
+      },
+    ];
+    mockIPC(
+      (cmd) => {
+        if (cmd === 'remote_current') return null;
+        if (cmd === 'remote_pending') return { binding: 'session', edits };
+        throw new Error(`unexpected ${cmd}`);
+      },
+      { shouldMockEvents: true },
     );
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <OfflineEdits isGm campaignPath="/offline" />
+      </QueryClientProvider>,
+    );
+    await waitFor(() => {
+      expect(screen.queryByText('Offline edits')).not.toBeInTheDocument();
+    });
   });
   it('syncs on connection and lets the GM rebase or discard a conflict', async () => {
     const remote: RemoteInfo = {

@@ -53,25 +53,18 @@ export function OfflineEdits({ isGm, campaignPath }: { isGm: boolean; campaignPa
       sync();
     },
   });
-  if (
-    !enabled ||
-    (!pending.data?.edits.length &&
-      (!pending.data?.binding || online) &&
-      !syncError &&
-      !pending.error)
-  )
-    return null;
+  // The banner is for problems only: clean pending edits sync by themselves (ADR-0004).
+  const conflicts = (pending.data?.edits ?? []).filter((edit) => edit.conflict);
+  if (!enabled || (conflicts.length === 0 && !syncError && !pending.error)) return null;
   return (
     <section className="offline-edits" aria-label={t('offline.title')}>
       <h2>
-        {t('offline.title')} ({pending.data?.edits.length ?? 0})
+        {t('offline.title')} ({conflicts.length})
       </h2>
-      {!online && pending.data?.binding && <p role="status">{t('offline.copy')}</p>}
-      {(pending.data?.edits ?? []).map((edit, index) => (
+      {conflicts.map((edit, index) => (
         <details key={edit.id}>
           <summary>
-            {t('offline.edit', { id: index + 1 })} —{' '}
-            {t(edit.conflict ? 'offline.conflict' : 'offline.pending')}
+            {t('offline.edit', { id: index + 1 })} — {t('offline.conflict')}
           </summary>
           <div className="offline-edit-comparison">
             <div>
