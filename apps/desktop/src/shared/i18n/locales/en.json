@@ -689,7 +689,12 @@
       "change_resource": "Damage / healing",
       "add_condition": "Add a condition",
       "remove_condition": "Remove a condition",
-      "give_item": "Give an item"
+      "give_item": "Give an item",
+      "play_sound": "Play a sound",
+      "stop_sound": "Stop a sound",
+      "play_sting": "One-shot sting",
+      "spawn_tokens": "Spawn tokens",
+      "start_combat": "Start a combat"
     },
     "reveal": {
       "node": "Board card",
@@ -705,6 +710,13 @@
     "dice": "Dice",
     "rollLabel": "Caption",
     "rollHint": "Later steps see the total as @roll.",
+    "spawnCharacter": "Character",
+    "spawnCount": "How many",
+    "spawnPlacement": "Where",
+    "placementPoint": "A point (they fan out)",
+    "placementZone": "Random inside a zone",
+    "startCombatHint": "Every visible character token on the map joins and rolls initiative.",
+    "stingHint": "Background music pauses for everyone and resumes when the sting ends.",
     "resource": "Resource",
     "change": "Change",
     "damage": "Damage",

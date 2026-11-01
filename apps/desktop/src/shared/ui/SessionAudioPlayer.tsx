@@ -200,7 +200,10 @@ export function CompactAudioPlayers() {
         (a) => a.id === selected && a.usage === 'audio' && (a.folder_id ?? 'root') === active?.id,
       ),
     ) ?? false;
-  const visible = tracks.filter((track) => !fullPlayerVisible || track.sound.asset_id !== selected);
+  const visible = tracks.filter(
+    (track) =>
+      !(track.sound.sting ?? false) && (!fullPlayerVisible || track.sound.asset_id !== selected),
+  );
   if (visible.length === 0) return null;
   return (
     <div className="compact-audio-players">

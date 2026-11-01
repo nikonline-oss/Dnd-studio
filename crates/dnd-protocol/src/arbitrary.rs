@@ -12,8 +12,8 @@ use crate::board::{
 };
 use crate::event::{Event, EventBatch};
 use crate::ids::{
-    BoardEdgeId, BoardId, BoardNodeId, CharacterId, CombatId, CombatantId, FogOpId, IntentId,
-    JournalFolderId, MapId, Role, Seq, TokenId, TriggerId, UserId, Version, ZoneId,
+    AssetId, BoardEdgeId, BoardId, BoardNodeId, CharacterId, CombatId, CombatantId, FogOpId,
+    IntentId, JournalFolderId, MapId, Role, Seq, TokenId, TriggerId, UserId, Version, ZoneId,
 };
 use crate::intent::{Intent, IntentEnvelope};
 use crate::model::{
@@ -21,7 +21,8 @@ use crate::model::{
     GridKind, JournalFolderDto, MapDto, TokenDto, TokenLayer, UserDto,
 };
 use crate::trigger::{
-    RevealTarget, TriggerAction, TriggerDef, TriggerDto, TriggerEvent, TriggerFiredDto, TriggerStep,
+    RevealTarget, SpawnPlacement, TriggerAction, TriggerDef, TriggerDto, TriggerEvent,
+    TriggerFiredDto, TriggerStep,
 };
 use crate::zone::{ZoneDto, ZoneLabel, ZoneShape};
 
@@ -227,6 +228,35 @@ pub fn trigger_def() -> impl Strategy<Value = TriggerDef> {
         (board_node_id(), board_visibility()).prop_map(|(node, visibility)| TriggerStep {
             when: Some("1 > 0".into()),
             action: TriggerAction::SetNodeVisibility { node, visibility },
+        }),
+        (character_id(), 1..=20u8, position(), position()).prop_map(|(character, count, x, y)| {
+            TriggerStep {
+                when: None,
+                action: TriggerAction::SpawnTokens {
+                    character,
+                    count,
+                    placement: SpawnPlacement::Point { x, y },
+                },
+            }
+        },),
+        (character_id(), 1..=20u8, zone_id()).prop_map(|(character, count, id)| TriggerStep {
+            when: None,
+            action: TriggerAction::SpawnTokens {
+                character,
+                count,
+                placement: SpawnPlacement::Zone { id },
+            },
+        }),
+        Just(TriggerStep {
+            when: None,
+            action: TriggerAction::StartCombat,
+        }),
+        (0..=100u8).prop_map(|volume| TriggerStep {
+            when: None,
+            action: TriggerAction::PlaySting {
+                asset: AssetId(v7(0x5_5000)),
+                volume,
+            },
         }),
     ];
     (

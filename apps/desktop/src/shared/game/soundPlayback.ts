@@ -12,6 +12,26 @@ export const useSoundPlayback = create<{ muted: boolean; tracks: PlayingTrack[] 
   tracks: [],
 }));
 const active = new Map<string, { player: HTMLAudioElement; sound: SoundDto }>();
+/** Looping tracks paused by a sting, resumed when the last sting ends. */
+const ducked = new Set<string>();
+const stings = new Set<string>();
+
+/** Pause every playing looping track for the duration of a sting. */
+function duckBackgrounds(): void {
+  for (const [id, entry] of active) {
+    if (!entry.sound.looped || entry.sound.sting || (entry.sound.paused ?? false)) continue;
+    if (!entry.player.paused) entry.player.pause();
+    ducked.add(id);
+    publish(id, false);
+  }
+}
+
+/** Bring the background back once the last sting is over. */
+function unduckBackgrounds(): void {
+  const ids = [...ducked];
+  ducked.clear();
+  for (const id of ids) resumeBlockedSound(id);
+}
 
 function publish(id: string, blocked?: boolean) {
   const entry = active.get(id);
@@ -58,7 +78,12 @@ export function playSound(sound: SoundDto): void {
   if (previous && previous.sound.sha256 !== sound.sha256) stopSound(id);
   const player = active.get(id)?.player ?? new Audio(assetUrl(sound.sha256));
   active.set(id, { player, sound });
-  player.loop = sound.looped;
+  const sting = sound.sting ?? false;
+  if (sting) {
+    stings.add(id);
+    duckBackgrounds();
+  }
+  player.loop = sound.looped && !sting;
   player.volume = Math.max(0, Math.min(1, sound.volume / 100));
   player.muted = useSoundPlayback.getState().muted;
   const seek = () => {
@@ -75,10 +100,16 @@ export function playSound(sound: SoundDto): void {
     if (active.get(id)?.player === player) stopSound(id);
   };
   player.onerror = () => {
-    publish(id, true);
+    if (sting && active.get(id)?.player === player) stopSound(id);
+    else publish(id, true);
   };
   if (sound.paused) {
     player.pause();
+    publish(id, false);
+  } else if (!sting && sound.looped && stings.size > 0) {
+    // A sting is holding the background: start paused and join the resume queue.
+    player.pause();
+    ducked.add(id);
     publish(id, false);
   } else resumeBlockedSound(id);
 }
@@ -89,12 +120,20 @@ export function stopSound(assetId: string | null): void {
     const entry = active.get(id);
     if (!entry) continue;
     active.delete(id);
+    ducked.delete(id);
+    stings.delete(id);
     entry.player.onended = null;
     entry.player.ontimeupdate = null;
     entry.player.onloadedmetadata = null;
     entry.player.onerror = null;
     entry.player.pause();
     entry.player.currentTime = 0;
+  }
+  if (assetId === null) {
+    stings.clear();
+    ducked.clear();
+  } else if (stings.size === 0) {
+    unduckBackgrounds();
   }
   useSoundPlayback.setState((state) => ({
     tracks: state.tracks.filter((t) => !ids.includes(t.sound.asset_id)),

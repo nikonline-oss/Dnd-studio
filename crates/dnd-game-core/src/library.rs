@@ -155,6 +155,7 @@ fn playback(
         looped,
         position_ms,
         paused,
+        sting: false,
     })
 }
 

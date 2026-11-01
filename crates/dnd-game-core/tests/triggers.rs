@@ -898,3 +898,309 @@ fn bundled_templates_make_triggers_the_core_accepts() {
         assert!(result.is_ok(), "{}: {result:?}", template.id);
     }
 }
+
+fn sound_asset(n: u128) -> AssetDto {
+    let sha = format!("{n:02x}").repeat(32);
+    AssetDto {
+        id: AssetId(v7(0x9200 + n)),
+        usage: AssetUsage::Audio,
+        sha256: sha.clone(),
+        mime: "audio/ogg".into(),
+        size_bytes: 1000,
+        original_name: Some(format!("sound {n}.ogg")),
+        width: 0,
+        height: 0,
+        display_sha256: Some(sha.clone()),
+        thumbnail_sha256: sha,
+        tiles: Vec::new(),
+        folder_id: None,
+        version: Version::INITIAL,
+    }
+}
+
+fn manual_scoped(steps: Vec<TriggerStep>) -> TriggerDef {
+    scoped(def(TriggerEvent::Manual, None, steps), &[pooled_map_id(0)])
+}
+
+fn fire(state: &mut GameState, n: u128) -> Vec<Event> {
+    run(
+        state,
+        Role::Gm,
+        Intent::FireTrigger {
+            id: trigger(n),
+            token: None,
+        },
+        None,
+    )
+    .unwrap()
+}
+
+#[test]
+fn spawn_tokens_places_copies_of_a_character_on_the_firing_map() {
+    let mut state = world();
+    create(
+        &mut state,
+        0,
+        manual_scoped(vec![step(TriggerAction::SpawnTokens {
+            character: pooled_character_id(0),
+            count: 3,
+            placement: SpawnPlacement::Point { x: 8000, y: 8000 },
+        })]),
+    );
+    let before = state.tokens.len();
+    let events = fire(&mut state, 0);
+    let spawned: Vec<_> = events
+        .iter()
+        .filter_map(|e| match e {
+            Event::TokenCreated { token } => Some(token),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(spawned.len(), 3);
+    assert_eq!(state.tokens.len(), before + 3);
+    for token in &spawned {
+        assert_eq!(token.map_id, pooled_map_id(0));
+        assert_eq!(token.character_id, Some(pooled_character_id(0)));
+        assert_eq!(token.layer, TokenLayer::Tokens);
+        assert!(token.visible);
+    }
+    // Fanned out: no two tokens share a cell.
+    let mut spots: Vec<_> = spawned.iter().map(|t| (t.x, t.y)).collect();
+    spots.sort();
+    spots.dedup();
+    assert_eq!(spots.len(), 3);
+}
+
+#[test]
+fn spawn_tokens_in_a_zone_lands_inside_it() {
+    let mut state = world();
+    create(
+        &mut state,
+        0,
+        manual_scoped(vec![step(TriggerAction::SpawnTokens {
+            character: pooled_character_id(1),
+            count: 5,
+            placement: SpawnPlacement::Zone {
+                id: ZoneId(v7(ZONE)),
+            },
+        })]),
+    );
+    let events = fire(&mut state, 0);
+    let zone = &state.zones[&ZoneId(v7(ZONE))];
+    let spawned: Vec<_> = events
+        .iter()
+        .filter_map(|e| match e {
+            Event::TokenCreated { token } => Some(token),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(spawned.len(), 5);
+    for token in &spawned {
+        assert!(
+            zone.shape.contains(token.x, token.y),
+            "spawned at {:?}",
+            (token.x, token.y)
+        );
+    }
+}
+
+#[test]
+fn spawn_tokens_checks_the_character_count_and_zone() {
+    let mut state = world();
+    for placement in [
+        SpawnPlacement::Point { x: 0, y: 0 },
+        SpawnPlacement::Zone {
+            id: ZoneId(v7(ZONE)),
+        },
+    ] {
+        let result = run(
+            &mut state,
+            Role::Gm,
+            Intent::CreateTrigger {
+                id: trigger(9),
+                definition: manual_scoped(vec![step(TriggerAction::SpawnTokens {
+                    character: pooled_character_id(99),
+                    count: 1,
+                    placement,
+                })]),
+            },
+            None,
+        );
+        assert!(result.is_err());
+    }
+    for count in [0, 100] {
+        let result = run(
+            &mut state,
+            Role::Gm,
+            Intent::CreateTrigger {
+                id: trigger(9),
+                definition: manual_scoped(vec![step(TriggerAction::SpawnTokens {
+                    character: pooled_character_id(0),
+                    count,
+                    placement: SpawnPlacement::Point { x: 0, y: 0 },
+                })]),
+            },
+            None,
+        );
+        assert!(result.is_err(), "count {count} must be rejected");
+    }
+    let result = run(
+        &mut state,
+        Role::Gm,
+        Intent::CreateTrigger {
+            id: trigger(9),
+            definition: manual_scoped(vec![step(TriggerAction::SpawnTokens {
+                character: pooled_character_id(0),
+                count: 1,
+                placement: SpawnPlacement::Zone {
+                    id: ZoneId(v7(0xDEAD)),
+                },
+            })]),
+        },
+        None,
+    );
+    assert!(result.is_err());
+}
+
+#[test]
+fn spawn_tokens_without_a_map_context_spawns_nothing() {
+    let mut state = world();
+    // A global manual trigger fires with no map.
+    create(
+        &mut state,
+        0,
+        def(
+            TriggerEvent::Manual,
+            None,
+            vec![step(TriggerAction::SpawnTokens {
+                character: pooled_character_id(0),
+                count: 2,
+                placement: SpawnPlacement::Point { x: 0, y: 0 },
+            })],
+        ),
+    );
+    let before = state.tokens.len();
+    let events = fire(&mut state, 0);
+    assert_eq!(fired(&events), 1);
+    assert_eq!(state.tokens.len(), before);
+}
+
+#[test]
+fn start_combat_adds_visible_character_tokens_and_rolls_initiative() {
+    let mut state = world();
+    create(
+        &mut state,
+        0,
+        manual_scoped(vec![step(TriggerAction::StartCombat)]),
+    );
+    let events = fire(&mut state, 0);
+    let combat = events.iter().find_map(|e| match e {
+        Event::CombatStarted { combat } => Some(combat.clone()),
+        _ => None,
+    });
+    let combat = combat.expect("a combat starts");
+    assert_eq!(combat.map_id, pooled_map_id(0));
+    let joined: Vec<_> = events
+        .iter()
+        .filter_map(|e| match e {
+            Event::CombatantAdded { combatant } => Some(combatant.clone()),
+            _ => None,
+        })
+        .collect();
+    // Tokens 0 and 1 (visible, with characters); token 2 is GM-layer, token 3 has no character.
+    let mut tokens: Vec<_> = joined.iter().filter_map(|c| c.token_id).collect();
+    tokens.sort();
+    assert_eq!(tokens, vec![pooled_token_id(0), pooled_token_id(1)]);
+    for combatant in &joined {
+        assert!(combatant.initiative.is_some());
+    }
+    // Every join rolled its initiative in the chat.
+    let rolls = events
+        .iter()
+        .filter(
+            |e| matches!(e, Event::ChatMessagePosted { message } if message.kind == ChatKind::Roll),
+        )
+        .count();
+    assert_eq!(rolls, 2);
+    // Firing again while the combat runs starts no second combat.
+    let again = fire(&mut state, 0);
+    assert!(
+        !again
+            .iter()
+            .any(|e| matches!(e, Event::CombatStarted { .. }))
+    );
+    assert_eq!(state.combats.len(), 1);
+}
+
+#[test]
+fn play_sting_marks_a_one_shot_sound() {
+    let mut state = world();
+    run(
+        &mut state,
+        Role::Gm,
+        Intent::RegisterAsset {
+            asset: Box::new(sound_asset(1)),
+        },
+        None,
+    )
+    .unwrap();
+    create(
+        &mut state,
+        0,
+        manual_scoped(vec![step(TriggerAction::PlaySting {
+            asset: AssetId(v7(0x9201)),
+            volume: 70,
+        })]),
+    );
+    let events = fire(&mut state, 0);
+    let sound = events.iter().find_map(|e| match e {
+        Event::SoundPlayed { sound } => Some(sound.clone()),
+        _ => None,
+    });
+    let sound = sound.expect("the sting plays");
+    assert!(sound.sting);
+    assert!(!sound.looped);
+    assert_eq!(sound.volume, 70);
+    // Stings are not retained in the session's sound list.
+    assert!(state.sounds.is_empty());
+}
+
+#[test]
+fn play_sting_requires_an_audio_asset_and_valid_volume() {
+    let mut state = world();
+    let result = run(
+        &mut state,
+        Role::Gm,
+        Intent::CreateTrigger {
+            id: trigger(9),
+            definition: manual_scoped(vec![step(TriggerAction::PlaySting {
+                asset: AssetId(v7(0x9201)),
+                volume: 50,
+            })]),
+        },
+        None,
+    );
+    assert!(result.is_err(), "unknown asset must be rejected");
+    run(
+        &mut state,
+        Role::Gm,
+        Intent::RegisterAsset {
+            asset: Box::new(sound_asset(1)),
+        },
+        None,
+    )
+    .unwrap();
+    let result = run(
+        &mut state,
+        Role::Gm,
+        Intent::CreateTrigger {
+            id: trigger(9),
+            definition: manual_scoped(vec![step(TriggerAction::PlaySting {
+                asset: AssetId(v7(0x9201)),
+                volume: 200,
+            })]),
+        },
+        None,
+    );
+    assert!(result.is_err(), "volume above the max must be rejected");
+}

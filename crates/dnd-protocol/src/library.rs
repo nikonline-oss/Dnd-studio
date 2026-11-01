@@ -46,6 +46,10 @@ pub struct SoundDto {
     pub position_ms: u32,
     #[serde(default)]
     pub paused: bool,
+    /// One-shot that ducks the background: clients pause looping sounds and resume them from
+    /// their positions when this sting ends (never retained in the snapshot).
+    #[serde(default)]
+    pub sting: bool,
 }
 
 /// Loudest volume of a sound.

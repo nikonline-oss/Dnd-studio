@@ -10,6 +10,22 @@ use crate::ids::{
     ZoneId,
 };
 
+/// Where tokens created by a trigger land on the firing map (Units16, ADR-0016).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub enum SpawnPlacement {
+    /// An exact point; later tokens fan out around it.
+    Point {
+        #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
+        x: i64,
+        #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
+        y: i64,
+    },
+    /// A random point inside the zone (per token).
+    Zone { id: ZoneId },
+}
+
 /// What sets a trigger off.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -101,6 +117,21 @@ pub enum TriggerAction {
     StopSound {
         asset: Option<AssetId>,
     },
+    /// Spawns `count` tokens of a character on the firing map (ADR-0024).
+    SpawnTokens {
+        character: CharacterId,
+        count: u8,
+        placement: SpawnPlacement,
+    },
+    /// Opens a combat on the firing map: every visible character token joins and rolls
+    /// initiative by the system's formula.
+    StartCombat,
+    /// A one-shot sound: background music pauses for everyone and resumes from its position
+    /// when the sting ends.
+    PlaySting {
+        asset: AssetId,
+        volume: u8,
+    },
 }
 
 /// One action and, optionally, the expression that must hold for it to run.
@@ -166,3 +197,5 @@ pub const MAX_TRIGGERS_PER_INTENT: usize = 64;
 pub const MAX_TRIGGERS: usize = 1000;
 /// Longest chat line of a trigger, in characters.
 pub const MAX_TRIGGER_TEXT: usize = 1000;
+/// Most tokens one spawn action creates.
+pub const MAX_SPAWN_TOKENS: usize = 20;

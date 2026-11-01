@@ -869,7 +869,19 @@ export type SoundDto = {
 	/**  Last commanded position; no wall clock or drift correction (ADR-0028). */
 	position_ms?: number,
 	paused?: boolean,
+	/**
+	 *  One-shot that ducks the background: clients pause looping sounds and resume them from
+	 *  their positions when this sting ends (never retained in the snapshot).
+	 */
+	sting?: boolean,
 };
+
+/**  Where tokens created by a trigger land on the firing map (Units16, ADR-0016). */
+export type SpawnPlacement = 
+/**  An exact point; later tokens fan out around it. */
+{ type: "point"; x: number; y: number } | 
+/**  A random point inside the zone (per token). */
+{ type: "zone"; id: ZoneId };
 
 /**  Messages the core posts; the UI localizes them by `code`. */
 export type SystemMessage = { code: "character_submitted"; name: string } | { code: "character_approved"; name: string } | { code: "character_returned"; name: string } | 
@@ -977,7 +989,19 @@ export type TriggerAction =
 /**  Plays an audio asset to everyone (ADR-0026). */
 { type: "play_sound"; asset: AssetId; volume: number; looped: boolean } | 
 /**  Stops a looping sound; `None`: all sounds. */
-{ type: "stop_sound"; asset: AssetId | null };
+{ type: "stop_sound"; asset: AssetId | null } | 
+/**  Spawns `count` tokens of a character on the firing map (ADR-0024). */
+{ type: "spawn_tokens"; character: CharacterId; count: number; placement: SpawnPlacement } | 
+/**
+ *  Opens a combat on the firing map: every visible character token joins and rolls
+ *  initiative by the system's formula.
+ */
+{ type: "start_combat" } | 
+/**
+ *  A one-shot sound: background music pauses for everyone and resumes from its position
+ *  when the sting ends.
+ */
+{ type: "play_sting"; asset: AssetId; volume: number };
 
 /**  What the GM edits: everything of a trigger but its id, state and version. */
 export type TriggerDef = {

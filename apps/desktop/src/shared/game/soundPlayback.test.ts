@@ -113,4 +113,56 @@ describe('shared sound playback', () => {
     expect(useSoundPlayback.getState().tracks[0]?.blocked).toBe(true);
     play.mockRestore();
   });
+
+  it('a sting pauses the looping background and resumes it when it ends', () => {
+    vi.stubGlobal('Audio', FakeAudio);
+    playSound(sound);
+    expect(instances[0]?.paused).toBe(false);
+    playSound({
+      ...sound,
+      asset_id: 'sting',
+      sha256: 'b'.repeat(64),
+      looped: false,
+      sting: true,
+    });
+    expect(instances[0]?.paused).toBe(true);
+    expect(instances[1]?.loop).toBe(false);
+    instances[1]?.onended?.();
+    expect(instances[0]?.paused).toBe(false);
+  });
+
+  it('the background returns only after the last of several stings', () => {
+    vi.stubGlobal('Audio', FakeAudio);
+    playSound(sound);
+    const sting = (assetId: string, sha: string) => ({
+      ...sound,
+      asset_id: assetId,
+      sha256: sha.repeat(64),
+      looped: false,
+      sting: true,
+    });
+    playSound(sting('sting-a', 'b'));
+    playSound(sting('sting-b', 'c'));
+    expect(instances[0]?.paused).toBe(true);
+    instances[1]?.onended?.();
+    expect(instances[0]?.paused).toBe(true);
+    instances[2]?.onended?.();
+    expect(instances[0]?.paused).toBe(false);
+  });
+
+  it('stopping everything during a sting does not resurrect the background', () => {
+    vi.stubGlobal('Audio', FakeAudio);
+    playSound(sound);
+    playSound({
+      ...sound,
+      asset_id: 'sting',
+      sha256: 'b'.repeat(64),
+      looped: false,
+      sting: true,
+    });
+    stopSound(null);
+    expect(useSoundPlayback.getState().tracks).toHaveLength(0);
+    playSound(sound);
+    expect(instances[2]?.paused).toBe(false);
+  });
 });

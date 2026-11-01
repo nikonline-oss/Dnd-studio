@@ -1176,6 +1176,7 @@ async fn library_folders_and_sounds_are_projected() {
                     looped: false,
                     position_ms: 1234,
                     paused: true,
+                    sting: false,
                 },
             },
         ],

@@ -12,6 +12,7 @@ fn sound(n: usize, looped: bool, paused: bool) -> SoundDto {
         looped,
         paused,
         position_ms: 1234,
+        sting: false,
     }
 }
 

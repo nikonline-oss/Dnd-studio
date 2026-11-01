@@ -18,6 +18,9 @@ export const ACTION_TYPES: ActionType[] = [
   'give_item',
   'play_sound',
   'stop_sound',
+  'play_sting',
+  'spawn_tokens',
+  'start_combat',
 ];
 
 /** A fresh action of `type`, with the first sensible choices filled in. */
@@ -42,6 +45,12 @@ export function newAction(type: ActionType, rules: SystemRulesDto | null): Trigg
       return { type, asset: '', volume: 80, looped: false };
     case 'stop_sound':
       return { type, asset: null };
+    case 'play_sting':
+      return { type, asset: '', volume: 80 };
+    case 'spawn_tokens':
+      return { type, character: '', count: 1, placement: { type: 'point', x: 0, y: 0 } };
+    case 'start_combat':
+      return { type };
   }
 }
 
@@ -365,6 +374,131 @@ export function StepEditor({
               ))}
             </select>
           </label>
+        )}
+        {action.type === 'play_sting' && (
+          <>
+            <label className="trigger-field">
+              <span>{t('sounds.sound')}</span>
+              <select
+                value={action.asset}
+                onChange={(e) => {
+                  set({ ...action, asset: e.target.value });
+                }}
+              >
+                <option value="" disabled>
+                  {t('sounds.choose')}
+                </option>
+                {sounds.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.original_name ?? a.sha256.slice(0, 8)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="trigger-field">
+              <span>{t('sounds.volume')}</span>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                value={action.volume}
+                onChange={(e) => {
+                  set({ ...action, volume: Number(e.target.value) });
+                }}
+              />
+            </label>
+            <p className="muted trigger-hint">{t('triggers.stingHint')}</p>
+          </>
+        )}
+        {action.type === 'spawn_tokens' && (
+          <>
+            <ElementField
+              label={t('triggers.spawnCharacter')}
+              kinds={['character']}
+              value={action.character ? { kind: 'character', id: action.character } : null}
+              onChange={({ id }) => {
+                set({ ...action, character: id });
+              }}
+            />
+            <label className="trigger-field">
+              <span>{t('triggers.spawnCount')}</span>
+              <input
+                type="number"
+                min={1}
+                max={20}
+                value={action.count}
+                onChange={(e) => {
+                  const count = Math.round(Number(e.target.value));
+                  set({ ...action, count: Number.isFinite(count) ? count : 1 });
+                }}
+              />
+            </label>
+            <label className="trigger-field">
+              <span>{t('triggers.spawnPlacement')}</span>
+              <select
+                value={action.placement.type}
+                onChange={(e) => {
+                  set({
+                    ...action,
+                    placement:
+                      e.target.value === 'zone'
+                        ? { type: 'zone', id: '' }
+                        : { type: 'point', x: 0, y: 0 },
+                  });
+                }}
+              >
+                <option value="point">{t('triggers.placementPoint')}</option>
+                <option value="zone">{t('triggers.placementZone')}</option>
+              </select>
+            </label>
+            {action.placement.type === 'point' ? (
+              <>
+                <label className="trigger-field">
+                  <span>X</span>
+                  <input
+                    type="number"
+                    value={action.placement.x}
+                    onChange={(e) => {
+                      if (action.placement.type !== 'point') return;
+                      const x = Math.round(Number(e.target.value));
+                      set({
+                        ...action,
+                        placement: { ...action.placement, x: Number.isFinite(x) ? x : 0 },
+                      });
+                    }}
+                  />
+                </label>
+                <label className="trigger-field">
+                  <span>Y</span>
+                  <input
+                    type="number"
+                    value={action.placement.y}
+                    onChange={(e) => {
+                      if (action.placement.type !== 'point') return;
+                      const y = Math.round(Number(e.target.value));
+                      set({
+                        ...action,
+                        placement: { ...action.placement, y: Number.isFinite(y) ? y : 0 },
+                      });
+                    }}
+                  />
+                </label>
+              </>
+            ) : (
+              <ElementField
+                label={t('triggers.placementZone')}
+                kinds={['zone']}
+                value={action.placement.id ? { kind: 'zone', id: action.placement.id } : null}
+                onChange={({ id }) => {
+                  if (action.placement.type !== 'zone') return;
+                  set({ ...action, placement: { type: 'zone', id } });
+                }}
+              />
+            )}
+          </>
+        )}
+        {action.type === 'start_combat' && (
+          <p className="muted trigger-hint">{t('triggers.startCombatHint')}</p>
         )}
         <label className="trigger-field">
           <span>{t('triggers.when')}</span>

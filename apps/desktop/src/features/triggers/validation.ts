@@ -34,6 +34,18 @@ export function incompleteSteps(def: TriggerDef, snapshot: Snapshot): number[] {
       case 'stop_sound':
         incomplete = action.asset !== null && !audio(action.asset);
         break;
+      case 'play_sting':
+        incomplete = !audio(action.asset) || action.volume < 0 || action.volume > 100;
+        break;
+      case 'spawn_tokens':
+        incomplete =
+          !action.character ||
+          action.count < 1 ||
+          action.count > 20 ||
+          (action.placement.type === 'zone' && !action.placement.id);
+        break;
+      case 'start_combat':
+        break;
     }
     return incomplete ? [index + 1] : [];
   });

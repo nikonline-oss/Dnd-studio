@@ -7,15 +7,18 @@ use std::collections::BTreeMap;
 
 use dnd_expr::{Context, Expr, LookupError, Value as ExprValue};
 use dnd_protocol::{
-    BoardVisibility, CharacterDto, CharacterId, ChatKind, ChatMessageDto, ChatVisibility, Event,
-    Intent, JournalVisibility, MAX_TRIGGER_STEPS, MAX_TRIGGER_TEXT, MAX_TRIGGERS,
-    MAX_TRIGGERS_PER_INTENT, MapId, RejectReason, RevealTarget, SystemMessage, TokenId,
-    TriggerAction, TriggerDef, TriggerDto, TriggerEvent, TriggerFiredDto, TriggerId, Version,
+    BoardVisibility, CharacterDto, CharacterId, ChatKind, ChatMessageDto, ChatVisibility,
+    CombatDto, CombatId, CombatantDto, CombatantId, Event, Intent, JournalVisibility,
+    MAX_COMBATANTS, MAX_SPAWN_TOKENS, MAX_TRIGGER_STEPS, MAX_TRIGGER_TEXT, MAX_TRIGGERS,
+    MAX_TRIGGERS_PER_INTENT, MapId, RejectReason, RevealTarget, SpawnPlacement, SystemMessage,
+    TokenDto, TokenId, TokenLayer, TriggerAction, TriggerDef, TriggerDto, TriggerEvent,
+    TriggerFiredDto, TriggerId, Version, ZoneShape, uuid_v7_from_random,
 };
 use serde_json::Value;
 
 use crate::apply::{MAX_NAME_LEN, bump, valid_name};
 use crate::chat::{DiceRngAdapter, message_id, posted, roll_dto, system};
+use crate::combat::initiative_expression;
 use crate::evolve::evolve;
 use crate::plugins::{CharacterFields, give_item, inventory_names, normalize_sheet, sheet_values};
 use crate::rng::GameRng;
@@ -437,6 +440,21 @@ fn perform(
             .map(|sound| vec![Event::SoundPlayed { sound }])
             .unwrap_or_default(),
         TriggerAction::StopSound { asset } => vec![Event::SoundStopped { asset_id: *asset }],
+        TriggerAction::SpawnTokens {
+            character,
+            count,
+            placement,
+        } => spawn_tokens(work, *character, *count, *placement, firing, rng),
+        TriggerAction::StartCombat => start_combat(work, firing, rng),
+        TriggerAction::PlaySting { asset, volume } => work
+            .assets
+            .get(asset)
+            .and_then(|a| crate::library::sound(work, a, *volume, false).ok())
+            .map(|mut sound| {
+                sound.sting = true;
+                vec![Event::SoundPlayed { sound }]
+            })
+            .unwrap_or_default(),
         TriggerAction::Reveal { target } => reveal(work, *target),
         TriggerAction::SetNodeVisibility { node, visibility } => work
             .board_nodes
@@ -563,6 +581,195 @@ fn perform(
         })()
         .unwrap_or_default(),
     }
+}
+
+/// A fresh id of any entity kind, drawn from the core's RNG (deterministic for a seed).
+fn fresh_id(rng: &mut dyn GameRng) -> dnd_protocol::Uuid {
+    let bits = (u128::from(rng.next_u64()) << 64) | u128::from(rng.next_u64());
+    uuid_v7_from_random(bits)
+}
+
+/// Tokens of `character` appear on the firing map; nothing spawns without a map context.
+fn spawn_tokens(
+    work: &GameState,
+    character: CharacterId,
+    count: u8,
+    placement: SpawnPlacement,
+    firing: &Firing,
+    rng: &mut dyn GameRng,
+) -> Vec<Event> {
+    let Some(map_id) = firing.map_id else {
+        return Vec::new();
+    };
+    let Some(who) = work.characters.get(&character) else {
+        return Vec::new();
+    };
+    let mut events = Vec::new();
+    for n in 0..count {
+        let Some((x, y)) = spawn_point(work, map_id, placement, n, rng) else {
+            break;
+        };
+        events.push(Event::TokenCreated {
+            token: TokenDto {
+                id: TokenId(fresh_id(rng)),
+                map_id,
+                character_id: Some(character),
+                asset_id: None,
+                name: who.name.clone(),
+                x,
+                y,
+                rotation: 0.0,
+                scale: 1.0,
+                layer: TokenLayer::Tokens,
+                visible: true,
+                version: Version::INITIAL,
+            },
+        });
+    }
+    events
+}
+
+/// Where the `n`-th spawned token lands: a fanned-out point, or a random spot inside the zone.
+fn spawn_point(
+    state: &GameState,
+    map_id: MapId,
+    placement: SpawnPlacement,
+    n: u8,
+    rng: &mut dyn GameRng,
+) -> Option<(i64, i64)> {
+    let map = state.maps.get(&map_id)?;
+    let point = match placement {
+        SpawnPlacement::Point { x, y } => {
+            let step = (map.grid.cell_size * 16.0).max(16.0) as i64;
+            let (col, row) = (i64::from(n) % 5, i64::from(n) / 5);
+            (x + col * step, y + row * step)
+        }
+        SpawnPlacement::Zone { id } => {
+            let zone = state.zones.get(&id).filter(|z| z.map_id == map_id)?;
+            let (min_x, min_y, max_x, max_y) = shape_bounds(&zone.shape)?;
+            let mut found = None;
+            for _ in 0..32 {
+                let span_x = u64::try_from(max_x - min_x).unwrap_or(0).max(1);
+                let span_y = u64::try_from(max_y - min_y).unwrap_or(0).max(1);
+                let px = min_x + i64::try_from(rng.next_u64() % span_x).unwrap_or(0);
+                let py = min_y + i64::try_from(rng.next_u64() % span_y).unwrap_or(0);
+                if zone.shape.contains(px, py) {
+                    found = Some((px, py));
+                    break;
+                }
+            }
+            found.unwrap_or(((min_x + max_x) / 2, (min_y + max_y) / 2))
+        }
+    };
+    Some((
+        point.0.clamp(0, map.width * 16),
+        point.1.clamp(0, map.height * 16),
+    ))
+}
+
+/// The bounding box of every part of a zone shape, in Units16.
+fn shape_bounds(shape: &ZoneShape) -> Option<(i64, i64, i64, i64)> {
+    let mut bounds: Option<(i64, i64, i64, i64)> = None;
+    for part in shape.parts() {
+        let part_bounds = match &part {
+            ZoneShape::Rect {
+                x,
+                y,
+                width,
+                height,
+            } => (*x, *y, x.saturating_add(*width), y.saturating_add(*height)),
+            ZoneShape::Polygon { points } => {
+                let xs = points.as_chunks::<2>().0.iter().map(|[x, _]| *x);
+                let ys = points.as_chunks::<2>().0.iter().map(|[_, y]| *y);
+                match (xs.clone().min(), ys.clone().min(), xs.max(), ys.max()) {
+                    (Some(a), Some(b), Some(c), Some(d)) => (a, b, c, d),
+                    _ => continue,
+                }
+            }
+            ZoneShape::Union { .. } => continue,
+        };
+        bounds = Some(match bounds {
+            None => part_bounds,
+            Some((a, b, c, d)) => (
+                a.min(part_bounds.0),
+                b.min(part_bounds.1),
+                c.max(part_bounds.2),
+                d.max(part_bounds.3),
+            ),
+        });
+    }
+    bounds
+}
+
+/// Opens a combat on the firing map: visible character tokens join and roll initiative at once.
+fn start_combat(work: &GameState, firing: &Firing, rng: &mut dyn GameRng) -> Vec<Event> {
+    let Some(map_id) = firing.map_id else {
+        return Vec::new();
+    };
+    if work.combats.values().any(|c| c.map_id == map_id) {
+        return Vec::new();
+    }
+    let combat_id = CombatId(fresh_id(rng));
+    let mut events = vec![Event::CombatStarted {
+        combat: CombatDto {
+            id: combat_id,
+            map_id,
+            round: 1,
+            turn: None,
+            version: Version::INITIAL,
+        },
+    }];
+    let mut sort_order = 0;
+    for token in work.tokens.values().filter(|t| {
+        t.map_id == map_id && t.visible && t.layer != TokenLayer::Gm && t.character_id.is_some()
+    }) {
+        if sort_order >= MAX_COMBATANTS {
+            break;
+        }
+        let Some(character_id) = token.character_id else {
+            continue;
+        };
+        let character = work.characters.get(&character_id);
+        let name = if token.name.is_empty() {
+            character.map_or_else(String::new, |c| c.name.clone())
+        } else {
+            token.name.clone()
+        };
+        let sheet = character.map(|c| c.sheet_json.as_str());
+        let expression = work
+            .rules()
+            .map_or_else(|| initiative_expression(sheet), |r| r.initiative.as_str());
+        let initiative = dnd_dice::Expr::parse(expression)
+            .and_then(|e| e.roll(&CharacterFields::new(work, sheet), &mut DiceRngAdapter(rng)))
+            .ok();
+        if let Some(roll) = &initiative {
+            events.push(posted(ChatMessageDto {
+                id: message_id(rng),
+                kind: ChatKind::Roll,
+                sender: None,
+                sender_name: name.clone(),
+                body: expression.to_owned(),
+                roll: Some(roll_dto(roll)),
+                system: None,
+                visibility: ChatVisibility::All,
+                at_ms: None,
+            }));
+        }
+        events.push(Event::CombatantAdded {
+            combatant: CombatantDto {
+                id: CombatantId(fresh_id(rng)),
+                combat_id,
+                token_id: Some(token.id),
+                character_id: Some(character_id),
+                name,
+                initiative: initiative.map(|r| r.total),
+                sort_order: i64::try_from(sort_order).unwrap_or(i64::MAX),
+                version: Version::INITIAL,
+            },
+        });
+        sort_order += 1;
+    }
+    events
 }
 
 /// Shows `target` to players; nothing if it is already shown or gone.
@@ -822,6 +1029,27 @@ fn valid_action(state: &GameState, action: &mut TriggerAction) -> Result<(), Rej
                 .get(&a)
                 .is_some_and(|a| a.usage == dnd_protocol::AssetUsage::Audio)
         }),
+        TriggerAction::SpawnTokens {
+            character,
+            count,
+            placement,
+        } => {
+            state.characters.contains_key(character)
+                && *count >= 1
+                && usize::from(*count) <= MAX_SPAWN_TOKENS
+                && match placement {
+                    SpawnPlacement::Point { .. } => true,
+                    SpawnPlacement::Zone { id } => state.zones.contains_key(id),
+                }
+        }
+        TriggerAction::StartCombat => true,
+        TriggerAction::PlaySting { asset, volume } => {
+            *volume <= dnd_protocol::MAX_VOLUME
+                && state
+                    .assets
+                    .get(asset)
+                    .is_some_and(|a| a.usage == dnd_protocol::AssetUsage::Audio)
+        }
         TriggerAction::Chat { text, .. } => {
             *text = text.trim().to_owned();
             !text.is_empty() && text.chars().count() <= MAX_TRIGGER_TEXT
