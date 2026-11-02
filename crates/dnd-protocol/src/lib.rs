@@ -11,8 +11,12 @@ pub mod event;
 pub mod ids;
 pub mod intent;
 pub mod library;
+pub mod mechanics;
+pub mod modifier;
+pub use modifier::*;
 pub mod message;
 pub mod model;
+pub use mechanics::*;
 pub mod playlist;
 pub mod plugin;
 pub mod roll;
@@ -67,8 +71,8 @@ pub use model::{
 pub use playlist::{MAX_PLAYLIST_TRACKS, MAX_PLAYLISTS, PlaylistDto, PlaylistTrackDto};
 pub use plugin::{
     ConditionDef, InventoryDef, Label, LocalizedText, MAX_PLUGIN_BYTES, MAX_TRIGGER_TEMPLATES,
-    PluginDto, PluginKind, ResourceDef, RollDef, SystemRulesDto, TemplateParam, TemplateParamKind,
-    TriggerTemplateDto,
+    PluginDto, PluginFeatureDef, PluginKind, ResourceDef, RollDef, SystemRulesDto, TemplateParam,
+    TemplateParamKind, TriggerTemplateDto,
 };
 pub use roll::{MAX_ROLL_REQUESTS, RollRequestDto, RollRequestStatus};
 pub use snapshot::Snapshot;
@@ -87,7 +91,7 @@ pub use zone::{MAX_ZONE_PARTS, MAX_ZONE_POINTS, MAX_ZONES_PER_MAP, ZoneDto, Zone
 
 /// Protocol version. Peers with a different version are refused with
 /// [`RejectReason::ProtocolMismatch`].
-pub const PROTOCOL_VERSION: u32 = 9;
+pub const PROTOCOL_VERSION: u32 = 16;
 
 /// Registers every protocol type that is exported to TypeScript.
 #[cfg(feature = "specta")]

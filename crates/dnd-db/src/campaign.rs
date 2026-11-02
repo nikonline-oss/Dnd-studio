@@ -766,6 +766,12 @@ impl CampaignDb {
                 serde_json::from_str(&row.try_get::<String, _>("dto")?)?;
             state.roll_requests.insert(request.id, request);
         }
+        if let Some(row) = sqlx::query("SELECT dto FROM plugin_runtime WHERE id = 1")
+            .fetch_optional(&self.pool)
+            .await?
+        {
+            state.plugin_runtime = serde_json::from_str(&row.try_get::<String, _>("dto")?)?;
+        }
         for row in sqlx::query("SELECT dto FROM installed_plugins ORDER BY id")
             .fetch_all(&self.pool)
             .await?
@@ -1026,6 +1032,11 @@ async fn project_event(conn: &mut SqliteConnection, event: &Event, at_ms: i64) -
             Ok(())
         }
         Event::ChatMessagePosted { message } => insert_chat_message(conn, message, at_ms).await,
+        Event::PluginRuntimeUpdated { runtime } => {
+            sqlx::query("INSERT INTO plugin_runtime (id, dto) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET dto = excluded.dto")
+                .bind(serde_json::to_string(runtime)?).execute(conn).await?;
+            Ok(())
+        }
         Event::PluginInstalled { plugin } => {
             sqlx::query(
                 "INSERT INTO installed_plugins (id, version, active, installed_at, dto)                  VALUES (?, ?, 1, ?, ?)                  ON CONFLICT (id) DO UPDATE SET version = excluded.version, dto = excluded.dto,                      active = 1, row_version = row_version + 1",

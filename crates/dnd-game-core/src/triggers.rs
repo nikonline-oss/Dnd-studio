@@ -412,16 +412,174 @@ fn run(
     if let Some(total) = firing.total {
         vars.insert("total".to_owned(), total);
     }
-    for step in &trigger.definition.steps {
-        if !condition_holds(work, step.when.as_deref(), firing, &vars) {
+    events.extend(run_steps(work, &trigger, firing, &mut vars, 0, ts_ms, rng));
+    events
+}
+
+fn set_action_result(vars: &mut BTreeMap<String, i64>, result: dnd_protocol::ActionResolution) {
+    for (name, outcome) in [
+        ("completed", dnd_protocol::ActionResolution::Completed),
+        ("countered", dnd_protocol::ActionResolution::Countered),
+        ("cancelled", dnd_protocol::ActionResolution::Cancelled),
+        ("invalid", dnd_protocol::ActionResolution::Invalid),
+    ] {
+        vars.insert(format!("action.{name}"), i64::from(result == outcome));
+    }
+}
+#[allow(clippy::too_many_arguments)]
+fn run_steps(
+    work: &mut GameState,
+    trigger: &TriggerDto,
+    firing: &Firing,
+    vars: &mut BTreeMap<String, i64>,
+    start: usize,
+    ts_ms: i64,
+    rng: &mut dyn GameRng,
+) -> Vec<Event> {
+    let mut out = Vec::new();
+    for (index, step) in trigger.definition.steps.iter().enumerate().skip(start) {
+        if !condition_holds(work, step.when.as_deref(), firing, vars) {
             continue;
         }
-        for event in perform(work, &trigger, &step.action, firing, &mut vars, ts_ms, rng) {
+        let existing: Vec<_> = work
+            .plugin_runtime
+            .action_stacks
+            .iter()
+            .map(|s| s.id)
+            .collect();
+        let events = perform(work, trigger, &step.action, firing, vars, ts_ms, rng);
+        let succeeded = !events.is_empty();
+        for event in events {
             evolve(work, &event);
-            events.push(event);
+            out.push(event);
+        }
+        if matches!(step.action, TriggerAction::PluginAction { .. }) {
+            if let Some(stack) = work
+                .plugin_runtime
+                .action_stacks
+                .iter()
+                .find(|s| !existing.contains(&s.id))
+            {
+                if index + 1 < trigger.definition.steps.len()
+                    && work.plugin_runtime.trigger_runs.len() < 128
+                {
+                    let run = dnd_protocol::PendingTriggerRun {
+                        action: stack.id,
+                        trigger: trigger.id,
+                        version: work
+                            .triggers
+                            .get(&trigger.id)
+                            .map_or(trigger.version, |t| t.version),
+                        map: firing.map_id,
+                        character: firing.character,
+                        token: firing.token,
+                        next_step: u16::try_from(index + 1).unwrap_or(u16::MAX),
+                        variables: vars.clone(),
+                    };
+                    work.plugin_runtime.trigger_runs.push(run);
+                    out.push(crate::mechanics::runtime_event(work));
+                }
+                break;
+            }
+            set_action_result(
+                vars,
+                if succeeded {
+                    dnd_protocol::ActionResolution::Completed
+                } else {
+                    dnd_protocol::ActionResolution::Invalid
+                },
+            );
         }
     }
-    events
+    out
+}
+
+/// Resume only from authoritative root results. Script effects never recursively fire triggers.
+pub(crate) fn resume(
+    before: &GameState,
+    events: &[Event],
+    ts_ms: i64,
+    rng: &mut dyn GameRng,
+) -> Vec<Event> {
+    if before.plugin_runtime.trigger_runs.is_empty() && !events.iter().any(|e| matches!(e, Event::PluginRuntimeUpdated { runtime } if !runtime.trigger_runs.is_empty())) { return Vec::new(); }
+    let mut work = before.clone();
+    for event in events {
+        evolve(&mut work, event);
+    }
+    let results: BTreeMap<_, _> = events
+        .iter()
+        .filter_map(|event| match event {
+            Event::ChatMessagePosted { message } => match &message.system {
+                Some(SystemMessage::PluginActionResolved {
+                    action: Some(id),
+                    outcome,
+                    ..
+                }) => Some((*id, *outcome)),
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect();
+    let mut out = Vec::new();
+    for run in work.plugin_runtime.trigger_runs.clone() {
+        let trigger = work
+            .triggers
+            .get(&run.trigger)
+            .filter(|t| t.version == run.version && t.definition.enabled)
+            .cloned();
+        let context_exists = run.map.is_none_or(|id| work.maps.contains_key(&id))
+            && run
+                .character
+                .is_none_or(|id| work.characters.contains_key(&id))
+            && run.token.is_none_or(|id| {
+                work.tokens
+                    .get(&id)
+                    .is_some_and(|t| run.character.is_none_or(|c| t.character_id == Some(c)))
+            });
+        let result = results.get(&run.action).copied();
+        if trigger.is_some()
+            && context_exists
+            && result.is_none()
+            && work
+                .plugin_runtime
+                .action_stacks
+                .iter()
+                .any(|s| s.id == run.action)
+        {
+            continue;
+        }
+        work.plugin_runtime
+            .trigger_runs
+            .retain(|r| r.action != run.action);
+        out.push(crate::mechanics::runtime_event(&work));
+        if let (Some(trigger), Some(result)) = (trigger, result)
+            && context_exists
+            && matches!(
+                result,
+                dnd_protocol::ActionResolution::Completed
+                    | dnd_protocol::ActionResolution::Countered
+            )
+        {
+            let firing = Firing {
+                map_id: run.map,
+                character: run.character,
+                token: run.token,
+                total: run.variables.get("total").copied(),
+            };
+            let mut vars = run.variables;
+            set_action_result(&mut vars, result);
+            out.extend(run_steps(
+                &mut work,
+                &trigger,
+                &firing,
+                &mut vars,
+                usize::from(run.next_step),
+                ts_ms,
+                rng,
+            ));
+        }
+    }
+    out
 }
 
 /// One action's events (none when it does not apply, e.g. no character to act on).
@@ -439,6 +597,23 @@ fn perform(
         .and_then(|id| work.characters.get(&id))
         .cloned();
     match action {
+        TriggerAction::PluginAction {
+            action,
+            source,
+            target,
+            x,
+            y,
+        } => {
+            let Some(source) = source.or(firing.token) else {
+                return Vec::new();
+            };
+            let actor = crate::Actor {
+                user_id: dnd_protocol::UserId(trigger.id.0),
+                role: dnd_protocol::Role::Gm,
+            };
+            crate::mechanics::execute(work, source, action, *target, *x, *y, &actor, ts_ms, rng)
+                .unwrap_or_default()
+        }
         TriggerAction::PlaySound {
             asset,
             volume,
@@ -829,6 +1004,14 @@ fn start_combat(work: &GameState, firing: &Firing, rng: &mut dyn GameRng) -> Vec
         });
         sort_order += 1;
     }
+    let mut initialized = work.clone();
+    for e in &events {
+        evolve(&mut initialized, e);
+    }
+    if let Some(combat) = initialized.combats.get(&combat_id) {
+        events.extend(crate::economy::refresh(&initialized, combat, true, rng));
+    }
+
     events
 }
 
@@ -1223,7 +1406,7 @@ impl<'a> Scope<'a> {
         vars: &'a BTreeMap<String, i64>,
     ) -> Self {
         Self {
-            fields: character.map(|c| CharacterFields::new(state, Some(&c.sheet_json))),
+            fields: character.and_then(|c| crate::modifiers::effective_fields(state, c).ok()),
             vars,
         }
     }
@@ -1356,6 +1539,23 @@ fn valid_action(state: &GameState, action: &mut TriggerAction) -> Result<(), Rej
     let dice_ok = |dice: &str| dice.len() <= 256 && dnd_dice::Expr::parse(dice).is_ok();
     let rules = state.rules();
     let ok = match action {
+        TriggerAction::PluginAction {
+            action,
+            source,
+            target,
+            x,
+            y,
+        } => {
+            rules.is_some_and(|r| {
+                r.mechanics
+                    .actions
+                    .iter()
+                    .any(|a| a.id == *action && a.interrupt.is_none())
+            }) && source.is_none_or(|s| state.tokens.contains_key(&s))
+                && target.is_none_or(|t| state.tokens.contains_key(&t))
+                && *x >= 0
+                && *y >= 0
+        }
         TriggerAction::Reveal { target } => match target {
             RevealTarget::Node { id } => state.board_nodes.contains_key(id),
             RevealTarget::Board { id } => state.boards.contains_key(id),

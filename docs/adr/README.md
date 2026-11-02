@@ -58,3 +58,21 @@
 
 ## Рассмотренные альтернативы
 ```
+
+- [0034 — Декларативные действия, реакции и настройки плагинов](0034-declarative-plugin-mechanics.md)
+
+- [0035 — Последствия состояний и модификаторы](0035-condition-consequences.md)
+
+- [0036 — Несколько расходов ресурсов действия](0036-action-resource-costs.md)
+
+- [0037 — Панель мастера из деклараций плагина](0037-plugin-gm-dashboard.md)
+- [0038 — Декларативная обработка урона](0038-declarative-damage-profiles.md)
+
+- [0039 — Поддерживаемые эффекты плагинов](0039-maintained-plugin-effects.md)
+
+- [0040 — Размер сетевой установки плагина](0040-plugin-install-message-bound.md)
+
+- [0041 — Прерываемые действия и стек реакций](0041-interruptible-plugin-actions.md)
+
+- [0042 — Декларативная экономика хода](0042-declarative-turn-economy.md)
+- [0043 — Продолжение триггеров после реакции](0043-trigger-action-continuations.md)

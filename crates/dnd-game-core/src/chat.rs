@@ -86,12 +86,44 @@ pub(crate) fn apply(
                 }
             };
             let expr = Expr::parse(expression).map_err(|_| RejectReason::invalid("expression"))?;
-            let roll = expr
-                .roll(
-                    &CharacterFields::new(state, sheet),
+            let definition = roll_id.as_ref().and_then(|id| {
+                state
+                    .rules()
+                    .and_then(|r| r.rolls.iter().find(|r| r.id == *id))
+            });
+            let character = character_id.and_then(|id| state.characters.get(&id));
+            let roll = if let (Some(c), Some(def), Some(kind)) =
+                (character, definition, definition.and_then(|d| d.kind))
+            {
+                if kind == dnd_protocol::RollKind::Attack
+                    && !crate::modifiers::allowed(state, c, dnd_protocol::RuleCapability::Action)
+                {
+                    return Err(RejectReason::invalid("action"));
+                }
+                crate::modifiers::roll(
+                    state,
+                    expression,
+                    crate::modifiers::RollContext {
+                        actor: c,
+                        target: None,
+                        kind,
+                        tags: &def.tags,
+                        distance: None,
+                    },
+                    rng,
+                )?
+            } else {
+                let fields = character
+                    .map(|c| crate::modifiers::effective_fields(state, c))
+                    .transpose()?;
+                expr.roll(
+                    fields
+                        .as_ref()
+                        .unwrap_or(&CharacterFields::new(state, sheet)),
                     &mut DiceRngAdapter(rng),
                 )
-                .map_err(|_| RejectReason::invalid("expression"))?;
+                .map_err(|_| RejectReason::invalid("expression"))?
+            };
             Ok(vec![posted(ChatMessageDto {
                 id: *id,
                 kind: ChatKind::Roll,

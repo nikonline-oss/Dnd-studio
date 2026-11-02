@@ -78,6 +78,10 @@ export class TokenLayer {
       sprite.root.angle = token.rotation;
       sprite.root.eventMode = interactive && view.movable ? 'static' : 'none';
       sprite.root.cursor = 'grab';
+      if (!view.movable) {
+        this.landings.forget(token.id);
+        if (this.dragging === token.id) this.release();
+      }
       if (this.dragging !== token.id && !this.landings.holds(token.id, token.x, token.y)) {
         sprite.root.position.set(token.x / 16, token.y / 16);
       }

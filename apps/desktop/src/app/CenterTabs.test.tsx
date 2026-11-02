@@ -54,6 +54,7 @@ function renderTabs(maps: MapDto[]) {
   };
   mockIPC((cmd) => {
     if (cmd === 'get_snapshot') return snapshot;
+    if (cmd === 'campaign_current') return { role: 'gm', name: 'C', path: '/c', user_id: 'gm' };
     throw new Error(`unexpected command ${cmd}`);
   });
   render(
@@ -123,4 +124,14 @@ describe('CenterTabs', () => {
       'true',
     );
   });
+});
+
+it('opens the GM dashboard as a regular center tab', async () => {
+  renderTabs([]);
+  await userEvent.click(await screen.findByRole('button', { name: 'GM dashboard' }));
+  expect(useSelection.getState().active).toEqual({ kind: 'gm_panel', id: 'gm' });
+  expect(await screen.findByRole('tab', { name: /GM dashboard/ })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
 });

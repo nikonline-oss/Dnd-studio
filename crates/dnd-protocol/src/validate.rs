@@ -136,6 +136,15 @@ impl Intent {
             | Self::DeleteJournalFolder { .. }
             | Self::InstallPlugin { .. }
             | Self::UninstallPlugin { .. }
+            | Self::MoveTokenWithMode { .. }
+            | Self::ResolvePluginReaction { .. }
+            | Self::CancelPluginMovement { .. }
+            | Self::ResolveActionReaction { .. }
+            | Self::ContinuePluginAction { .. }
+            | Self::CancelActionStack { .. }
+            | Self::EndMaintainedEffect { .. }
+            | Self::ExecutePluginAction { .. }
+            | Self::ConfigurePluginFeature { .. }
             | Self::SetSystemPlugin { .. }
             | Self::CreateBoard { .. }
             | Self::UpdateBoard { .. }
@@ -238,6 +247,15 @@ impl Intent {
             | Self::DeleteJournalFolder { .. }
             | Self::InstallPlugin { .. }
             | Self::UninstallPlugin { .. }
+            | Self::MoveTokenWithMode { .. }
+            | Self::ResolvePluginReaction { .. }
+            | Self::CancelPluginMovement { .. }
+            | Self::ResolveActionReaction { .. }
+            | Self::ContinuePluginAction { .. }
+            | Self::CancelActionStack { .. }
+            | Self::EndMaintainedEffect { .. }
+            | Self::ExecutePluginAction { .. }
+            | Self::ConfigurePluginFeature { .. }
             | Self::SetSystemPlugin { .. }
             | Self::UpdateBoard { .. }
             | Self::DeleteBoard { .. }

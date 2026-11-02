@@ -298,6 +298,52 @@ pub enum Intent {
         plugin: Box<PluginDto>,
     },
     /// GM / Co-GM. The campaign's system plugin cannot be uninstalled.
+    MoveTokenWithMode {
+        id: TokenId,
+        #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
+        x: i64,
+        #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
+        y: i64,
+        mode: crate::MovementMode,
+    },
+    ResolvePluginReaction {
+        movement: crate::IntentId,
+        source: TokenId,
+        accept: bool,
+    },
+    CancelPluginMovement {
+        movement: crate::IntentId,
+    },
+    ResolveActionReaction {
+        stack: IntentId,
+        frame: IntentId,
+        source: TokenId,
+        accept: bool,
+    },
+    ContinuePluginAction {
+        stack: IntentId,
+        frame: IntentId,
+    },
+    CancelActionStack {
+        stack: IntentId,
+    },
+    EndMaintainedEffect {
+        id: crate::EffectId,
+    },
+    ExecutePluginAction {
+        source: TokenId,
+        action: String,
+        target: Option<TokenId>,
+        #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
+        x: i64,
+        #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
+        y: i64,
+    },
+    ConfigurePluginFeature {
+        id: String,
+        feature: String,
+        enabled: bool,
+    },
     UninstallPlugin {
         id: String,
     },
@@ -562,6 +608,15 @@ impl Intent {
             Self::InstallPlugin { .. } => "install_plugin",
             Self::UninstallPlugin { .. } => "uninstall_plugin",
             Self::SetSystemPlugin { .. } => "set_system_plugin",
+            Self::ConfigurePluginFeature { .. } => "configure_plugin_feature",
+            Self::MoveTokenWithMode { .. } => "move_token_with_mode",
+            Self::ResolvePluginReaction { .. } => "resolve_plugin_reaction",
+            Self::CancelPluginMovement { .. } => "cancel_plugin_movement",
+            Self::ResolveActionReaction { .. } => "resolve_action_reaction",
+            Self::ContinuePluginAction { .. } => "continue_plugin_action",
+            Self::CancelActionStack { .. } => "cancel_action_stack",
+            Self::EndMaintainedEffect { .. } => "end_maintained_effect",
+            Self::ExecutePluginAction { .. } => "execute_plugin_action",
             Self::CreateBoard { .. } => "create_board",
             Self::UpdateBoard { .. } => "update_board",
             Self::DeleteBoard { .. } => "delete_board",
@@ -632,6 +687,15 @@ impl Intent {
             | Self::ResetFog { .. }
             | Self::InstallPlugin { .. }
             | Self::UninstallPlugin { .. }
+            | Self::MoveTokenWithMode { .. }
+            | Self::ResolvePluginReaction { .. }
+            | Self::CancelPluginMovement { .. }
+            | Self::ResolveActionReaction { .. }
+            | Self::ContinuePluginAction { .. }
+            | Self::CancelActionStack { .. }
+            | Self::EndMaintainedEffect { .. }
+            | Self::ExecutePluginAction { .. }
+            | Self::ConfigurePluginFeature { .. }
             | Self::SetSystemPlugin { .. } => VersionPolicy::LastWriteWins,
             Self::UpdatePlaylist { .. }
             | Self::MovePlaylist { .. }

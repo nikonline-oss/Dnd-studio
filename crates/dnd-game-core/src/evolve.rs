@@ -106,6 +106,7 @@ pub fn evolve(state: &mut GameState, event: &Event) {
         Event::AssetRegistered { asset } => {
             state.assets.insert(asset.id, asset.as_ref().clone());
         }
+        Event::PluginRuntimeUpdated { runtime } => state.plugin_runtime = *runtime.clone(),
         Event::PluginInstalled { plugin } => {
             state
                 .plugins

@@ -115,7 +115,7 @@ fn countdown(work: &GameState, id: dnd_protocol::EffectId) -> Option<Event> {
     let effect = work.effects.get(&id)?;
     let remaining = match effect.duration {
         EffectDuration::Rounds { remaining } | EffectDuration::Turns { remaining } => remaining,
-        EffectDuration::RealTime { .. } => return None,
+        EffectDuration::RealTime { .. } | EffectDuration::TurnEnd { .. } => return None,
     };
     if remaining <= 1 {
         return Some(Event::TokenEffectRemoved { id, expired: true });
@@ -127,10 +127,36 @@ fn countdown(work: &GameState, id: dnd_protocol::EffectId) -> Option<Event> {
         EffectDuration::Turns { .. } => EffectDuration::Turns {
             remaining: remaining - 1,
         },
-        EffectDuration::RealTime { .. } => return None,
+        EffectDuration::RealTime { .. } | EffectDuration::TurnEnd { .. } => return None,
     };
     let mut next = effect.clone();
     next.duration = duration;
     next.version = bump(next.version).ok()?;
     Some(Event::TokenEffectUpdated { effect: next })
+}
+
+/// Expire turn-bound effects on transitions, combat deletion and combatant removal.
+pub(crate) fn expire_turn_end(state: &GameState) -> Vec<Event> {
+    state
+        .effects
+        .values()
+        .filter(|e| match e.duration {
+            EffectDuration::TurnEnd {
+                combat,
+                turn,
+                round,
+            } => {
+                state
+                    .combats
+                    .get(&combat)
+                    .is_none_or(|c| c.turn != Some(turn) || c.round != round)
+                    || !state.combatants.contains_key(&turn)
+            }
+            _ => false,
+        })
+        .map(|e| Event::TokenEffectRemoved {
+            id: e.id,
+            expired: true,
+        })
+        .collect()
 }

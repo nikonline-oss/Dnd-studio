@@ -118,6 +118,8 @@ async function loadBitmap(sha256: string): Promise<ImageBitmap> {
 
 export class MapScene {
   private readonly world = new Container();
+  private readonly pluginArea = new Graphics();
+  private readonly pluginEffects = new Graphics();
   private readonly background = new Container();
   private readonly gridLayer = new Container();
   private readonly fog: FogLayer;
@@ -222,6 +224,8 @@ export class MapScene {
       this.preview,
       this.movementPreview,
       this.movementLabel,
+      this.pluginArea,
+      this.pluginEffects,
     );
     app.stage.addChild(this.world);
     const stage = app.stage;
@@ -276,6 +280,13 @@ export class MapScene {
   /** The tokens of the shown map, bottom first. A dragged token keeps its local position. */
   setTokens(views: TokenView[]): void {
     this.tokenViews = views;
+    if (this.tokenDrag && !views.some((v) => v.token.id === this.tokenDrag?.id && v.movable))
+      this.endTokenDrag();
+    if (
+      this.movementTokenId &&
+      !views.some((v) => v.token.id === this.movementTokenId && v.movable)
+    )
+      this.clearMovementPlan();
     if (this.grid) this.tokens.show(views, this.grid, this.tokensGrabbable());
   }
 
@@ -351,6 +362,32 @@ export class MapScene {
     }
     this.pendingFit = false;
     this.setCamera(fitCamera(screen, this.mapSize));
+  }
+
+  showPluginArea(x: number, y: number, radius: number, color: string): void {
+    this.pluginArea.clear();
+    if (radius <= 0) return;
+    this.pluginArea.circle(x, y, radius).fill({ color, alpha: 0.15 }).stroke({ color, width: 2 });
+    this.pluginArea.eventMode = 'none';
+  }
+
+  showPluginEffects(
+    effects: import('@/shared/ipc/client').ActionPresentation[],
+    cell: number,
+    opacity: number,
+  ): void {
+    this.pluginEffects.clear();
+    this.pluginEffects.eventMode = 'none';
+    const now = Date.now();
+    for (const effect of effects) {
+      const age = now - effect.at_ms;
+      if (age < 0 || age >= effect.visual.duration_ms) continue;
+      const alpha = opacity * (1 - age / effect.visual.duration_ms);
+      this.pluginEffects
+        .circle(effect.x / 16, effect.y / 16, Math.max(cell * 0.3, effect.radius_cells * cell))
+        .fill({ color: effect.visual.color, alpha: alpha * 0.3 })
+        .stroke({ color: effect.visual.color, alpha, width: 3 });
+    }
   }
 
   destroy(): void {

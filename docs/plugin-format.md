@@ -459,3 +459,353 @@ PC использует основной `sheet.layout`. При отсутств
 archive_sha256, system? }`, где `system` — `SystemRulesDto { sheet_schema, sheet_layout, computed,
 initiative, resources, health_thresholds, rolls }` (схема и раскладка — JSON как есть, без путей
 пакета).
+
+## Формат 2: настраиваемые правила и действия (ADR-0034)
+
+Загрузчик читает форматы 1 и 2. Новые `features` и `mechanics` требуют
+`manifest.format: 2`. Старые пакеты продолжают работать с пустой механикой.
+Пример полного описания: `plugins/system-srd5/system.json`.
+
+`features[]` содержит `id`, `label`, `description`, `default_enabled` (не более 128).
+Кампания отдельно хранит `feature_settings`; пакет не задаёт пользовательские
+переопределения. Настройки открываются нажатием имени установленного плагина.
+
+`mechanics` содержит `actions`, `movement_rules`, `turn_resources` и
+`movement_condition`. Пустые условия означают отсутствие ограничения.
+Все выражения исполняются штатными `dnd-expr`/`dnd-dice`, скриптов нет.
+
+Действие объявляет идентификатор, локализованное имя, флаг функции, условие,
+дальность (выражение в клетках), метрику, необязательный радиус круглой области,
+атаку или спасбросок, урон и ресурс цели, необязательную стоимость (один ресурс или список расходов)
+исполнителя. `reaction_only` исключает действие из обычного меню.
+`save_dc` вычисляется по исполнителю, `@difficulty` и `@total` передаются условию
+успеха спасброска цели; успех делит урон на `save_divisor` с округлением вниз.
+Для атак `@natural` — первый оставленный куб; `critical_if` и `critical_dice`
+позволяют плагину описать дополнительные кости урона. `visual` объявляет HEX-цвет
+и длительность 50–5000 мс. Карта показывает предварительную область и требует
+подтверждения перед применением.
+
+Правило перемещения объявляет `reach_cells`, `metric`, `source_condition`,
+`target_condition`, `movement_modes`, `hostile_only`, `combat_only`, `feature`
+и ссылку на действие. Ядро предлагает действие перед выходом из досягаемости.
+Именно плагин решает, участвуют ли voluntary/forced/teleport перемещения.
+`turn_resources` перечисляет ресурсы, которые восстанавливаются до максимума
+в начале собственного хода. `movement_condition` ограничивает добровольное
+движение и его возобновление после реакции.
+
+Шаг триггера `{ "type": "plugin_action", "action": "fireball", "source": null,
+"target": null, "x": 3200, "y": 3200 }` использует то же действие.
+`source: null` означает токен-активатор; x/y — Units16 для центра области.
+Для одиночного действия нужен `target`. Ограничения текущего среза — ADR-0034.
+
+## Последствия состояний (ADR-0035)
+
+В `mechanics.condition_rules` можно объявить правило:
+
+```json
+{
+  "id": "prone_attacks",
+  "label": { "ru": "Сбит с ног: помеха атакам", "en": "Prone: disadvantage on attacks" },
+  "condition": "prone",
+  "subject": "actor",
+  "feature": "condition_rules",
+  "when": "",
+  "effects": [{ "type": "roll", "kind": "attack", "tags": [], "mode": "disadvantage" }]
+}
+```
+
+`subject` выбирает носителя состояния. Условия видят `@actor.*`, `@target.*`,
+`@actor.condition.ID`, `@target.condition.ID` и для атаки `@event.distance_cells`.
+Ссылка на неизвестное поле или состояние отклоняется при установке.
+
+Последствия:
+
+- `deny`: `capability` action/bonus_action/reaction/movement/provoke;
+- `roll`: `kind` attack/save/check/initiative, необязательные `tags` (все должны
+  присутствовать у броска), `mode` advantage/disadvantage;
+- `parameter`: числовой `path`, `add` (±1 000 000), необязательные `minimum`/`maximum`;
+- `imply`: идентификатор дополнительного эффективного состояния `condition`.
+
+Максимумы: 128 правил, 16 последствий на правило, 16 тегов. Указанные состояния
+и флаги должны быть объявлены системой. Параметры должны быть числовыми полями
+или вычисляемыми значениями; ресурсные значения и их зависимости исключены.
+Числовые изменения суммируются, затем ограничиваются снизу и сверху; не сохраняются
+в исходном листе. Формулы зависимых вычисляемых полей учитывают изменения.
+
+У именованного броска `rolls[]` появились `kind` и `tags`; у действия — `tags`,
+необязательная `activation` (action/bonus_action/reaction), `target_self` и
+`turn_condition`. Реакция с прежним `reaction_only` по умолчанию имеет соответствующий
+тип активации. У обычного действия тип по умолчанию action. `turn_condition`
+применяется к себе до конца собственного текущего хода; проверяется до расходов.
+
+Источник состояния может быть постоянным или временным. Наличие двух источников
+не удваивает модификатор; удаление одного не отменяет другой. Режимы d20 собираются
+со всех источников и с явной формулы; преимущество и помеха вместе дают обычный бросок.
+Для модифицируемого теста формула должна содержать ровно один положительный одиночный d20.
+
+### Multiple action costs
+
+An action may declare `costs: [{"resource":"action","amount":"1"},
+{"resource":"spell_slot_3","amount":"1"}]`. Amounts are integer expressions
+against the actor's effective fields, evaluated before any expense or effect.
+Each amount must be between 1 and 1,000,000. There are at most 16 entries;
+repeated resource IDs are summed. All balances are checked before spending.
+A failed action emits no events and spends nothing. `cost` remains supported
+as a one-unit expense for older packages, but cannot be combined with nonempty
+`costs`. The bundled Fireball consumes both an action and a third-level slot.
+
+### GM dashboard
+
+`mechanics.gm_panel` declares up to 24 ordered cards. Each card has unique `id`,
+`label`, `description`, `kind` and optional `items`. Kinds:
+
+| Kind         | Content                                          | `items`                 |
+| ------------ | ------------------------------------------------ | ----------------------- |
+| `overview`   | Scene counts and combat tracker                  | Empty                   |
+| `reactions`  | Pending movement reactions across the campaign   | Empty                   |
+| `characters` | Searchable scene roster and sheet links          | Empty                   |
+| `rules`      | Campaign switches                                | Feature IDs             |
+| `actions`    | Actor/target selection and explicit confirmation | Non-reaction action IDs |
+
+Labels are limited to 200 bytes per language, descriptions to 2,000, references
+to 128 per card. Only GM and co-GM see the dashboard. Cards use ordinary React
+controls, never plugin HTML or scripts. Area shortcuts center on a chosen token;
+free placement and geometric preview are available on the map. Existing kernel
+permissions and resource checks apply to every dashboard command.
+
+### Damage profiles
+
+Actions optionally set `damage_type: "fire"` and
+`damage_profile: "standard_damage"`. Types are opaque identifiers, not kernel enums.
+`mechanics.damage_profiles` holds up to 32 profiles:
+
+```json
+{
+  "id": "standard_damage",
+  "label": "Damage",
+  "feature": "damage_rules",
+  "modifiers": [
+    {
+      "id": "resist_fire",
+      "types": ["fire"],
+      "condition": "@defenses.resistance.fire || @defenses.resistance.all",
+      "amount": "floor(@damage / 2)"
+    }
+  ],
+  "absorb": ["temporary_hp"]
+}
+```
+
+A modifier's condition and amount use effective target fields and reserved
+`@damage`. Empty `types` matches all types, an empty condition always applies.
+Modifiers run in declaration order **after** saving-throw reduction and critical
+extra damage. Each result must be a nonnegative JS-safe integer. At most 64
+modifiers and 32 type selectors per modifier are accepted. Each modifier ID is
+unique within its profile. The plugin is responsible for ordering and avoiding
+stacking: the SRD sample combines `all` and a specific type in a single condition.
+
+After transformations, up to eight unique resource IDs in `absorb` take damage
+in order; any remainder goes to the action's `resource`. That final resource
+cannot also appear in `absorb`. Existing resource limits apply, zero losses emit
+no resource event. Costs, all targets and buffers commit atomically. Hidden
+resource announcements remain GM-only. A disabled profile feature or an action
+without a profile uses the legacy direct resource deduction. This is a damage
+consumption pipeline, not an automatic temporary-resource grant or rest system.
+
+### Maintained effects (protocol 14)
+
+`mechanics.maintained_rules` contains up to 32 policies:
+
+```json
+{
+  "id": "focus",
+  "label": "Focus save",
+  "feature": null,
+  "exclusive_group": "focus",
+  "keep_condition": "@hp.current > 0 && !@condition.incapacitated",
+  "damage_check": {
+    "resource": "hp",
+    "dice": "1d20 + @con_save",
+    "difficulty": "min(30, max(10, floor(@damage / 2)))",
+    "success": "@total >= @difficulty",
+    "tags": ["con", "concentration"]
+  }
+}
+```
+
+An action may set `maintain: {"rule":"focus","condition":"ward",
+"duration":{"type":"rounds","rounds":100}}`. It must have `damage_dice: "0"`,
+no attack/save, no reaction-only flag and no `turn_condition`. All valid selected
+character tokens receive linked ordinary effects. Supported durations are the
+existing `rounds`, `turns` and `real_time` variants with their normal bounds.
+A new effect replaces the owner's previous effect in the same `exclusive_group`.
+No more than 128 maintained records exist globally; normal per-token effect
+limits apply. Labels that become effect names obey the effect label limit.
+
+`keep_condition` reads effective owner fields and reserved `@condition.ID` flags.
+The check's `difficulty` additionally reads reserved `@damage`; `success` reads
+`@damage`, `@difficulty` and `@total`. Dice read ordinary owner fields and apply
+Save modifiers filtered by at most 16 tags. Amounts must be JS-safe integers;
+difficulty must be nonnegative. Runtime errors reject the complete action.
+The kernel validates references and evaluates declarations on a default sheet.
+
+Damage checks use the amount after save/reduction/resistance and before buffers
+and HP clamping, only for the declared primary resource. Zero damage does not
+roll. Direct costs, manual resource edits and old untyped trigger damage are not
+classified as typed damage.
+
+`PluginRuntime.maintained` stores ID, owner character, source token, rule, label
+and child effect IDs. `end_maintained_effect` accepts the record ID, requires the
+owner or GM/co-GM and removes linked effects atomically. Lifecycle cleanup handles
+source deletion, child expiry, system rule changes and disabled policies. The GM
+panel's new `maintained` card has empty `items`. Players only receive their own
+records and visible child references. Existing SQLite runtime storage persists it.
+
+The SRD example uses combat rounds for Shield of Faith; outside combat its game
+clock is adjudicated manually. It does not implement a full spellcasting or
+interrupt stack. Other plugins may choose an explicit real-time duration instead.
+
+A plugin description is limited to `MAX_PLUGIN_BYTES` (512 KiB). In session play,
+GM/co-GM `InstallPlugin` messages may use this bound plus 4 KiB for the envelope;
+ordinary messages keep the configured WebSocket limit (64 KiB by default).
+Player/spectator transports do not receive the expanded bound. See ADR-0040.
+
+### Interruptible actions (protocol 15)
+
+`ActionCost.on_resolution` defaults to false. True costs are checked and reserved
+at declaration and paid only if the action resolves. Quantities are evaluated
+once, before any expenses. Other pending actions of that character subtract all
+reservations from available balances. Duplicate resource costs still aggregate
+for affordability and payment. Costs without the flag retain existing semantics.
+
+`mechanics.interruption_rules` accepts up to 128 declarations:
+
+```json
+{
+  "id": "interrupt_cast",
+  "feature": "counterspell",
+  "action": "counterspell",
+  "tags": ["spell"],
+  "any_tags": ["verbal", "somatic", "material"],
+  "range_cells": "12",
+  "metric": "chebyshev",
+  "source_condition": "@automation.can_counterspell && @automation.can_see",
+  "target_condition": "@hp.current > 0",
+  "hostile_only": false
+}
+```
+
+All `tags` must match the declared action; at least one `any_tags` must match,
+unless that list is empty. Selectors have at most 16 identifiers each. Conditions
+read the reacting and declaring character respectively. Eligibility, reaction
+capability and all costs are checked separately; conditions should describe
+capabilities rather than restating costs that have already been paid. Range is
+0–1000 cells and accounts for token scales. Player-owned reactors need both
+source tokens visible. Visibility to a creature is otherwise adjudicated manually.
+
+The referenced reaction-only action sets, for example:
+
+```json
+{
+  "save_dice": "1d20 + @con_save",
+  "save_dc": "@automation.spell_dc",
+  "cancel_if": "@total < @difficulty",
+  "tags": ["con", "counterspell"]
+}
+```
+
+This is the action's `interrupt` field. It cannot combine with attack/save fields,
+maintenance, turn conditions, or nonzero damage. The pending caster makes the
+Save-kind roll with these tags against the reactor's DC. The expression then
+reads target effective fields plus `@total` and `@difficulty`. On true the parent
+frame is countered, otherwise it resumes its remaining offers. Counteractions
+can themselves open windows. Manual execution of interrupt-only actions is
+rejected. They also cannot be movement-hook actions.
+
+Runtime stores `action_stacks` with map, unique current frame IDs, original player
+controller, fixed deferred costs, selected point/target, current offers and
+`ready`/`awaiting_reactions` flags. Limits: 16 stacks, depth 8, 128 offers per
+frame, one stack per map. `resolve_action_reaction` requires stack/frame/source
+and accept; owner or GM/co-GM may answer the current offer. `continue_plugin_action`
+requires an actually empty top queue and its owner or GM. `cancel_action_stack`
+is GM-only. Config changes, invalid source identity and disabled action features
+invalidate waiting work; paid costs remain spent and reservations are released.
+
+Ordinary moves and turns cannot bypass the window. Hidden frame details, foreign
+reservations and other casters' selected points are removed from player snapshots;
+an empty public map lock contains no caster identity. A filtered-out queue is
+still marked `awaiting_reactions`, so a player cannot continue past others.
+Outcomes use localizable `plugin_action_resolved` system messages.
+
+The shared plugin action executor also works from triggers, but this does not
+suspend the rest of a multi-step trigger workflow. Use a standalone plugin action
+when a later step would depend on its resolved effects. Full spell-slot-per-turn
+economy and line-of-sight geometry are outside this slice. See ADR-0041.
+
+### Turn economy and trigger continuations (protocol 16)
+
+`mechanics.turn_budgets` declares up to 32 policies with unique resource IDs:
+
+```json
+{
+  "resource": "spell_cast",
+  "label": "Slot expenditure",
+  "feature": "turn_economy",
+  "refresh": "every_turn",
+  "amount": null
+}
+```
+
+`own_turn` refreshes at the actor's own turn; `every_turn` refreshes for every
+character on the scene when any turn starts. Combat start initializes both.
+An optional integer `amount` expression sets the desired balance; null means
+resource maximum. It must evaluate in 0..max. The resource must read a writable
+integer field, not a computed expression. Invalid runtime refill evaluations
+leave the balance unchanged. Refills run before periodic turn effects and read
+the latest sheet after each write, so resources do not overwrite each other.
+Legacy `turn_resources` still handles resources without an active new policy.
+
+Actions may set `timing: {"turn":"own","feature":"turn_economy"}` or `other`.
+This constrains combat timing only; absent/disabled timing remains unrestricted.
+An ActionCost may set `scope: "combat"` and `feature: "turn_economy"`; scope defaults
+to `always`, feature to null. A disabled or out-of-scope cost is neither checked,
+reserved nor paid. Deferred costs preserve the evaluation at declaration.
+
+The SRD sample declares own-turn budgets for action/bonus/reaction and an
+every-turn budget for spell-slot expenditure. Its spell costs reserve that
+budget and the actual slot until execution; cancelled spells release both.
+Slot-free spell variants omit both costs. Configurable per-turn quantities,
+amount expressions, different timing and alternate costs support system-specific
+exceptions and extra actions; restricted class actions need their own declarations.
+
+SheetView returns an optional `economy` derived view with combat/turn flags and
+budget balances (available, reserved, refill target and scope). The core computes
+it; clients display it without evaluating formulas. No hidden turn actor name is
+included. The view is refreshed on combat, sheet, rule and reservation changes.
+
+A trigger's plugin_action now pauses subsequent steps when it opens a reaction
+window. Runtime `trigger_runs` records the root ID, definition version, activation
+context, next step and variables. After completion/countering, `when` may branch
+using `@action.completed == 1` or `@action.countered == 1`. Master cancellation,
+invalid execution, edited/disabled/deleted definition or missing context aborts
+the remainder. Previously completed steps and the once-only activation are not
+replayed. Another action may pause the same run again. The variables/context
+remain GM-only; SQLite's existing runtime projection persists them.
+
+Example steps after an interactive spell:
+
+```json
+[
+  {
+    "when": "@action.completed == 1",
+    "action": { "type": "chat", "text": "The spell completes.", "gm_only": false }
+  },
+  {
+    "when": "@action.countered == 1",
+    "action": { "type": "chat", "text": "The spell is interrupted.", "gm_only": false }
+  }
+]
+```
+
+Continuation effects do not recursively fire other triggers. This does not alter
+old manual roll-request steps. See ADR-0042 and ADR-0043.

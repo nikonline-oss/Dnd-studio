@@ -26,6 +26,9 @@ use crate::zone::ZoneDto;
 #[serde(tag = "kind", rename_all = "snake_case")]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum Event {
+    PluginRuntimeUpdated {
+        runtime: Box<crate::PluginRuntime>,
+    },
     CampaignMetaUpdated {
         campaign: CampaignMeta,
     },

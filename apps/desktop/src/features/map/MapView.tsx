@@ -1,3 +1,6 @@
+import type { PluginAction } from '@/shared/ipc/client';
+import { labelText } from '@/shared/i18n/label';
+import { useSettings } from '@/shared/settings/settings';
 import type { Application } from 'pixi.js';
 import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -28,7 +31,7 @@ import { IconButton } from '@/shared/ui/IconButton';
  * Players without a selection see the first map shared with them.
  */
 export function MapView() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { data: snapshot } = useSnapshot();
   const { data: campaign } = useCampaign();
   const submit = useSubmitIntent();
@@ -46,6 +49,77 @@ export function MapView() {
   const background = map && snapshot?.assets.find((a) => a.id === map.background_asset_id);
   const fog = map && snapshot?.fog.find((f) => f.map_id === map.id);
   const [scene, setScene] = useState<MapScene | null>(null);
+  const effects = useSettings((s) => s.pluginEffects);
+  const opacity = useSettings((s) => s.pluginEffectOpacity);
+  const [aim, setAim] = useState<{
+    source: string;
+    mapId: string;
+    action: PluginAction;
+    point: { x: number; y: number; target: string | null } | null;
+  } | null>(null);
+  const plugin = snapshot?.plugins.find((p) => p.id === snapshot.system_plugin);
+  const selectedToken = snapshot?.tokens.find(
+    (token) => token.id === selectedTokenId && token.map_id === map?.id,
+  );
+  const ownsSelected =
+    isGm ||
+    (campaign?.role === 'player' &&
+      snapshot?.characters.find((c) => c.id === selectedToken?.character_id)?.owner ===
+        campaign.user_id);
+  const actions =
+    plugin?.system?.mechanics?.actions?.filter(
+      (a) =>
+        !a.reaction_only &&
+        (!a.feature ||
+          (plugin.feature_settings?.[a.feature] ??
+            plugin.system?.features?.find((f) => f.id === a.feature)?.default_enabled)),
+    ) ?? [];
+  if (aim && aim.mapId !== map?.id) setAim(null);
+  useEffect(() => {
+    scene?.showPluginArea(0, 0, 0, '#ffffff');
+  }, [scene, map?.id]);
+  useEffect(() => {
+    if (!scene || !map) return;
+    const draw = () => {
+      scene.showPluginEffects(
+        effects ? (snapshot?.plugin_runtime?.visuals ?? []).filter((v) => v.map === map.id) : [],
+        map.grid.cell_size,
+        opacity,
+      );
+    };
+    draw();
+    const recent = (snapshot?.plugin_runtime?.visuals ?? []).filter(
+      (v) => v.map === map.id && Date.now() - v.at_ms < v.visual.duration_ms,
+    );
+    if (!effects || recent.length === 0) return;
+    const timer = window.setInterval(() => {
+      draw();
+      if (recent.every((v) => Date.now() - v.at_ms >= v.visual.duration_ms))
+        window.clearInterval(timer);
+    }, 50);
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [scene, map, snapshot?.plugin_runtime?.visuals, effects, opacity]);
+  const aimAt = (clientX: number, clientY: number, canvas: HTMLCanvasElement) => {
+    if (!scene || !map || !aim) return null;
+    const rect = canvas.getBoundingClientRect();
+    const at = scene.canvasToMap(clientX - rect.left, clientY - rect.top);
+    const point = tokenPosition(at, map);
+    scene.showPluginArea(
+      point.x / 16,
+      point.y / 16,
+      (aim.action.radius_cells ?? 0.4) * map.grid.cell_size,
+      aim.action.visual.color,
+    );
+    const target = snapshot?.tokens.find(
+      (token) =>
+        token.map_id === map.id &&
+        Math.hypot(token.x / 16 - at.x, token.y / 16 - at.y) <=
+          (map.grid.cell_size * token.scale) / 2,
+    );
+    return { ...point, target: target?.id ?? null };
+  };
   const [failure, setFailure] = useState<'renderer' | 'images' | null>(null);
   const [chosenTool, setTool] = useState<FogToolState>(DEFAULT_FOG_TOOL);
   // The zone list asks to redraw a zone or add a part to it: the zone tool takes the next rectangle.
@@ -312,6 +386,16 @@ export function MapView() {
     <div
       className="map-view"
       data-dropping={dropping}
+      onPointerMoveCapture={(e) => {
+        if (aim && e.target instanceof HTMLCanvasElement) aimAt(e.clientX, e.clientY, e.target);
+      }}
+      onPointerDownCapture={(e) => {
+        if (!aim || !(e.target instanceof HTMLCanvasElement)) return;
+        e.stopPropagation();
+        e.preventDefault();
+        const point = aimAt(e.clientX, e.clientY, e.target);
+        if (point) setAim({ ...aim, point });
+      }}
       onDragOver={(e) => {
         if (!accepts(e)) return;
         e.preventDefault();
@@ -330,6 +414,72 @@ export function MapView() {
       }}
     >
       <PixiHost onReady={onReady} onError={onError} />
+      {selectedToken && ownsSelected && actions.length > 0 && (
+        <div className="plugin-map-actions">
+          {actions.map((action) => (
+            <button
+              type="button"
+              key={action.id}
+              onClick={() => {
+                setAim({
+                  source: selectedToken.id,
+                  mapId: selectedToken.map_id,
+                  action,
+                  point: action.target_self
+                    ? { x: selectedToken.x, y: selectedToken.y, target: selectedToken.id }
+                    : null,
+                });
+              }}
+            >
+              {labelText(action.label, i18n.language)}
+            </button>
+          ))}
+        </div>
+      )}
+      {aim && (
+        <div className="plugin-action-confirm" role="status">
+          <strong>{labelText(aim.action.label, i18n.language)}</strong>
+          <p>{t('plugins.chooseTarget')}</p>
+          <button
+            type="button"
+            disabled={
+              !aim.point || (!aim.action.radius_cells && !aim.point.target) || submit.isPending
+            }
+            onClick={() => {
+              if (!aim.point) return;
+              submit.mutate(
+                {
+                  intent: {
+                    kind: 'execute_plugin_action',
+                    source: aim.source,
+                    action: aim.action.id,
+                    target: aim.point.target,
+                    x: aim.point.x,
+                    y: aim.point.y,
+                  },
+                },
+                {
+                  onSuccess: () => {
+                    setAim(null);
+                    scene?.showPluginArea(0, 0, 0, '#ffffff');
+                  },
+                },
+              );
+            }}
+          >
+            {t('plugins.applyAction')}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setAim(null);
+              scene?.showPluginArea(0, 0, 0, '#ffffff');
+            }}
+          >
+            {t('common.cancel', { defaultValue: 'Cancel' })}
+          </button>
+        </div>
+      )}
       {dropping && <div className="map-drop-hint">{t('mapView.dropHint')}</div>}
       {map && isGm && tool.shape === 'zone_edit' && (
         <p className="map-edit-hint" role="status">

@@ -2,7 +2,17 @@ import { create } from 'zustand';
 
 /** What a center tab shows. */
 export interface TabRef {
-  kind: 'map' | 'journal' | 'character' | 'board' | 'trigger' | 'compendium' | 'images' | 'audio';
+  kind:
+    | 'map'
+    | 'journal'
+    | 'character'
+    | 'board'
+    | 'trigger'
+    | 'compendium'
+    | 'images'
+    | 'audio'
+    | 'plugin'
+    | 'gm_panel';
   id: string;
 }
 
@@ -38,6 +48,8 @@ interface SelectionState {
   openTrigger: (triggerId: string) => void;
   /** Opens a compendium (`<plugin id>/<compendium id>`) in a tab. */
   openCompendium: (key: string) => void;
+  openPlugin: (id: string) => void;
+  openGmPanel: () => void;
   activate: (tab: TabRef) => void;
   /** Brings the map view to the front without a map tab (the default map; players have no navigator). */
   showMap: () => void;
@@ -122,6 +134,12 @@ export const useSelection = create<SelectionState>()((set) => {
     },
     openTrigger: (triggerId) => {
       open({ kind: 'trigger', id: triggerId });
+    },
+    openGmPanel: () => {
+      open({ kind: 'gm_panel', id: 'gm' });
+    },
+    openPlugin: (id) => {
+      open({ kind: 'plugin', id });
     },
     openCompendium: (key) => {
       open({ kind: 'compendium', id: key });

@@ -19,6 +19,7 @@ import type {
   FogShape,
   IntentEnvelope,
   MapDto,
+  PluginDto,
   Role,
   Snapshot,
   TokenDto,
@@ -73,6 +74,8 @@ vi.mock('./MapScene', () => ({
       scene.onFog = onFog;
       scene.onMove = onMove;
     }
+    showPluginArea = vi.fn();
+    showPluginEffects = vi.fn();
     setTokens(views: TokenView[]) {
       scene.tokens = views;
     }
@@ -578,6 +581,60 @@ describe('MapView tokens', () => {
     visible: true,
     version: 1,
   };
+
+  it('previews a plugin area and submits only after explicit confirmation', async () => {
+    useSelection.setState({ mapId: id(1) });
+    const plugin = {
+      id: 'example',
+      name: 'Example',
+      kind: 'system',
+      system: {
+        features: [],
+        mechanics: {
+          actions: [
+            {
+              id: 'blast',
+              label: 'Test blast',
+              feature: null,
+              reaction_only: false,
+              radius_cells: 4,
+              visual: { color: '#ff6600', duration_ms: 1000 },
+            },
+          ],
+        },
+      },
+    } as unknown as PluginDto;
+    const sent = setup(<MapView />, [map(1)], 'gm', [], {
+      tokens: [token],
+      characters: [knight],
+      plugins: [plugin],
+      system_plugin: 'example',
+    });
+    await waitFor(() => {
+      expect(scene.shown.at(-1)?.map).toBe(id(1));
+    });
+    act(() => {
+      useSelection.getState().selectToken(token.id);
+    });
+    await userEvent.click(await screen.findByRole('button', { name: 'Test blast' }));
+    const canvas = document.createElement('canvas');
+    document.querySelector('.map-view')?.append(canvas);
+    const event = new Event('pointerdown', { bubbles: true });
+    Object.assign(event, { clientX: 80, clientY: 90 });
+    fireEvent(canvas, event);
+    expect(sent).toHaveLength(0);
+    await userEvent.click(screen.getByRole('button', { name: 'Apply' }));
+    await waitFor(() => {
+      expect(sent[0]?.intent).toEqual({
+        kind: 'execute_plugin_action',
+        source: token.id,
+        action: 'blast',
+        target: null,
+        x: 1280,
+        y: 1440,
+      });
+    });
+  });
 
   it('gives the scene the tokens of the shown map', async () => {
     useSelection.setState({ mapId: id(1) });

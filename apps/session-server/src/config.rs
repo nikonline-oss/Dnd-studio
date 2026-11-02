@@ -13,7 +13,7 @@ pub struct Limits {
     pub max_sessions: usize,
     /// Participants who may ever join one session.
     pub max_participants: usize,
-    /// Largest incoming WS message.
+    /// Largest ordinary incoming WS message; GM plugin installs use the protocol plugin bound.
     pub max_message_bytes: usize,
     /// A connection that sent nothing (not even a ping) for this long is closed.
     pub idle_timeout: Duration,

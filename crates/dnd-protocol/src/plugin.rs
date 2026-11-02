@@ -101,6 +101,10 @@ pub struct InventoryDef {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct RollDef {
+    #[serde(default)]
+    pub kind: Option<crate::RollKind>,
+    #[serde(default)]
+    pub tags: Vec<String>,
     pub id: String,
     pub label: Label,
     pub dice: String,
@@ -154,10 +158,24 @@ pub struct TriggerTemplateDto {
 /// Most trigger templates in one plugin.
 pub const MAX_TRIGGER_TEMPLATES: usize = 64;
 
+/// One independently configurable capability, declared by the plugin.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct PluginFeatureDef {
+    pub id: String,
+    pub label: Label,
+    pub description: Label,
+    pub default_enabled: bool,
+}
+
 /// A plugin installed in the campaign.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct PluginDto {
+    /// Campaign-owned overrides. Never read from the package being installed.
+    #[serde(default)]
+    pub feature_settings: BTreeMap<String, bool>,
     pub id: String,
     /// Semver, as in the manifest.
     pub version: String,
@@ -181,6 +199,11 @@ pub struct PluginDto {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct SystemRulesDto {
+    #[serde(default)]
+    pub mechanics: crate::PluginMechanics,
+
+    #[serde(default)]
+    pub features: Vec<PluginFeatureDef>,
     /// Sheet data schema (JSON Schema subset, see `sheet_schema`).
     #[cfg_attr(feature = "specta", specta(type = specta_typescript::Unknown))]
     pub sheet_schema: Value,

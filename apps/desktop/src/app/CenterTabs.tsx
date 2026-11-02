@@ -1,7 +1,8 @@
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useSnapshotSelect } from '@/shared/game/useGame';
+import { useCampaign, useSnapshotSelect } from '@/shared/game/useGame';
 import { useSelection, type TabRef } from '@/shared/state/selection';
+import { labelText } from '@/shared/i18n/label';
 import { Icon } from '@/shared/ui/Icon';
 
 const TAB_ICONS = {
@@ -11,6 +12,8 @@ const TAB_ICONS = {
   board: 'board',
   trigger: 'bolt',
   compendium: 'book',
+  plugin: 'puzzle',
+  gm_panel: 'grid',
   images: 'image',
   audio: 'music',
 } as const;
@@ -20,7 +23,11 @@ const TAB_ICONS = {
  * open until closed (× or middle click) or until its map/entry is deleted.
  */
 export function CenterTabs() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const { data: campaign } = useCampaign();
+  const gm = campaign?.role === 'gm' || campaign?.role === 'co_gm';
+  const openGmPanel = useSelection((s) => s.openGmPanel);
+  const plugins = useSnapshotSelect((s) => s.plugins);
   // Names only: a tab title does not change when a token moves.
   const maps = useSnapshotSelect((s) => s.maps.map((m) => ({ id: m.id, name: m.name })));
   const entries = useSnapshotSelect((s) => s.journal.map((e) => ({ id: e.id, title: e.title })));
@@ -51,28 +58,36 @@ export function CenterTabs() {
     };
     // Compendia are not in the snapshot; their tabs stay until closed.
     const listed = (tab: TabRef) =>
-      tab.kind === 'compendium' ||
-      (tab.kind === 'images' || tab.kind === 'audio'
-        ? tab.id === 'root' ||
-          (folders ?? []).some((f) => f.id === tab.id && f.library === tab.kind)
-        : lists[tab.kind].some((item) => item.id === tab.id));
+      tab.kind === 'gm_panel'
+        ? campaign === undefined || gm
+        : tab.kind === 'plugin'
+          ? (plugins ?? []).some((p) => p.id === tab.id)
+          : tab.kind === 'compendium' ||
+            (tab.kind === 'images' || tab.kind === 'audio'
+              ? tab.id === 'root' ||
+                (folders ?? []).some((f) => f.id === tab.id && f.library === tab.kind)
+              : lists[tab.kind].some((item) => item.id === tab.id));
     pruneTabs(listed);
-  }, [maps, entries, characters, boards, triggers, folders, pruneTabs]);
+  }, [maps, entries, characters, boards, triggers, folders, plugins, campaign, gm, pruneTabs]);
 
   const title = (tab: TabRef) =>
-    tab.kind === 'images' || tab.kind === 'audio'
-      ? (folders?.find((f) => f.id === tab.id)?.name ?? t(`${tab.kind}.title`))
-      : tab.kind === 'map'
-        ? (maps?.find((m) => m.id === tab.id)?.name ?? t('panels.map'))
-        : tab.kind === 'journal'
-          ? (entries?.find((e) => e.id === tab.id)?.title ?? t('journal.title'))
-          : tab.kind === 'character'
-            ? (characters?.find((c) => c.id === tab.id)?.name ?? t('characters.title'))
-            : tab.kind === 'board'
-              ? (boards?.find((b) => b.id === tab.id)?.name ?? t('boards.title'))
-              : tab.kind === 'trigger'
-                ? (triggers?.find((tr) => tr.id === tab.id)?.name ?? t('triggers.title'))
-                : t('compendia.title');
+    tab.kind === 'gm_panel'
+      ? t('gm.title')
+      : tab.kind === 'plugin'
+        ? labelText(plugins?.find((p) => p.id === tab.id)?.name ?? '', i18n.language)
+        : tab.kind === 'images' || tab.kind === 'audio'
+          ? (folders?.find((f) => f.id === tab.id)?.name ?? t(`${tab.kind}.title`))
+          : tab.kind === 'map'
+            ? (maps?.find((m) => m.id === tab.id)?.name ?? t('panels.map'))
+            : tab.kind === 'journal'
+              ? (entries?.find((e) => e.id === tab.id)?.title ?? t('journal.title'))
+              : tab.kind === 'character'
+                ? (characters?.find((c) => c.id === tab.id)?.name ?? t('characters.title'))
+                : tab.kind === 'board'
+                  ? (boards?.find((b) => b.id === tab.id)?.name ?? t('boards.title'))
+                  : tab.kind === 'trigger'
+                    ? (triggers?.find((tr) => tr.id === tab.id)?.name ?? t('triggers.title'))
+                    : t('compendia.title');
 
   // No map opened in a tab (always so for players, who have no navigator): the map view keeps a
   // tab of its own, so opening a journal entry does not hide the map.
@@ -80,6 +95,12 @@ export function CenterTabs() {
 
   return (
     <div role="tablist" className="tabs">
+      {gm && !tabs.some((tab) => tab.kind === 'gm_panel') && (
+        <button type="button" onClick={openGmPanel}>
+          <Icon name="grid" />
+          {t('gm.title')}
+        </button>
+      )}
       {defaultMapTab && (
         <span
           role="tab"

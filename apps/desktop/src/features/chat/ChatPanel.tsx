@@ -215,6 +215,8 @@ function systemText(
   lang: string,
 ): string {
   switch (message.code) {
+    case 'plugin_action_resolved':
+      return t(`chat.system.action_${message.outcome}`, { action: labelText(message.label, lang) });
     case 'character_submitted':
     case 'character_approved':
     case 'character_returned':

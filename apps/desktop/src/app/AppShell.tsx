@@ -14,6 +14,9 @@ import { CompendiumList } from '@/features/compendium/CompendiumList';
 import { CompendiumView } from '@/features/compendium/CompendiumView';
 import { LibraryPanel } from './LibraryPanel';
 import { OfflineEdits } from '@/features/connect/OfflineEdits';
+import { ActionWindows } from '@/features/plugins/ActionWindows';
+import { MaintainedEffects } from '@/features/plugins/MaintainedEffects';
+import { PluginReactions } from '@/features/plugins/PluginReactions';
 import { RollRequests } from '@/features/triggers/RollRequests';
 import { AttentionNotice } from '@/features/notifications/AttentionNotice';
 import { TemplateDialog } from '@/features/triggers/TemplateDialog';
@@ -22,6 +25,8 @@ import { CharacterEditor } from '@/features/characters/CharacterEditor';
 import { CharacterList } from '@/features/characters/CharacterList';
 import { ChatPanel } from '@/features/chat/ChatPanel';
 import { JournalEditor } from '@/features/journal/JournalEditor';
+import { GmPanel } from './GmPanel';
+import { PluginSettingsView } from '@/features/plugins/PluginSettingsView';
 import { PluginsView } from '@/features/plugins/PluginsView';
 import { InitiativePanel } from '@/features/initiative/InitiativePanel';
 import { LogPanel } from '@/features/logs/LogPanel';
@@ -70,6 +75,8 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
   const preset = useSettings((s) => (campaign.role === 'player' ? 'player' : s.layoutPreset));
   const mapId = useSelection((s) => s.mapId);
   const inspect = useSelection((s) => s.inspect);
+  const pendingActions = useSnapshotSelect((s) => s.plugin_runtime?.action_stacks?.length ?? 0);
+  const maintainedCount = useSnapshotSelect((s) => s.plugin_runtime?.maintained?.length ?? 0);
   const center = useSelection((s) => s.center);
   const journalId = useSelection((s) => s.journalId);
   const active = useSelection((s) => s.active);
@@ -90,6 +97,8 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
     character: sheetName,
     board: boardName,
     trigger: triggerName,
+    plugin: t('plugins.title'),
+    gm_panel: t('gm.title'),
     compendium: t('compendia.title'),
     images: t('images.title'),
     audio: t('audio.title'),
@@ -243,6 +252,12 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
                         folderId={active.id === 'root' ? null : active.id}
                       />
                     </ErrorBoundary>
+                  ) : center === 'gm_panel' ? (
+                    <ErrorBoundary name={t('gm.title')}>
+                      <GmPanel />
+                    </ErrorBoundary>
+                  ) : center === 'plugin' && active ? (
+                    <PluginSettingsView pluginId={active.id} />
                   ) : center === 'journal' ? (
                     <ErrorBoundary name={t('journal.title')}>
                       <JournalEditor />
@@ -368,6 +383,11 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
           />
         )}
         <CompactAudioPlayers />
+        <div className="plugin-notices">
+          {!!pendingActions && <ActionWindows />}
+          {!!maintainedCount && <MaintainedEffects floating />}
+          <PluginReactions />
+        </div>
         <RollRequests />
         <AttentionNotice key={campaign.path} />
         <StatusBar campaign={campaign} />

@@ -508,6 +508,12 @@ pub struct RollStatisticsDto {
 #[serde(tag = "code", rename_all = "snake_case")]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum SystemMessage {
+    PluginActionResolved {
+        #[serde(default)]
+        action: Option<crate::IntentId>,
+        label: crate::Label,
+        outcome: crate::ActionResolution,
+    },
     CharacterSubmitted {
         name: String,
     },

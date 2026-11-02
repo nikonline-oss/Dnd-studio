@@ -114,11 +114,13 @@ function TokenEffect({
       ? t('effects.roundsLeft', { count: duration.remaining })
       : duration.type === 'turns'
         ? t('effects.turnsLeft', { count: duration.remaining })
-        : now === null
-          ? null
-          : t('effects.minutesLeft', {
-              count: Math.max(0, Math.ceil((duration.until_ts - now) / 60_000)),
-            });
+        : duration.type === 'turn_end'
+          ? t('effects.untilTurnEnd')
+          : now === null
+            ? null
+            : t('effects.minutesLeft', {
+                count: Math.max(0, Math.ceil((duration.until_ts - now) / 60_000)),
+              });
   const condition = effect.condition
     ? labelText(conditions.find((c) => c.id === effect.condition)?.label ?? effect.condition, lang)
     : null;

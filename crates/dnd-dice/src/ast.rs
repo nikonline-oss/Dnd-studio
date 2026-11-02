@@ -121,6 +121,47 @@ impl Expr {
         crate::parse::parse(input)
     }
 
+    /// Combine d20-test mode sources with the explicitly requested mode. Reparse to preserve limits.
+    pub fn with_d20_mode(&self, advantage: bool, disadvantage: bool) -> Result<Self, DiceError> {
+        if !advantage && !disadvantage {
+            return Ok(self.clone());
+        }
+        if self.terms.iter().filter(|t| matches!(&t.term, Term::Dice(d) if d.sides.get()==20 && d.count==1 && t.sign==Sign::Plus)).count() != 1 {
+            return Err(DiceError::Syntax {offset:0,message:"a modified d20 test requires exactly one positive d20".to_owned()});
+        }
+        let mut next = self.clone();
+        let candidate = next
+            .terms
+            .iter_mut()
+            .find_map(|t| match &mut t.term {
+                Term::Dice(d) if d.sides.get() == 20 && d.count == 1 && t.sign == Sign::Plus => {
+                    Some(d)
+                }
+                _ => None,
+            })
+            .ok_or_else(|| DiceError::Syntax {
+                offset: 0,
+                message: "a modified d20 test requires one positive d20".to_owned(),
+            })?;
+        let adv = advantage || candidate.modifier == Some(Modifier::Advantage);
+        let dis = disadvantage || candidate.modifier == Some(Modifier::Disadvantage);
+        if !matches!(
+            candidate.modifier,
+            None | Some(Modifier::Advantage | Modifier::Disadvantage)
+        ) {
+            return Err(DiceError::Syntax {
+                offset: 0,
+                message: "d20 mode cannot replace keep/drop".to_owned(),
+            });
+        }
+        candidate.modifier = match (adv, dis) {
+            (true, false) => Some(Modifier::Advantage),
+            (false, true) => Some(Modifier::Disadvantage),
+            _ => None,
+        };
+        Self::parse(&next.to_string())
+    }
+
     #[must_use]
     pub fn terms(&self) -> &[SignedTerm] {
         &self.terms

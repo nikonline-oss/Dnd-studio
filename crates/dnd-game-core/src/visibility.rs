@@ -255,6 +255,7 @@ pub fn players_state(state: &GameState) -> GameState {
     view.triggers.clear();
     // Ownership is recipient-specific; the common players projection must never disclose requests.
     view.roll_requests.clear();
+    view.plugin_runtime = Default::default();
     view.library_folders.clear();
     view.playlists.retain(|id, _| see.playlists.contains(id));
     for playlist in view.playlists.values_mut() {
@@ -297,6 +298,80 @@ pub fn snapshot_for_user<'a>(
     chat: impl IntoIterator<Item = &'a ChatMessageDto>,
 ) -> Snapshot {
     let mut snapshot = snapshot_for(role, state, seq, chat);
+    if role == Role::Player {
+        let mut runtime = state.plugin_runtime.clone();
+        let see = PlayersSee::of(state);
+        runtime.trigger_runs.clear();
+        runtime.action_stacks.retain_mut(|stack| {
+            stack.frames.retain_mut(|frame| {
+                let own = state
+                    .characters
+                    .get(&frame.owner)
+                    .is_some_and(|c| c.owner == Some(user));
+                frame.offers.retain(|offer| {
+                    see.tokens.contains(&offer.source)
+                        && see.tokens.contains(&frame.source)
+                        && state
+                            .tokens
+                            .get(&offer.source)
+                            .and_then(|t| t.character_id)
+                            .and_then(|id| state.characters.get(&id))
+                            .is_some_and(|c| c.owner == Some(user))
+                });
+                // A GM may declare an owned character's action against a hidden target.
+                let declared_by_user = frame.controller == Some(user);
+                if !own {
+                    frame.controller = None;
+                    frame.deferred.clear();
+                }
+                if !own
+                    || !declared_by_user
+                    || frame.target.is_some_and(|id| !see.tokens.contains(&id))
+                {
+                    frame.target = None;
+                    frame.x = 0;
+                    frame.y = 0;
+                }
+                see.tokens.contains(&frame.source) && (own || !frame.offers.is_empty())
+            });
+            !stack.frames.is_empty() || see.maps.contains(&stack.map)
+        });
+        runtime.maintained.retain_mut(|entry| {
+            let own = state
+                .characters
+                .get(&entry.owner)
+                .is_some_and(|c| c.owner == Some(user))
+                && see.tokens.contains(&entry.source);
+            entry.effects.retain(|id| see.effects.contains(id));
+            own
+        });
+        runtime.movements.retain_mut(|m| {
+            m.handled.clear();
+            m.offers.retain(|o| {
+                state
+                    .tokens
+                    .get(&o.source)
+                    .and_then(|t| t.character_id)
+                    .and_then(|id| state.characters.get(&id))
+                    .is_some_and(|c| c.owner == Some(user))
+                    && see.tokens.contains(&o.source)
+                    && see.tokens.contains(&m.token)
+            });
+            !m.offers.is_empty()
+                || (see.tokens.contains(&m.token)
+                    && state
+                        .tokens
+                        .get(&m.token)
+                        .and_then(|t| t.character_id)
+                        .and_then(|id| state.characters.get(&id))
+                        .is_some_and(|c| c.owner == Some(user)))
+        });
+        runtime
+            .visuals
+            .retain(|v| see.maps.contains(&v.map) && see.tokens.contains(&v.source));
+        snapshot.plugin_runtime = runtime;
+    }
+
     if role == Role::Player {
         snapshot.roll_requests = state
             .roll_requests
@@ -350,6 +425,25 @@ pub fn may_change_visibility(batch: &EventBatch) -> bool {
 /// Filters a committed `batch` for players; `before` and `after` are the full states around it.
 #[must_use]
 pub fn filter_for_players(before: &GameState, after: &GameState, batch: &EventBatch) -> ForPlayers {
+    if batch
+        .events
+        .iter()
+        .any(|e| matches!(e, Event::PluginRuntimeUpdated { .. }))
+    {
+        return ForPlayers::Resnapshot;
+    }
+    if (!before.plugin_runtime.movements.is_empty()
+        || !before.plugin_runtime.maintained.is_empty()
+        || !before.plugin_runtime.action_stacks.is_empty())
+        && batch.events.iter().any(|e| {
+            matches!(
+                e,
+                Event::CharacterUpdated { .. } | Event::TokenUpdated { .. }
+            )
+        })
+    {
+        return ForPlayers::Resnapshot;
+    }
     if before.roll_requests.values().any(|r| {
         before.characters.get(&r.character).and_then(|c| c.owner)
             != after.characters.get(&r.character).and_then(|c| c.owner)
@@ -488,7 +582,7 @@ pub fn filter_for_players(before: &GameState, after: &GameState, batch: &EventBa
                         ),
                         Event::TokenEffectRemoved { id, .. } => was.effects.contains(id),
                         // The connection adds back only this recipient's private requests.
-                        Event::RollRequested { .. } | Event::RollRequestUpdated { .. } => false,
+                        Event::PluginRuntimeUpdated { .. } | Event::RollRequested { .. } | Event::RollRequestUpdated { .. } => false,
                         // Zones are the GM's tool (ADR-0024).
                         Event::ZoneCreated { .. }
                         | Event::ZoneUpdated { .. }
@@ -560,7 +654,9 @@ fn cheap_event(after: &GameState, event: &Event) -> Event {
     };
     let map_shown = |id: &MapId| map_visible_to_players(after, id);
     let visible = match event {
-        Event::RollRequested { .. } | Event::RollRequestUpdated { .. } => false,
+        Event::PluginRuntimeUpdated { .. }
+        | Event::RollRequested { .. }
+        | Event::RollRequestUpdated { .. } => false,
         Event::TokenMoved { id, .. } => token_shown(id),
         Event::BoardNodeMoved { id, .. } => after.board_nodes.get(id).is_some_and(|n| {
             n.visibility == BoardVisibility::Players

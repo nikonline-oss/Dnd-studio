@@ -14,11 +14,13 @@ import { ConfirmButton, ConfirmDelete, IconButton } from '@/shared/ui/IconButton
  * Initiative tracker of the shown map (ADR-0020, bottom panel). GM roles run the combat; a player
  * rolls for their own character and ends their own turn. The core checks every action.
  */
-export function InitiativePanel() {
+export function InitiativePanel({ scopeMapId }: { scopeMapId?: string | undefined } = {}) {
   const { t } = useTranslation();
   const { data: campaign } = useCampaign();
   const submit = useSubmitIntent();
-  const map = useShownMap();
+  const shownMap = useShownMap();
+  const scopedMap = useSnapshotSelect((s) => s.maps.find((m) => m.id === scopeMapId));
+  const map = scopeMapId ? scopedMap : shownMap;
   const mapId = map?.id;
   // Token positions are left out: a token being dragged does not re-render the tracker.
   const mapTokens = useSnapshotSelect((s) =>

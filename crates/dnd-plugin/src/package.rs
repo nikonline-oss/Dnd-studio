@@ -350,6 +350,18 @@ fn assemble(sha256: String, mut files: Files) -> PluginResult<PluginPackage> {
         }
         (_, None) => None,
     };
+    if manifest.format == 1
+        && system.as_ref().is_some_and(|s| {
+            !s.rules.features.is_empty()
+                || s.rules.mechanics != dnd_protocol::PluginMechanics::default()
+        })
+    {
+        return Err(invalid_document(
+            SYSTEM_FILE,
+            "features and mechanics require package format 2".to_owned(),
+        ));
+    }
+
     // Sheet files are only those system.json references.
     if let Some(name) = files.sheets.into_keys().next() {
         return Err(PluginError::UnexpectedFile { name });
@@ -429,7 +441,7 @@ fn parse_manifest(bytes: &[u8]) -> PluginResult<Manifest> {
     let value: Value = serde_json::from_slice(bytes).map_err(|e| invalid(e.to_string()))?;
     // A newer format gets its own error ("update the app"), not a list of schema violations.
     if let Some(format) = value.get("format").and_then(Value::as_u64)
-        && format != u64::from(PLUGIN_FORMAT)
+        && !(1..=u64::from(PLUGIN_FORMAT)).contains(&format)
     {
         return Err(PluginError::UnsupportedFormat {
             format,

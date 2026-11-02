@@ -1,125 +1,670 @@
 {
-  "type": "section",
-  "label": {
-    "en": "Creature stat block",
-    "ru": "Блок характеристик существа"
-  },
-  "children": [
+  "type": "tabs",
+  "tabs": [
     {
-      "type": "field",
-      "path": "species",
       "label": {
-        "en": "Creature type",
-        "ru": "Вид существа"
-      }
-    },
-    {
-      "type": "resource",
-      "resource": "hp"
-    },
-    {
-      "type": "row",
+        "ru": "Основное",
+        "en": "Main"
+      },
       "children": [
         {
-          "type": "field",
-          "path": "hp.current",
+          "type": "section",
           "label": {
-            "en": "Current HP",
-            "ru": "Текущие хиты"
-          }
-        },
-        {
-          "type": "field",
-          "path": "hp.max",
-          "label": {
-            "en": "Maximum HP",
-            "ru": "Максимальные хиты"
-          }
+            "en": "Creature stat block",
+            "ru": "Блок характеристик существа"
+          },
+          "children": [
+            {
+              "type": "field",
+              "path": "species",
+              "label": {
+                "en": "Creature type",
+                "ru": "Вид существа"
+              }
+            },
+            {
+              "type": "resource",
+              "resource": "hp"
+            },
+            {
+              "type": "row",
+              "children": [
+                {
+                  "type": "field",
+                  "path": "hp.current",
+                  "label": {
+                    "en": "Current HP",
+                    "ru": "Текущие хиты"
+                  }
+                },
+                {
+                  "type": "field",
+                  "path": "hp.max",
+                  "label": {
+                    "en": "Maximum HP",
+                    "ru": "Максимальные хиты"
+                  }
+                }
+              ]
+            },
+            {
+              "type": "row",
+              "children": [
+                {
+                  "type": "field",
+                  "path": "ac",
+                  "label": {
+                    "en": "Armor class",
+                    "ru": "Класс брони"
+                  }
+                },
+                {
+                  "type": "field",
+                  "path": "speed",
+                  "label": {
+                    "en": "Speed",
+                    "ru": "Скорость"
+                  }
+                }
+              ]
+            },
+            {
+              "type": "grid",
+              "columns": 3,
+              "children": [
+                {
+                  "type": "field",
+                  "path": "abilities.str",
+                  "label": {
+                    "en": "STR",
+                    "ru": "STR"
+                  }
+                },
+                {
+                  "type": "field",
+                  "path": "abilities.dex",
+                  "label": {
+                    "en": "DEX",
+                    "ru": "DEX"
+                  }
+                },
+                {
+                  "type": "field",
+                  "path": "abilities.con",
+                  "label": {
+                    "en": "CON",
+                    "ru": "CON"
+                  }
+                },
+                {
+                  "type": "field",
+                  "path": "abilities.int",
+                  "label": {
+                    "en": "INT",
+                    "ru": "INT"
+                  }
+                },
+                {
+                  "type": "field",
+                  "path": "abilities.wis",
+                  "label": {
+                    "en": "WIS",
+                    "ru": "WIS"
+                  }
+                },
+                {
+                  "type": "field",
+                  "path": "abilities.cha",
+                  "label": {
+                    "en": "CHA",
+                    "ru": "CHA"
+                  }
+                }
+              ]
+            },
+            {
+              "type": "field",
+              "path": "notes",
+              "label": {
+                "en": "Traits and actions",
+                "ru": "Особенности и действия"
+              }
+            },
+            {
+              "type": "section",
+              "label": {
+                "ru": "Автоматизация: параметры примера",
+                "en": "Automation: example parameters"
+              },
+              "children": [
+                {
+                  "type": "field",
+                  "path": "automation.reach_cells",
+                  "label": {
+                    "ru": "Досягаемость (клетки)",
+                    "en": "Reach (cells)"
+                  }
+                },
+                {
+                  "type": "field",
+                  "path": "automation.attack_bonus",
+                  "label": {
+                    "ru": "Бонус ближней атаки",
+                    "en": "Melee attack bonus"
+                  }
+                },
+                {
+                  "type": "field",
+                  "path": "automation.can_see",
+                  "label": {
+                    "ru": "Видит провоцирующую цель (проверяет мастер)",
+                    "en": "Can see the provoking target (GM adjudicates)"
+                  }
+                },
+                {
+                  "type": "field",
+                  "path": "automation.reaction",
+                  "label": {
+                    "ru": "Осталось реакций",
+                    "en": "Reactions remaining"
+                  }
+                },
+                {
+                  "type": "field",
+                  "path": "automation.spell_dc",
+                  "label": {
+                    "ru": "Сл спасброска заклинаний",
+                    "en": "Spell save DC"
+                  }
+                },
+                {
+                  "type": "field",
+                  "path": "automation.spell_slots_3",
+                  "label": {
+                    "ru": "Осталось ячеек 3 уровня",
+                    "en": "Level 3 slots remaining"
+                  }
+                },
+                {
+                  "type": "field",
+                  "path": "automation.spell_slots_3_max",
+                  "label": {
+                    "ru": "Максимум ячеек 3 уровня",
+                    "en": "Level 3 slots maximum"
+                  }
+                },
+                {
+                  "type": "field",
+                  "path": "automation.actions",
+                  "label": {
+                    "ru": "Осталось действий",
+                    "en": "Actions remaining"
+                  }
+                }
+              ]
+            }
+          ]
         }
       ]
     },
     {
-      "type": "row",
-      "children": [
-        {
-          "type": "field",
-          "path": "ac",
-          "label": {
-            "en": "Armor class",
-            "ru": "Класс брони"
-          }
-        },
-        {
-          "type": "field",
-          "path": "speed",
-          "label": {
-            "en": "Speed",
-            "ru": "Скорость"
-          }
-        }
-      ]
-    },
-    {
-      "type": "grid",
-      "columns": 3,
-      "children": [
-        {
-          "type": "field",
-          "path": "abilities.str",
-          "label": {
-            "en": "STR",
-            "ru": "STR"
-          }
-        },
-        {
-          "type": "field",
-          "path": "abilities.dex",
-          "label": {
-            "en": "DEX",
-            "ru": "DEX"
-          }
-        },
-        {
-          "type": "field",
-          "path": "abilities.con",
-          "label": {
-            "en": "CON",
-            "ru": "CON"
-          }
-        },
-        {
-          "type": "field",
-          "path": "abilities.int",
-          "label": {
-            "en": "INT",
-            "ru": "INT"
-          }
-        },
-        {
-          "type": "field",
-          "path": "abilities.wis",
-          "label": {
-            "en": "WIS",
-            "ru": "WIS"
-          }
-        },
-        {
-          "type": "field",
-          "path": "abilities.cha",
-          "label": {
-            "en": "CHA",
-            "ru": "CHA"
-          }
-        }
-      ]
-    },
-    {
-      "type": "field",
-      "path": "notes",
       "label": {
-        "en": "Traits and actions",
-        "ru": "Особенности и действия"
-      }
+        "ru": "Защита от урона",
+        "en": "Damage defenses"
+      },
+      "children": [
+        {
+          "type": "field",
+          "path": "hp.temporary",
+          "label": {
+            "ru": "Временные хиты",
+            "en": "Temporary hit points"
+          }
+        },
+        {
+          "type": "field",
+          "path": "defenses.reduction",
+          "label": {
+            "ru": "Снижение урона",
+            "en": "Damage reduction"
+          }
+        },
+        {
+          "type": "section",
+          "label": {
+            "ru": "Сопротивления",
+            "en": "Resistances"
+          },
+          "children": [
+            {
+              "type": "field",
+              "path": "defenses.resistance.all",
+              "label": {
+                "ru": "Все типы",
+                "en": "All types"
+              }
+            },
+            {
+              "type": "field",
+              "path": "defenses.resistance.acid",
+              "label": {
+                "ru": "Кислота",
+                "en": "Acid"
+              }
+            },
+            {
+              "type": "field",
+              "path": "defenses.resistance.bludgeoning",
+              "label": {
+                "ru": "Дробящий",
+                "en": "Bludgeoning"
+              }
+            },
+            {
+              "type": "field",
+              "path": "defenses.resistance.cold",
+              "label": {
+                "ru": "Холод",
+                "en": "Cold"
+              }
+            },
+            {
+              "type": "field",
+              "path": "defenses.resistance.fire",
+              "label": {
+                "ru": "Огонь",
+                "en": "Fire"
+              }
+            },
+            {
+              "type": "field",
+              "path": "defenses.resistance.force",
+              "label": {
+                "ru": "Силовое поле",
+                "en": "Force"
+              }
+            },
+            {
+              "type": "field",
+              "path": "defenses.resistance.lightning",
+              "label": {
+                "ru": "Электричество",
+                "en": "Lightning"
+              }
+            },
+            {
+              "type": "field",
+              "path": "defenses.resistance.necrotic",
+              "label": {
+                "ru": "Некротический",
+                "en": "Necrotic"
+              }
+            },
+            {
+              "type": "field",
+              "path": "defenses.resistance.piercing",
+              "label": {
+                "ru": "Колющий",
+                "en": "Piercing"
+              }
+            },
+            {
+              "type": "field",
+              "path": "defenses.resistance.poison",
+              "label": {
+                "ru": "Яд",
+                "en": "Poison"
+              }
+            },
+            {
+              "type": "field",
+              "path": "defenses.resistance.psychic",
+              "label": {
+                "ru": "Психический",
+                "en": "Psychic"
+              }
+            },
+            {
+              "type": "field",
+              "path": "defenses.resistance.radiant",
+              "label": {
+                "ru": "Излучение",
+                "en": "Radiant"
+              }
+            },
+            {
+              "type": "field",
+              "path": "defenses.resistance.slashing",
+              "label": {
+                "ru": "Рубящий",
+                "en": "Slashing"
+              }
+            },
+            {
+              "type": "field",
+              "path": "defenses.resistance.thunder",
+              "label": {
+                "ru": "Звук",
+                "en": "Thunder"
+              }
+            }
+          ]
+        },
+        {
+          "type": "section",
+          "label": {
+            "ru": "Уязвимости",
+            "en": "Vulnerabilities"
+          },
+          "children": [
+            {
+              "type": "field",
+              "path": "defenses.vulnerability.all",
+              "label": {
+                "ru": "Все типы",
+                "en": "All types"
+              }
+            },
+            {
+              "type": "field",
+              "path": "defenses.vulnerability.acid",
+              "label": {
+                "ru": "Кислота",
+                "en": "Acid"
+              }
+            },
+            {
+              "type": "field",
+              "path": "defenses.vulnerability.bludgeoning",
+              "label": {
+                "ru": "Дробящий",
+                "en": "Bludgeoning"
+              }
+            },
+            {
+              "type": "field",
+              "path": "defenses.vulnerability.cold",
+              "label": {
+                "ru": "Холод",
+                "en": "Cold"
+              }
+            },
+            {
+              "type": "field",
+              "path": "defenses.vulnerability.fire",
+              "label": {
+                "ru": "Огонь",
+                "en": "Fire"
+              }
+            },
+            {
+              "type": "field",
+              "path": "defenses.vulnerability.force",
+              "label": {
+                "ru": "Силовое поле",
+                "en": "Force"
+              }
+            },
+            {
+              "type": "field",
+              "path": "defenses.vulnerability.lightning",
+              "label": {
+                "ru": "Электричество",
+                "en": "Lightning"
+              }
+            },
+            {
+              "type": "field",
+              "path": "defenses.vulnerability.necrotic",
+              "label": {
+                "ru": "Некротический",
+                "en": "Necrotic"
+              }
+            },
+            {
+              "type": "field",
+              "path": "defenses.vulnerability.piercing",
+              "label": {
+                "ru": "Колющий",
+                "en": "Piercing"
+              }
+            },
+            {
+              "type": "field",
+              "path": "defenses.vulnerability.poison",
+              "label": {
+                "ru": "Яд",
+                "en": "Poison"
+              }
+            },
+            {
+              "type": "field",
+              "path": "defenses.vulnerability.psychic",
+              "label": {
+                "ru": "Психический",
+                "en": "Psychic"
+              }
+            },
+            {
+              "type": "field",
+              "path": "defenses.vulnerability.radiant",
+              "label": {
+                "ru": "Излучение",
+                "en": "Radiant"
+              }
+            },
+            {
+              "type": "field",
+              "path": "defenses.vulnerability.slashing",
+              "label": {
+                "ru": "Рубящий",
+                "en": "Slashing"
+              }
+            },
+            {
+              "type": "field",
+              "path": "defenses.vulnerability.thunder",
+              "label": {
+                "ru": "Звук",
+                "en": "Thunder"
+              }
+            }
+          ]
+        },
+        {
+          "type": "section",
+          "label": {
+            "ru": "Иммунитеты",
+            "en": "Immunities"
+          },
+          "children": [
+            {
+              "type": "field",
+              "path": "defenses.immunity.all",
+              "label": {
+                "ru": "Все типы",
+                "en": "All types"
+              }
+            },
+            {
+              "type": "field",
+              "path": "defenses.immunity.acid",
+              "label": {
+                "ru": "Кислота",
+                "en": "Acid"
+              }
+            },
+            {
+              "type": "field",
+              "path": "defenses.immunity.bludgeoning",
+              "label": {
+                "ru": "Дробящий",
+                "en": "Bludgeoning"
+              }
+            },
+            {
+              "type": "field",
+              "path": "defenses.immunity.cold",
+              "label": {
+                "ru": "Холод",
+                "en": "Cold"
+              }
+            },
+            {
+              "type": "field",
+              "path": "defenses.immunity.fire",
+              "label": {
+                "ru": "Огонь",
+                "en": "Fire"
+              }
+            },
+            {
+              "type": "field",
+              "path": "defenses.immunity.force",
+              "label": {
+                "ru": "Силовое поле",
+                "en": "Force"
+              }
+            },
+            {
+              "type": "field",
+              "path": "defenses.immunity.lightning",
+              "label": {
+                "ru": "Электричество",
+                "en": "Lightning"
+              }
+            },
+            {
+              "type": "field",
+              "path": "defenses.immunity.necrotic",
+              "label": {
+                "ru": "Некротический",
+                "en": "Necrotic"
+              }
+            },
+            {
+              "type": "field",
+              "path": "defenses.immunity.piercing",
+              "label": {
+                "ru": "Колющий",
+                "en": "Piercing"
+              }
+            },
+            {
+              "type": "field",
+              "path": "defenses.immunity.poison",
+              "label": {
+                "ru": "Яд",
+                "en": "Poison"
+              }
+            },
+            {
+              "type": "field",
+              "path": "defenses.immunity.psychic",
+              "label": {
+                "ru": "Психический",
+                "en": "Psychic"
+              }
+            },
+            {
+              "type": "field",
+              "path": "defenses.immunity.radiant",
+              "label": {
+                "ru": "Излучение",
+                "en": "Radiant"
+              }
+            },
+            {
+              "type": "field",
+              "path": "defenses.immunity.slashing",
+              "label": {
+                "ru": "Рубящий",
+                "en": "Slashing"
+              }
+            },
+            {
+              "type": "field",
+              "path": "defenses.immunity.thunder",
+              "label": {
+                "ru": "Звук",
+                "en": "Thunder"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "label": {
+        "ru": "Поддержка заклинаний",
+        "en": "Spell maintenance"
+      },
+      "children": [
+        {
+          "type": "field",
+          "path": "automation.bonus_actions",
+          "label": {
+            "ru": "Осталось бонусных действий",
+            "en": "Bonus actions remaining"
+          }
+        },
+        {
+          "type": "field",
+          "path": "automation.spell_slots_1",
+          "label": {
+            "ru": "Осталось ячеек 1 уровня",
+            "en": "Level 1 slots remaining"
+          }
+        },
+        {
+          "type": "field",
+          "path": "automation.spell_slots_1_max",
+          "label": {
+            "ru": "Максимум ячеек 1 уровня",
+            "en": "Level 1 slots maximum"
+          }
+        },
+        {
+          "type": "field",
+          "path": "automation.can_counterspell",
+          "label": {
+            "ru": "Контрзаклинание доступно и подготовлено",
+            "en": "Counterspell is available and prepared"
+          }
+        }
+      ]
+    },
+    {
+      "label": {
+        "ru": "Экономика хода",
+        "en": "Turn economy"
+      },
+      "children": [
+        {
+          "type": "field",
+          "path": "automation.actions_per_turn",
+          "label": {
+            "ru": "Действий за свой ход",
+            "en": "Actions per own turn"
+          }
+        },
+        {
+          "type": "field",
+          "path": "automation.bonus_actions_per_turn",
+          "label": {
+            "ru": "Бонусных действий за свой ход",
+            "en": "Bonus actions per own turn"
+          }
+        },
+        {
+          "type": "field",
+          "path": "automation.reactions_per_turn",
+          "label": {
+            "ru": "Реакций до следующего своего хода",
+            "en": "Reactions until next own turn"
+          }
+        }
+      ]
     }
   ]
 }

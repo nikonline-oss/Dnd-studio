@@ -1,3 +1,4 @@
+import { useSelection } from '@/shared/state/selection';
 import { useSettings } from '@/shared/settings/settings';
 import { pluginPalette } from '@/shared/theme/CampaignThemeSync';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -20,6 +21,7 @@ import type { MenuItem } from '@/shared/ui/Menu';
  */
 export function PluginsView() {
   const { t, i18n } = useTranslation();
+  const openPlugin = useSelection((s) => s.openPlugin);
   const selectedTheme = useSettings((s) => s.themePluginId);
   const updateSettings = useSettings((s) => s.update);
   const lang = i18n.resolvedLanguage ?? i18n.language;
@@ -37,7 +39,9 @@ export function PluginsView() {
   const submit = useSubmitIntent();
   const installBundled = useMutation({ mutationFn: ipc.pluginInstallBundled });
   const installFile = useMutation({ mutationFn: ipc.pluginInstallFile });
-  const notInstalled = (bundled.data ?? []).filter((b) => !plugins.some((p) => p.id === b.id));
+  const notInstalled = (bundled.data ?? []).filter(
+    (b) => !plugins.some((p) => p.id === b.id && p.version === b.version),
+  );
   const busy = submit.isPending || installBundled.isPending || installFile.isPending;
   const [menu, setMenu] = useState<{
     x: number;
@@ -129,7 +133,15 @@ export function PluginsView() {
         }}
       >
         <div className="plugin-name">
-          <strong>{labelText(plugin.name, lang)}</strong>
+          <button
+            type="button"
+            className="plugin-open"
+            onClick={() => {
+              openPlugin(plugin.id);
+            }}
+          >
+            {labelText(plugin.name, lang)}
+          </button>
           <span className="muted">
             {plugin.version} · {t(`plugins.kinds.${plugin.kind}`)} · {t('plugins.license')}{' '}
             {plugin.license}

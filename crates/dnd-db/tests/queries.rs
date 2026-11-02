@@ -521,7 +521,7 @@ fn query_inventory_matches_adr_0008() {
         .map(|s| s.matches("sqlx::query").count())
         .sum();
     assert_eq!(
-        count, 93,
+        count, 95,
         "runtime queries changed: add a real-SQLite test and update the table in docs/adr/0008-db-conventions.md"
     );
 }
@@ -705,6 +705,7 @@ async fn plugins_and_the_system_are_projected_and_loaded() {
     let dir = tempfile::tempdir().unwrap();
     let db = new_campaign(&dir).await;
     let mut plugin = PluginDto {
+        feature_settings: Default::default(),
         theme: None,
         id: "srd5".into(),
         version: "0.1.0".into(),
@@ -715,6 +716,8 @@ async fn plugins_and_the_system_are_projected_and_loaded() {
         archive_sha256: "a".repeat(64),
         trigger_templates: Vec::new(),
         system: Some(SystemRulesDto {
+            mechanics: Default::default(),
+            features: Default::default(),
             sheet_schema: serde_json::json!({ "type": "object", "properties": {} }),
             sheet_layout: serde_json::json!({ "type": "section", "children": [] }),
             creature_sheet_layout: None,
@@ -728,6 +731,7 @@ async fn plugins_and_the_system_are_projected_and_loaded() {
         }),
     };
     let theme = PluginDto {
+        feature_settings: Default::default(),
         id: "dark".into(),
         kind: PluginKind::Theme,
         system: None,
@@ -2113,5 +2117,92 @@ async fn roll_requests_are_projected_loaded_and_updated() {
     assert_eq!(
         state.roll_requests.values().cloned().collect::<Vec<_>>(),
         vec![rolled]
+    );
+}
+
+#[tokio::test]
+async fn plugin_runtime_is_projected_and_loaded() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = new_campaign(&dir).await;
+    let runtime = PluginRuntime {
+        trigger_runs: vec![PendingTriggerRun {
+            action: IntentId(v7(0x9920)),
+            trigger: TriggerId(v7(0x9930)),
+            version: Version::INITIAL,
+            map: Some(MapId(v7(0x9921))),
+            character: Some(CharacterId(v7(0x9924))),
+            token: Some(TokenId(v7(0x9923))),
+            next_step: 1,
+            variables: std::collections::BTreeMap::from([("total".into(), 17)]),
+        }],
+        action_stacks: vec![ActionStack {
+            id: IntentId(v7(0x9920)),
+            map: MapId(v7(0x9921)),
+            frames: vec![PendingAction {
+                awaiting_reactions: true,
+                id: IntentId(v7(0x9922)),
+                source: TokenId(v7(0x9923)),
+                owner: CharacterId(v7(0x9924)),
+                controller: None,
+                action: "casting".into(),
+                label: Label::Text("Casting".into()),
+                target: None,
+                x: 1120,
+                y: 2240,
+                deferred: vec![DeferredCost {
+                    resource: "slot".into(),
+                    amount: 1,
+                }],
+                offers: Vec::new(),
+                ready: true,
+            }],
+        }],
+        maintained: vec![MaintainedEffect {
+            id: EffectId(v7(0x9910)),
+            owner: CharacterId(v7(0x9911)),
+            source: TokenId(v7(0x9912)),
+            rule: "maintain".into(),
+            label: Label::Text("A maintained effect".into()),
+            effects: vec![EffectId(v7(0x9913))],
+        }],
+        visuals: Vec::new(),
+        movements: vec![PendingMovement {
+            id: IntentId(v7(0x9900)),
+            token: TokenId(v7(0x9901)),
+            destination_x: 1120,
+            destination_y: 2240,
+            mode: MovementMode::Voluntary,
+            handled: vec!["first:source".into()],
+            offers: vec![ReactionOffer {
+                ready: true,
+                source: TokenId(v7(0x9902)),
+                rule: "leave_reach".into(),
+                action: "strike".into(),
+                label: Label::Text("React".into()),
+            }],
+        }],
+    };
+    db.project(&[record(
+        1,
+        None,
+        vec![Event::PluginRuntimeUpdated {
+            runtime: Box::new(runtime.clone()),
+        }],
+    )])
+    .await
+    .unwrap();
+    assert_eq!(db.load_state().await.unwrap().0.plugin_runtime, runtime);
+    db.project(&[record(
+        2,
+        None,
+        vec![Event::PluginRuntimeUpdated {
+            runtime: Box::default(),
+        }],
+    )])
+    .await
+    .unwrap();
+    assert_eq!(
+        db.load_state().await.unwrap().0.plugin_runtime,
+        PluginRuntime::default()
     );
 }

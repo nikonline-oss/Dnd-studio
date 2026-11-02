@@ -126,6 +126,8 @@ export function applyEvent(snapshot: Snapshot, event: Event): Snapshot {
       };
     case 'user_joined':
       return { ...snapshot, users: upsert(snapshot.users, event.user) };
+    case 'plugin_runtime_updated':
+      return { ...snapshot, plugin_runtime: event.runtime };
     case 'plugin_installed':
       return {
         ...snapshot,
