@@ -60,6 +60,13 @@ export function ImageLibrary() {
   };
   const pictureMenu = (picture: AssetDto): (MenuItem | 'separator')[] => [
     {
+      label: t('presentation.show'),
+      disabled: !isGm || submit.isPending,
+      onSelect: () => {
+        submit.mutate({ intent: { kind: 'show_image', asset_id: picture.id } });
+      },
+    },
+    {
       label: t('images.toBoard'),
       disabled: boardId === null || submit.isPending,
       onSelect: () => {

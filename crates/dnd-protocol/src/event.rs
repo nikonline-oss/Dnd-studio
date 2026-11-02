@@ -26,6 +26,9 @@ use crate::zone::ZoneDto;
 #[serde(tag = "kind", rename_all = "snake_case")]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum Event {
+    ImagePresentationChanged {
+        presentation: Option<crate::model::PresentedImageDto>,
+    },
     CampaignMetaUpdated {
         campaign: CampaignMeta,
     },

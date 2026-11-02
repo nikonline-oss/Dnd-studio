@@ -503,6 +503,15 @@ pub struct RollStatisticsDto {
     pub natural_twenties: i64,
 }
 
+/// The one image currently presented to the table. The intent ID distinguishes repeat shows.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct PresentedImageDto {
+    pub id: crate::IntentId,
+    pub asset_id: AssetId,
+    pub version: Version,
+}
+
 /// Messages the core posts; the UI localizes them by `code`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "code", rename_all = "snake_case")]

@@ -19,6 +19,8 @@ use crate::zone::ZoneDto;
 pub struct Snapshot {
     /// Sequence number of the last event included (0 = no events yet).
     pub seq: Seq,
+    #[serde(default)]
+    pub presented_image: Option<crate::model::PresentedImageDto>,
     pub campaign: CampaignMeta,
     pub maps: Vec<MapDto>,
     pub tokens: Vec<TokenDto>,

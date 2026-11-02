@@ -773,6 +773,11 @@ impl CampaignDb {
             let plugin: PluginDto = serde_json::from_str(&row.try_get::<String, _>("dto")?)?;
             state.plugins.insert(plugin.id.clone(), plugin);
         }
+        state.presented_image = get_meta(&self.pool, "campaign.presented_image")
+            .await?
+            .map(|json| serde_json::from_str(&json))
+            .transpose()?
+            .flatten();
         state.system_plugin = get_meta(&self.pool, META_SYSTEM_PLUGIN)
             .await?
             .filter(|id| !id.is_empty());
@@ -926,6 +931,14 @@ async fn upsert_board_node(conn: &mut SqliteConnection, node: &BoardNodeDto) -> 
 
 async fn project_event(conn: &mut SqliteConnection, event: &Event, at_ms: i64) -> DbResult<()> {
     match event {
+        Event::ImagePresentationChanged { presentation } => {
+            set_meta(
+                conn,
+                "campaign.presented_image",
+                &serde_json::to_string(presentation)?,
+            )
+            .await
+        }
         Event::CampaignMetaUpdated { campaign } => write_campaign_meta(conn, campaign).await,
         Event::MapCreated { map } | Event::MapUpdated { map } => upsert_map(conn, map).await,
         Event::FogApplied { map_id, op } => {

@@ -73,6 +73,28 @@ fn decide(
     }
 
     match intent {
+        Intent::ShowImage { asset_id } => {
+            let asset = state.assets.get(asset_id).ok_or(RejectReason::NotFound)?;
+            if asset.usage == dnd_protocol::AssetUsage::Audio {
+                return Err(RejectReason::invalid("asset_id"));
+            }
+            let version = state
+                .presented_image
+                .as_ref()
+                .map(|p| bump(p.version))
+                .transpose()?
+                .unwrap_or(Version::INITIAL);
+            Ok(vec![Event::ImagePresentationChanged {
+                presentation: Some(dnd_protocol::model::PresentedImageDto {
+                    id: envelope.intent_id,
+                    asset_id: *asset_id,
+                    version,
+                }),
+            }])
+        }
+        Intent::HideImage { .. } => {
+            Ok(vec![Event::ImagePresentationChanged { presentation: None }])
+        }
         Intent::UpdateCampaignMeta { name, description } => {
             if name.is_none() && description.is_none() {
                 return Err(RejectReason::invalid("intent"));
@@ -373,6 +395,12 @@ fn decide(
 /// Version of the intent's target, for explicit rebasing and offline projections.
 pub fn current_version(state: &GameState, intent: &Intent) -> Result<Version, RejectReason> {
     let version = match intent {
+        Intent::ShowImage { .. } => None,
+        Intent::HideImage { id } => state
+            .presented_image
+            .as_ref()
+            .filter(|p| p.id == *id)
+            .map(|p| p.version),
         Intent::RequestRolls { .. } | Intent::CreatePlaylist { .. } => None,
         Intent::UpdatePlaylist { id, .. }
         | Intent::MovePlaylist { id, .. }

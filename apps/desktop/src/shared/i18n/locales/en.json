@@ -984,5 +984,14 @@
     "allRequests": "All requests ({{count}})",
     "yourTurn": "Your turn: {{name}} · round {{round}}",
     "showTurn": "Show my turn"
+  },
+  "presentation": {
+    "active": "Showing an image to players",
+    "view": "View image",
+    "title": "Image from the GM",
+    "show": "Show to players",
+    "stop": "Stop showing to everyone",
+    "close": "Close image",
+    "failed": "Could not load the image."
   }
 }

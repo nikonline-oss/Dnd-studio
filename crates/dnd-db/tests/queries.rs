@@ -2063,6 +2063,39 @@ async fn effects_are_projected_loaded_and_removed() {
     assert!(db.load_state().await.unwrap().0.effects.is_empty());
 }
 
+#[tokio::test]
+async fn image_presentations_are_projected_loaded_and_cleared() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = new_campaign(&dir).await;
+    assert!(db.load_state().await.unwrap().0.presented_image.is_none());
+    let presentation = dnd_protocol::model::PresentedImageDto {
+        id: IntentId(v7(0xFA01)),
+        asset_id: AssetId(v7(0xFA02)),
+        version: Version(1),
+    };
+    db.project(&[record(
+        1,
+        None,
+        vec![Event::ImagePresentationChanged {
+            presentation: Some(presentation.clone()),
+        }],
+    )])
+    .await
+    .unwrap();
+    assert_eq!(
+        db.load_state().await.unwrap().0.presented_image,
+        Some(presentation)
+    );
+    db.project(&[record(
+        2,
+        None,
+        vec![Event::ImagePresentationChanged { presentation: None }],
+    )])
+    .await
+    .unwrap();
+    assert!(db.load_state().await.unwrap().0.presented_image.is_none());
+}
+
 /// Roll requests (trigger manual rolls) are projected, loaded and updated in place.
 #[tokio::test]
 async fn roll_requests_are_projected_loaded_and_updated() {

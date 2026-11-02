@@ -39,6 +39,14 @@ pub struct IntentEnvelope {
 #[serde(tag = "kind", rename_all = "snake_case")]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum Intent {
+    /// GM / Co-GM: present one image to the table, last-write-wins.
+    ShowImage {
+        asset_id: AssetId,
+    },
+    /// GM / Co-GM: close this presentation for everyone, checked against the active show.
+    HideImage {
+        id: IntentId,
+    },
     UpdateCampaignMeta {
         name: Option<String>,
         description: Option<String>,
@@ -599,6 +607,8 @@ impl Intent {
             Self::UpdatePlaylist { .. } => "update_playlist",
             Self::MovePlaylist { .. } => "move_playlist",
             Self::DeletePlaylist { .. } => "delete_playlist",
+            Self::ShowImage { .. } => "show_image",
+            Self::HideImage { .. } => "hide_image",
             Self::RequestRolls { .. } => "request_rolls",
             Self::FulfillRollRequest { .. } => "fulfill_roll_request",
             Self::CancelRollRequest { .. } => "cancel_roll_request",
@@ -631,7 +641,8 @@ impl Intent {
             | Self::CreateLibraryFolder { .. }
             | Self::CreatePlaylist { .. } => VersionPolicy::Create,
             // Plugins are configuration the GM owns: the last choice wins.
-            Self::MoveToken { .. }
+            Self::ShowImage { .. }
+            | Self::MoveToken { .. }
             | Self::MoveBoardNode { .. }
             | Self::FireTrigger { .. }
             | Self::PlaySound { .. }
@@ -641,7 +652,8 @@ impl Intent {
             | Self::InstallPlugin { .. }
             | Self::UninstallPlugin { .. }
             | Self::SetSystemPlugin { .. } => VersionPolicy::LastWriteWins,
-            Self::UpdatePlaylist { .. }
+            Self::HideImage { .. }
+            | Self::UpdatePlaylist { .. }
             | Self::MovePlaylist { .. }
             | Self::DeletePlaylist { .. }
             | Self::FulfillRollRequest { .. }

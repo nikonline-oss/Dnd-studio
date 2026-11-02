@@ -366,6 +366,96 @@ fn ids<T>(items: &[T], id: impl Fn(&T) -> uuid::Uuid) -> Vec<uuid::Uuid> {
 }
 
 #[tokio::test]
+async fn presenting_hidden_art_grants_only_its_asset_and_revokes_it_when_closed() {
+    let h = Harness::default().await;
+    let created = h.create().await;
+    let gm = h.join_gm(&created).await;
+    let player = h.join_player(&created, "Viewer").await;
+    let session = h.server.app.session(created.session_id).await.unwrap();
+    let mut ws = h.connect(created.session_id, &player.token).await;
+    ws.snapshot().await;
+    let url = h.url(&format!(
+        "/api/sessions/{}/assets/{}",
+        created.session_id,
+        sha(HIDDEN_IMAGE)
+    ));
+    assert!(
+        !h.http
+            .get(&url)
+            .bearer_auth(&player.token)
+            .send()
+            .await
+            .unwrap()
+            .status()
+            .is_success()
+    );
+    let outcome = session
+        .submit(
+            gm_intent(Intent::ShowImage {
+                asset_id: AssetId(v7(0x41)),
+            }),
+            Actor {
+                user_id: gm.user_id,
+                role: gm.role,
+            },
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(matches!(outcome, IntentOutcome::Accepted { .. }));
+    let view = ws.snapshot().await;
+    let show = view.presented_image.unwrap();
+    assert_eq!(show.asset_id, AssetId(v7(0x41)));
+    assert!(view.maps.iter().all(|m| m.id != MapId(v7(HIDDEN_MAP))));
+    assert!(
+        h.http
+            .get(&url)
+            .bearer_auth(&player.token)
+            .send()
+            .await
+            .unwrap()
+            .status()
+            .is_success()
+    );
+    let mut reconnect = h.connect(created.session_id, &player.token).await;
+    assert_eq!(
+        reconnect
+            .snapshot()
+            .await
+            .presented_image
+            .as_ref()
+            .map(|p| p.id),
+        Some(show.id)
+    );
+    let mut hide = gm_intent(Intent::HideImage { id: show.id });
+    hide.expected_version = Some(show.version);
+    let outcome = session
+        .submit(
+            hide,
+            Actor {
+                user_id: gm.user_id,
+                role: gm.role,
+            },
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(matches!(outcome, IntentOutcome::Accepted { .. }));
+    assert!(ws.snapshot().await.presented_image.is_none());
+    assert!(
+        !h.http
+            .get(&url)
+            .bearer_auth(&player.token)
+            .send()
+            .await
+            .unwrap()
+            .status()
+            .is_success()
+    );
+    h.server.stop().await.unwrap();
+}
+
+#[tokio::test]
 async fn manual_check_groups_sync_personal_requests_and_a_gm_only_final_summary() {
     let h = Harness::default().await;
     let created = h.create().await;

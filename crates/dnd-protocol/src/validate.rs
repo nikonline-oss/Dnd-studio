@@ -100,7 +100,9 @@ impl Intent {
                         .flat_map(|l| [("label.x", l.x), ("label.y", l.y)]),
                 )
                 .collect(),
-            Self::RequestRolls { .. }
+            Self::ShowImage { .. }
+            | Self::HideImage { .. }
+            | Self::RequestRolls { .. }
             | Self::UpdateCampaignMeta { .. }
             | Self::CreatePlaylist { .. }
             | Self::UpdatePlaylist { .. }
@@ -208,7 +210,9 @@ impl Intent {
             Self::CreateBoardEdge { id, .. } => Some(id.0),
             Self::CreateZone { id, .. } => Some(id.0),
             Self::CreateTrigger { id, .. } => Some(id.0),
-            Self::UpdateCampaignMeta { .. }
+            Self::ShowImage { .. }
+            | Self::HideImage { .. }
+            | Self::UpdateCampaignMeta { .. }
             | Self::UpdatePlaylist { .. }
             | Self::MovePlaylist { .. }
             | Self::DeletePlaylist { .. }

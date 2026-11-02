@@ -25,6 +25,7 @@ export function TokenInspector() {
   const tokenId = useSelection((s) => s.tokenId);
   const selectToken = useSelection((s) => s.selectToken);
   const openCharacter = useSelection((s) => s.openCharacter);
+  const submit = useSubmitIntent();
   const token = useSnapshotSelect((s) => s.tokens.find((tok) => tok.id === tokenId));
   const characters = useSnapshotSelect((s) => s.characters);
   const effects = (useSnapshotSelect((s) => s.effects) ?? []).filter((e) => e.token === tokenId);
@@ -62,6 +63,19 @@ export function TokenInspector() {
                 {t('tokens.openCharacterSheet')}
               </button>
             )}
+            {isGm && token.asset_id && (
+              <button
+                type="button"
+                disabled={submit.isPending}
+                onClick={() => {
+                  if (token.asset_id)
+                    submit.mutate({ intent: { kind: 'show_image', asset_id: token.asset_id } });
+                }}
+              >
+                {t('presentation.show')}
+              </button>
+            )}
+            <ErrorText error={submit.error} />
           </div>
         </div>
         {isGm ? (

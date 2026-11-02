@@ -16,6 +16,8 @@ export const CHAT_SNAPSHOT_LEN = 200;
  */
 export function applyEvent(snapshot: Snapshot, event: Event): Snapshot {
   switch (event.kind) {
+    case 'image_presentation_changed':
+      return { ...snapshot, presented_image: event.presentation };
     case 'campaign_meta_updated':
       return { ...snapshot, campaign: event.campaign };
     case 'map_created':

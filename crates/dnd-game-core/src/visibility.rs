@@ -188,6 +188,7 @@ impl PlayersSee {
                     .filter(|e| entries.contains(&e.id))
                     .flat_map(|e| journal_pictures(&e.markdown)),
             )
+            .chain(state.presented_image.iter().map(|p| p.asset_id))
             .collect();
         let combats: BTreeSet<_> = state
             .combats
@@ -509,7 +510,8 @@ pub fn filter_for_players(before: &GameState, after: &GameState, batch: &EventBa
                         Event::PlaylistCreated { playlist } | Event::PlaylistUpdated { playlist } => now.playlists.contains(&playlist.id),
                         Event::PlaylistDeleted { id } => was.playlists.contains(id),
                         Event::ChatMessagePosted { message } => chat_visible_to_players(message),
-                        Event::CampaignMetaUpdated { .. }
+                        Event::ImagePresentationChanged { .. }
+                        | Event::CampaignMetaUpdated { .. }
                         | Event::CharacterCreated { .. }
                         | Event::CharacterDeleted { .. }
                         | Event::CharacterUpdated { .. }

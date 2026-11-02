@@ -15,6 +15,7 @@ use dnd_protocol::{
 /// produced events) deterministic.
 #[derive(Clone, Debug, PartialEq)]
 pub struct GameState {
+    pub presented_image: Option<dnd_protocol::model::PresentedImageDto>,
     pub campaign: CampaignMeta,
     pub maps: BTreeMap<MapId, MapDto>,
     pub tokens: BTreeMap<TokenId, TokenDto>,
@@ -63,6 +64,7 @@ impl GameState {
                 description: String::new(),
                 version: Version::INITIAL,
             },
+            presented_image: None,
             maps: BTreeMap::new(),
             tokens: BTreeMap::new(),
             characters: BTreeMap::new(),
@@ -102,6 +104,7 @@ impl GameState {
     #[must_use]
     pub fn from_snapshot(snapshot: Snapshot) -> Self {
         Self {
+            presented_image: snapshot.presented_image,
             campaign: snapshot.campaign,
             maps: snapshot.maps.into_iter().map(|m| (m.id, m)).collect(),
             tokens: snapshot.tokens.into_iter().map(|t| (t.id, t)).collect(),
@@ -182,6 +185,7 @@ impl GameState {
     #[must_use]
     pub fn to_snapshot(&self, seq: Seq) -> Snapshot {
         Snapshot {
+            presented_image: self.presented_image.clone(),
             seq,
             campaign: self.campaign.clone(),
             maps: self.maps.values().cloned().collect(),

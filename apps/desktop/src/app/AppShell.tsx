@@ -16,6 +16,7 @@ import { LibraryPanel } from './LibraryPanel';
 import { OfflineEdits } from '@/features/connect/OfflineEdits';
 import { RollRequests } from '@/features/triggers/RollRequests';
 import { AttentionNotice } from '@/features/notifications/AttentionNotice';
+import { ImagePresentation } from '@/features/images/ImagePresentation';
 import { TemplateDialog } from '@/features/triggers/TemplateDialog';
 import { TriggerEditor } from '@/features/triggers/TriggerEditor';
 import { CharacterEditor } from '@/features/characters/CharacterEditor';
@@ -382,6 +383,9 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
         />
       )}
       <OfflineEdits isGm={campaign.role === 'gm'} campaignPath={campaign.path} />
+      <ErrorBoundary name={t('presentation.title')}>
+        <ImagePresentation key={campaign.path} />
+      </ErrorBoundary>
     </div>
   );
 }

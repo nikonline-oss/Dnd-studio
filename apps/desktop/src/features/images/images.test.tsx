@@ -1,10 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { mockIPC } from '@tauri-apps/api/mocks';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ImageLibrary, pictureMarkdown } from './ImageLibrary';
 import { MediaFolderView } from './MediaFolderView';
+import { ImagePresentation } from './ImagePresentation';
 import type {
   AssetDto,
   CampaignInfo,
@@ -38,8 +39,11 @@ function setup(
   asset: AssetDto | AssetDto[] = hall,
   libraryFolders: LibraryFolderDto[] = [],
   remote: RemoteInfo | null = null,
+  presentation: Snapshot['presented_image'] = null,
+  role: CampaignInfo['role'] = 'gm',
 ) {
   const snapshot: Snapshot = {
+    presented_image: presentation,
     seq: 1,
     campaign: { name: 'C', description: '', version: 1 },
     maps: [],
@@ -62,7 +66,7 @@ function setup(
     chat: [],
     library_folders: libraryFolders,
   };
-  const info: CampaignInfo = { name: 'C', path: '/c', user_id: id(99), role: 'gm' };
+  const info: CampaignInfo = { name: 'C', path: '/c', user_id: id(99), role };
   const sent: IntentEnvelope[] = [];
   const calls: string[] = [];
   mockIPC((cmd, args) => {
@@ -81,8 +85,9 @@ function setup(
   (
     window as unknown as { __TAURI_INTERNALS__: Record<string, unknown> }
   ).__TAURI_INTERNALS__.convertFileSrc = (hash: string) => `asset://${hash}`;
-  render(<QueryClientProvider client={new QueryClient()}>{node}</QueryClientProvider>);
-  return { sent, calls };
+  const client = new QueryClient();
+  render(<QueryClientProvider client={client}>{node}</QueryClientProvider>);
+  return { sent, calls, client, snapshot };
 }
 
 afterEach(() => {
@@ -90,6 +95,79 @@ afterEach(() => {
 });
 
 describe('Image library', () => {
+  it('lets a player dismiss a presentation locally and reopens a new show of the same art', async () => {
+    const presentation = { id: id(500), asset_id: hall.id, version: 1 };
+    const { sent, client, snapshot } = setup(
+      <ImagePresentation />,
+      hall,
+      [],
+      null,
+      presentation,
+      'player',
+    );
+    const dialog = await screen.findByRole('dialog', { name: 'Image from the GM' });
+    expect(screen.getByRole('img', { name: 'Great hall.png' })).toBeInTheDocument();
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(sent).toHaveLength(0);
+    act(() => {
+      client.setQueryData(['snapshot'], {
+        ...snapshot,
+        presented_image: { ...presentation, id: id(501) },
+      });
+    });
+    expect(await screen.findByRole('dialog', { name: 'Image from the GM' })).not.toBe(dialog);
+    act(() => {
+      client.setQueryData(['snapshot'], { ...snapshot, presented_image: null });
+    });
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+  });
+  it('lets a GM close the current show for everyone with its version', async () => {
+    const { sent } = setup(<ImagePresentation />, hall, [], null, {
+      id: id(500),
+      asset_id: hall.id,
+      version: 7,
+    });
+    await userEvent.click(await screen.findByRole('button', { name: 'Stop showing to everyone' }));
+    await waitFor(() => {
+      expect(sent).toHaveLength(1);
+    });
+    expect(sent[0]).toMatchObject({
+      intent: { kind: 'hide_image', id: id(500) },
+      expected_version: 7,
+    });
+  });
+  it('lets a GM dismiss locally and keeps the shared stop command available', async () => {
+    const { sent } = setup(<ImagePresentation />, hall, [], null, {
+      id: id(500),
+      asset_id: hall.id,
+      version: 1,
+    });
+    await screen.findByRole('dialog');
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(sent).toHaveLength(0);
+    expect(screen.getByRole('button', { name: 'Stop showing to everyone' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'View image' }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+  it('keeps the close control accessible if an image cannot load', async () => {
+    setup(
+      <ImagePresentation />,
+      hall,
+      [],
+      null,
+      { id: id(500), asset_id: hall.id, version: 1 },
+      'player',
+    );
+    const image = await screen.findByRole('img', { name: 'Great hall.png' });
+    fireEvent.error(image.querySelector('img') ?? image);
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not load the image.');
+    await userEvent.click(screen.getByRole('button', { name: 'Close image' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
   it('opens the clicked image in its folder tab', async () => {
     setup(<ImageLibrary />);
     await userEvent.click(await screen.findByRole('treeitem', { name: /Great hall/ }));

@@ -100,6 +100,14 @@ export function MediaFolderView({
   const target = menu?.target;
   const items: (MenuItem | 'separator')[] = [];
   if (target) {
+    if (isGm && library === 'images' && 'file' in target) {
+      items.push({
+        label: t('presentation.show'),
+        onSelect: () => {
+          submit.mutate({ intent: { kind: 'show_image', asset_id: target.file.id } });
+        },
+      });
+    }
     items.push({
       label: t('media.open', { defaultValue: 'Open' }),
       onSelect: () => {

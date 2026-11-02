@@ -7,7 +7,7 @@
 ## Конверт
 
 ```json
-{ "v": 10, "id": "<uuid>", "ts": 1760000000000, "seq": null,
+{ "v": 11, "id": "<uuid>", "ts": 1760000000000, "seq": null,
   "session_id": "<uuid>|null", "sender": "<uuid>|null",
   "type": "intent", "payload": { ... } }
 ```
@@ -71,6 +71,14 @@ GM и Co-GM видят всё; игроки и зрители — только �
 Checked-intents `FulfillRollRequest` / `CancelRollRequest`. Только владелец и GM/Co-GM
 получают запрос; отдельный бросок публичный. После последнего ответа/отмены появляется
 единственная GM-only сводка `SystemMessage::RollsCollected`. Подробности и лимиты — ADR-0034.
+
+## Показ картинки (ADR-0035, P1, протокол 11)
+
+`ShowImage { asset_id }` — GM/Co-GM, LWW; `HideImage { id }` — GM/Co-GM, Checked.
+`ImagePresentationChanged { presentation? }` меняет `Snapshot.presented_image`.
+Презентация содержит ID намерения, ID ассета и версию; новый показ того же файла имеет
+новый ID. Активный ассет становится доступен участникам, не раскрывая скрытые сущности
+карты. Реконнект получает текущий показ. Esc — локальное UI-действие без намерения.
 
 ## Статистика бросков (ADR-0033, P1)
 
