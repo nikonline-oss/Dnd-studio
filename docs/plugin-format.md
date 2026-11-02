@@ -809,3 +809,31 @@ Example steps after an interactive spell:
 
 Continuation effects do not recursively fire other triggers. This does not alter
 old manual roll-request steps. See ADR-0042 and ADR-0043.
+
+## Spatial requirements (protocol 17)
+
+A plugin action may declare:
+
+```json
+{
+  "spatial": {
+    "feature": "spatial_rules",
+    "sight": false,
+    "line_of_effect": true,
+    "area_line_of_effect": true
+  }
+}
+```
+
+All flags default to false; `feature` is optional and references a campaign
+feature. `sight` tests source to target or area origin against opaque zones.
+`line_of_effect` tests that path against solid zones. For area actions only,
+`area_line_of_effect` filters each target against solid zones from the area origin.
+The same action requirements govern reaction eligibility and execution. The core
+checks paths before costs; deferred actions recheck them on resolution.
+
+GM/co-GM can draw ordinary zones and set independent `occlusion.sight` and
+`occlusion.effect` flags. Existing zones default to neither. Zones remain private;
+clients only show candidate area targets and the core decides results. See
+[ADR-0044](adr/0044-declarative-spatial-requirements.md) for the conservative 2D
+center-ray model and limitations, including senses, partial cover and lighting.

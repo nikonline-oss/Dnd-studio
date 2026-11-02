@@ -32,6 +32,8 @@ pub struct PluginMechanics {
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct PluginAction {
     #[serde(default)]
+    pub spatial: SpatialRequirements,
+    #[serde(default)]
     pub timing: Option<ActionTiming>,
     #[serde(default)]
     pub interrupt: Option<InterruptEffect>,
@@ -419,4 +421,19 @@ pub struct PendingTriggerRun {
     pub next_step: u16,
     #[cfg_attr(feature = "specta", specta(type = std::collections::BTreeMap<String, specta_typescript::Number>))]
     pub variables: std::collections::BTreeMap<String, i64>,
+}
+
+/// Geometry required by an action, independent of system-specific senses and cover bonuses.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct SpatialRequirements {
+    #[serde(default)]
+    pub feature: Option<String>,
+    #[serde(default)]
+    pub sight: bool,
+    #[serde(default)]
+    pub line_of_effect: bool,
+    #[serde(default)]
+    pub area_line_of_effect: bool,
 }

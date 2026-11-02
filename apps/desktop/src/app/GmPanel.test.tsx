@@ -98,7 +98,7 @@ it('requires review before executing and lists everyone in an area', async () =>
   );
   expect(sent).toEqual([]);
   await userEvent.click(screen.getByRole('button', { name: 'Review action' }));
-  expect(screen.getByText('Characters in area: Mage, Goblin')).toBeInTheDocument();
+  expect(screen.getByText('In area before obstacle checks: Mage, Goblin')).toBeInTheDocument();
   await userEvent.click(screen.getByRole('button', { name: 'Confirm and apply' }));
   await waitFor(() => {
     expect(sent[0]?.intent).toEqual({

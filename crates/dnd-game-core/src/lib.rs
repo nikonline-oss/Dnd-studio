@@ -31,6 +31,7 @@ mod plugins;
 mod recent;
 mod rng;
 mod roll_requests;
+mod spatial;
 mod state;
 mod triggers;
 mod users;

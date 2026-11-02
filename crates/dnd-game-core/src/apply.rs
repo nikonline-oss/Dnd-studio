@@ -404,6 +404,7 @@ fn decide(
 
         Intent::CreateZone { .. }
         | Intent::UpdateZone { .. }
+        | Intent::SetZoneOcclusion { .. }
         | Intent::SetZoneColor { .. }
         | Intent::DeleteZone { .. }
         | Intent::MergeZones { .. } => {
@@ -484,6 +485,7 @@ pub fn current_version(state: &GameState, intent: &Intent) -> Result<Version, Re
         | Intent::CreateBoardEdge { .. }
         | Intent::CreateZone { .. } => None,
         Intent::UpdateZone { id, .. }
+        | Intent::SetZoneOcclusion { id, .. }
         | Intent::SetZoneColor { id, .. }
         | Intent::DeleteZone { id }
         | Intent::MergeZones { into: id, .. } => state.zones.get(id).map(|z| z.version),

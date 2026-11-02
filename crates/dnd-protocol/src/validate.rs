@@ -153,6 +153,7 @@ impl Intent {
             | Self::CreateBoardEdge { .. }
             | Self::UpdateBoardEdge { .. }
             | Self::DeleteBoardEdge { .. }
+            | Self::SetZoneOcclusion { .. }
             | Self::SetZoneColor { .. }
             | Self::DeleteZone { .. }
             | Self::MergeZones { .. }
@@ -265,6 +266,7 @@ impl Intent {
             | Self::UpdateBoardEdge { .. }
             | Self::DeleteBoardEdge { .. }
             | Self::UpdateZone { .. }
+            | Self::SetZoneOcclusion { .. }
             | Self::SetZoneColor { .. }
             | Self::DeleteZone { .. }
             | Self::MergeZones { .. }

@@ -435,6 +435,11 @@ pub enum Intent {
         #[serde(default)]
         label: Option<ZoneLabel>,
     },
+    /// GM/Co-GM: physical blockers on a zone, checked version.
+    SetZoneOcclusion {
+        id: ZoneId,
+        occlusion: crate::ZoneOcclusion,
+    },
     /// Changes RGB color (GM/Co-GM, checked version).
     SetZoneColor {
         id: ZoneId,
@@ -630,6 +635,7 @@ impl Intent {
             Self::CreateZone { .. } => "create_zone",
             Self::UpdateZone { .. } => "update_zone",
             Self::SetZoneColor { .. } => "set_zone_color",
+            Self::SetZoneOcclusion { .. } => "set_zone_occlusion",
             Self::DeleteZone { .. } => "delete_zone",
             Self::MergeZones { .. } => "merge_zones",
             Self::CreateTrigger { .. } => "create_trigger",
@@ -732,6 +738,7 @@ impl Intent {
             | Self::UpdateBoardEdge { .. }
             | Self::DeleteBoardEdge { .. }
             | Self::UpdateZone { .. }
+            | Self::SetZoneOcclusion { .. }
             | Self::SetZoneColor { .. }
             | Self::DeleteZone { .. }
             | Self::MergeZones { .. }

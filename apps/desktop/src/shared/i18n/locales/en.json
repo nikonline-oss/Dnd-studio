@@ -665,7 +665,11 @@
     "editHint": "Click a zone to select it; drag it, its corners or its name. Double-click the name to rename it.",
     "nameOnMap": "Zone name",
     "color": "Color of zone {{name}}",
-    "new": "Draw a zone"
+    "new": "Draw a zone",
+    "blockSight": "Block sight: {{name}}",
+    "blockEffect": "Block effect: {{name}}",
+    "sight": "Blocks sight",
+    "effect": "Blocks effects"
   },
   "conditions": {
     "title": "Conditions",
@@ -1021,7 +1025,7 @@
     "areaHint": "Circle with a radius of {{radius}} cells. Allies may be affected. Choose a free point on the map.",
     "review": "Review action",
     "confirm": "Confirm action",
-    "affected": "Characters in area",
+    "affected": "In area before obstacle checks",
     "costHint": "Resources and eligibility are checked when applying.",
     "apply": "Confirm and apply"
   },

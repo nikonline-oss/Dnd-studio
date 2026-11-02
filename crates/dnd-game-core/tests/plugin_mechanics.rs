@@ -2135,3 +2135,320 @@ fn another_scene_cannot_advance_the_same_characters_budgets_during_a_window() {
     );
     assert_eq!(s.to_snapshot(Seq(0)), before);
 }
+
+fn obstacle(s: &mut GameState, shape: ZoneShape, sight: bool, effect: bool) -> ZoneId {
+    let id = ZoneId(v7(0xabba));
+    run(
+        s,
+        Role::Gm,
+        Intent::CreateZone {
+            id,
+            map_id: mid(0),
+            name: "Obstacle".into(),
+            shape,
+        },
+        None,
+    )
+    .unwrap();
+    run(
+        s,
+        Role::CoGm,
+        Intent::SetZoneOcclusion {
+            id,
+            occlusion: ZoneOcclusion { sight, effect },
+        },
+        Some(Version::INITIAL),
+    )
+    .unwrap();
+    id
+}
+fn between() -> ZoneShape {
+    ZoneShape::Rect {
+        x: 1600,
+        y: 800,
+        width: 100,
+        height: 600,
+    }
+}
+#[test]
+fn physical_effect_blocker_rejects_cast_before_any_cost_even_for_gm() {
+    for role in [Role::Player, Role::Gm, Role::CoGm] {
+        let mut s = world();
+        obstacle(&mut s, between(), false, true);
+        let before = s.clone();
+        let result = run(
+            &mut s,
+            role,
+            Intent::ExecutePluginAction {
+                source: tid(0),
+                action: "fireball".into(),
+                target: None,
+                x: 2240,
+                y: 1120,
+            },
+            None,
+        );
+        assert!(result.is_err());
+        assert_eq!(s.to_snapshot(Seq(0)), before.to_snapshot(Seq(0)));
+    }
+}
+#[test]
+fn opaque_smoke_blocks_counterspell_but_not_fireballs_effect() {
+    let mut s = interruption_world("1");
+    obstacle(&mut s, between(), true, false);
+    cast_fire(&mut s).unwrap();
+    assert!(s.plugin_runtime.action_stacks.is_empty());
+    assert_eq!(slots3(&s, 0), 1);
+    assert_eq!(slots3(&s, 1), 2);
+    assert!(hp(&s, 1) < 100);
+}
+#[test]
+fn area_effect_uses_origin_to_target_ray_and_leaves_targets_behind_wall_unharmed() {
+    let mut s = world();
+    obstacle(
+        &mut s,
+        ZoneShape::Rect {
+            x: 2000,
+            y: 0,
+            width: 100,
+            height: 3000,
+        },
+        false,
+        true,
+    );
+    run(
+        &mut s,
+        Role::Player,
+        Intent::ExecutePluginAction {
+            source: tid(0),
+            action: "fireball".into(),
+            target: None,
+            x: 1800,
+            y: 1120,
+        },
+        None,
+    )
+    .unwrap();
+    assert!(hp(&s, 0) < 100);
+    assert_eq!(hp(&s, 1), 100);
+    assert_eq!(slots3(&s, 0), 1);
+}
+#[test]
+fn opportunity_attack_requires_unblocked_sight_at_reach_exit() {
+    let mut s = world();
+    obstacle(&mut s, between(), true, false);
+    leave(&mut s);
+    assert!(s.plugin_runtime.movements.is_empty());
+    assert_eq!(s.tokens[&tid(1)].x, 10_000);
+    assert_eq!(hp(&s, 1), 100);
+}
+#[test]
+fn opportunity_sight_is_checked_at_boundary_not_at_movement_start() {
+    let mut s = world();
+    s.tokens.get_mut(&tid(1)).unwrap().x = 2000;
+    // Start is visible along y=1120; the diagonal exit is behind this narrow obstacle.
+    obstacle(
+        &mut s,
+        ZoneShape::Rect {
+            x: 1500,
+            y: 1200,
+            width: 100,
+            height: 500,
+        },
+        true,
+        false,
+    );
+    run(
+        &mut s,
+        Role::Gm,
+        Intent::MoveToken {
+            id: tid(1),
+            x: 10_000,
+            y: 10_000,
+        },
+        None,
+    )
+    .unwrap();
+    assert!(s.plugin_runtime.movements.is_empty());
+}
+#[test]
+fn editing_obstacle_revalidates_and_closes_counterspell_window_without_spending_reaction() {
+    let mut s = interruption_world("1");
+    let id = obstacle(&mut s, between(), false, false);
+    cast_fire(&mut s).unwrap();
+    assert_eq!(s.plugin_runtime.action_stacks.len(), 1);
+    let events = run(
+        &mut s,
+        Role::Gm,
+        Intent::SetZoneOcclusion {
+            id,
+            occlusion: ZoneOcclusion {
+                sight: true,
+                effect: false,
+            },
+        },
+        Some(Version(2)),
+    )
+    .unwrap();
+    let stack = s.plugin_runtime.action_stacks[0].clone();
+    assert!(stack.frames[0].offers.is_empty());
+    assert!(!stack.frames[0].awaiting_reactions);
+    assert_eq!(slots3(&s, 0), 2);
+    run(
+        &mut s,
+        Role::Player,
+        Intent::ContinuePluginAction {
+            stack: stack.id,
+            frame: stack.frames[0].id,
+        },
+        None,
+    )
+    .unwrap();
+    assert!(s.plugin_runtime.action_stacks.is_empty());
+    assert_eq!(slots3(&s, 0), 1);
+    assert_eq!(slots3(&s, 1), 2);
+    assert!(
+        events
+            .iter()
+            .any(|e| matches!(e, Event::PluginRuntimeUpdated { .. }))
+    );
+    assert!(
+        snapshot_for_user(Role::Player, PLAYER, &s, Seq(0), [])
+            .zones
+            .is_empty()
+    );
+}
+#[test]
+fn spatial_feature_can_be_disabled_without_changing_obstacles() {
+    let mut s = world();
+    obstacle(&mut s, between(), true, true);
+    let p = s
+        .plugins
+        .get_mut(s.system_plugin.as_ref().unwrap())
+        .unwrap();
+    p.feature_settings.insert("spatial_rules".into(), false);
+    cast_fire(&mut s).unwrap();
+    assert!(hp(&s, 1) < 100);
+}
+#[test]
+fn invalid_spatial_feature_and_area_on_single_target_are_rejected() {
+    let mut s = world();
+    let mut p = s.plugins.remove(s.system_plugin.as_ref().unwrap()).unwrap();
+    let original = p.clone();
+    p.system.as_mut().unwrap().mechanics.actions[0]
+        .spatial
+        .feature = Some("missing".into());
+    assert!(check_plugin(&p).is_err());
+    p = original;
+    p.system.as_mut().unwrap().mechanics.actions[0]
+        .spatial
+        .area_line_of_effect = true;
+    assert!(check_plugin(&p).is_err());
+}
+
+#[test]
+fn newly_blocked_movement_reaction_cannot_be_accepted_but_may_be_declined() {
+    let mut s = world();
+    let id = obstacle(&mut s, between(), false, false);
+    leave(&mut s);
+    assert_eq!(s.plugin_runtime.movements.len(), 1);
+    run(
+        &mut s,
+        Role::Gm,
+        Intent::SetZoneOcclusion {
+            id,
+            occlusion: ZoneOcclusion {
+                sight: true,
+                effect: false,
+            },
+        },
+        Some(Version(2)),
+    )
+    .unwrap();
+    let before = s.to_snapshot(Seq(0));
+    assert!(answer(&mut s, true).is_err());
+    assert_eq!(s.to_snapshot(Seq(0)), before);
+    answer(&mut s, false).unwrap();
+    assert!(s.plugin_runtime.movements.is_empty());
+    assert_eq!(s.tokens[&tid(1)].x, 10_000);
+    assert_eq!(hp(&s, 1), 100);
+}
+
+#[test]
+fn blocker_added_during_cast_preserves_declaration_cost_but_releases_deferred_costs() {
+    let mut s = interruption_world("1");
+    let id = obstacle(&mut s, between(), false, false);
+    cast_fire(&mut s).unwrap();
+    run(
+        &mut s,
+        Role::Gm,
+        Intent::SetZoneOcclusion {
+            id,
+            occlusion: ZoneOcclusion {
+                sight: true,
+                effect: true,
+            },
+        },
+        Some(Version(2)),
+    )
+    .unwrap();
+    let stack = s.plugin_runtime.action_stacks[0].clone();
+    run(
+        &mut s,
+        Role::Player,
+        Intent::ContinuePluginAction {
+            stack: stack.id,
+            frame: stack.frames[0].id,
+        },
+        None,
+    )
+    .unwrap();
+    assert!(s.plugin_runtime.action_stacks.is_empty());
+    assert_eq!(slots3(&s, 0), 2);
+    assert_eq!(hp(&s, 1), 100);
+    let sheet: serde_json::Value = serde_json::from_str(&s.characters[&cid(0)].sheet_json).unwrap();
+    assert_eq!(sheet["automation"]["actions"], 0);
+}
+
+#[test]
+fn declared_counterspell_rechecks_sight_after_its_nested_window() {
+    let mut s = interruption_world("1");
+    edit_sheet(&mut s, 0, |v| {
+        v["automation"]["can_counterspell"] = true.into();
+    });
+    let id = obstacle(&mut s, between(), false, false);
+    cast_fire(&mut s).unwrap();
+    answer_cast(&mut s, true, 100).unwrap();
+    assert_eq!(s.plugin_runtime.action_stacks[0].frames.len(), 2);
+    run(
+        &mut s,
+        Role::Gm,
+        Intent::SetZoneOcclusion {
+            id,
+            occlusion: ZoneOcclusion {
+                sight: true,
+                effect: false,
+            },
+        },
+        Some(Version(2)),
+    )
+    .unwrap();
+    let stack = s.plugin_runtime.action_stacks[0].clone();
+    assert!(stack.frames[1].offers.is_empty());
+    run(
+        &mut s,
+        Role::Gm,
+        Intent::ContinuePluginAction {
+            stack: stack.id,
+            frame: stack.frames[1].id,
+        },
+        None,
+    )
+    .unwrap();
+    assert!(s.plugin_runtime.action_stacks.is_empty());
+    assert_eq!(slots3(&s, 0), 1);
+    assert_eq!(slots3(&s, 1), 2);
+    assert!(hp(&s, 1) < 100);
+    let sheet: serde_json::Value = serde_json::from_str(&s.characters[&cid(1)].sheet_json).unwrap();
+    assert_eq!(sheet["automation"]["reaction"], 0);
+}

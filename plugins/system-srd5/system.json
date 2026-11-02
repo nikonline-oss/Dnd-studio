@@ -654,6 +654,18 @@
         "en": "Own-turn actions, budget resets and at most one spell slot per turn."
       },
       "default_enabled": true
+    },
+    {
+      "id": "spatial_rules",
+      "label": {
+        "ru": "Преграды и обзор",
+        "en": "Obstacles and sight"
+      },
+      "description": {
+        "ru": "Проверять зоны, блокирующие обзор или эффект. Освещение, особые чувства и частичное укрытие мастер учитывает отдельно.",
+        "en": "Check zones blocking sight or effect. Lighting, special senses and partial cover are adjudicated separately."
+      },
+      "default_enabled": true
     }
   ],
   "mechanics": {
@@ -688,6 +700,12 @@
         "timing": {
           "turn": "own",
           "feature": "turn_economy"
+        },
+        "spatial": {
+          "feature": "spatial_rules",
+          "sight": false,
+          "line_of_effect": true,
+          "area_line_of_effect": false
         }
       },
       {
@@ -726,7 +744,13 @@
             "scope": "combat",
             "feature": "turn_economy"
           }
-        ]
+        ],
+        "spatial": {
+          "feature": "spatial_rules",
+          "sight": true,
+          "line_of_effect": true,
+          "area_line_of_effect": false
+        }
       },
       {
         "feature": "area_actions",
@@ -780,6 +804,12 @@
         "timing": {
           "turn": "own",
           "feature": "turn_economy"
+        },
+        "spatial": {
+          "feature": "spatial_rules",
+          "sight": false,
+          "line_of_effect": true,
+          "area_line_of_effect": true
         }
       },
       {
@@ -886,6 +916,12 @@
         "timing": {
           "turn": "own",
           "feature": "turn_economy"
+        },
+        "spatial": {
+          "feature": "spatial_rules",
+          "sight": false,
+          "line_of_effect": true,
+          "area_line_of_effect": false
         }
       },
       {
@@ -944,6 +980,12 @@
           "save_dc": "@automation.spell_dc",
           "cancel_if": "@total < @difficulty",
           "tags": ["con", "counterspell"]
+        },
+        "spatial": {
+          "feature": "spatial_rules",
+          "sight": true,
+          "line_of_effect": true,
+          "area_line_of_effect": false
         }
       }
     ],
@@ -1175,7 +1217,8 @@
           "damage_rules",
           "concentration",
           "counterspell",
-          "turn_economy"
+          "turn_economy",
+          "spatial_rules"
         ]
       }
     ],

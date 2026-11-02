@@ -650,6 +650,8 @@ roll: string | null } |
 { kind: "create_zone"; id: ZoneId; map_id: MapId; name: string; shape: ZoneShape } | { kind: "update_zone"; id: ZoneId; name: string | null; shape: ZoneShape | null; 
 /**  Moves the zone's name: the top-left corner of the text, on the map. */
 label?: ZoneLabel | null } | 
+/**  GM/Co-GM: physical blockers on a zone, checked version. */
+{ kind: "set_zone_occlusion"; id: ZoneId; occlusion: ZoneOcclusion } | 
 /**  Changes RGB color (GM/Co-GM, checked version). */
 { kind: "set_zone_color"; id: ZoneId; color: number } | { kind: "delete_zone"; id: ZoneId } | 
 /**
@@ -971,6 +973,7 @@ export type PlaylistTrackDto = {
 };
 
 export type PluginAction = {
+	spatial?: SpatialRequirements,
 	timing?: ActionTiming | null,
 	interrupt?: InterruptEffect | null,
 	maintain?: MaintainedAction | null,
@@ -1308,6 +1311,14 @@ export type SoundDto = {
 	sting?: boolean,
 };
 
+/**  Geometry required by an action, independent of system-specific senses and cover bonuses. */
+export type SpatialRequirements = {
+	feature?: string | null,
+	sight?: boolean,
+	line_of_effect?: boolean,
+	area_line_of_effect?: boolean,
+};
+
 /**  Where tokens created by a trigger land on the firing map (Units16, ADR-0016). */
 export type SpawnPlacement = 
 /**  An exact point; later tokens fan out around it. */
@@ -1582,6 +1593,8 @@ export type Version = number;
 
 /**  A named zone on a map. */
 export type ZoneDto = {
+	/**  Independent physical blockers. Hidden from players along with the zone. */
+	occlusion?: ZoneOcclusion,
 	id: ZoneId,
 	map_id: MapId,
 	name: string,
@@ -1600,6 +1613,12 @@ export type ZoneId = string;
 export type ZoneLabel = {
 	x: number,
 	y: number,
+};
+
+/**  A filled obstacle: sight (opaque wall/smoke) and effect (solid wall/glass) are independent. */
+export type ZoneOcclusion = {
+	sight?: boolean,
+	effect?: boolean,
 };
 
 /**  The area of a zone, in Units16 (ADR-0016). */

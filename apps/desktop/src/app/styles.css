@@ -4153,3 +4153,13 @@ span.trigger-map-preview {
   font-size: 1.4em;
   color: var(--color-accent);
 }
+
+.zone-occlusion-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+}
+.zone-list .nav-row {
+  flex-wrap: wrap;
+}

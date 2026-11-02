@@ -1862,6 +1862,7 @@ async fn zones_are_projected_loaded_and_go_with_their_map() {
     let db = new_campaign(&dir).await;
     let map = map(0, "Crypt", 1);
     let zone = ZoneDto {
+        occlusion: Default::default(),
         id: ZoneId(v7(0x900)),
         map_id: map.id,
         name: "Altar".into(),
@@ -1884,6 +1885,10 @@ async fn zones_are_projected_loaded_and_go_with_their_map() {
     .unwrap();
     let moved = ZoneDto {
         name: "Old altar".into(),
+        occlusion: ZoneOcclusion {
+            sight: true,
+            effect: false,
+        },
         color: 0x12abef,
         shape: ZoneShape::Rect {
             x: 16,

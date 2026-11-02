@@ -128,7 +128,9 @@ fn rule_matches(
     let Some(reaction) = action(s, &rule.action) else {
         return false;
     };
-    if !eligible(s, reactor, reaction) {
+    if !eligible(s, reactor, reaction)
+        || !crate::spatial::permits(s, reaction, reactor, (caster.x, caster.y))
+    {
         return false;
     }
     if rule.hostile_only
@@ -481,6 +483,18 @@ fn drain(
             let Some(parent) = stack.frames.last().cloned() else {
                 return Err(invalid());
             };
+            let path_valid = action(&work, &frame.action).is_some_and(|a| {
+                work.tokens.get(&frame.source).is_some_and(|source| {
+                    work.tokens.get(&parent.source).is_some_and(|target| {
+                        source.map_id == target.map_id
+                            && crate::spatial::permits(&work, a, source, (target.x, target.y))
+                    })
+                })
+            });
+            if !path_valid {
+                out.push(notice(&work, &frame, ActionResolution::Invalid, rng));
+                continue;
+            }
             let costs = commit(&work, &frame, rng)?;
             emit(&mut work, &mut out, costs);
             let (events, cancelled) = counter(&work, &frame, &parent, at, rng)?;

@@ -346,6 +346,13 @@ fn movement(
                     * map.grid.cell_size
                     * 16.0;
                 if let Some(fraction) = exit_fraction(source, token, x, y, radius, hook.metric) {
+                    let boundary = (
+                        token.x + ((x - token.x) as f64 * fraction).trunc() as i64,
+                        token.y + ((y - token.y) as f64 * fraction).trunc() as i64,
+                    );
+                    if !crate::spatial::permits(state, action, source, boundary) {
+                        continue;
+                    }
                     candidates.push((
                         fraction,
                         source.id,
@@ -524,6 +531,9 @@ pub(crate) fn execute_body(
     {
         return Err(invalid());
     }
+    if !crate::spatial::permits(state, &action, source, (x, y)) {
+        return Err(invalid());
+    }
     let visible = crate::players_state(state);
     if actor.role == Role::Player && target_id.is_some_and(|id| !visible.tokens.contains_key(&id)) {
         return Err(RejectReason::Forbidden);
@@ -603,6 +613,7 @@ pub(crate) fn execute_body(
                     Some(t.id) == target_id
                 }
         })
+        .filter(|t| crate::spatial::area_permits(state, &action, source.map_id, (x, y), (t.x, t.y)))
         .cloned()
         .collect();
     let mut seen = BTreeSet::new();
@@ -1132,9 +1143,11 @@ pub(crate) fn validate(rules: &SystemRulesDto) -> Result<(), RejectReason> {
     }
     let mut ids = BTreeSet::new();
     for a in &m.actions {
-        if a.timing
-            .as_ref()
-            .is_some_and(|t| t.feature.as_deref().is_some_and(|f| !feature(f)))
+        if a.spatial.feature.as_deref().is_some_and(|f| !feature(f))
+            || (a.spatial.area_line_of_effect && a.radius_cells.is_none())
+            || a.timing
+                .as_ref()
+                .is_some_and(|t| t.feature.as_deref().is_some_and(|f| !feature(f)))
             || a.interrupt.as_ref().is_some_and(|r| {
                 !a.reaction_only
                     || a.target_self
@@ -1504,6 +1517,7 @@ fn offer_valid(state: &GameState, pending: &PendingMovement, offer: &ReactionOff
         && enabled(state, Some(&hook.feature))
         && eligible(state, source, action)
         && source.map_id == target.map_id
+        && crate::spatial::permits(state, action, source, (target.x, target.y))
         && expr_holds(state, sc, &BTreeMap::new(), &hook.source_condition)
         && expr_holds(state, tc, &BTreeMap::new(), &hook.target_condition)
 }

@@ -87,11 +87,14 @@ pub use uuid::Uuid;
 pub use validate::{
     MAX_SAFE_INTEGER, SheetFieldError, is_js_safe, is_uuid_v7, sheet_field, validate_sheet_json,
 };
-pub use zone::{MAX_ZONE_PARTS, MAX_ZONE_POINTS, MAX_ZONES_PER_MAP, ZoneDto, ZoneLabel, ZoneShape};
+pub use zone::{
+    MAX_ZONE_PARTS, MAX_ZONE_POINTS, MAX_ZONES_PER_MAP, ZoneDto, ZoneLabel, ZoneOcclusion,
+    ZoneShape,
+};
 
 /// Protocol version. Peers with a different version are refused with
 /// [`RejectReason::ProtocolMismatch`].
-pub const PROTOCOL_VERSION: u32 = 16;
+pub const PROTOCOL_VERSION: u32 = 17;
 
 /// Registers every protocol type that is exported to TypeScript.
 #[cfg(feature = "specta")]

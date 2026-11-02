@@ -190,6 +190,7 @@ pub fn zone_dto() -> impl Strategy<Value = ZoneDto> {
         version(),
     )
         .prop_map(|(id, map_id, name, shape, label, version)| ZoneDto {
+            occlusion: Default::default(),
             id,
             map_id,
             name,

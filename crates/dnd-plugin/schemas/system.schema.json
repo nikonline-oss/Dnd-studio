@@ -524,6 +524,31 @@
                     }
                   }
                 ]
+              },
+              "spatial": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "feature": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/$defs/ident"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "sight": {
+                    "type": "boolean"
+                  },
+                  "line_of_effect": {
+                    "type": "boolean"
+                  },
+                  "area_line_of_effect": {
+                    "type": "boolean"
+                  }
+                }
               }
             },
             "required": [
