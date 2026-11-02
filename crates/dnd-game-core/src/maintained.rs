@@ -185,6 +185,13 @@ pub(crate) fn start(
     let duration = match def.duration {
         EffectDurationDef::Rounds { rounds } => EffectDuration::Rounds { remaining: rounds },
         EffectDurationDef::Turns { turns } => EffectDuration::Turns { remaining: turns },
+        EffectDurationDef::GameTime { seconds } => EffectDuration::GameTime {
+            until: state
+                .campaign
+                .game_clock
+                .seconds
+                .saturating_add(i64::from(seconds)),
+        },
         EffectDurationDef::RealTime { minutes } => EffectDuration::RealTime {
             until_ts: at_ms.saturating_add(i64::from(minutes) * 60_000),
         },

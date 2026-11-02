@@ -107,6 +107,7 @@ function TokenEffect({
   const { t, i18n } = useTranslation();
   const submit = useSubmitIntent();
   const now = useNow();
+  const clock = useSnapshotSelect((s) => s.campaign.game_clock?.seconds ?? 0) ?? 0;
   const lang = i18n.resolvedLanguage ?? i18n.language;
   const duration = effect.duration;
   const left =
@@ -114,13 +115,15 @@ function TokenEffect({
       ? t('effects.roundsLeft', { count: duration.remaining })
       : duration.type === 'turns'
         ? t('effects.turnsLeft', { count: duration.remaining })
-        : duration.type === 'turn_end'
-          ? t('effects.untilTurnEnd')
-          : now === null
-            ? null
-            : t('effects.minutesLeft', {
-                count: Math.max(0, Math.ceil((duration.until_ts - now) / 60_000)),
-              });
+        : duration.type === 'game_time'
+          ? t('effects.gameSecondsLeft', { count: Math.max(0, duration.until - clock) })
+          : duration.type === 'turn_end'
+            ? t('effects.untilTurnEnd')
+            : now === null
+              ? null
+              : t('effects.minutesLeft', {
+                  count: Math.max(0, Math.ceil((duration.until_ts - now) / 60_000)),
+                });
   const condition = effect.condition
     ? labelText(conditions.find((c) => c.id === effect.condition)?.label ?? effect.condition, lang)
     : null;

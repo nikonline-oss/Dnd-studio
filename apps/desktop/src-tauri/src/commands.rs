@@ -599,6 +599,13 @@ pub async fn remote_pending(state: State<'_, AppState>) -> Result<PendingEdits, 
                             .find(|entity| entity.get("id").and_then(|v| v.as_str()) == Some(id))?,
                         None if matches!(
                             op.envelope.intent,
+                            dnd_protocol::Intent::AdvanceGameTime { .. }
+                        ) =>
+                        {
+                            snapshot.get("campaign")?.get("game_clock")?
+                        }
+                        None if matches!(
+                            op.envelope.intent,
                             dnd_protocol::Intent::UpdateCampaignMeta { .. }
                         ) =>
                         {

@@ -1147,6 +1147,19 @@
         "items": []
       },
       {
+        "id": "clock",
+        "kind": "clock",
+        "label": {
+          "ru": "Время мира",
+          "en": "World time"
+        },
+        "description": {
+          "ru": "Время кампании продвигает мастер. Реальные минуты за компьютером его не меняют.",
+          "en": "The GM advances campaign time explicitly; wall time does not change it."
+        },
+        "items": ["6", "60", "600", "3600"]
+      },
+      {
         "id": "reactions",
         "kind": "reactions",
         "label": {

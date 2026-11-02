@@ -694,7 +694,10 @@
     "minutesLeft_one": "{{count}} min left",
     "minutesLeft_other": "{{count}} min left",
     "remove": "Remove the effect",
-    "untilTurnEnd": "Until the current turn ends"
+    "untilTurnEnd": "Until the current turn ends",
+    "gameTime": "Game time",
+    "gameSeconds": "Game seconds",
+    "gameSecondsLeft": "{{count}} game seconds remaining"
   },
   "items": {
     "name": "Item",
@@ -852,7 +855,7 @@
     "attackHit": "Hits when",
     "attackHint": "Rolled per target; the damage applies only when the condition holds (@total is the roll, @ fields are the target's).",
     "manualRoll": "Players roll it themselves",
-    "manualHint": "Each target's controller gets a die by the status bar; the damage waits for their roll. GM roles can cancel a request or undo its damage.",
+    "manualHint": "The script waits for every selected character. Next steps can use @roll.count, @roll.total and @roll.delta. GM cancellation aborts the continuation.",
     "when": "If",
     "up": "Up",
     "down": "Down",
@@ -889,7 +892,8 @@
     "zoneName": "Zone name",
     "zoneNameHint": "Matches this exact zone name on each selected map (case-sensitive, ignoring surrounding spaces).",
     "zoneRequired": "Select a zone name.",
-    "pluginAwaitHint": "Following steps wait for reactions. Branch with @action.completed == 1 or @action.countered == 1."
+    "pluginAwaitHint": "Following steps wait for reactions. Branch with @action.completed == 1 or @action.countered == 1.",
+    "waitingRolls": "{{name}}: waiting for {{pending}} of {{count}} rolls"
   },
   "images": {
     "title": "Pictures",
@@ -1038,5 +1042,13 @@
     "resetOwn": "At the start of your turn",
     "resetEvery": "At the start of every turn",
     "reserved": "Reserved: {{count}}"
+  },
+  "gameClock": {
+    "elapsed": "World time: {{seconds}} seconds since campaign start",
+    "manual": "Advance time explicitly. Game-time effects expire against this counter.",
+    "waiting": "Resolve pending actions and roll requests first.",
+    "advance": "+{{seconds}} sec",
+    "review": "Advance by {{seconds}} seconds to {{until}}? Expired game-time effects will end.",
+    "confirm": "Advance time"
   }
 }

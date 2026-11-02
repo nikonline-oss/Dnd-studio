@@ -61,6 +61,7 @@ impl GameState {
         Self {
             plugin_runtime: Default::default(),
             campaign: CampaignMeta {
+                game_clock: Default::default(),
                 name: name.into(),
                 description: String::new(),
                 version: Version::INITIAL,

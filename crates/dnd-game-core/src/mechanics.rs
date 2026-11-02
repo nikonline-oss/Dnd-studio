@@ -1183,6 +1183,9 @@ pub(crate) fn validate(rules: &SystemRulesDto) -> Result<(), RejectReason> {
                         EffectDurationDef::Turns { turns } => {
                             !(1..=MAX_EFFECT_SPAN).contains(&turns)
                         }
+                        EffectDurationDef::GameTime { seconds } => {
+                            !(1..=604_800).contains(&seconds)
+                        }
                         EffectDurationDef::RealTime { minutes } => {
                             !(1..=MAX_EFFECT_MINUTES).contains(&minutes)
                         }
@@ -1277,6 +1280,7 @@ pub(crate) fn validate(rules: &SystemRulesDto) -> Result<(), RejectReason> {
             })
             || section.items.len() > 128
             || section.items.iter().any(|id| match section.kind {
+                GmPanelKind::Clock => !id.parse::<u32>().is_ok_and(|n| (1..=604_800).contains(&n)),
                 GmPanelKind::Rules => !feature(id),
                 GmPanelKind::Actions => !m.actions.iter().any(|a| &a.id == id && !a.reaction_only),
                 _ => true,

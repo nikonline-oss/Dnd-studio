@@ -125,6 +125,7 @@ fn decide(
     }
 
     match intent {
+        Intent::AdvanceGameTime { seconds } => crate::game_time::advance(state, *seconds),
         Intent::UpdateCampaignMeta { name, description } => {
             if name.is_none() && description.is_none() {
                 return Err(RejectReason::invalid("intent"));
@@ -437,6 +438,7 @@ pub fn current_version(state: &GameState, intent: &Intent) -> Result<Version, Re
         Intent::UpdatePlaylist { id, .. }
         | Intent::MovePlaylist { id, .. }
         | Intent::DeletePlaylist { id } => state.playlists.get(id).map(|p| p.version),
+        Intent::AdvanceGameTime { .. } => Some(state.campaign.game_clock.version),
         Intent::UpdateCampaignMeta { .. } => Some(state.campaign.version),
         Intent::UpdateMap { id, .. } | Intent::DeleteMap { id } => {
             state.maps.get(id).map(|m| m.version)

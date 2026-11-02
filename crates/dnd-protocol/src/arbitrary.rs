@@ -882,6 +882,7 @@ pub fn event() -> impl Strategy<Value = Event> {
         (name(), name(), version()).prop_map(|(name, description, version)| {
             Event::CampaignMetaUpdated {
                 campaign: CampaignMeta {
+                    game_clock: Default::default(),
                     name,
                     description,
                     version,

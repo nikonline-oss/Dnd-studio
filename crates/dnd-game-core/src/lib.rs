@@ -15,6 +15,7 @@ mod chat;
 mod combat;
 mod economy;
 mod effects;
+mod game_time;
 pub use economy::view as turn_economy_view;
 mod evolve;
 mod fog;

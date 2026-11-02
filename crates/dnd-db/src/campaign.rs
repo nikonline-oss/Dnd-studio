@@ -515,6 +515,11 @@ impl CampaignDb {
     pub async fn load_state(&self) -> DbResult<(GameState, Seq)> {
         let mut state = GameState::new("");
         state.campaign = CampaignMeta {
+            game_clock: get_meta(&self.pool, "game_clock")
+                .await?
+                .map(|value| serde_json::from_str(&value))
+                .transpose()?
+                .unwrap_or_default(),
             name: get_meta(&self.pool, META_NAME).await?.unwrap_or_default(),
             description: get_meta(&self.pool, META_DESCRIPTION)
                 .await?
@@ -932,6 +937,9 @@ async fn upsert_board_node(conn: &mut SqliteConnection, node: &BoardNodeDto) -> 
 
 async fn project_event(conn: &mut SqliteConnection, event: &Event, at_ms: i64) -> DbResult<()> {
     match event {
+        Event::GameTimeAdvanced { clock } => {
+            set_meta(conn, "game_clock", &serde_json::to_string(clock)?).await
+        }
         Event::CampaignMetaUpdated { campaign } => write_campaign_meta(conn, campaign).await,
         Event::MapCreated { map } | Event::MapUpdated { map } => upsert_map(conn, map).await,
         Event::FogApplied { map_id, op } => {
@@ -1380,6 +1388,12 @@ async fn upsert_character(conn: &mut SqliteConnection, c: &CharacterDto) -> DbRe
 }
 
 async fn write_campaign_meta(conn: &mut SqliteConnection, campaign: &CampaignMeta) -> DbResult<()> {
+    set_meta(
+        conn,
+        "game_clock",
+        &serde_json::to_string(&campaign.game_clock)?,
+    )
+    .await?;
     set_meta(conn, META_NAME, &campaign.name).await?;
     set_meta(conn, META_DESCRIPTION, &campaign.description).await?;
     set_meta(conn, META_VERSION, &campaign.version.0.to_string()).await

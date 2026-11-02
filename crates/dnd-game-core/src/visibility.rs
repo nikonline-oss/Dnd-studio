@@ -412,6 +412,7 @@ pub fn may_change_visibility(batch: &EventBatch) -> bool {
                 | Event::FogReset { .. }
                 | Event::CharacterCreated { .. }
                 | Event::CharacterUpdated { .. }
+                | Event::GameTimeAdvanced { .. }
                 | Event::CampaignMetaUpdated { .. }
                 | Event::UserJoined { .. }
                 | Event::CombatUpdated { .. }
@@ -603,7 +604,8 @@ pub fn filter_for_players(before: &GameState, after: &GameState, batch: &EventBa
                         Event::PlaylistCreated { playlist } | Event::PlaylistUpdated { playlist } => now.playlists.contains(&playlist.id),
                         Event::PlaylistDeleted { id } => was.playlists.contains(id),
                         Event::ChatMessagePosted { message } => chat_visible_to_players(message),
-                        Event::CampaignMetaUpdated { .. }
+                        Event::GameTimeAdvanced { .. }
+                        | Event::CampaignMetaUpdated { .. }
                         | Event::CharacterCreated { .. }
                         | Event::CharacterDeleted { .. }
                         | Event::CharacterUpdated { .. }

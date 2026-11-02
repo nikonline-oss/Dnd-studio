@@ -79,6 +79,7 @@ async fn every_event_kind_is_projected() {
     let dir = tempfile::tempdir().unwrap();
     let db = new_campaign(&dir).await;
     let campaign = CampaignMeta {
+        game_clock: Default::default(),
         name: "Renamed".into(),
         description: "Desc".into(),
         version: Version(2),
@@ -2131,6 +2132,7 @@ async fn plugin_runtime_is_projected_and_loaded() {
     let db = new_campaign(&dir).await;
     let runtime = PluginRuntime {
         trigger_runs: vec![PendingTriggerRun {
+            rolls: vec![RollRequestId(v7(0x7777))],
             action: IntentId(v7(0x9920)),
             trigger: TriggerId(v7(0x9930)),
             version: Version::INITIAL,

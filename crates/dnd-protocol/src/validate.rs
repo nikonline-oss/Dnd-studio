@@ -100,6 +100,7 @@ impl Intent {
                         .flat_map(|l| [("label.x", l.x), ("label.y", l.y)]),
                 )
                 .collect(),
+            Self::AdvanceGameTime { seconds } => vec![("seconds", *seconds)],
             Self::UpdateCampaignMeta { .. }
             | Self::CreatePlaylist { .. }
             | Self::UpdatePlaylist { .. }
@@ -216,7 +217,8 @@ impl Intent {
             Self::CreateBoardEdge { id, .. } => Some(id.0),
             Self::CreateZone { id, .. } => Some(id.0),
             Self::CreateTrigger { id, .. } => Some(id.0),
-            Self::UpdateCampaignMeta { .. }
+            Self::AdvanceGameTime { .. }
+            | Self::UpdateCampaignMeta { .. }
             | Self::UpdatePlaylist { .. }
             | Self::MovePlaylist { .. }
             | Self::DeletePlaylist { .. }

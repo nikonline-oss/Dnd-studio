@@ -459,6 +459,21 @@
                                 "maximum": 10080
                               }
                             }
+                          },
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": ["type", "seconds"],
+                            "properties": {
+                              "type": {
+                                "const": "game_time"
+                              },
+                              "seconds": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 604800
+                              }
+                            }
                           }
                         ]
                       }
@@ -789,13 +804,29 @@
                 "$ref": "#/$defs/label"
               },
               "kind": {
-                "enum": ["overview", "characters", "reactions", "rules", "actions", "maintained"]
+                "enum": [
+                  "overview",
+                  "characters",
+                  "reactions",
+                  "rules",
+                  "actions",
+                  "maintained",
+                  "clock"
+                ]
               },
               "items": {
                 "type": "array",
                 "maxItems": 128,
                 "items": {
-                  "$ref": "#/$defs/ident"
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/ident"
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^[1-9][0-9]{0,5}$"
+                    }
+                  ]
                 }
               }
             }

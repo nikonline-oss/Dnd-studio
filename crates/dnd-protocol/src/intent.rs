@@ -39,6 +39,11 @@ pub struct IntentEnvelope {
 #[serde(tag = "kind", rename_all = "snake_case")]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum Intent {
+    /// GM/Co-GM: advance fictional time by 1..=604800 seconds, checked clock version.
+    AdvanceGameTime {
+        #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
+        seconds: i64,
+    },
     UpdateCampaignMeta {
         name: Option<String>,
         description: Option<String>,
@@ -573,6 +578,7 @@ impl Intent {
     pub fn kind(&self) -> &'static str {
         match self {
             Self::UpdateCampaignMeta { .. } => "update_campaign_meta",
+            Self::AdvanceGameTime { .. } => "advance_game_time",
             Self::CreateMap { .. } => "create_map",
             Self::UpdateMap { .. } => "update_map",
             Self::DeleteMap { .. } => "delete_map",
@@ -708,6 +714,7 @@ impl Intent {
             | Self::DeletePlaylist { .. }
             | Self::FulfillRollRequest { .. }
             | Self::CancelRollRequest { .. }
+            | Self::AdvanceGameTime { .. }
             | Self::UpdateCampaignMeta { .. }
             | Self::UpdateMap { .. }
             | Self::DeleteMap { .. }

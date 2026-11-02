@@ -52,11 +52,13 @@ export function incompleteSteps(def: TriggerDef, snapshot: Snapshot): number[] {
         break;
       case 'apply_effect': {
         const span =
-          action.duration.type === 'real_time'
-            ? action.duration.minutes
-            : action.duration.type === 'rounds'
-              ? action.duration.rounds
-              : action.duration.turns;
+          action.duration.type === 'game_time'
+            ? action.duration.seconds
+            : action.duration.type === 'real_time'
+              ? action.duration.minutes
+              : action.duration.type === 'rounds'
+                ? action.duration.rounds
+                : action.duration.turns;
         incomplete =
           !action.label.trim() ||
           (action.resource === null) !== (action.dice === null) ||

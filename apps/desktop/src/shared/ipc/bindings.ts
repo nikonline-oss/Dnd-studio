@@ -385,6 +385,7 @@ export type CampaignInfo = {
 
 /**  Campaign-wide metadata (singleton entity). */
 export type CampaignMeta = {
+	game_clock?: GameClock,
 	name: string,
 	description: string,
 	version: Version,
@@ -578,6 +579,8 @@ export type DistanceMetric = "euclidean" | "chebyshev";
 
 /**  How a [`TokenEffectDto`] ends. */
 export type EffectDuration = 
+/**  Fictional elapsed campaign seconds. Only explicit game time advancement expires it. */
+{ type: "game_time"; until: number } | 
 /**  End of the recorded turn, including a one-combatant round wrap. */
 { type: "turn_end"; combat: CombatId; turn: CombatantId; round: number } | 
 /**  Combat rounds on the token's map; `remaining` counts down when a new round starts. */
@@ -592,6 +595,8 @@ export type EffectDuration =
 
 /**  The duration a trigger gives to an effect (the entity stores the countdown). */
 export type EffectDurationDef = 
+/**  Fictional seconds, independent of wall time and combat countdowns. */
+{ type: "game_time"; seconds: number } | 
 /**  Combat rounds on the token's map. */
 { type: "rounds"; rounds: number } | 
 /**  The token's own turns. */
@@ -603,7 +608,7 @@ export type EffectDurationDef =
 export type EffectId = string;
 
 /**  A fact about a state change. */
-export type Event = { kind: "plugin_runtime_updated"; runtime: PluginRuntime } | { kind: "campaign_meta_updated"; campaign: CampaignMeta } | { kind: "map_created"; map: MapDto } | { kind: "map_updated"; map: MapDto } | { kind: "map_deleted"; id: MapId } | 
+export type Event = { kind: "game_time_advanced"; clock: GameClock } | { kind: "plugin_runtime_updated"; runtime: PluginRuntime } | { kind: "campaign_meta_updated"; campaign: CampaignMeta } | { kind: "map_created"; map: MapDto } | { kind: "map_updated"; map: MapDto } | { kind: "map_deleted"; id: MapId } | 
 /**  Appended to the map's fog; applying the same `op.id` twice adds it once. */
 { kind: "fog_applied"; map_id: MapId; op: FogOp } | 
 /**  The map's fog now has no operations, only the initial state. */
@@ -719,6 +724,12 @@ export type FogShape =
 /**  Flat `[x0, y0, x1, y1, …]`, 1..=[`MAX_BRUSH_POINTS`] points. */
 points: number[] };
 
+/**  Elapsed fictional seconds since the campaign epoch; independent from wall time. */
+export type GameClock = {
+	seconds: number,
+	version: Version,
+};
+
 /**
  *  Emitted after every accepted intent with the events it produced — only once they are
  *  committed to the campaign file (ADR-0014).
@@ -731,7 +742,7 @@ export type GameEventsEmitted = EventBatch;
  */
 export type GameSnapshotReplaced = Snapshot;
 
-export type GmPanelKind = "overview" | "characters" | "reactions" | "maintained" | "rules" | "actions";
+export type GmPanelKind = "clock" | "overview" | "characters" | "reactions" | "maintained" | "rules" | "actions";
 
 /**  Ordered, declarative cards in the GM dashboard; never executable markup. */
 export type GmPanelSection = {
@@ -763,7 +774,9 @@ export type HostedSession = {
 };
 
 /**  A request to change state. Update intents carry only the fields to change (`null` = keep). */
-export type Intent = { kind: "update_campaign_meta"; name: string | null; description: string | null } | { kind: "create_map"; id: MapId; name: string; background_asset_id: AssetId | null; 
+export type Intent = 
+/**  GM/Co-GM: advance fictional time by 1..=604800 seconds, checked clock version. */
+{ kind: "advance_game_time"; seconds: number } | { kind: "update_campaign_meta"; name: string | null; description: string | null } | { kind: "create_map"; id: MapId; name: string; background_asset_id: AssetId | null; 
 /**  Logical size (ADR-0016), `1..=MAX_MAP_SIZE`; fixed for the life of the map. */
 width: number; height: number; grid: Grid; visible_to_players: boolean } | { kind: "update_map"; id: MapId; name: string | null; grid: Grid | null; visible_to_players: boolean | null } | { kind: "delete_map"; id: MapId } | 
 /**
@@ -1248,6 +1261,8 @@ export type PendingMovement = {
 
 /**  Frozen position and variables of a trigger waiting for its plugin action. */
 export type PendingTriggerRun = {
+	/**  Nonempty for a manual group; empty for a plugin action window (legacy default). */
+	rolls?: RollRequestId[],
 	action: IntentId,
 	trigger: TriggerId,
 	version: Version,

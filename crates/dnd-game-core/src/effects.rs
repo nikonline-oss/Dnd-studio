@@ -115,7 +115,9 @@ fn countdown(work: &GameState, id: dnd_protocol::EffectId) -> Option<Event> {
     let effect = work.effects.get(&id)?;
     let remaining = match effect.duration {
         EffectDuration::Rounds { remaining } | EffectDuration::Turns { remaining } => remaining,
-        EffectDuration::RealTime { .. } | EffectDuration::TurnEnd { .. } => return None,
+        EffectDuration::GameTime { .. }
+        | EffectDuration::RealTime { .. }
+        | EffectDuration::TurnEnd { .. } => return None,
     };
     if remaining <= 1 {
         return Some(Event::TokenEffectRemoved { id, expired: true });
@@ -127,7 +129,9 @@ fn countdown(work: &GameState, id: dnd_protocol::EffectId) -> Option<Event> {
         EffectDuration::Turns { .. } => EffectDuration::Turns {
             remaining: remaining - 1,
         },
-        EffectDuration::RealTime { .. } | EffectDuration::TurnEnd { .. } => return None,
+        EffectDuration::GameTime { .. }
+        | EffectDuration::RealTime { .. }
+        | EffectDuration::TurnEnd { .. } => return None,
     };
     let mut next = effect.clone();
     next.duration = duration;

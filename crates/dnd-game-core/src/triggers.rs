@@ -376,7 +376,15 @@ fn run(
     let Some(trigger) = work.triggers.get(&id).cloned() else {
         return Vec::new();
     };
-    if !available(&trigger, firing.map_id) {
+    if !available(&trigger, firing.map_id)
+        || work.plugin_runtime.trigger_runs.iter().any(|r| {
+            r.trigger == id
+                && r.map == firing.map_id
+                && r.character == firing.character
+                && r.token == firing.token
+                && !r.rolls.is_empty()
+        })
+    {
         return Vec::new();
     }
     let mut events = vec![Event::TriggerFired {
@@ -404,6 +412,20 @@ fn run(
             next.fired = true;
         }
         events.push(Event::TriggerUpdated { trigger: next });
+        // Marking another map as fired does not edit the script definition.
+        let mut runtime = work.plugin_runtime.clone();
+        let mut changed = false;
+        for run in &mut runtime.trigger_runs {
+            if run.trigger == id && run.version == trigger.version {
+                run.version = version;
+                changed = true;
+            }
+        }
+        if changed {
+            events.push(Event::PluginRuntimeUpdated {
+                runtime: Box::new(runtime),
+            });
+        }
     }
     for event in &events {
         evolve(work, event);
@@ -447,11 +469,84 @@ fn run_steps(
             .iter()
             .map(|s| s.id)
             .collect();
+        let manual = matches!(
+            step.action,
+            TriggerAction::ChangeResource { manual: true, .. }
+        );
+        if (manual || matches!(step.action, TriggerAction::PluginAction { .. }))
+            && work.plugin_runtime.trigger_runs.len() >= 128
+        {
+            break;
+        }
         let events = perform(work, trigger, &step.action, firing, vars, ts_ms, rng);
         let succeeded = !events.is_empty();
         for event in events {
             evolve(work, &event);
             out.push(event);
+        }
+        if manual {
+            let pairs = if let TriggerAction::ChangeResource { target, .. } = &step.action {
+                let activator = firing.character.and_then(|id| work.characters.get(&id));
+                target_pairs(work, *target, firing, activator)
+            } else {
+                Vec::new()
+            };
+            let rolls: Vec<_> = work
+                .roll_requests
+                .values()
+                .filter(|request| {
+                    request.trigger == trigger.id
+                        && request.status == RollRequestStatus::Pending
+                        && pairs
+                            .iter()
+                            .any(|(character, _)| character.id == request.character)
+                })
+                .map(|request| request.id)
+                .collect();
+            if !rolls.is_empty() {
+                let Some(wait_id) = (0..32).find_map(|_| {
+                    let id = dnd_protocol::IntentId(fresh_id(rng));
+                    (!work
+                        .plugin_runtime
+                        .trigger_runs
+                        .iter()
+                        .any(|r| r.action == id)
+                        && !work.plugin_runtime.action_stacks.iter().any(|s| s.id == id))
+                    .then_some(id)
+                }) else {
+                    break;
+                };
+                // Keep the barrier even at the last step to prevent duplicate re-fires.
+                work.plugin_runtime
+                    .trigger_runs
+                    .push(dnd_protocol::PendingTriggerRun {
+                        rolls: rolls.clone(),
+                        action: wait_id,
+                        trigger: trigger.id,
+                        version: work
+                            .triggers
+                            .get(&trigger.id)
+                            .map_or(trigger.version, |t| t.version),
+                        map: firing.map_id,
+                        character: firing.character,
+                        token: firing.token,
+                        next_step: u16::try_from(index + 1).unwrap_or(u16::MAX),
+                        variables: vars.clone(),
+                    });
+                out.push(crate::mechanics::runtime_event(work));
+                break;
+            }
+            if work
+                .roll_requests
+                .values()
+                .any(|r| r.trigger == trigger.id && r.status == RollRequestStatus::Pending)
+            {
+                break;
+            }
+            // No targets or a failed step must not reuse previous roll results.
+            for name in ["count", "total", "delta"] {
+                vars.insert(format!("roll.{name}"), 0);
+            }
         }
         if matches!(step.action, TriggerAction::PluginAction { .. }) {
             if let Some(stack) = work
@@ -464,6 +559,7 @@ fn run_steps(
                     && work.plugin_runtime.trigger_runs.len() < 128
                 {
                     let run = dnd_protocol::PendingTriggerRun {
+                        rolls: Vec::new(),
                         action: stack.id,
                         trigger: trigger.id,
                         version: work
@@ -536,6 +632,87 @@ pub(crate) fn resume(
                     .get(&id)
                     .is_some_and(|t| run.character.is_none_or(|c| t.character_id == Some(c)))
             });
+        if !run.rolls.is_empty() {
+            let requests: Option<Vec<_>> = run
+                .rolls
+                .iter()
+                .map(|id| work.roll_requests.get(id))
+                .collect();
+            let valid = trigger.is_some()
+                && context_exists
+                && requests.as_ref().is_some_and(|requests| {
+                    requests
+                        .iter()
+                        .all(|r| r.status != RollRequestStatus::Cancelled)
+                });
+            if valid
+                && requests.as_ref().is_some_and(|requests| {
+                    requests
+                        .iter()
+                        .any(|r| r.status == RollRequestStatus::Pending)
+                })
+            {
+                continue;
+            }
+            let mut vars = run.variables.clone();
+            if valid {
+                let requests = requests.unwrap_or_default();
+                let sum = |f: fn(&RollRequestDto) -> Option<i64>| {
+                    requests
+                        .iter()
+                        .fold(0_i64, |sum, r| sum.saturating_add(f(r).unwrap_or(0)))
+                        .clamp(
+                            -dnd_protocol::validate::MAX_SAFE_INTEGER,
+                            dnd_protocol::validate::MAX_SAFE_INTEGER,
+                        )
+                };
+                vars.insert(
+                    "roll.count".into(),
+                    i64::try_from(requests.len()).unwrap_or(0),
+                );
+                vars.insert("roll.total".into(), sum(|r| r.total));
+                vars.insert("roll.delta".into(), sum(|r| r.delta));
+            }
+            work.plugin_runtime
+                .trigger_runs
+                .retain(|r| r.action != run.action);
+            out.push(crate::mechanics::runtime_event(&work));
+            if valid {
+                if let Some(trigger) = trigger {
+                    let firing = Firing {
+                        map_id: run.map,
+                        character: run.character,
+                        token: run.token,
+                        total: vars.get("total").copied(),
+                    };
+                    out.extend(run_steps(
+                        &mut work,
+                        &trigger,
+                        &firing,
+                        &mut vars,
+                        usize::from(run.next_step),
+                        ts_ms,
+                        rng,
+                    ));
+                }
+            } else {
+                // Drop remaining obligations without reversing previously completed requests.
+                for id in &run.rolls {
+                    if let Some(request) = work.roll_requests.get(id)
+                        && request.status == RollRequestStatus::Pending
+                        && let Ok(version) = bump(request.version)
+                    {
+                        let mut request = request.clone();
+                        request.status = RollRequestStatus::Cancelled;
+                        request.version = version;
+                        let event = Event::RollRequestUpdated { request };
+                        evolve(&mut work, &event);
+                        out.push(event);
+                    }
+                }
+            }
+            continue;
+        }
         let result = results.get(&run.action).copied();
         if trigger.is_some()
             && context_exists
@@ -916,6 +1093,13 @@ fn apply_effect(
     let duration = match duration {
         EffectDurationDef::Rounds { rounds } => EffectDuration::Rounds { remaining: rounds },
         EffectDurationDef::Turns { turns } => EffectDuration::Turns { remaining: turns },
+        EffectDurationDef::GameTime { seconds } => EffectDuration::GameTime {
+            until: work
+                .campaign
+                .game_clock
+                .seconds
+                .saturating_add(i64::from(seconds)),
+        },
         EffectDurationDef::RealTime { minutes } => EffectDuration::RealTime {
             until_ts: ts_ms.saturating_add(i64::from(minutes).saturating_mul(60_000)),
         },
@@ -1258,8 +1442,18 @@ fn request_rolls(
         if duplicate {
             continue;
         }
+        let Some(id) = (0..32).find_map(|_| {
+            let id = RollRequestId(fresh_id(rng));
+            (!work.roll_requests.contains_key(&id)
+                && !events
+                    .iter()
+                    .any(|e| matches!(e, Event::RollRequested { request } if request.id == id)))
+            .then_some(id)
+        }) else {
+            break;
+        };
         let request = RollRequestDto {
-            id: RollRequestId(fresh_id(rng)),
+            id,
             label: trigger.definition.name.clone(),
             trigger: trigger.id,
             character: character.id,
@@ -1604,6 +1798,9 @@ fn valid_action(state: &GameState, action: &mut TriggerAction) -> Result<(), Rej
                 dnd_protocol::EffectDurationDef::Rounds { rounds }
                 | dnd_protocol::EffectDurationDef::Turns { turns: rounds } => {
                     *rounds >= 1 && *rounds <= dnd_protocol::MAX_EFFECT_SPAN
+                }
+                dnd_protocol::EffectDurationDef::GameTime { seconds } => {
+                    (1..=604_800).contains(seconds)
                 }
                 dnd_protocol::EffectDurationDef::RealTime { minutes } => {
                     *minutes >= 1 && *minutes <= dnd_protocol::MAX_EFFECT_MINUTES

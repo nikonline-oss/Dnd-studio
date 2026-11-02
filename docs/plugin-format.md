@@ -837,3 +837,34 @@ GM/co-GM can draw ordinary zones and set independent `occlusion.sight` and
 clients only show candidate area targets and the core decides results. See
 [ADR-0044](adr/0044-declarative-spatial-requirements.md) for the conservative 2D
 center-ray model and limitations, including senses, partial cover and lighting.
+
+## Ручные броски и игровое время (protocol 18)
+
+Ручной `change_resource` теперь ждёт всех запросов выбранных персонажей. В следующих
+`when` доступны `@roll.count`, `@roll.total`, `@roll.delta` — количество ответов,
+сумма бросков и сумма изменений ресурса. Отмена запроса мастером снимает остаток
+сценария и оставшиеся pending-запросы группы; выполненные шаги не повторяются.
+
+Эффект триггера или поддерживаемого действия может использовать длительность:
+
+```json
+{ "type": "game_time", "seconds": 600 }
+```
+
+Предел — 1..604800 секунд. Дедлайн привязан к общим часам кампании, которые явно
+продвигает ГМ/со-ГМ. Реальное время и переходы боевых раундов его не меняют.
+Существующие типы длительности остаются самостоятельными.
+
+Карточка панели мастера с быстрыми шагами:
+
+```json
+{
+  "id": "clock",
+  "kind": "clock",
+  "label": { "ru": "Время мира", "en": "World time" },
+  "description": "",
+  "items": ["6", "60", "600", "3600"]
+}
+```
+
+См. ADR-0045 и ADR-0046: сохранение, права, версии, отмена и ограничения.

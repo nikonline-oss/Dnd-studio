@@ -11,6 +11,11 @@ use crate::ids::{EffectId, TokenId, Version};
 #[serde(tag = "type", rename_all = "snake_case")]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum EffectDuration {
+    /// Fictional elapsed campaign seconds. Only explicit game time advancement expires it.
+    GameTime {
+        #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
+        until: i64,
+    },
     /// End of the recorded turn, including a one-combatant round wrap.
     TurnEnd {
         combat: crate::CombatId,

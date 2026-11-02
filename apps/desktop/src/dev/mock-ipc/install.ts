@@ -312,6 +312,19 @@ export async function installMockIpc(
     const boards = boardEvents(snapshot, intent);
     if (boards) return commit(boards, intent_id);
     switch (intent.kind) {
+      case 'advance_game_time': {
+        const clock = snapshot.campaign.game_clock ?? { seconds: 0, version: 1 };
+        const next = { seconds: clock.seconds + intent.seconds, version: clock.version + 1 };
+        return commit(
+          [
+            { kind: 'game_time_advanced', clock: next },
+            ...(snapshot.effects ?? [])
+              .filter((e) => e.duration.type === 'game_time' && e.duration.until <= next.seconds)
+              .map((e): Event => ({ kind: 'token_effect_removed', id: e.id, expired: true })),
+          ],
+          intent_id,
+        );
+      }
       case 'create_map':
         return commit(
           [

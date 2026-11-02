@@ -206,6 +206,7 @@ pub struct GmPanelSection {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum GmPanelKind {
+    Clock,
     Overview,
     Characters,
     Reactions,
@@ -412,6 +413,9 @@ pub struct TurnBudgetValue {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct PendingTriggerRun {
+    /// Nonempty for a manual group; empty for a plugin action window (legacy default).
+    #[serde(default)]
+    pub rolls: Vec<crate::RollRequestId>,
     pub action: crate::IntentId,
     pub trigger: crate::TriggerId,
     pub version: crate::Version,

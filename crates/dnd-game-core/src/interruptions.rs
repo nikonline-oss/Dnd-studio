@@ -49,6 +49,11 @@ fn fresh_frame_id(s: &GameState, rng: &mut dyn GameRng) -> Result<IntentId, Reje
             .action_stacks
             .iter()
             .any(|stack| stack.id == id || stack.frames.iter().any(|f| f.id == id))
+            && !s
+                .plugin_runtime
+                .trigger_runs
+                .iter()
+                .any(|run| run.action == id)
         {
             return Ok(id);
         }

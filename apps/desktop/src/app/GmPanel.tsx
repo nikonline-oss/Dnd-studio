@@ -4,6 +4,7 @@ import { useCampaign, useSnapshot, useSubmitIntent } from '@/shared/game/useGame
 import { useRemote } from '@/shared/game/useRemote';
 import { useSelection } from '@/shared/state/selection';
 import { labelText } from '@/shared/i18n/label';
+import { GameClockPanel } from '@/shared/game/GameClockPanel';
 import { TurnBudgetPanel } from '@/shared/game/TurnBudgetPanel';
 import { ActionWindows } from '@/features/plugins/ActionWindows';
 import { MaintainedEffects } from '@/features/plugins/MaintainedEffects';
@@ -13,6 +14,13 @@ import { ErrorText } from '@/shared/ui/ErrorText';
 import type { GmPanelSection } from '@/shared/ipc/client';
 
 const DEFAULT_SECTIONS: GmPanelSection[] = [
+  {
+    id: 'clock',
+    kind: 'clock',
+    label: { ru: 'Время мира', en: 'World time' },
+    description: '',
+    items: [],
+  },
   {
     id: 'overview',
     kind: 'overview',
@@ -132,6 +140,9 @@ export function GmPanel() {
           <details open className="gm-card" key={section.id}>
             <summary>{labelText(section.label, lang)}</summary>
             <p className="muted">{labelText(section.description, lang)}</p>
+            {section.kind === 'clock' && (
+              <GameClockPanel steps={section.items ?? []} disabled={!canEdit} />
+            )}
             {section.kind === 'overview' && (
               <>
                 <div className="gm-stats">
@@ -156,9 +167,28 @@ export function GmPanel() {
               <>
                 {!(
                   snapshot.plugin_runtime?.movements.length ||
-                  snapshot.plugin_runtime?.action_stacks?.length
+                  snapshot.plugin_runtime?.action_stacks?.length ||
+                  snapshot.plugin_runtime?.trigger_runs?.some((run) => run.rolls?.length)
                 ) && <p>{t('gm.noPending')}</p>}
                 <fieldset disabled={!canEdit}>
+                  {(snapshot.plugin_runtime?.trigger_runs ?? [])
+                    .filter((run) => run.rolls?.length)
+                    .map((run) => (
+                      <p key={run.action}>
+                        {t('triggers.waitingRolls', {
+                          name:
+                            snapshot.triggers.find((trigger) => trigger.id === run.trigger)
+                              ?.definition.name ?? '',
+                          pending:
+                            run.rolls?.filter(
+                              (id) =>
+                                snapshot.roll_requests?.find((r) => r.id === id)?.status ===
+                                'pending',
+                            ).length ?? 0,
+                          count: run.rolls?.length ?? 0,
+                        })}
+                      </p>
+                    ))}
                   <ActionWindows />
                   <PluginReactions />
                 </fieldset>

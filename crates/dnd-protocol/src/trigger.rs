@@ -194,6 +194,8 @@ pub enum TriggerAction {
 #[serde(tag = "type", rename_all = "snake_case")]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum EffectDurationDef {
+    /// Fictional seconds, independent of wall time and combat countdowns.
+    GameTime { seconds: u32 },
     /// Combat rounds on the token's map.
     Rounds { rounds: u8 },
     /// The token's own turns.

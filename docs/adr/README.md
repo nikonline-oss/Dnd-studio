@@ -77,3 +77,5 @@
 - [0042 — Декларативная экономика хода](0042-declarative-turn-economy.md)
 - [0043 — Продолжение триггеров после реакции](0043-trigger-action-continuations.md)
 - [0044 — Declarative spatial requirements](0044-declarative-spatial-requirements.md)
+- [0045 — Продолжения после ручных бросков](0045-manual-roll-trigger-continuations.md)
+- [0046 — Игровые часы кампании](0046-fictional-campaign-clock.md)

@@ -14,6 +14,7 @@ pub fn evolve(state: &mut GameState, event: &Event) {
         Event::PlaylistDeleted { id } => {
             state.playlists.remove(id);
         }
+        Event::GameTimeAdvanced { clock } => state.campaign.game_clock = clock.clone(),
         Event::CampaignMetaUpdated { campaign } => state.campaign = campaign.clone(),
         Event::MapCreated { map } | Event::MapUpdated { map } => {
             state.maps.insert(map.id, map.clone());

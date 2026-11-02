@@ -2452,3 +2452,131 @@ fn declared_counterspell_rechecks_sight_after_its_nested_window() {
     let sheet: serde_json::Value = serde_json::from_str(&s.characters[&cid(1)].sheet_json).unwrap();
     assert_eq!(sheet["automation"]["reaction"], 0);
 }
+
+#[test]
+fn game_clock_expires_maintained_children_and_releases_their_modifiers() {
+    let mut s = maintained_world();
+    s.plugins
+        .get_mut(s.system_plugin.as_ref().unwrap())
+        .unwrap()
+        .system
+        .as_mut()
+        .unwrap()
+        .mechanics
+        .actions
+        .iter_mut()
+        .find(|a| a.id == "shield_of_faith")
+        .unwrap()
+        .maintain
+        .as_mut()
+        .unwrap()
+        .duration = EffectDurationDef::GameTime { seconds: 600 };
+    shield(&mut s, 1, 42).unwrap();
+    assert_eq!(s.plugin_runtime.maintained.len(), 1);
+    run(
+        &mut s,
+        Role::Gm,
+        Intent::AdvanceGameTime { seconds: 600 },
+        Some(Version::INITIAL),
+    )
+    .unwrap();
+    assert!(s.plugin_runtime.maintained.is_empty());
+    assert!(s.effects.is_empty());
+}
+#[test]
+fn game_clock_cannot_advance_during_a_reaction_window() {
+    let mut s = interruption_world("1");
+    cast_fire(&mut s).unwrap();
+    let before = s.to_snapshot(Seq(0));
+    assert!(
+        run(
+            &mut s,
+            Role::Gm,
+            Intent::AdvanceGameTime { seconds: 6 },
+            Some(Version::INITIAL)
+        )
+        .is_err()
+    );
+    assert_eq!(s.to_snapshot(Seq(0)), before);
+}
+
+#[test]
+fn script_can_wait_for_manual_roll_then_for_spell_reaction_in_the_same_run() {
+    let mut s = interruption_world("1");
+    let id = TriggerId(v7(0xface));
+    run(
+        &mut s,
+        Role::Gm,
+        Intent::CreateTrigger {
+            id,
+            definition: TriggerDef {
+                name: "Mixed waits".into(),
+                enabled: true,
+                once: true,
+                event: TriggerEvent::Manual,
+                map_ids: vec![mid(0)],
+                tokens: Vec::new(),
+                condition: None,
+                steps: vec![
+                    TriggerStep {
+                        when: None,
+                        action: TriggerAction::ChangeResource {
+                            resource: "hp".into(),
+                            dice: "2".into(),
+                            heal: false,
+                            target: ResourceTarget::Activator,
+                            attack: None,
+                            manual: true,
+                        },
+                    },
+                    TriggerStep {
+                        when: Some("@roll.count == 1".into()),
+                        action: TriggerAction::PluginAction {
+                            action: "fireball".into(),
+                            source: Some(tid(0)),
+                            target: None,
+                            x: 2240,
+                            y: 1120,
+                        },
+                    },
+                    TriggerStep {
+                        when: Some("@action.completed == 1".into()),
+                        action: TriggerAction::Chat {
+                            text: "Mixed finished".into(),
+                            gm_only: false,
+                        },
+                    },
+                ],
+            },
+        },
+        None,
+    )
+    .unwrap();
+    run(
+        &mut s,
+        Role::Gm,
+        Intent::FireTrigger {
+            id,
+            token: Some(tid(0)),
+        },
+        None,
+    )
+    .unwrap();
+    let request = s.roll_requests.values().next().unwrap().clone();
+    let events = run(
+        &mut s,
+        Role::Player,
+        Intent::FulfillRollRequest { id: request.id },
+        Some(request.version),
+    )
+    .unwrap();
+    assert_eq!(s.plugin_runtime.action_stacks.len(), 1);
+    assert_eq!(s.plugin_runtime.trigger_runs.len(), 1);
+    assert!(s.plugin_runtime.trigger_runs[0].rolls.is_empty());
+    assert!(!events.iter().any(
+        |e| matches!(e, Event::ChatMessagePosted { message } if matches!(&message.system, Some(SystemMessage::Narration { text }) if text == "Mixed finished"))
+    ));
+    let events = answer_cast(&mut s, false, 73).unwrap();
+    assert!(s.plugin_runtime.trigger_runs.is_empty());
+    assert_eq!(events.iter().filter(|e| matches!(e, Event::ChatMessagePosted { message } if matches!(&message.system, Some(SystemMessage::Narration { text }) if text == "Mixed finished"))).count(), 1, "{events:#?}");
+}
