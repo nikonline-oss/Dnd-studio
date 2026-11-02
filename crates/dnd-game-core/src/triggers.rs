@@ -1068,7 +1068,7 @@ fn request_rolls(
         }
         // One pending request per trigger and character: a re-fire stacks no debt.
         let duplicate = work.roll_requests.values().any(|r| {
-            r.trigger == trigger.id
+            r.trigger == Some(trigger.id)
                 && r.character == character.id
                 && matches!(r.status, RollRequestStatus::Pending)
         });
@@ -1078,7 +1078,8 @@ fn request_rolls(
         let request = RollRequestDto {
             id: RollRequestId(fresh_id(rng)),
             label: trigger.definition.name.clone(),
-            trigger: trigger.id,
+            trigger: Some(trigger.id),
+            group: None,
             character: character.id,
             token,
             dice: attack

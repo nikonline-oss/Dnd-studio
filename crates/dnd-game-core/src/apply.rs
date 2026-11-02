@@ -41,6 +41,7 @@ pub fn apply(
     events.extend(bindings);
     let reactions = crate::triggers::react(&work, &envelope.intent, &events, envelope.ts_ms, rng);
     events.extend(reactions);
+    events.extend(crate::roll_requests::summaries(state, &events, rng));
     Ok(events)
 }
 
@@ -335,8 +336,10 @@ fn decide(
             crate::effects::apply(state, intent).unwrap_or(Err(RejectReason::invalid("intent")))
         }
 
-        Intent::FulfillRollRequest { .. } | Intent::CancelRollRequest { .. } => {
-            crate::roll_requests::apply(state, intent, rng)
+        Intent::RequestRolls { .. }
+        | Intent::FulfillRollRequest { .. }
+        | Intent::CancelRollRequest { .. } => {
+            crate::roll_requests::apply(state, intent, actor, rng)
                 .unwrap_or(Err(RejectReason::invalid("intent")))
         }
 
@@ -370,7 +373,7 @@ fn decide(
 /// Version of the intent's target, for explicit rebasing and offline projections.
 pub fn current_version(state: &GameState, intent: &Intent) -> Result<Version, RejectReason> {
     let version = match intent {
-        Intent::CreatePlaylist { .. } => None,
+        Intent::RequestRolls { .. } | Intent::CreatePlaylist { .. } => None,
         Intent::UpdatePlaylist { id, .. }
         | Intent::MovePlaylist { id, .. }
         | Intent::DeletePlaylist { id } => state.playlists.get(id).map(|p| p.version),
@@ -511,7 +514,10 @@ fn valid_scale(scale: f64) -> Result<f64, RejectReason> {
 /// Whether any entity — of any kind — already uses `id`. Ids are unique across kinds, so an id
 /// never means two things to clients or the database (ADR-0015).
 pub(crate) fn id_in_use(state: &GameState, id: dnd_protocol::Uuid) -> bool {
-    state.playlists.contains_key(&dnd_protocol::PlaylistId(id))
+    state
+        .roll_requests
+        .contains_key(&dnd_protocol::RollRequestId(id))
+        || state.playlists.contains_key(&dnd_protocol::PlaylistId(id))
         || state.maps.contains_key(&dnd_protocol::MapId(id))
         || state.tokens.contains_key(&dnd_protocol::TokenId(id))
         || state

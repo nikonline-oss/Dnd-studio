@@ -3,7 +3,10 @@
 //! (the character's owner, or GM roles for NPCs) fulfills it with `FulfillRollRequest` and the
 //! core rolls and applies; a GM role cancels with `CancelRollRequest`, reversing an applied delta.
 
+use crate::permissions::Actor;
+use dnd_dice::{Expr, FieldLookup, Term};
 use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 
 use dnd_protocol::{
     ChatKind, ChatMessageDto, ChatVisibility, Event, Intent, RejectReason, RollRequestStatus,
@@ -20,10 +23,17 @@ use crate::triggers::{apply_resource_change_delta, expr_holds, roll_dice};
 pub(crate) fn apply(
     state: &GameState,
     intent: &Intent,
+    actor: &Actor,
     rng: &mut dyn GameRng,
 ) -> Option<Result<Vec<Event>, RejectReason>> {
     let result = match intent {
-        Intent::FulfillRollRequest { id } => fulfill(state, *id, rng),
+        Intent::RequestRolls {
+            id,
+            label,
+            dice,
+            characters,
+        } => request_checks(state, *id, label, dice, characters, rng),
+        Intent::FulfillRollRequest { id } => fulfill(state, *id, actor, rng),
         Intent::CancelRollRequest { id } => cancel(state, *id, rng),
         _ => return None,
     };
@@ -34,6 +44,7 @@ pub(crate) fn apply(
 fn fulfill(
     state: &GameState,
     id: dnd_protocol::RollRequestId,
+    actor: &Actor,
     rng: &mut dyn GameRng,
 ) -> Result<Vec<Event>, RejectReason> {
     let request = state
@@ -56,8 +67,12 @@ fn fulfill(
     let mut events = vec![posted(ChatMessageDto {
         id: message_id(rng),
         kind: ChatKind::Roll,
-        sender: None,
-        sender_name: request.label.clone(),
+        sender: request.group.map(|_| actor.user_id),
+        sender_name: if request.group.is_some() {
+            crate::chat::sender_name(state, actor)
+        } else {
+            request.label.clone()
+        },
         body: request.dice.trim().to_owned(),
         roll: Some(roll_dto(&roll)),
         system: None,
@@ -74,7 +89,7 @@ fn fulfill(
         .as_deref()
         .map(|hit| expr_holds(state, &character, &hit_vars, hit))
         .unwrap_or(true);
-    if hit {
+    if hit && request.group.is_none() {
         let Some(damage) = roll_dice(
             state,
             &request.damage_dice,
@@ -125,6 +140,12 @@ fn cancel(
         },
         rng,
     )];
+    if request.group.is_some()
+        && let Event::ChatMessagePosted { message } = &mut events[0]
+    {
+        message.visibility = ChatVisibility::Gm;
+        message.related_characters = vec![request.character];
+    }
     match request.status {
         RollRequestStatus::Pending => {}
         RollRequestStatus::Rolled => {
@@ -153,4 +174,162 @@ fn cancel(
     next.version = bump(next.version)?;
     events.push(Event::RollRequestUpdated { request: next });
     Ok(events)
+}
+
+fn request_checks(
+    state: &GameState,
+    id: dnd_protocol::RollRequestId,
+    label: &str,
+    dice: &str,
+    characters: &[dnd_protocol::CharacterId],
+    rng: &mut dyn GameRng,
+) -> Result<Vec<Event>, RejectReason> {
+    let unique: BTreeSet<_> = characters.iter().copied().collect();
+    if unique.len() != characters.len() {
+        return Err(RejectReason::invalid("characters"));
+    }
+    if state.roll_requests.len() + unique.len() > dnd_protocol::MAX_ROLL_REQUESTS {
+        return Err(RejectReason::LimitExceeded {
+            limit: "roll_requests".into(),
+        });
+    }
+    let expression = Expr::parse(dice.trim()).map_err(|_| RejectReason::invalid("dice"))?;
+    // Validate every target before emitting anything or drawing IDs from the RNG.
+    for id in &unique {
+        let character = state.characters.get(id).ok_or(RejectReason::NotFound)?;
+        if character.status != dnd_protocol::CharacterStatus::Active {
+            return Err(RejectReason::invalid("characters"));
+        }
+        let fields = crate::plugins::CharacterFields::new(state, Some(&character.sheet_json));
+        for term in expression.terms() {
+            if let Term::Field(path) = &term.term {
+                let value = fields
+                    .lookup(path)
+                    .map_err(|_| RejectReason::invalid("dice"))?;
+                if !dnd_protocol::validate::is_js_safe(value) {
+                    return Err(RejectReason::invalid("dice"));
+                }
+            }
+        }
+    }
+    let mut used = BTreeSet::from([id.0]);
+    let mut events = Vec::new();
+    for (index, character) in unique.iter().enumerate() {
+        let request_id = if index == 0 {
+            id
+        } else {
+            let mut found = None;
+            for _ in 0..1024 {
+                let bits = (u128::from(rng.next_u64()) << 64) | u128::from(rng.next_u64());
+                let candidate = dnd_protocol::uuid_v7_from_random(bits);
+                if !crate::apply::id_in_use(state, candidate) && used.insert(candidate) {
+                    found = Some(dnd_protocol::RollRequestId(candidate));
+                    break;
+                }
+            }
+            found.ok_or(RejectReason::AlreadyExists)?
+        };
+        events.push(Event::RollRequested {
+            request: dnd_protocol::RollRequestDto {
+                id: request_id,
+                label: label.trim().to_owned(),
+                trigger: None,
+                group: Some(id),
+                character: *character,
+                token: None,
+                dice: dice.trim().to_owned(),
+                hit: None,
+                resource: String::new(),
+                damage_dice: "0".into(),
+                heal: false,
+                status: RollRequestStatus::Pending,
+                total: None,
+                delta: None,
+                version: dnd_protocol::Version::INITIAL,
+            },
+        });
+        let mut event = crate::chat::system_for_character(
+            *character,
+            SystemMessage::RollRequested {
+                name: state
+                    .characters
+                    .get(character)
+                    .map(|c| c.name.clone())
+                    .unwrap_or_default(),
+                label: label.trim().to_owned(),
+            },
+            rng,
+        );
+        if let Event::ChatMessagePosted { message } = &mut event {
+            message.visibility = ChatVisibility::Gm;
+        }
+        events.push(event);
+    }
+    Ok(events)
+}
+
+/// Complete a group once, also when deletion of a character cancels the final pending request.
+pub(crate) fn summaries(state: &GameState, events: &[Event], rng: &mut dyn GameRng) -> Vec<Event> {
+    let groups: BTreeSet<_> = events
+        .iter()
+        .filter_map(|event| match event {
+            Event::RollRequestUpdated { request } => request.group,
+            _ => None,
+        })
+        .collect();
+    let mut result = Vec::new();
+    for group in groups {
+        let mut requests: BTreeMap<_, _> = state
+            .roll_requests
+            .values()
+            .filter(|r| r.group == Some(group))
+            .map(|r| (r.id, r.clone()))
+            .collect();
+        if !requests
+            .values()
+            .any(|r| r.status == RollRequestStatus::Pending)
+        {
+            continue;
+        }
+        for event in events {
+            if let Event::RollRequestUpdated { request } = event
+                && request.group == Some(group)
+            {
+                requests.insert(request.id, request.clone());
+            }
+        }
+        if requests
+            .values()
+            .any(|r| r.status == RollRequestStatus::Pending)
+        {
+            continue;
+        }
+        let label = requests
+            .values()
+            .next()
+            .map(|r| r.label.clone())
+            .unwrap_or_default();
+        let results: Vec<_> = requests
+            .values()
+            .map(|r| dnd_protocol::RollCheckResult {
+                character: r.character,
+                name: state
+                    .characters
+                    .get(&r.character)
+                    .map(|c| c.name.clone())
+                    .unwrap_or_default(),
+                total: (r.status == RollRequestStatus::Rolled)
+                    .then_some(r.total)
+                    .flatten(),
+            })
+            .collect();
+        let related = results.iter().map(|r| r.character).collect();
+        let mut event = system(SystemMessage::RollsCollected { label, results }, rng);
+        if let Event::ChatMessagePosted { message } = &mut event {
+            message.visibility = ChatVisibility::Gm;
+            message.related_characters = related;
+        }
+        result.push(event);
+    }
+    result
 }

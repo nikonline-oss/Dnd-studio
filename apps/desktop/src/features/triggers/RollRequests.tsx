@@ -91,7 +91,9 @@ export function RollRequests() {
                         });
                       }}
                     >
-                      {request.status === 'rolled' ? t('rolls.undo') : t('rolls.cancel')}
+                      {request.status === 'rolled' && !request.group
+                        ? t('rolls.undo')
+                        : t('rolls.cancel')}
                     </button>
                   )}
               </span>

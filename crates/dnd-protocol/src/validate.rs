@@ -100,7 +100,8 @@ impl Intent {
                         .flat_map(|l| [("label.x", l.x), ("label.y", l.y)]),
                 )
                 .collect(),
-            Self::UpdateCampaignMeta { .. }
+            Self::RequestRolls { .. }
+            | Self::UpdateCampaignMeta { .. }
             | Self::CreatePlaylist { .. }
             | Self::UpdatePlaylist { .. }
             | Self::MovePlaylist { .. }
@@ -189,6 +190,7 @@ impl Intent {
     #[must_use]
     pub fn created_id(&self) -> Option<Uuid> {
         match self {
+            Self::RequestRolls { id, .. } => Some(id.0),
             Self::CreateMap { id, .. } => Some(id.0),
             Self::CreateToken { id, .. } => Some(id.0),
             Self::CreateCharacter { id, .. } => Some(id.0),
@@ -319,6 +321,25 @@ impl IntentEnvelope {
             uuid_v7(&id, "id")?;
         }
         match &self.intent {
+            Intent::RequestRolls {
+                characters,
+                label,
+                dice,
+                ..
+            } => {
+                if characters.is_empty() || characters.len() > crate::roll::MAX_ROLL_TARGETS {
+                    return Err(RejectReason::invalid("characters"));
+                }
+                if label.trim().is_empty() || label.chars().count() > 200 {
+                    return Err(RejectReason::invalid("label"));
+                }
+                if dice.len() > 256 {
+                    return Err(RejectReason::invalid("dice"));
+                }
+                for character in characters {
+                    uuid_v7(&character.0, "characters")?;
+                }
+            }
             Intent::InstallPlugin { plugin } => {
                 plugin_id(&plugin.id)?;
                 let size = serde_json::to_vec(plugin).map_or(usize::MAX, |b| b.len());

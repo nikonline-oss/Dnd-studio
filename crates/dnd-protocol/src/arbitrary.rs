@@ -516,6 +516,21 @@ pub fn token_effect_dto() -> impl Strategy<Value = TokenEffectDto> {
 
 pub fn intent() -> impl Strategy<Value = Intent> {
     prop_oneof![
+        (
+            0x8_0000u128..0x8_0003,
+            name(),
+            proptest::collection::vec(character_id(), 1..4)
+        )
+            .prop_map(|(id, label, characters)| Intent::RequestRolls {
+                id: crate::RollRequestId(v7(id)),
+                label: if label.trim().is_empty() {
+                    "Check".into()
+                } else {
+                    label
+                },
+                dice: "d20".into(),
+                characters,
+            }),
         (proptest::option::of(name()), proptest::option::of(name()))
             .prop_map(|(name, description)| Intent::UpdateCampaignMeta { name, description }),
         (

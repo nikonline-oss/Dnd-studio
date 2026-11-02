@@ -70,7 +70,9 @@ pub use plugin::{
     PluginDto, PluginKind, ResourceDef, RollDef, SystemRulesDto, TemplateParam, TemplateParamKind,
     TriggerTemplateDto,
 };
-pub use roll::{MAX_ROLL_REQUESTS, RollRequestDto, RollRequestStatus};
+pub use roll::{
+    MAX_ROLL_REQUESTS, MAX_ROLL_TARGETS, RollCheckResult, RollRequestDto, RollRequestStatus,
+};
 pub use snapshot::Snapshot;
 pub use theme::{THEME_COLOR_VARIABLES, ThemeDto, validate_theme};
 pub use trigger::{
@@ -87,7 +89,7 @@ pub use zone::{MAX_ZONE_PARTS, MAX_ZONE_POINTS, MAX_ZONES_PER_MAP, ZoneDto, Zone
 
 /// Protocol version. Peers with a different version are refused with
 /// [`RejectReason::ProtocolMismatch`].
-pub const PROTOCOL_VERSION: u32 = 9;
+pub const PROTOCOL_VERSION: u32 = 10;
 
 /// Registers every protocol type that is exported to TypeScript.
 #[cfg(feature = "specta")]

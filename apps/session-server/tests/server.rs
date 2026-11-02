@@ -366,6 +366,136 @@ fn ids<T>(items: &[T], id: impl Fn(&T) -> uuid::Uuid) -> Vec<uuid::Uuid> {
 }
 
 #[tokio::test]
+async fn manual_check_groups_sync_personal_requests_and_a_gm_only_final_summary() {
+    let h = Harness::default().await;
+    let created = h.create().await;
+    let gm = h.join_gm(&created).await;
+    let one = h.join_player(&created, "One").await;
+    let two = h.join_player(&created, "Two").await;
+    let session = h.server.app.session(created.session_id).await.unwrap();
+    let actor = Actor {
+        user_id: gm.user_id,
+        role: gm.role,
+    };
+    let characters = [CharacterId::new_v7(), CharacterId::new_v7()];
+    for (id, owner, name) in [
+        (characters[0], one.user_id, "Scout"),
+        (characters[1], two.user_id, "Mage"),
+    ] {
+        let result = session
+            .submit(
+                gm_intent(Intent::CreateCharacter {
+                    id,
+                    character_kind: CharacterKind::Pc,
+                    name: name.into(),
+                    owner: Some(owner),
+                    sheet_json: "{}".into(),
+                }),
+                actor,
+            )
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(matches!(result, IntentOutcome::Accepted { .. }));
+    }
+    let mut gm_ws = h.connect(created.session_id, &gm.token).await;
+    gm_ws.snapshot().await;
+    let mut one_ws = h.connect(created.session_id, &one.token).await;
+    one_ws.snapshot().await;
+    let mut two_ws = h.connect(created.session_id, &two.token).await;
+    two_ws.snapshot().await;
+    let id = RollRequestId::new_v7();
+    let outcome = session
+        .submit(
+            gm_intent(Intent::RequestRolls {
+                id,
+                label: "Notice".into(),
+                dice: "d1+4".into(),
+                characters: characters.to_vec(),
+            }),
+            actor,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(matches!(outcome, IntentOutcome::Accepted { .. }));
+    let full = gm_ws.events().await;
+    assert_eq!(
+        full.events
+            .iter()
+            .filter(|e| matches!(e, Event::RollRequested { .. }))
+            .count(),
+        2
+    );
+    let first = one_ws.events().await;
+    let second = two_ws.events().await;
+    let request_for = |batch: &EventBatch, character: CharacterId| {
+        let requests: Vec<_> = batch
+            .events
+            .iter()
+            .filter_map(|e| match e {
+                Event::RollRequested { request } => Some(request),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(requests.len(), 1);
+        assert_eq!(requests[0].character, character);
+        requests[0].id
+    };
+    let one_id = request_for(&first, characters[0]);
+    let two_id = request_for(&second, characters[1]);
+    let mut fulfill = gm_intent(Intent::FulfillRollRequest { id: one_id });
+    fulfill.expected_version = Some(Version(1));
+    one_ws.send(ClientMessage::Intent(Box::new(fulfill))).await;
+    let mut accepted = false;
+    for _ in 0..2 {
+        match one_ws.next().await {
+            ServerMessage::Accepted(_) => accepted = true,
+            ServerMessage::Events(batch) => assert!(!batch.events.iter().any(|e| matches!(e, Event::ChatMessagePosted { message } if matches!(message.system, Some(SystemMessage::RollsCollected { .. }))))),
+            other => panic!("unexpected {other:?}"),
+        }
+    }
+    assert!(accepted);
+    gm_ws.events().await;
+    two_ws.events().await;
+    let mut fulfill = gm_intent(Intent::FulfillRollRequest { id: two_id });
+    fulfill.expected_version = Some(Version(1));
+    let outcome = session
+        .submit(
+            fulfill,
+            Actor {
+                user_id: two.user_id,
+                role: two.role,
+            },
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(matches!(outcome, IntentOutcome::Accepted { .. }));
+    let final_batch = gm_ws.events().await;
+    assert_eq!(final_batch.events.iter().filter(|e| matches!(e, Event::ChatMessagePosted { message } if matches!(message.system, Some(SystemMessage::RollsCollected { .. })) && message.visibility == ChatVisibility::Gm)).count(), 1);
+    for batch in [one_ws.events().await, two_ws.events().await] {
+        assert!(!batch.events.iter().any(|e| matches!(e, Event::ChatMessagePosted { message } if matches!(message.system, Some(SystemMessage::RollsCollected { .. })))));
+    }
+    let history: Vec<ChatMessageDto> = h
+        .http
+        .get(h.url(&format!("/api/sessions/{}/chat", created.session_id)))
+        .bearer_auth(&one.token)
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert!(
+        !history
+            .iter()
+            .any(|m| matches!(m.system, Some(SystemMessage::RollsCollected { .. })))
+    );
+    h.server.stop().await.unwrap();
+}
+
+#[tokio::test]
 async fn chat_history_pages_visible_messages_without_leaking_hidden_rolls() {
     let h = Harness::default().await;
     let created = h.create().await;

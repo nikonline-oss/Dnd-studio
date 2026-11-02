@@ -549,6 +549,11 @@ pub enum SystemMessage {
         name: String,
         label: String,
     },
+    /// All requests in a GM-created plain check group are resolved or cancelled. GM-only.
+    RollsCollected {
+        label: String,
+        results: Vec<crate::roll::RollCheckResult>,
+    },
 }
 
 /// A chat message.

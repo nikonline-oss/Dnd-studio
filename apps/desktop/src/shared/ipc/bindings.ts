@@ -817,10 +817,9 @@ label?: ZoneLabel | null } |
 { kind: "move_asset"; id: AssetId; folder_id: LibraryFolderId | null } | 
 /**  GM / Co-GM: the name shown in the library. */
 { kind: "rename_asset"; id: AssetId; name: string } | { kind: "create_playlist"; id: PlaylistId; name: string; folder_id: LibraryFolderId | null; asset_ids: AssetId[] } | { kind: "update_playlist"; id: PlaylistId; name: string; tracks: PlaylistTrackDto[] } | { kind: "move_playlist"; id: PlaylistId; folder_id: LibraryFolderId | null } | { kind: "delete_playlist"; id: PlaylistId } | 
-/**
- *  The controller of the request's character (a player, or GM roles for NPCs) rolls the
- *  dice; the core rolls and applies the hit check and the resource change.
- */
+/**  GM / Co-GM: ask selected active characters for a plain check, without a trigger. */
+{ kind: "request_rolls"; id: RollRequestId; label: string; dice: string; characters: CharacterId[] } | 
+/**  The controller rolls; trigger requests can also apply a resource change. */
 { kind: "fulfill_roll_request"; id: RollRequestId } | 
 /**  GM / Co-GM: dismiss a pending request, or reverse the delta of a rolled one. */
 { kind: "cancel_roll_request"; id: RollRequestId } | 
@@ -1201,6 +1200,13 @@ export type RevealTarget =
 /**  Role of a participant (CLAUDE.md §5). */
 export type Role = "gm" | "co_gm" | "player" | "spectator";
 
+/**  One row of the GM-only final summary. `None` means the request was cancelled. */
+export type RollCheckResult = {
+	character: CharacterId,
+	name: string,
+	total: number | null,
+};
+
 /**  A roll macro shown on the sheet. */
 export type RollDef = {
 	id: string,
@@ -1216,7 +1222,9 @@ export type RollRequestDto = {
 	id: RollRequestId,
 	/**  What the roller sees ("Poisoned dart"). */
 	label: string,
-	trigger: TriggerId,
+	trigger: TriggerId | null,
+	/**  A GM-created plain check group, independent of triggers and resource changes. */
+	group?: RollRequestId | null,
 	character: CharacterId,
 	token: TokenId | null,
 	/**  The roll the controller makes; `@` fields read the character's sheet. */
@@ -1385,7 +1393,9 @@ export type SystemMessage = { code: "character_submitted"; name: string } | { co
 /**  A trigger asks `name` for a manual roll (`label`). */
 { code: "roll_requested"; name: string; label: string } | 
 /**  A GM role dismissed the roll (`label`) of `name`. */
-{ code: "roll_request_cancelled"; name: string; label: string };
+{ code: "roll_request_cancelled"; name: string; label: string } | 
+/**  All requests in a GM-created plain check group are resolved or cancelled. GM-only. */
+{ code: "rolls_collected"; label: string; results: RollCheckResult[] };
 
 /**  The rules of a system plugin, self-contained (no package paths). */
 export type SystemRulesDto = {

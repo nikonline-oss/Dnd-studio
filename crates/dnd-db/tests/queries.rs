@@ -2071,7 +2071,8 @@ async fn roll_requests_are_projected_loaded_and_updated() {
     let request = RollRequestDto {
         id: RollRequestId(v7(0xE20)),
         label: "Poisoned dart".into(),
-        trigger: TriggerId(v7(0xE21)),
+        trigger: Some(TriggerId(v7(0xE21))),
+        group: None,
         character: CharacterId(v7(0xE22)),
         token: Some(TokenId(v7(0xE23))),
         dice: "1d20 + 5".into(),
@@ -2084,6 +2085,12 @@ async fn roll_requests_are_projected_loaded_and_updated() {
         delta: None,
         version: Version(1),
     };
+    let mut legacy = serde_json::to_value(&request).unwrap();
+    legacy.as_object_mut().unwrap().remove("group");
+    assert_eq!(
+        serde_json::from_value::<RollRequestDto>(legacy).unwrap(),
+        request
+    );
     db.project(&[record(
         1,
         Some(0xE2),

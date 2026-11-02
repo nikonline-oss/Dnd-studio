@@ -398,7 +398,8 @@
       "condition_removed": "{{name}} is no longer {{condition}}",
       "item_given": "{{name}} receives {{item}}",
       "roll_requested": "{{name}} must roll ({{label}})",
-      "roll_request_cancelled": "{{name}}'s roll was cancelled ({{label}})"
+      "roll_request_cancelled": "{{name}}'s roll was cancelled ({{label}})",
+      "rolls_collected": "Results for “{{label}}”: {{results}}"
     },
     "feedFilter": "Message filter",
     "allFeed": "All",
@@ -421,6 +422,25 @@
       "twenties": "d20: 20",
       "you": "(you)",
       "explanation": "Kept d20 dice only count towards natural 1 / 20; dropped dice are excluded. These are face values, not system-specific critical outcomes. Mean totals combine different expressions. Updates every 10 seconds while open."
+    },
+    "request": {
+      "title": "Request rolls",
+      "name": "Check name",
+      "dice": "Dice formula",
+      "hint": "Fields such as @bonus are read separately from each character’s current sheet. Individual results are public; the final summary is GM-only. Players receive only their own requests.",
+      "allPlayers": "All players",
+      "clear": "Clear selection",
+      "targets": "Active characters",
+      "selected": "{{count}} / 20 selected",
+      "noCharacters": "No active characters. Create or approve a character first.",
+      "gmControls": "Controlled by GM",
+      "nameRequired": "Enter a name for the check.",
+      "diceRequired": "Enter a dice formula.",
+      "targetsRequired": "Select at least one character.",
+      "tooMany": "Select at most 20 characters per request.",
+      "invalidDice": "Check the dice formula and its fields: every selected character must have the referenced numeric fields.",
+      "invalidTargets": "Check the selection: characters must still exist and be active. Reopen the form if needed.",
+      "send": "Send requests"
     }
   },
   "initiative": {

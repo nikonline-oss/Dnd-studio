@@ -3,6 +3,7 @@ import type { TFunction } from 'i18next';
 import { useEffect, useMemo, useRef, useState, type SyntheticEvent } from 'react';
 import { personalFeedFilter } from './personalFeed';
 import { RollStatistics } from './RollStatistics';
+import { RequestRollsDialog } from './RequestRollsDialog';
 import './personalFeed.css';
 import { useTranslation } from 'react-i18next';
 import { useCampaign, useSnapshotSelect, useSubmitIntent } from '@/shared/game/useGame';
@@ -46,6 +47,7 @@ export function ChatPanel() {
   const submit = useSubmitIntent();
   const characterId = useSelection((s) => s.characterId);
   const [input, setInput] = useState('');
+  const [requesting, setRequesting] = useState(false);
   const [feed, setFeed] = useState<'all' | 'mine' | 'statistics'>('all');
   const [older, setOlder] = useState<ChatMessageDto[]>([]);
   const [noMore, setNoMore] = useState(false);
@@ -54,6 +56,7 @@ export function ChatPanel() {
 
   const recent = useSnapshotSelect((s) => s.chat) ?? [];
   const characters = useSnapshotSelect((s) => s.characters);
+  const users = useSnapshotSelect((s) => s.users);
   const userName = useSnapshotSelect((s) => s.users.find((u) => u.id === campaign?.user_id)?.name);
   const mine = useMemo(
     () => personalFeedFilter(campaign?.user_id, userName, characters ?? []),
@@ -141,7 +144,27 @@ export function ChatPanel() {
         >
           {t('chat.statistics.title')}
         </button>
+        {isGm && (
+          <button
+            type="button"
+            className="request-rolls-launch"
+            onClick={() => {
+              setRequesting(true);
+            }}
+          >
+            {t('chat.request.title')}
+          </button>
+        )}
       </div>
+      {isGm && requesting && (
+        <RequestRollsDialog
+          characters={characters ?? []}
+          users={users ?? []}
+          onClose={() => {
+            setRequesting(false);
+          }}
+        />
+      )}
       {feed === 'statistics' ? (
         <RollStatistics />
       ) : (
@@ -242,6 +265,16 @@ function systemText(
       return t('chat.system.roll_requested', { name: message.name, label: message.label });
     case 'roll_request_cancelled':
       return t('chat.system.roll_request_cancelled', { name: message.name, label: message.label });
+    case 'rolls_collected':
+      return t('chat.system.rolls_collected', {
+        label: message.label,
+        results: message.results
+          .map(
+            (r) =>
+              `${r.name || t('rolls.unknown')}: ${r.total == null ? t('rolls.cancelled') : String(r.total)}`,
+          )
+          .join(' · '),
+      });
   }
 }
 

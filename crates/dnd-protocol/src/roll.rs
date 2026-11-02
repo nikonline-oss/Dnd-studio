@@ -27,7 +27,10 @@ pub struct RollRequestDto {
     pub id: RollRequestId,
     /// What the roller sees ("Poisoned dart").
     pub label: String,
-    pub trigger: TriggerId,
+    pub trigger: Option<TriggerId>,
+    /// A GM-created plain check group, independent of triggers and resource changes.
+    #[serde(default)]
+    pub group: Option<RollRequestId>,
     pub character: CharacterId,
     pub token: Option<TokenId>,
     /// The roll the controller makes; `@` fields read the character's sheet.
@@ -50,3 +53,15 @@ pub struct RollRequestDto {
 
 /// Most pending manual rolls in a campaign.
 pub const MAX_ROLL_REQUESTS: usize = 500;
+
+pub const MAX_ROLL_TARGETS: usize = 20;
+
+/// One row of the GM-only final summary. `None` means the request was cancelled.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct RollCheckResult {
+    pub character: CharacterId,
+    pub name: String,
+    #[cfg_attr(feature = "specta", specta(type = Option<specta_typescript::Number>))]
+    pub total: Option<i64>,
+}

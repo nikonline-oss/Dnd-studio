@@ -31,6 +31,67 @@ fn create_map(id: MapId) -> IntentEnvelope {
 }
 
 #[tokio::test]
+async fn plain_check_requests_survive_reopen_and_produce_a_saved_gm_summary() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut local = LocalServer::create(dir.path(), "Manual checks")
+        .await
+        .unwrap();
+    let character = CharacterId::new_v7();
+    local
+        .submit(&envelope(
+            Intent::CreateCharacter {
+                id: character,
+                character_kind: CharacterKind::Npc,
+                name: "Scout".into(),
+                owner: None,
+                sheet_json: "{}".into(),
+            },
+            None,
+        ))
+        .await
+        .unwrap();
+    let id = RollRequestId::new_v7();
+    let request = envelope(
+        Intent::RequestRolls {
+            id,
+            label: "Search".into(),
+            dice: "d1+4".into(),
+            characters: vec![character],
+        },
+        None,
+    );
+    assert!(matches!(
+        local.submit(&request).await.unwrap().0,
+        IntentOutcome::Accepted { .. }
+    ));
+    // Retrying the exact intent is idempotent.
+    local.submit(&request).await.unwrap();
+    assert_eq!(local.snapshot().roll_requests.len(), 1);
+    let folder = local.folder().to_owned();
+    local.close().await.unwrap();
+    let mut local = LocalServer::open(&folder).await.unwrap();
+    assert_eq!(local.snapshot().roll_requests[0].group, Some(id));
+    assert_eq!(local.snapshot().roll_requests[0].trigger, None);
+    let (outcome, _) = local
+        .submit(&envelope(
+            Intent::FulfillRollRequest { id },
+            Some(Version(1)),
+        ))
+        .await
+        .unwrap();
+    assert!(matches!(outcome, IntentOutcome::Accepted { .. }));
+    let chat = local.chat_history(None, 200).await.unwrap();
+    let summaries: Vec<_> = chat
+        .iter()
+        .filter(|m| matches!(m.system, Some(SystemMessage::RollsCollected { .. })))
+        .collect();
+    assert_eq!(summaries.len(), 1);
+    assert_eq!(summaries[0].visibility, ChatVisibility::Gm);
+    assert_eq!(local.snapshot().roll_requests[0].total, Some(5));
+    local.close().await.unwrap();
+}
+
+#[tokio::test]
 async fn roll_statistics_include_saved_hidden_rolls_for_the_local_gm_after_reopen() {
     let dir = tempfile::tempdir().unwrap();
     let mut local = LocalServer::create(dir.path(), "Roll stats").await.unwrap();

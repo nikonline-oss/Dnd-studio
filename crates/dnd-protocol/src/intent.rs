@@ -476,8 +476,14 @@ pub enum Intent {
     DeletePlaylist {
         id: crate::PlaylistId,
     },
-    /// The controller of the request's character (a player, or GM roles for NPCs) rolls the
-    /// dice; the core rolls and applies the hit check and the resource change.
+    /// GM / Co-GM: ask selected active characters for a plain check, without a trigger.
+    RequestRolls {
+        id: RollRequestId,
+        label: String,
+        dice: String,
+        characters: Vec<CharacterId>,
+    },
+    /// The controller rolls; trigger requests can also apply a resource change.
     FulfillRollRequest {
         id: RollRequestId,
     },
@@ -593,6 +599,7 @@ impl Intent {
             Self::UpdatePlaylist { .. } => "update_playlist",
             Self::MovePlaylist { .. } => "move_playlist",
             Self::DeletePlaylist { .. } => "delete_playlist",
+            Self::RequestRolls { .. } => "request_rolls",
             Self::FulfillRollRequest { .. } => "fulfill_roll_request",
             Self::CancelRollRequest { .. } => "cancel_roll_request",
             Self::SetSoundPlayback { .. } => "set_sound_playback",
@@ -604,7 +611,8 @@ impl Intent {
     #[must_use]
     pub fn version_policy(&self) -> VersionPolicy {
         match self {
-            Self::CreateMap { .. }
+            Self::RequestRolls { .. }
+            | Self::CreateMap { .. }
             | Self::CreateToken { .. }
             | Self::CreateCharacter { .. }
             | Self::CreateJournalEntry { .. }

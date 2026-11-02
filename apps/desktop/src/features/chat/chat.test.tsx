@@ -131,6 +131,39 @@ function renderChat(
 }
 
 describe('ChatPanel', () => {
+  it.each(['gm', 'co_gm'] as const)('lets %s open a manual roll request', async (role) => {
+    renderChat(role, []);
+    await userEvent.click(await screen.findByRole('button', { name: 'Request rolls' }));
+    expect(screen.getByRole('dialog', { name: 'Request rolls' })).toBeInTheDocument();
+    expect(
+      screen.getByText('No active characters. Create or approve a character first.'),
+    ).toBeInTheDocument();
+  });
+  it.each(['player', 'spectator'] as const)(
+    'hides manual request creation from %s',
+    async (role) => {
+      renderChat(role, []);
+      await screen.findByRole('textbox', { name: 'Message' });
+      expect(screen.queryByRole('button', { name: 'Request rolls' })).not.toBeInTheDocument();
+    },
+  );
+  it('renders a collected check summary including cancelled answers', async () => {
+    renderChat('gm', [
+      {
+        ...systemMessage,
+        visibility: 'gm',
+        system: {
+          code: 'rolls_collected',
+          label: 'Notice',
+          results: [
+            { character: 'a', name: 'Aria', total: 18 },
+            { character: 'b', name: 'Borin', total: null },
+          ],
+        },
+      },
+    ]);
+    expect(await screen.findByText(/Notice.*Aria: 18.*Borin: cancelled/i)).toBeInTheDocument();
+  });
   it('opens statistics and returns to the chat without losing a draft', async () => {
     renderChat('player', []);
     const input = await screen.findByRole('textbox', { name: 'Message' });
