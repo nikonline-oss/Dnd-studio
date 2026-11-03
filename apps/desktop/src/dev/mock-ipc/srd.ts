@@ -1,11 +1,15 @@
 // The SRD 5.2 system plugin for the browser mock: its real rules, with a tiny evaluator standing in
 // for the core's `sheet_view` (enough for the plugin's own formulas). Dev only, never shipped.
 import layout from '../../../../../plugins/system-srd5/sheet/layout.json';
+import creatureLayout from '../../../../../plugins/system-srd5/sheet/creature.layout.json';
+import manifest from '../../../../../plugins/system-srd5/manifest.json';
 import schema from '../../../../../plugins/system-srd5/sheet/schema.json';
 import system from '../../../../../plugins/system-srd5/system.json';
 import type { PluginDto, SheetView, SystemRulesDto } from '@/shared/ipc/client';
 
 const rules = {
+  ...system,
+  creature_sheet_layout: creatureLayout,
   sheet_schema: schema,
   sheet_layout: layout,
   computed: system.computed,
@@ -17,7 +21,7 @@ const rules = {
 
 export const SRD_PLUGIN: PluginDto = {
   id: 'srd5',
-  version: '0.1.0',
+  version: manifest.version,
   kind: 'system',
   name: { ru: 'SRD 5.2', en: 'SRD 5.2' },
   license: 'CC-BY-4.0',

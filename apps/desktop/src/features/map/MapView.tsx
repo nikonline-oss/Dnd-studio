@@ -51,7 +51,10 @@ export function MapView({ mapId }: { mapId?: string } = {}) {
   const [scene, setScene] = useState<MapScene | null>(null);
   useEffect(() => {
     const cancel = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') scene?.cancelMovement();
+      if (event.key === 'Escape') {
+        scene?.cancelMovement();
+        useActionAim.getState().setAim(null);
+      }
     };
     window.addEventListener('keydown', cancel);
     return () => {
@@ -74,17 +77,19 @@ export function MapView({ mapId }: { mapId?: string } = {}) {
     (campaign?.role === 'player' &&
       snapshot?.characters.find((c) => c.id === selectedToken?.character_id)?.owner ===
         campaign.user_id);
-  const actions =
-    plugin?.system?.mechanics?.actions?.filter(
+  const actions = [
+    ...(plugin?.system?.mechanics?.actions?.filter(
       (a) =>
         !a.reaction_only &&
         (!a.feature ||
           (plugin.feature_settings?.[a.feature] ??
             plugin.system?.features?.find((f) => f.id === a.feature)?.default_enabled)),
-    ) ?? [];
+    ) ?? []),
+    ...availability.flatMap((a) => (a.sheet_action ? [a.sheet_action.action] : [])),
+  ];
   useEffect(() => {
     scene?.showPluginArea(0, 0, 0, '#ffffff');
-  }, [scene, map?.id]);
+  }, [scene, map?.id, aim?.action.id]);
   useEffect(() => {
     if (!scene || !map) return;
     const draw = () => {
@@ -124,6 +129,18 @@ export function MapView({ mapId }: { mapId?: string } = {}) {
       scene?.showPluginRange(0, 0, 0, false);
     };
   }, [scene, aim, map, snapshot?.rules_view, snapshot?.tokens]);
+  useEffect(() => {
+    if (!aim?.point || !map) {
+      scene?.showPluginArea(0, 0, 0, '#ffffff');
+      return;
+    }
+    scene?.showPluginArea(
+      aim.point.x / 16,
+      aim.point.y / 16,
+      (aim.action.radius_cells ?? 0.4) * map.grid.cell_size,
+      aim.action.visual.color,
+    );
+  }, [scene, aim, map]);
   const aimAt = (clientX: number, clientY: number, canvas: HTMLCanvasElement) => {
     if (!scene || !map || !aim) return null;
     const rect = canvas.getBoundingClientRect();
@@ -430,10 +447,11 @@ export function MapView({ mapId }: { mapId?: string } = {}) {
       className="map-view"
       data-dropping={dropping}
       onPointerMoveCapture={(e) => {
-        if (aim && e.target instanceof HTMLCanvasElement) aimAt(e.clientX, e.clientY, e.target);
+        if (aim && !aim.point && e.target instanceof HTMLCanvasElement)
+          aimAt(e.clientX, e.clientY, e.target);
       }}
       onPointerDownCapture={(e) => {
-        if (!aim || !(e.target instanceof HTMLCanvasElement)) return;
+        if (!aim || e.button !== 0 || !(e.target instanceof HTMLCanvasElement)) return;
         e.stopPropagation();
         e.preventDefault();
         const point = aimAt(e.clientX, e.clientY, e.target);
@@ -497,7 +515,7 @@ export function MapView({ mapId }: { mapId?: string } = {}) {
         <div className="plugin-action-confirm" role="status">
           <strong>{labelText(aim.action.label, i18n.language)}</strong>
           <p>
-            {t('plugins.chooseTarget')} ·{' '}
+            {t(aim.point ? 'actions.targetLocked' : 'plugins.chooseTarget')} ·{' '}
             {t('actions.range', {
               range:
                 snapshot?.rules_view?.tokens
@@ -505,6 +523,17 @@ export function MapView({ mapId }: { mapId?: string } = {}) {
                   ?.actions.find((a) => a.id === aim.action.id)?.range_cells ?? 0,
             })}
           </p>
+          {aim.point && !aim.action.target_self && (
+            <button
+              type="button"
+              disabled={submit.isPending}
+              onClick={() => {
+                setAim({ ...aim, point: null });
+              }}
+            >
+              {t('actions.retarget')}
+            </button>
+          )}
           {aim.point?.valid === false && <p role="alert">{t('actions.outOfRange')}</p>}
           <button
             type="button"

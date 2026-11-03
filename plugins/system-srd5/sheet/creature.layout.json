@@ -625,6 +625,37 @@
       },
       "children": [
         {
+          "type": "list",
+          "path": "spells",
+          "label": {
+            "ru": "Заклинания",
+            "en": "Spells"
+          },
+          "item": [
+            {
+              "type": "field",
+              "path": "name",
+              "label": {
+                "ru": "Название (необязательно)",
+                "en": "Name (optional)"
+              }
+            },
+            {
+              "type": "action",
+              "collection": "spells"
+            },
+            {
+              "type": "field",
+              "path": "notes",
+              "label": {
+                "ru": "Заметки",
+                "en": "Notes"
+              },
+              "widget": "textarea"
+            }
+          ]
+        },
+        {
           "type": "field",
           "path": "automation.spell_dc",
           "label": {
@@ -671,6 +702,78 @@
             "ru": "Контрзаклинание доступно и подготовлено",
             "en": "Counterspell is available and prepared"
           }
+        }
+      ]
+    },
+    {
+      "label": {
+        "ru": "Атаки и заметки",
+        "en": "Attacks & notes"
+      },
+      "children": [
+        {
+          "type": "list",
+          "path": "attacks",
+          "label": {
+            "ru": "Атаки",
+            "en": "Attacks"
+          },
+          "item": [
+            {
+              "type": "field",
+              "path": "name",
+              "label": {
+                "ru": "Название",
+                "en": "Name"
+              }
+            },
+            {
+              "type": "field",
+              "path": "bonus",
+              "label": {
+                "ru": "Бонус атаки",
+                "en": "Attack bonus"
+              }
+            },
+            {
+              "type": "field",
+              "path": "damage",
+              "label": {
+                "ru": "Урон",
+                "en": "Damage"
+              }
+            },
+            {
+              "type": "field",
+              "path": "range",
+              "label": {
+                "ru": "Дальность (клетки)",
+                "en": "Range (cells)"
+              }
+            },
+            {
+              "type": "field",
+              "path": "damage_type",
+              "label": {
+                "ru": "Тип урона",
+                "en": "Damage type"
+              },
+              "widget": "select"
+            },
+            {
+              "type": "action",
+              "collection": "attacks"
+            }
+          ]
+        },
+        {
+          "type": "field",
+          "path": "notes",
+          "label": {
+            "ru": "Заметки",
+            "en": "Notes"
+          },
+          "widget": "textarea"
         }
       ]
     }

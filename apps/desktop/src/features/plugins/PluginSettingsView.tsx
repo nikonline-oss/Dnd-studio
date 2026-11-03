@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import { useSettings } from '@/shared/settings/settings';
 import { useTranslation } from 'react-i18next';
 import { useCampaign, useSnapshotSelect, useSubmitIntent } from '@/shared/game/useGame';
@@ -7,6 +8,7 @@ import { ErrorText } from '@/shared/ui/ErrorText';
 
 export function PluginSettingsView({ pluginId }: { pluginId: string }) {
   const { t, i18n } = useTranslation();
+  const settingsId = useId();
   const effects = useSettings((s) => s.pluginEffects);
   const opacity = useSettings((s) => s.pluginEffectOpacity);
   const update = useSettings((s) => s.update);
@@ -21,61 +23,83 @@ export function PluginSettingsView({ pluginId }: { pluginId: string }) {
   const lang = i18n.resolvedLanguage ?? i18n.language;
   return (
     <section className="plugin-settings" aria-label={t('plugins.ruleSettings')}>
-      <h2>{labelText(plugin.name, lang)}</h2>
-      <p>
-        {plugin.version} · {plugin.license}
-      </p>
-      <h3>{t('plugins.ruleSettings')}</h3>
-      <p className="muted">{t('plugins.campaignRulesHint')}</p>
-      {!canEdit && <p>{t('plugins.rulesReadOnly')}</p>}
-      {(plugin.system?.features ?? []).length === 0 && <p>{t('plugins.noRuleSettings')}</p>}
-      {(plugin.system?.features ?? []).map((feature) => (
-        <div className="plugin-feature" key={feature.id}>
-          <label>
-            <input
-              type="checkbox"
-              checked={plugin.feature_settings?.[feature.id] ?? feature.default_enabled}
-              disabled={!canEdit || submit.isPending}
-              onChange={(e) => {
-                submit.mutate({
-                  intent: {
-                    kind: 'configure_plugin_feature',
-                    id: plugin.id,
-                    feature: feature.id,
-                    enabled: e.target.checked,
-                  },
-                });
-              }}
-            />
-            {labelText(feature.label, lang)}
-          </label>
-          <p className="muted">{labelText(feature.description, lang)}</p>
+      <header className="control-page-header">
+        <h2>{labelText(plugin.name, lang)}</h2>
+        <p className="muted">
+          {plugin.version} · {plugin.license}
+        </p>
+      </header>
+      <section className="control-section">
+        <h3>{t('plugins.ruleSettings')}</h3>
+        <p className="muted">{t('plugins.campaignRulesHint')}</p>
+        {!canEdit && <p>{t('plugins.rulesReadOnly')}</p>}
+        {(plugin.system?.features ?? []).length === 0 && <p>{t('plugins.noRuleSettings')}</p>}
+        <div className="plugin-features">
+          {(plugin.system?.features ?? []).map((feature) => (
+            <div className="plugin-feature" key={feature.id}>
+              <label>
+                <input
+                  type="checkbox"
+                  aria-labelledby={`${settingsId}-${feature.id}-label`}
+                  aria-describedby={`${settingsId}-${feature.id}-description`}
+                  checked={plugin.feature_settings?.[feature.id] ?? feature.default_enabled}
+                  disabled={!canEdit || submit.isPending}
+                  onChange={(e) => {
+                    submit.mutate({
+                      intent: {
+                        kind: 'configure_plugin_feature',
+                        id: plugin.id,
+                        feature: feature.id,
+                        enabled: e.target.checked,
+                      },
+                    });
+                  }}
+                />
+                <span>
+                  <strong id={`${settingsId}-${feature.id}-label`}>
+                    {labelText(feature.label, lang)}
+                  </strong>
+                  <span
+                    id={`${settingsId}-${feature.id}-description`}
+                    className="muted plugin-feature-description"
+                  >
+                    {labelText(feature.description, lang)}
+                  </span>
+                </span>
+              </label>
+            </div>
+          ))}
         </div>
-      ))}
-      <h3>{t('plugins.localAppearance')}</h3>
-      <label>
-        <input
-          type="checkbox"
-          checked={effects}
-          onChange={(e) => {
-            update({ pluginEffects: e.target.checked });
-          }}
-        />
-        {t('plugins.showEffects')}
-      </label>
-      <label>
-        {t('plugins.effectOpacity')}
-        <input
-          type="range"
-          min="0"
-          max="1"
-          step="0.05"
-          value={opacity}
-          onChange={(e) => {
-            update({ pluginEffectOpacity: Number(e.target.value) });
-          }}
-        />
-      </label>
+      </section>
+      <section className="control-section plugin-appearance">
+        <h3>{t('plugins.localAppearance')}</h3>
+        <label className="control-checkbox">
+          <input
+            type="checkbox"
+            checked={effects}
+            onChange={(e) => {
+              update({ pluginEffects: e.target.checked });
+            }}
+          />
+          {t('plugins.showEffects')}
+        </label>
+        <label className="control-range">
+          <span>
+            {t('plugins.effectOpacity')} <output>{Math.round(opacity * 100)}%</output>
+          </span>
+          <input
+            type="range"
+            aria-label={t('plugins.effectOpacity')}
+            min="0"
+            max="1"
+            step="0.05"
+            value={opacity}
+            onChange={(e) => {
+              update({ pluginEffectOpacity: Number(e.target.value) });
+            }}
+          />
+        </label>
+      </section>
       <ErrorText error={submit.error} />
     </section>
   );

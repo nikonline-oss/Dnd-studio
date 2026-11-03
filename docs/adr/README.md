@@ -80,3 +80,4 @@
 - [0045 — Продолжения после ручных бросков](0045-manual-roll-trigger-continuations.md)
 - [0046 — Игровые часы кампании](0046-fictional-campaign-clock.md)
 - [0047 — Спасброски владельцев, предметы и календарь](0047-player-saves-items-and-calendar.md)
+- [0048 — Действия из записей листа](0048-sheet-action-collections.md)

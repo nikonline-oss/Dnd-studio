@@ -38,10 +38,19 @@ pub struct CharacterRuleView {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct ActionAvailability {
+    #[serde(default)]
+    pub sheet_action: Option<SheetActionView>,
     pub id: String,
     pub enabled: bool,
     pub reason: Option<String>,
     pub range_cells: u16,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct SheetActionView {
+    pub collection: String,
+    pub index: u16,
+    pub action: PluginAction,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]

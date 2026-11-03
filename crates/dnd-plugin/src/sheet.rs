@@ -31,6 +31,7 @@ struct Refs<'a> {
     computed: BTreeSet<&'a str>,
     rolls: BTreeSet<&'a str>,
     resources: BTreeSet<&'a str>,
+    collections: BTreeSet<&'a str>,
 }
 
 /// Checks that every reference in the layout exists and every field widget fits its data type.
@@ -40,6 +41,12 @@ pub(crate) fn check_layout(
     rules: &SystemRules,
 ) -> Result<(), String> {
     let refs = Refs {
+        collections: rules
+            .mechanics
+            .sheet_actions
+            .iter()
+            .map(|c| c.id.as_str())
+            .collect(),
         computed: rules.computed.keys().map(String::as_str).collect(),
         rolls: rules.rolls.iter().map(|r| r.id.as_str()).collect(),
         resources: rules.resources.iter().map(|r| r.id.as_str()).collect(),
@@ -76,6 +83,9 @@ fn check_layout_node(
         LayoutNode::Computed { name, .. } => known(&refs.computed, name, "computed value"),
         LayoutNode::Roll { roll, .. } => known(&refs.rolls, roll, "roll"),
         LayoutNode::Resource { resource } => known(&refs.resources, resource, "resource"),
+        LayoutNode::Action { collection } => {
+            known(&refs.collections, collection, "sheet action collection")
+        }
         LayoutNode::List { path, item, .. } => {
             let list = resolve(scope, path)
                 .ok_or_else(|| format!("list \"{path}\" is not in the sheet schema"))?;
