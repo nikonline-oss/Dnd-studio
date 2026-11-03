@@ -11,6 +11,7 @@ impl PluginPackage {
     pub fn to_dto(&self) -> InstalledPluginDto {
         let m = &self.manifest;
         InstalledPluginDto {
+            feature_settings: Default::default(),
             theme: self.theme.clone(),
             id: m.id.clone(),
             version: m.version.to_string(),
@@ -29,6 +30,8 @@ impl SystemPackage {
     pub fn to_dto(&self) -> SystemRulesDto {
         let r = &self.rules;
         SystemRulesDto {
+            mechanics: r.mechanics.clone(),
+            features: r.features.clone(),
             creature_sheet_layout: self
                 .creature_sheet_layout
                 .as_ref()

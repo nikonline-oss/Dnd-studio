@@ -1640,3 +1640,23 @@ async fn a_trigger_reveals_a_secret_through_the_server() {
     assert!(view.zones.is_empty() && view.triggers.is_empty());
     h.server.stop().await.unwrap();
 }
+
+#[tokio::test]
+async fn gm_ordinary_messages_keep_the_configured_transport_limit() {
+    let h = Harness::start(Limits {
+        max_message_bytes: 512,
+        ..relaxed()
+    })
+    .await;
+    let created = h.create().await;
+    let gm = h.join_gm(&created).await;
+    let mut ws = h.connect(created.session_id, &gm.token).await;
+    ws.snapshot().await;
+    // Valid JSON, but not a plugin installation. The wider GM transport must not bypass this bound.
+    let message = Envelope::new(MessageId::new_v7(), 0, ClientMessage::Ping);
+    let mut text = serde_json::to_string(&message).unwrap();
+    text.push_str(&" ".repeat(1024));
+    ws.send_raw(text).await;
+    assert_eq!(ws.closed().await, "message_too_large");
+    h.server.stop().await.unwrap();
+}

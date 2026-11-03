@@ -133,6 +133,10 @@ pub(crate) fn check_dependencies(
 /// What a sheet shows besides its data (numbers as JSON numbers for the UI).
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, specta::Type)]
 pub struct SheetView {
+    #[serde(default)]
+    pub economy: Option<dnd_protocol::TurnEconomyView>,
+    #[serde(default)]
+    pub modifiers: Vec<Label>,
     pub computed: BTreeMap<String, f64>,
     pub resources: Vec<ResourceValue>,
 }
@@ -150,6 +154,8 @@ pub struct ResourceValue {
 pub fn sheet_view(state: &GameState, sheet_json: &str) -> Option<SheetView> {
     let values = sheet_values(state, sheet_json)?;
     Some(SheetView {
+        economy: None,
+        modifiers: Vec::new(),
         computed: values
             .computed
             .into_iter()
@@ -165,4 +171,27 @@ pub fn sheet_view(state: &GameState, sheet_json: &str) -> Option<SheetView> {
             })
             .collect(),
     })
+}
+
+/// Authoritative condition-aware preview; edits still retain the unmodified base sheet.
+#[must_use]
+#[allow(clippy::cast_precision_loss)]
+pub fn sheet_view_for_character(
+    state: &GameState,
+    sheet_json: &str,
+    id: Option<dnd_protocol::CharacterId>,
+) -> Option<SheetView> {
+    let mut view = sheet_view(state, sheet_json)?;
+    if let Some(mut character) = id.and_then(|id| state.characters.get(&id)).cloned() {
+        character.sheet_json = sheet_json.to_owned();
+        let fields = dnd_game_core::effective_fields(state, &character).ok()?;
+        view.computed = fields
+            .computed()
+            .iter()
+            .map(|(k, v)| (k.clone(), *v as f64))
+            .collect();
+        view.modifiers = dnd_game_core::active_modifier_labels(state, &character);
+        view.economy = dnd_game_core::turn_economy_view(state, &character);
+    }
+    Some(view)
 }

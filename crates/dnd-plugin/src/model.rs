@@ -12,7 +12,7 @@ use semver::{Version, VersionReq};
 use serde::{Deserialize, Serialize};
 
 /// Version of the package format this crate reads (`manifest.json` → `format`).
-pub const PLUGIN_FORMAT: u32 = 1;
+pub const PLUGIN_FORMAT: u32 = 2;
 
 /// Default qualitative health thresholds, in percent (CLAUDE.md §5).
 pub const DEFAULT_HEALTH_THRESHOLDS: [u8; 3] = [75, 25, 0];
@@ -43,6 +43,11 @@ pub struct Manifest {
 /// written; their syntax is checked by the game core with `dnd-expr`/`dnd-dice`, not here.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SystemRules {
+    #[serde(default)]
+    pub mechanics: dnd_protocol::PluginMechanics,
+
+    #[serde(default)]
+    pub features: Vec<dnd_protocol::PluginFeatureDef>,
     pub sheet: SheetRef,
     /// Optional NPC presentation of the same sheet schema.
     #[serde(default, skip_serializing_if = "Option::is_none")]

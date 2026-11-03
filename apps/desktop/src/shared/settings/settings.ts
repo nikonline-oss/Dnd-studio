@@ -3,13 +3,23 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 export const settingsSchema = z.object({
+  pluginEffects: z.boolean(),
+  pluginEffectOpacity: z.number().min(0).max(1),
   theme: z.enum(['system', 'light', 'dark']),
   themePluginId: z.string().min(1).max(256).nullable(),
   language: z.enum(['system', 'ru', 'en']),
   /** Panel preset (CLAUDE.md §5): `player` = map + chat + character sheet, other panels hidden. */
   layoutPreset: z.enum(['gm', 'player']),
   /** The view open in the side panel (Activity Bar). */
-  sideView: z.enum(['characters', 'library', 'plugins', 'boards', 'triggers', 'compendia']),
+  sideView: z.enum([
+    'characters',
+    'library',
+    'plugins',
+    'boards',
+    'triggers',
+    'compendia',
+    'items',
+  ]),
 });
 
 export type SideView = Settings['sideView'];
@@ -17,6 +27,8 @@ export type SideView = Settings['sideView'];
 export type Settings = z.infer<typeof settingsSchema>;
 
 export const defaultSettings: Settings = {
+  pluginEffects: true,
+  pluginEffectOpacity: 0.8,
   theme: 'system',
   themePluginId: null,
   language: 'system',
@@ -44,7 +56,17 @@ export const useSettings = create<SettingsState>()(
       name: 'dndstudio.settings',
       version: 1,
       storage: createJSONStorage(() => localStorage),
-      partialize: ({ theme, themePluginId, language, layoutPreset, sideView }) => ({
+      partialize: ({
+        pluginEffects,
+        pluginEffectOpacity,
+        theme,
+        themePluginId,
+        language,
+        layoutPreset,
+        sideView,
+      }) => ({
+        pluginEffects,
+        pluginEffectOpacity,
         theme,
         themePluginId,
         language,

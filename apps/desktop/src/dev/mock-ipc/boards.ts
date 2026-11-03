@@ -168,6 +168,11 @@ export function boardEvents(snapshot: Snapshot, intent: Intent): Event[] | null 
         },
       ];
     }
+    case 'set_zone_occlusion': {
+      const zone = snapshot.zones.find((z) => z.id === intent.id);
+      if (!zone) return [];
+      return [{ kind: 'zone_updated', zone: bump(zone, { occlusion: intent.occlusion }) }];
+    }
     case 'set_zone_color': {
       const zone = snapshot.zones.find((z) => z.id === intent.id);
       if (!zone || !Number.isInteger(intent.color) || intent.color < 0 || intent.color > 0xffffff)

@@ -2,7 +2,18 @@ import { create } from 'zustand';
 
 /** What a center tab shows. */
 export interface TabRef {
-  kind: 'map' | 'journal' | 'character' | 'board' | 'trigger' | 'compendium' | 'images' | 'audio';
+  kind:
+    | 'map'
+    | 'journal'
+    | 'character'
+    | 'board'
+    | 'trigger'
+    | 'compendium'
+    | 'images'
+    | 'audio'
+    | 'plugin'
+    | 'gm_panel'
+    | 'items';
   id: string;
 }
 
@@ -13,6 +24,8 @@ interface SelectionState {
   openMedia: (library: 'images' | 'audio', folderId: string | null, assetId?: string) => void;
   /** Open center tabs, in display order. */
   tabs: TabRef[];
+  paneTabs: TabRef[];
+  splitTab: (tab: TabRef) => void;
   /** The tab in front, or `null` when none is open. */
   active: TabRef | null;
   /** The map the map view, inspector and token list work on: the last map tab in front. */
@@ -23,7 +36,8 @@ interface SelectionState {
   /** The token selected on the map (shown in the inspector). */
   tokenId: string | null;
   /** What the inspector shows. */
-  inspect: 'map' | 'character' | 'token';
+  inspect: 'map' | 'character' | 'token' | 'gm_panel';
+  inspectGmPanel: () => void;
   /** What the center area shows (follows the active tab). */
   center: TabRef['kind'];
   /** Opens a map in a tab (or brings its tab to the front). */
@@ -38,6 +52,8 @@ interface SelectionState {
   openTrigger: (triggerId: string) => void;
   /** Opens a compendium (`<plugin id>/<compendium id>`) in a tab. */
   openCompendium: (key: string) => void;
+  openPlugin: (id: string) => void;
+  openGmPanel: () => void;
   activate: (tab: TabRef) => void;
   /** Brings the map view to the front without a map tab (the default map; players have no navigator). */
   showMap: () => void;
@@ -55,6 +71,7 @@ interface SelectionState {
 const EMPTY = {
   mediaSelection: {},
   tabs: [],
+  paneTabs: [],
   active: null,
   mapId: null,
   journalId: null,
@@ -86,6 +103,17 @@ function derive(
   };
 }
 
+function panesAfter(s: SelectionState, tabs: TabRef[], active: TabRef | null): TabRef[] {
+  const panes = s.paneTabs.filter((pane) => tabs.some((tab) => same(tab, pane)));
+  if (!active) return [];
+  if (!panes.some((pane) => same(pane, active))) {
+    const index = panes.findIndex((pane) => same(pane, s.active));
+    if (index < 0) panes.push(active);
+    else panes[index] = active;
+  }
+  return panes;
+}
+
 /** Cross-feature UI selection and center tabs (features communicate through `shared`). */
 export const useSelection = create<SelectionState>()((set) => {
   const open = (tab: TabRef) => {
@@ -93,7 +121,8 @@ export const useSelection = create<SelectionState>()((set) => {
       const tabs = s.tabs.some((t) => same(t, tab)) ? s.tabs : [...s.tabs, tab];
       return {
         ...derive(tabs, tab, s.mapId),
-        ...(tab.kind === 'map' ? { inspect: 'map' as const } : {}),
+        paneTabs: panesAfter(s, tabs, tab),
+        ...(tab.kind === 'map' && s.inspect !== 'gm_panel' ? { inspect: 'map' as const } : {}),
       };
     });
   };
@@ -102,6 +131,19 @@ export const useSelection = create<SelectionState>()((set) => {
     tabs: [],
     reset: () => {
       set({ ...EMPTY, tabs: [] });
+    },
+    splitTab: (tab) => {
+      set((s) => {
+        const tabs = s.tabs.some((t) => same(t, tab)) ? s.tabs : [...s.tabs, tab];
+        const panes = s.paneTabs.length ? s.paneTabs : s.active ? [s.active] : [];
+        return {
+          ...derive(tabs, tab, s.mapId),
+          paneTabs: panes.some((p) => same(p, tab)) ? panes : [...panes, tab],
+        };
+      });
+    },
+    inspectGmPanel: () => {
+      set({ inspect: 'gm_panel' });
     },
     openMap: (mapId) => {
       open({ kind: 'map', id: mapId });
@@ -123,6 +165,12 @@ export const useSelection = create<SelectionState>()((set) => {
     openTrigger: (triggerId) => {
       open({ kind: 'trigger', id: triggerId });
     },
+    openGmPanel: () => {
+      open({ kind: 'gm_panel', id: 'gm' });
+    },
+    openPlugin: (id) => {
+      open({ kind: 'plugin', id });
+    },
     openCompendium: (key) => {
       open({ kind: 'compendium', id: key });
     },
@@ -131,13 +179,16 @@ export const useSelection = create<SelectionState>()((set) => {
         s.tabs.some((t) => same(t, tab))
           ? {
               ...derive(s.tabs, tab, s.mapId),
-              ...(tab.kind === 'map' ? { inspect: 'map' as const } : {}),
+              paneTabs: panesAfter(s, s.tabs, tab),
+              ...(tab.kind === 'map' && s.inspect !== 'gm_panel'
+                ? { inspect: 'map' as const }
+                : {}),
             }
           : s,
       );
     },
     showMap: () => {
-      set((s) => ({ ...derive(s.tabs, null, s.mapId), inspect: 'map' }));
+      set((s) => ({ ...derive(s.tabs, null, s.mapId), paneTabs: [], inspect: 'map' }));
     },
     closeTab: (tab) => {
       set((s) => {
@@ -145,7 +196,7 @@ export const useSelection = create<SelectionState>()((set) => {
         if (index === -1) return s;
         const tabs = s.tabs.filter((_, i) => i !== index);
         const active = same(s.active, tab) ? (tabs[index] ?? tabs[index - 1] ?? null) : s.active;
-        return derive(tabs, active, s.mapId);
+        return { ...derive(tabs, active, s.mapId), paneTabs: panesAfter(s, tabs, active) };
       });
     },
     pruneTabs: (exists) => {
@@ -157,7 +208,7 @@ export const useSelection = create<SelectionState>()((set) => {
           s.active && exists(s.active)
             ? s.active
             : (tabs[Math.min(index, tabs.length - 1)] ?? null);
-        return derive(tabs, active, s.mapId);
+        return { ...derive(tabs, active, s.mapId), paneTabs: panesAfter(s, tabs, active) };
       });
     },
     selectToken: (tokenId) => {

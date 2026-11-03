@@ -1,0 +1,38 @@
+{
+  "id": "timed_marker",
+  "name": { "ru": "Метка по игровому времени", "en": "Game-time marker" },
+  "description": {
+    "ru": "Метка на выбранном токене истекает, когда мастер продвинет время кампании. Это пример таймера, без правил конкретного заклинания.",
+    "en": "A marker on the selected token expires when the GM advances campaign time. A timer example without spell-specific rules."
+  },
+  "params": [
+    { "id": "label", "label": { "ru": "Название", "en": "Label" }, "kind": "text" },
+    {
+      "id": "seconds",
+      "label": { "ru": "Игровые секунды (1–604800)", "en": "Game seconds (1–604800)" },
+      "kind": "number"
+    }
+  ],
+  "definition": {
+    "name": "{{label}}",
+    "enabled": true,
+    "once": false,
+    "event": { "type": "manual" },
+    "tokens": [],
+    "condition": null,
+    "steps": [
+      {
+        "when": null,
+        "action": {
+          "type": "apply_effect",
+          "label": "{{label}}",
+          "condition": null,
+          "resource": null,
+          "dice": null,
+          "heal": false,
+          "duration": { "type": "game_time", "seconds": "{{seconds}}" }
+        }
+      }
+    ]
+  }
+}

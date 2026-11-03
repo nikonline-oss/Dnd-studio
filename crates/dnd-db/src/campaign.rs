@@ -515,6 +515,11 @@ impl CampaignDb {
     pub async fn load_state(&self) -> DbResult<(GameState, Seq)> {
         let mut state = GameState::new("");
         state.campaign = CampaignMeta {
+            game_clock: get_meta(&self.pool, "game_clock")
+                .await?
+                .map(|value| serde_json::from_str(&value))
+                .transpose()?
+                .unwrap_or_default(),
             name: get_meta(&self.pool, META_NAME).await?.unwrap_or_default(),
             description: get_meta(&self.pool, META_DESCRIPTION)
                 .await?
@@ -533,6 +538,14 @@ impl CampaignDb {
             ),
         };
 
+        for row in sqlx::query("SELECT dto FROM items ORDER BY id")
+            .fetch_all(&self.pool)
+            .await?
+        {
+            let item: dnd_protocol::ItemDto =
+                serde_json::from_str(&row.try_get::<String, _>("dto")?)?;
+            state.items.insert(item.id, item);
+        }
         for row in sqlx::query("SELECT * FROM maps ORDER BY id")
             .fetch_all(&self.pool)
             .await?
@@ -766,6 +779,12 @@ impl CampaignDb {
                 serde_json::from_str(&row.try_get::<String, _>("dto")?)?;
             state.roll_requests.insert(request.id, request);
         }
+        if let Some(row) = sqlx::query("SELECT dto FROM plugin_runtime WHERE id = 1")
+            .fetch_optional(&self.pool)
+            .await?
+        {
+            state.plugin_runtime = serde_json::from_str(&row.try_get::<String, _>("dto")?)?;
+        }
         for row in sqlx::query("SELECT dto FROM installed_plugins ORDER BY id")
             .fetch_all(&self.pool)
             .await?
@@ -926,6 +945,9 @@ async fn upsert_board_node(conn: &mut SqliteConnection, node: &BoardNodeDto) -> 
 
 async fn project_event(conn: &mut SqliteConnection, event: &Event, at_ms: i64) -> DbResult<()> {
     match event {
+        Event::GameTimeAdvanced { clock } => {
+            set_meta(conn, "game_clock", &serde_json::to_string(clock)?).await
+        }
         Event::CampaignMetaUpdated { campaign } => write_campaign_meta(conn, campaign).await,
         Event::MapCreated { map } | Event::MapUpdated { map } => upsert_map(conn, map).await,
         Event::FogApplied { map_id, op } => {
@@ -1026,6 +1048,24 @@ async fn project_event(conn: &mut SqliteConnection, event: &Event, at_ms: i64) -
             Ok(())
         }
         Event::ChatMessagePosted { message } => insert_chat_message(conn, message, at_ms).await,
+        Event::RulesViewUpdated { .. } => Ok(()),
+        Event::ItemCreated { item } | Event::ItemUpdated { item } => {
+            sqlx::query("INSERT INTO items(id, dto) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET dto=excluded.dto")
+                .bind(item.id.to_string()).bind(serde_json::to_string(item)?).execute(conn).await?;
+            Ok(())
+        }
+        Event::ItemDeleted { id } => {
+            sqlx::query("DELETE FROM items WHERE id = ?")
+                .bind(id.to_string())
+                .execute(conn)
+                .await?;
+            Ok(())
+        }
+        Event::PluginRuntimeUpdated { runtime } => {
+            sqlx::query("INSERT INTO plugin_runtime (id, dto) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET dto = excluded.dto")
+                .bind(serde_json::to_string(runtime)?).execute(conn).await?;
+            Ok(())
+        }
         Event::PluginInstalled { plugin } => {
             sqlx::query(
                 "INSERT INTO installed_plugins (id, version, active, installed_at, dto)                  VALUES (?, ?, 1, ?, ?)                  ON CONFLICT (id) DO UPDATE SET version = excluded.version, dto = excluded.dto,                      active = 1, row_version = row_version + 1",
@@ -1369,6 +1409,12 @@ async fn upsert_character(conn: &mut SqliteConnection, c: &CharacterDto) -> DbRe
 }
 
 async fn write_campaign_meta(conn: &mut SqliteConnection, campaign: &CampaignMeta) -> DbResult<()> {
+    set_meta(
+        conn,
+        "game_clock",
+        &serde_json::to_string(&campaign.game_clock)?,
+    )
+    .await?;
     set_meta(conn, META_NAME, &campaign.name).await?;
     set_meta(conn, META_DESCRIPTION, &campaign.description).await?;
     set_meta(conn, META_VERSION, &campaign.version.0.to_string()).await

@@ -155,10 +155,12 @@ seq: Seq } | { status: "rejected"; reason: RejectReason } | null, IpcError>(__TA
 	 *  What a sheet shows besides its data (computed fields, resources) under the campaign's system;
 	 *  `None` without one. Evaluated by the core's rules, locally or on the session's state.
 	 */
-	sheetView: (sheetJson: string) => typedError<{
+	sheetView: (sheetJson: string, characterId: string | null) => typedError<{
+	economy?: TurnEconomyView | null,
+	modifiers?: Label[],
 	computed: { [key in string]: number | null },
 	resources: ResourceValue[],
-} | null, IpcError>(__TAURI_INVOKE("sheet_view", { sheetJson })),
+} | null, IpcError>(__TAURI_INVOKE("sheet_view", { sheetJson, characterId })),
 	/**  Recent log records for the log panel (live ones arrive as [`LogRecord`] events). */
 	logsRecent: () => __TAURI_INVOKE<LogRecord[]>("logs_recent"),
 	/**  Lets the UI write to the application log (e.g. a crashed feature in an error boundary). */
@@ -187,6 +189,57 @@ export const events = {
 export type Acceptance = {
 	intent_id: IntentId,
 	seq: Seq,
+};
+
+export type ActionAvailability = {
+	id: string,
+	enabled: boolean,
+	reason: string | null,
+	range_cells: number,
+};
+
+/**  A positive, bounded resource expense evaluated before any action effects. */
+export type ActionCost = {
+	scope?: CostScope,
+	feature?: string | null,
+	/**  Reserve at declaration; pay only if the action resolves. */
+	on_resolution?: boolean,
+	resource: string,
+	amount: string,
+};
+
+export type ActionGroup = {
+	id: string,
+	label: Label,
+};
+
+export type ActionPresentation = {
+	source: TokenId,
+	map: MapId,
+	label: Label,
+	x: number,
+	y: number,
+	radius_cells: number,
+	visual: ActionVisual,
+	at_ms: number,
+};
+
+export type ActionResolution = "completed" | "countered" | "cancelled" | "invalid";
+
+export type ActionStack = {
+	id: IntentId,
+	map: MapId,
+	frames: PendingAction[],
+};
+
+export type ActionTiming = {
+	turn: RequiredTurn,
+	feature: string | null,
+};
+
+export type ActionVisual = {
+	color: string,
+	duration_ms: number,
 };
 
 /**  Static application information for the status bar. */
@@ -322,6 +375,8 @@ export type BoardVisibility =
 /**  Everyone who sees the board. */
 "players";
 
+export type BudgetRefresh = "own_turn" | "every_turn";
+
 /**  A plugin shipped with the app. */
 export type BundledPlugin = {
 	id: string,
@@ -329,6 +384,39 @@ export type BundledPlugin = {
 	version: string,
 	kind: PluginKind,
 	license: string,
+};
+
+export type CalendarDef = {
+	epoch_year: number,
+	day_seconds: number,
+	round_seconds: number,
+	months: CalendarMonth[],
+	weekdays: Label[],
+	periods: DayPeriod[],
+	leap_interval?: number,
+	leap_except?: number,
+	leap_include?: number,
+	leap_month?: number,
+};
+
+export type CalendarMonth = {
+	label: Label,
+	days: number,
+};
+
+export type CalendarUnit = "second" | "minute" | "hour" | "day" | "week" | "month" | "year" | "round";
+
+export type CalendarView = {
+	year: number,
+	month: Label,
+	month_index: number,
+	day: number,
+	weekday: Label,
+	hour: number,
+	minute: number,
+	second: number,
+	period: Label,
+	elapsed_days: number,
 };
 
 /**  What the UI needs to know about the open campaign. */
@@ -342,6 +430,7 @@ export type CampaignInfo = {
 
 /**  Campaign-wide metadata (singleton entity). */
 export type CampaignMeta = {
+	game_clock?: GameClock,
 	name: string,
 	description: string,
 	version: Version,
@@ -368,6 +457,11 @@ export type CharacterId = string;
 
 /**  Player character or non-player character. */
 export type CharacterKind = "pc" | "npc";
+
+export type CharacterRuleView = {
+	character: CharacterId,
+	life: LifeStatus,
+};
 
 /**  Lifecycle of a character (CLAUDE.md §5): draft → pending_approval → active → archived. */
 export type CharacterStatus = "draft" | "pending_approval" | "active" | "archived";
@@ -466,6 +560,51 @@ export type ConditionDef = {
 	label: Label,
 };
 
+export type ConditionModifier = { type: "imply"; condition: string } | { type: "deny"; capability: RuleCapability } | { type: "roll"; kind: RollKind; tags?: string[]; mode: RollMode } | 
+/**  Additive modifiers are summed, then lower bounds and finally upper bounds apply. */
+{ type: "parameter"; path: string; add: number; minimum: number | null; maximum: number | null };
+
+export type ConditionRule = {
+	id: string,
+	label: Label,
+	condition: string,
+	subject: RuleSubject,
+	feature: string | null,
+	/**  Evaluated against unmodified fields. @actor.condition.ID and @target.condition.ID are booleans. */
+	when?: string,
+	effects: ConditionModifier[],
+};
+
+export type CostScope = "always" | "combat";
+
+export type DamageAdjustment = {
+	id: string,
+	/**  Empty matches every type; type IDs are opaque system-defined identifiers. */
+	types: string[],
+	/**  Target sheet fields. @damage is the current amount, not a stored field. */
+	condition: string,
+	amount: string,
+};
+
+/**  Ordered target-side transformations followed by resource buffers. */
+export type DamageProfile = {
+	id: string,
+	label: Label,
+	feature: string | null,
+	modifiers: DamageAdjustment[],
+	absorb: string[],
+};
+
+export type DayPeriod = {
+	label: Label,
+	start_second: number,
+};
+
+export type DeferredCost = {
+	resource: string,
+	amount: number,
+};
+
 /**  Result of a dice roll (ADR-0005, ADR-0016: all numbers are integers). */
 export type DiceRollDto = {
 	/**  Canonical form of the expression. */
@@ -491,8 +630,14 @@ export type DieDto = {
 	kept: boolean,
 };
 
+export type DistanceMetric = "euclidean" | "chebyshev";
+
 /**  How a [`TokenEffectDto`] ends. */
 export type EffectDuration = 
+/**  Fictional elapsed campaign seconds. Only explicit game time advancement expires it. */
+{ type: "game_time"; until: number } | 
+/**  End of the recorded turn, including a one-combatant round wrap. */
+{ type: "turn_end"; combat: CombatId; turn: CombatantId; round: number } | 
 /**  Combat rounds on the token's map; `remaining` counts down when a new round starts. */
 { type: "rounds"; remaining: number } | 
 /**  The token's own turns; `remaining` counts down at the start of each of its turns. */
@@ -505,6 +650,8 @@ export type EffectDuration =
 
 /**  The duration a trigger gives to an effect (the entity stores the countdown). */
 export type EffectDurationDef = 
+/**  Fictional seconds, independent of wall time and combat countdowns. */
+{ type: "game_time"; seconds: number } | 
 /**  Combat rounds on the token's map. */
 { type: "rounds"; rounds: number } | 
 /**  The token's own turns. */
@@ -516,7 +663,7 @@ export type EffectDurationDef =
 export type EffectId = string;
 
 /**  A fact about a state change. */
-export type Event = { kind: "campaign_meta_updated"; campaign: CampaignMeta } | { kind: "map_created"; map: MapDto } | { kind: "map_updated"; map: MapDto } | { kind: "map_deleted"; id: MapId } | 
+export type Event = { kind: "rules_view_updated"; view: RulesView } | { kind: "item_created"; item: ItemDto } | { kind: "item_updated"; item: ItemDto } | { kind: "item_deleted"; id: ItemId } | { kind: "game_time_advanced"; clock: GameClock } | { kind: "plugin_runtime_updated"; runtime: PluginRuntime } | { kind: "campaign_meta_updated"; campaign: CampaignMeta } | { kind: "map_created"; map: MapDto } | { kind: "map_updated"; map: MapDto } | { kind: "map_deleted"; id: MapId } | 
 /**  Appended to the map's fog; applying the same `op.id` twice adds it once. */
 { kind: "fog_applied"; map_id: MapId; op: FogOp } | 
 /**  The map's fog now has no operations, only the initial state. */
@@ -632,6 +779,12 @@ export type FogShape =
 /**  Flat `[x0, y0, x1, y1, …]`, 1..=[`MAX_BRUSH_POINTS`] points. */
 points: number[] };
 
+/**  Elapsed fictional seconds since the campaign epoch; independent from wall time. */
+export type GameClock = {
+	seconds: number,
+	version: Version,
+};
+
 /**
  *  Emitted after every accepted intent with the events it produced — only once they are
  *  committed to the campaign file (ADR-0014).
@@ -643,6 +796,17 @@ export type GameEventsEmitted = EventBatch;
  *  snapshot the UI has (ADR-0022).
  */
 export type GameSnapshotReplaced = Snapshot;
+
+export type GmPanelKind = "clock" | "overview" | "characters" | "reactions" | "maintained" | "rules" | "actions";
+
+/**  Ordered, declarative cards in the GM dashboard; never executable markup. */
+export type GmPanelSection = {
+	id: string,
+	label: Label,
+	description: Label,
+	kind: GmPanelKind,
+	items?: string[],
+};
 
 /**  Grid settings of a map. Lengths are in logical map units (ADR-0016). */
 export type Grid = {
@@ -665,7 +829,9 @@ export type HostedSession = {
 };
 
 /**  A request to change state. Update intents carry only the fields to change (`null` = keep). */
-export type Intent = { kind: "update_campaign_meta"; name: string | null; description: string | null } | { kind: "create_map"; id: MapId; name: string; background_asset_id: AssetId | null; 
+export type Intent = { kind: "resolve_action_save"; group: IntentId; target: TokenId } | { kind: "cancel_action_saves"; group: IntentId } | { kind: "advance_calendar_time"; amount: number; unit: CalendarUnit } | { kind: "create_item"; id: ItemId; name: string; type_id: string; sheet_json: string | null; visible_to_players: boolean } | { kind: "instantiate_item"; id: ItemId; template: ItemId; owner: CharacterId | null } | { kind: "update_item"; id: ItemId; name: string | null; sheet_json: string | null; visible_to_players: boolean | null } | { kind: "transfer_item"; id: ItemId; owner: CharacterId | null } | { kind: "delete_item"; id: ItemId } | 
+/**  GM/Co-GM: advance fictional time by 1..=604800 seconds, checked clock version. */
+{ kind: "advance_game_time"; seconds: number } | { kind: "update_campaign_meta"; name: string | null; description: string | null } | { kind: "create_map"; id: MapId; name: string; background_asset_id: AssetId | null; 
 /**  Logical size (ADR-0016), `1..=MAX_MAP_SIZE`; fixed for the life of the map. */
 width: number; height: number; grid: Grid; visible_to_players: boolean } | { kind: "update_map"; id: MapId; name: string | null; grid: Grid | null; visible_to_players: boolean | null } | { kind: "delete_map"; id: MapId } | 
 /**
@@ -775,7 +941,7 @@ roll: string | null } |
  */
 { kind: "install_plugin"; plugin: PluginDto } | 
 /**  GM / Co-GM. The campaign's system plugin cannot be uninstalled. */
-{ kind: "uninstall_plugin"; id: string } | 
+{ kind: "move_token_with_mode"; id: TokenId; x: number; y: number; mode: MovementMode } | { kind: "resolve_plugin_reaction"; movement: IntentId; source: TokenId; accept: boolean } | { kind: "cancel_plugin_movement"; movement: IntentId } | { kind: "resolve_action_reaction"; stack: IntentId; frame: IntentId; source: TokenId; accept: boolean } | { kind: "continue_plugin_action"; stack: IntentId; frame: IntentId } | { kind: "cancel_action_stack"; stack: IntentId } | { kind: "end_maintained_effect"; id: EffectId } | { kind: "execute_plugin_action"; source: TokenId; action: string; target: TokenId | null; x: number; y: number } | { kind: "configure_plugin_feature"; id: string; feature: string; enabled: boolean } | { kind: "uninstall_plugin"; id: string } | 
 /**  GM / Co-GM: the campaign's rules (`None`: no system, free-form sheets). */
 { kind: "set_system_plugin"; id: string | null } | 
 /**  GM / Co-GM: a new board (ADR-0024), hidden from players until shown. */
@@ -790,6 +956,8 @@ roll: string | null } |
 { kind: "create_zone"; id: ZoneId; map_id: MapId; name: string; shape: ZoneShape } | { kind: "update_zone"; id: ZoneId; name: string | null; shape: ZoneShape | null; 
 /**  Moves the zone's name: the top-left corner of the text, on the map. */
 label?: ZoneLabel | null } | 
+/**  GM/Co-GM: physical blockers on a zone, checked version. */
+{ kind: "set_zone_occlusion"; id: ZoneId; occlusion: ZoneOcclusion } | 
 /**  Changes RGB color (GM/Co-GM, checked version). */
 { kind: "set_zone_color"; id: ZoneId; color: number } | { kind: "delete_zone"; id: ZoneId } | 
 /**
@@ -859,6 +1027,26 @@ export type IntentOutcome = { status: "accepted";
 /**  Sequence number of the last event produced. */
 seq: Seq } | { status: "rejected"; reason: RejectReason };
 
+export type InterruptEffect = {
+	save_dice: string,
+	save_dc: string,
+	cancel_if: string,
+	tags: string[],
+};
+
+export type InterruptionRule = {
+	id: string,
+	feature: string | null,
+	action: string,
+	tags: string[],
+	any_tags: string[],
+	range_cells: string,
+	metric: DistanceMetric,
+	source_condition: string,
+	target_condition: string,
+	hostile_only: boolean,
+};
+
 /**
  *  Where a character's items live in the sheet: a list of objects at `path` whose `name_field`
  *  is the item's name (ADR-0024).
@@ -888,6 +1076,27 @@ export type IpcErrorKind =
 "internal" | 
 /**  The application cannot continue. */
 "fatal";
+
+export type ItemDto = {
+	id: ItemId,
+	name: string,
+	type_id: string,
+	is_template: boolean,
+	template: ItemId | null,
+	owner: CharacterId | null,
+	visible_to_players: boolean,
+	sheet_json: string,
+	version: Version,
+};
+
+export type ItemId = string;
+
+export type ItemTypeDef = {
+	id: string,
+	label: Label,
+	sheet_schema: unknown,
+	sheet_layout: unknown,
+};
 
 /**  A journal entry with its Markdown text. */
 export type JournalEntryDto = {
@@ -996,6 +1205,14 @@ export type LibraryFolderDto = {
 /**  A folder of the image or audio library (ADR-0026). */
 export type LibraryFolderId = string;
 
+export type LifeRules = {
+	dead?: string,
+	npc_dead?: string,
+	unconscious?: string,
+};
+
+export type LifeStatus = "alive" | "unconscious" | "dead";
+
 /**  At least one of the languages is present. */
 export type LocalizedText = {
 	ru?: string | null,
@@ -1011,6 +1228,39 @@ export type LogRecord = {
 	level: LogLevel,
 	target: string,
 	message: string,
+};
+
+export type MaintainedAction = {
+	rule: string,
+	condition: string,
+	duration: EffectDurationDef,
+};
+
+export type MaintainedCheck = {
+	resource: string,
+	dice: string,
+	difficulty: string,
+	success: string,
+	tags: string[],
+};
+
+export type MaintainedEffect = {
+	id: EffectId,
+	owner: CharacterId,
+	source: TokenId,
+	rule: string,
+	label: Label,
+	effects: EffectId[],
+};
+
+/**  System-neutral policy for an exclusive group of ongoing effects. */
+export type MaintainedRule = {
+	id: string,
+	label: Label,
+	feature: string | null,
+	exclusive_group: string,
+	keep_condition: string,
+	damage_check: MaintainedCheck,
 };
 
 /**  A map. */
@@ -1039,6 +1289,37 @@ export type MapImported = {
 	source_height: number,
 };
 
+export type MovementMode = "voluntary" | "forced" | "teleport";
+
+export type MovementRule = {
+	id: string,
+	feature: string,
+	action: string,
+	reach_cells: string,
+	metric: DistanceMetric,
+	source_condition: string,
+	target_condition: string,
+	hostile_only: boolean,
+	movement_modes: MovementMode[],
+	combat_only: boolean,
+};
+
+export type PendingAction = {
+	awaiting_reactions: boolean,
+	id: IntentId,
+	source: TokenId,
+	owner: CharacterId,
+	controller: UserId | null,
+	action: string,
+	label: Label,
+	target: TokenId | null,
+	x: number,
+	y: number,
+	deferred: DeferredCost[],
+	offers: ReactionOffer[],
+	ready: boolean,
+};
+
 export type PendingEdit = {
 	id: string,
 	envelope: IntentEnvelope,
@@ -1049,6 +1330,43 @@ export type PendingEdit = {
 export type PendingEdits = {
 	binding: string | null,
 	edits: PendingEdit[],
+};
+
+export type PendingMovement = {
+	id: IntentId,
+	token: TokenId,
+	destination_x: number,
+	destination_y: number,
+	mode: MovementMode,
+	offers: ReactionOffer[],
+	/**  Hooks already offered during this movement, including declined ones. */
+	handled: string[],
+};
+
+/**  A frozen damage roll awaiting saves by the affected controllers. */
+export type PendingSaves = {
+	id: IntentId,
+	map: MapId,
+	source: TokenId | null,
+	owner: CharacterId,
+	action: PluginAction,
+	damage: number,
+	difficulty: number,
+	targets: SaveTarget[],
+};
+
+/**  Frozen position and variables of a trigger waiting for its plugin action. */
+export type PendingTriggerRun = {
+	/**  Nonempty for a manual group; empty for a plugin action window (legacy default). */
+	rolls?: RollRequestId[],
+	action: IntentId,
+	trigger: TriggerId,
+	version: Version,
+	map: MapId | null,
+	character: CharacterId | null,
+	token: TokenId | null,
+	next_step: number,
+	variables: { [key in string]: number },
 };
 
 export type PlaylistDto = {
@@ -1070,8 +1388,55 @@ export type PlaylistTrackDto = {
 	title: string,
 };
 
+export type PluginAction = {
+	save_prompt?: boolean,
+	save_failure?: string,
+	sheet_group?: string | null,
+	spatial?: SpatialRequirements,
+	timing?: ActionTiming | null,
+	interrupt?: InterruptEffect | null,
+	maintain?: MaintainedAction | null,
+	/**  Tags label the roll/action for declarative selectors; they are not game logic. */
+	tags?: string[],
+	activation?: RuleCapability | null,
+	target_self?: boolean,
+	/**  Self-applied condition lasting until the current turn ends. Requires one's own active turn. */
+	turn_condition?: string | null,
+	id: string,
+	label: Label,
+	feature: string | null,
+	/**  Actor eligibility, using actor sheet fields. */
+	condition: string,
+	/**  Maximum distance in grid cells; zero means self-centered area. */
+	range_cells: string,
+	distance_metric: DistanceMetric,
+	reaction_only: boolean,
+	critical_if: string | null,
+	critical_dice: string | null,
+	/**  Optional circular area around the selected point. */
+	radius_cells: number | null,
+	attack_dice: string | null,
+	/**  Checked against the target's fields, with @total from attack/save. */
+	hit: string | null,
+	save_dice: string | null,
+	save_dc: string | null,
+	/**  On a successful save, divide damage by this positive integer. */
+	save_divisor: number,
+	damage_dice: string,
+	damage_type?: string | null,
+	damage_profile?: string | null,
+	resource: string,
+	/**  Resource spent by the actor on acceptance, one unit. */
+	cost: string | null,
+	/**  Multiple resource costs; mutually exclusive with the legacy unit cost. */
+	costs?: ActionCost[],
+	visual: ActionVisual,
+};
+
 /**  A plugin installed in the campaign. */
 export type PluginDto = {
+	/**  Campaign-owned overrides. Never read from the package being installed. */
+	feature_settings?: { [key in string]: boolean },
 	id: string,
 	/**  Semver, as in the manifest. */
 	version: string,
@@ -1089,9 +1454,51 @@ export type PluginDto = {
 	trigger_templates?: TriggerTemplateDto[],
 };
 
+/**  One independently configurable capability, declared by the plugin. */
+export type PluginFeatureDef = {
+	id: string,
+	label: Label,
+	description: Label,
+	default_enabled: boolean,
+};
+
 export type PluginKind = 
 /**  Rules of the game: exactly one per campaign (ADR-0005). */
 "system" | "content" | "theme" | "ui";
+
+export type PluginMechanics = {
+	calendar?: CalendarDef | null,
+	life?: LifeRules,
+	action_groups?: ActionGroup[],
+	item_types?: ItemTypeDef[],
+	turn_budgets?: TurnBudget[],
+	interruption_rules?: InterruptionRule[],
+	maintained_rules?: MaintainedRule[],
+	damage_profiles?: DamageProfile[],
+	gm_panel?: GmPanelSection[],
+	condition_rules?: ConditionRule[],
+	movement_condition?: string,
+	actions?: PluginAction[],
+	movement_rules?: MovementRule[],
+	turn_resources?: string[],
+};
+
+export type PluginRuntime = {
+	saves?: PendingSaves[],
+	trigger_runs?: PendingTriggerRun[],
+	action_stacks?: ActionStack[],
+	maintained?: MaintainedEffect[],
+	visuals?: ActionPresentation[],
+	movements: PendingMovement[],
+};
+
+export type ReactionOffer = {
+	ready: boolean,
+	source: TokenId,
+	rule: string,
+	action: string,
+	label: Label,
+};
 
 /**  Why an intent or message was rejected. The `code` tag is stable and safe to match on in clients. */
 export type RejectReason = 
@@ -1161,6 +1568,8 @@ export type RemoteStatus = { state: "connecting" } | { state: "online" } | { sta
 /**  The connection to the session server changed. */
 export type RemoteStatusChanged = RemoteStatus;
 
+export type RequiredTurn = "own" | "other";
+
 /**  A generalized hit-point-like resource. `value` and `max` are expressions. */
 export type ResourceDef = {
 	id: string,
@@ -1203,10 +1612,16 @@ export type Role = "gm" | "co_gm" | "player" | "spectator";
 
 /**  A roll macro shown on the sheet. */
 export type RollDef = {
+	kind?: RollKind | null,
+	tags?: string[],
 	id: string,
 	label: Label,
 	dice: string,
 };
+
+export type RollKind = "attack" | "save" | "check" | "initiative";
+
+export type RollMode = "advantage" | "disadvantage";
 
 /**
  *  One roll someone owes the table. Created by a `change_resource` trigger step with
@@ -1262,6 +1677,25 @@ export type RollStatisticsDto = {
 	natural_twenties: number,
 };
 
+export type RuleCapability = "action" | "bonus_action" | "reaction" | "movement" | "provoke";
+
+export type RuleSubject = "actor" | "target";
+
+export type RulesView = {
+	characters?: CharacterRuleView[],
+	tokens?: TokenActionView[],
+	calendar?: CalendarView | null,
+};
+
+export type SaveStatus = "pending" | "succeeded" | "failed" | "automatic_failure";
+
+export type SaveTarget = {
+	token: TokenId,
+	character: CharacterId,
+	status: SaveStatus,
+	total: number | null,
+};
+
 /**
  *  Position of an event in the campaign/session event log.
  * 
@@ -1292,12 +1726,17 @@ export type SessionId = string;
 
 /**  What a sheet shows besides its data (numbers as JSON numbers for the UI). */
 export type SheetView = {
+	economy?: TurnEconomyView | null,
+	modifiers?: Label[],
 	computed: { [key in string]: number | null },
 	resources: ResourceValue[],
 };
 
 /**  The visible state as of event `seq`. */
 export type Snapshot = {
+	rules_view?: RulesView,
+	items?: ItemDto[],
+	plugin_runtime?: PluginRuntime,
 	/**  Sequence number of the last event included (0 = no events yet). */
 	seq: Seq,
 	campaign: CampaignMeta,
@@ -1365,6 +1804,14 @@ export type SoundDto = {
 	sting?: boolean,
 };
 
+/**  Geometry required by an action, independent of system-specific senses and cover bonuses. */
+export type SpatialRequirements = {
+	feature?: string | null,
+	sight?: boolean,
+	line_of_effect?: boolean,
+	area_line_of_effect?: boolean,
+};
+
 /**  Where tokens created by a trigger land on the firing map (Units16, ADR-0016). */
 export type SpawnPlacement = 
 /**  An exact point; later tokens fan out around it. */
@@ -1373,7 +1820,7 @@ export type SpawnPlacement =
 { type: "zone"; id: ZoneId };
 
 /**  Messages the core posts; the UI localizes them by `code`. */
-export type SystemMessage = { code: "character_submitted"; name: string } | { code: "character_approved"; name: string } | { code: "character_returned"; name: string } | 
+export type SystemMessage = { code: "plugin_action_resolved"; action?: IntentId | null; label: Label; outcome: ActionResolution } | { code: "character_submitted"; name: string } | { code: "character_approved"; name: string } | { code: "character_returned"; name: string } | 
 /**  A trigger's narration line (ADR-0024). */
 { code: "narration"; text: string } | 
 /**  A trigger changed a resource of the character `name` by `delta`. */
@@ -1389,6 +1836,8 @@ export type SystemMessage = { code: "character_submitted"; name: string } | { co
 
 /**  The rules of a system plugin, self-contained (no package paths). */
 export type SystemRulesDto = {
+	mechanics?: PluginMechanics,
+	features?: PluginFeatureDef[],
 	/**  Sheet data schema (JSON Schema subset, see `sheet_schema`). */
 	sheet_schema: unknown,
 	/**  Root layout node (rendered by the clients; the core only stores it). */
@@ -1435,6 +1884,11 @@ export type TemplateParamKind = "zone" | "board_node" | "board" | "map" | "journ
 export type ThemeDto = {
 	light?: { [key in string]: string },
 	dark?: { [key in string]: string },
+};
+
+export type TokenActionView = {
+	token: TokenId,
+	actions: ActionAvailability[],
 };
 
 /**  Whose side a token is on: GM bookkeeping for frames and quick scans. */
@@ -1491,6 +1945,8 @@ export type TokenLayer =
 
 /**  What a trigger does, step by step. Character actions apply to the character who set it off. */
 export type TriggerAction = 
+/**  An installed system action; source defaults to the activating token. */
+{ type: "plugin_action"; action: string; source: TokenId | null; target: TokenId | null; x: number; y: number } | 
 /**  Shows something to players. */
 { type: "reveal"; target: RevealTarget } | 
 /**  Hides a board node again (or opens it: any visibility). */
@@ -1607,6 +2063,31 @@ export type TriggerTemplateDto = {
 	definition: unknown,
 };
 
+/**  Resource refill policy. Amount is the desired balance, not an additive grant. */
+export type TurnBudget = {
+	resource: string,
+	label: Label,
+	feature: string | null,
+	refresh: BudgetRefresh,
+	amount?: string | null,
+};
+
+export type TurnBudgetValue = {
+	resource: string,
+	label: Label,
+	refresh: BudgetRefresh,
+	remaining: number,
+	reserved: number,
+	limit: number,
+};
+
+export type TurnEconomyView = {
+	in_combat: boolean,
+	own_turn: boolean,
+	turn_started: boolean,
+	budgets: TurnBudgetValue[],
+};
+
 /**  An update that can be installed. */
 export type UpdateAvailable = {
 	version: string,
@@ -1633,6 +2114,8 @@ export type Version = number;
 
 /**  A named zone on a map. */
 export type ZoneDto = {
+	/**  Independent physical blockers. Hidden from players along with the zone. */
+	occlusion?: ZoneOcclusion,
 	id: ZoneId,
 	map_id: MapId,
 	name: string,
@@ -1651,6 +2134,12 @@ export type ZoneId = string;
 export type ZoneLabel = {
 	x: number,
 	y: number,
+};
+
+/**  A filled obstacle: sight (opaque wall/smoke) and effect (solid wall/glass) are independent. */
+export type ZoneOcclusion = {
+	sight?: boolean,
+	effect?: boolean,
 };
 
 /**  The area of a zone, in Units16 (ADR-0016). */

@@ -28,7 +28,13 @@ pub async fn upgrade(
 ) -> Result<Response, ApiError> {
     let participant = app.participant(id, &headers).await?;
     let session = app.session(id).await?;
-    let max = app.config.limits.max_message_bytes;
+    let ordinary_max = app.config.limits.max_message_bytes;
+    // Plugin descriptions have their own protocol bound; only GM roles can install them.
+    let max = if sees_everything(participant.role) {
+        ordinary_max.max(dnd_protocol::plugin::MAX_PLUGIN_BYTES + 4096)
+    } else {
+        ordinary_max
+    };
     Ok(ws
         .max_message_size(max)
         .max_frame_size(max)
@@ -151,6 +157,12 @@ impl Connection {
         let Ok(envelope) = serde_json::from_str::<Envelope<ClientMessage>>(text) else {
             return Err(Some(Close(close_code::INVALID, "invalid_message")));
         };
+        let plugin_install = sees_everything(self.participant.role)
+            && matches!(&envelope.body, ClientMessage::Intent(intent)
+                if matches!(&intent.intent, dnd_protocol::Intent::InstallPlugin { .. }));
+        if text.len() > self.app.config.limits.max_message_bytes && !plugin_install {
+            return Err(Some(Close(close_code::SIZE, "message_too_large")));
+        }
         if let Err(reason) = envelope.validate() {
             // A wrong version is answered so the client can say "update", then closed.
             let mismatch = matches!(reason, RejectReason::ProtocolMismatch { .. });

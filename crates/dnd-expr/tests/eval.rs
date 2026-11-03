@@ -508,3 +508,19 @@ fn computed_errors() {
         );
     }
 }
+
+#[test]
+fn adjusted_computed_values_propagate_to_dependants() {
+    use std::collections::BTreeMap;
+    let definitions = BTreeMap::from([
+        ("first".into(), "@base + 1".into()),
+        ("second".into(), "@first * 2".into()),
+    ]);
+    let sheet = BTreeMap::from([("base".into(), 10i64)]);
+    let result = dnd_expr::Computed::resolve_adjusted(&definitions, &sheet, |name, value| {
+        if name == "first" { value + 2 } else { value }
+    })
+    .unwrap();
+    assert_eq!(result.get("first"), Some(13));
+    assert_eq!(result.get("second"), Some(26));
+}

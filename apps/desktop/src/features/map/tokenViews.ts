@@ -28,19 +28,31 @@ export function tokenViews(
   const owned = new Set(
     snapshot.characters.filter((c) => c.owner === campaign.user_id).map((c) => c.id),
   );
+  const paused = new Set(
+    (snapshot.plugin_runtime?.movements ?? []).flatMap((m) => [
+      m.token,
+      ...m.offers.map((o) => o.source),
+    ]),
+  );
   return snapshot.tokens
     .filter((t) => t.map_id === mapId)
     .filter((t) => isGm || (t.layer !== 'gm' && t.visible))
     .sort((a, b) => LAYER_ORDER[a.layer] - LAYER_ORDER[b.layer])
     .map((token) => ({
       token,
+      dead:
+        snapshot.rules_view?.characters?.find((c) => c.character === token.character_id)?.life ===
+        'dead',
       movable:
-        isGm ||
-        (campaign.role === 'player' &&
-          map.visible_to_players &&
-          token.layer !== 'gm' &&
-          token.character_id !== null &&
-          owned.has(token.character_id)),
+        !(snapshot.plugin_runtime?.action_stacks ?? []).some((stack) => stack.map === mapId) &&
+        !(snapshot.plugin_runtime?.saves ?? []).some((g) => g.map === mapId) &&
+        !paused.has(token.id) &&
+        (isGm ||
+          (campaign.role === 'player' &&
+            map.visible_to_players &&
+            token.layer !== 'gm' &&
+            token.character_id !== null &&
+            owned.has(token.character_id))),
       gmOnly: token.layer === 'gm' || !token.visible,
       colorKey: token.character_id ?? token.id,
       active: token.id === turnToken,

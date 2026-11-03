@@ -620,3 +620,120 @@ fn table_state_with_trigger(state: &GameState) -> GameState {
     before.triggers.insert(trigger.id, trigger);
     before
 }
+
+#[test]
+fn fictional_time_expires_only_at_explicit_deadline_and_is_versioned_and_authorized() {
+    let mut s = srd_state();
+    create(
+        &mut s,
+        0,
+        marker(EffectDurationDef::GameTime { seconds: 60 }),
+    )
+    .unwrap();
+    fire(&mut s, 0, 0);
+    let effect = s.effects.values().next().unwrap().clone();
+    assert_eq!(effect.duration, EffectDuration::GameTime { until: 60 });
+    for role in [Role::Player, Role::Spectator] {
+        assert_eq!(
+            run(
+                &mut s,
+                role,
+                Intent::AdvanceGameTime { seconds: 60 },
+                Some(Version::INITIAL)
+            ),
+            Err(RejectReason::Forbidden)
+        );
+    }
+    run(
+        &mut s,
+        Role::CoGm,
+        Intent::AdvanceGameTime { seconds: 59 },
+        Some(Version::INITIAL),
+    )
+    .unwrap();
+    assert!(s.effects.contains_key(&effect.id));
+    assert_eq!(s.campaign.game_clock.seconds, 59);
+    assert!(
+        run(
+            &mut s,
+            Role::Gm,
+            Intent::AdvanceGameTime { seconds: 1 },
+            Some(Version::INITIAL)
+        )
+        .is_err()
+    );
+    let events = run(
+        &mut s,
+        Role::Gm,
+        Intent::AdvanceGameTime { seconds: 1 },
+        Some(Version(2)),
+    )
+    .unwrap();
+    assert!(s.effects.is_empty());
+    assert!(
+        events
+            .iter()
+            .any(|e| matches!(e, Event::TokenEffectRemoved { expired: true, .. }))
+    );
+}
+#[test]
+fn fictional_time_rejects_invalid_steps_and_does_not_consume_round_effects() {
+    let mut s = srd_state();
+    create(&mut s, 0, marker(EffectDurationDef::Rounds { rounds: 3 })).unwrap();
+    fire(&mut s, 0, 0);
+    for seconds in [0, -1, 604_801, i64::MAX] {
+        assert!(
+            run(
+                &mut s,
+                Role::Gm,
+                Intent::AdvanceGameTime { seconds },
+                Some(Version::INITIAL)
+            )
+            .is_err()
+        );
+    }
+    run(
+        &mut s,
+        Role::Gm,
+        Intent::AdvanceGameTime { seconds: 604_800 },
+        Some(Version::INITIAL),
+    )
+    .unwrap();
+    assert_eq!(
+        s.effects.values().next().unwrap().duration,
+        EffectDuration::Rounds { remaining: 3 }
+    );
+}
+
+#[test]
+fn wall_timestamp_and_metadata_edit_do_not_consume_fictional_duration() {
+    let mut s = srd_state();
+    create(
+        &mut s,
+        0,
+        marker(EffectDurationDef::GameTime { seconds: 60 }),
+    )
+    .unwrap();
+    fire(&mut s, 0, 0);
+    run(
+        &mut s,
+        Role::Gm,
+        Intent::AdvanceGameTime { seconds: 10 },
+        Some(Version::INITIAL),
+    )
+    .unwrap();
+    let mut env = envelope(
+        Intent::UpdateCampaignMeta {
+            name: Some("Renamed".into()),
+            description: None,
+        },
+        Some(s.campaign.version),
+    );
+    env.ts_ms = 9_000_000_000_000;
+    let events = apply(&s, &env, &actor(Role::Gm), &mut SplitMix64::new(42)).unwrap();
+    evolve_all(&mut s, &events);
+    assert_eq!(s.campaign.game_clock.seconds, 10);
+    assert_eq!(s.effects.len(), 1);
+    assert_eq!(s.campaign.name, "Renamed");
+    assert_eq!(players_state(&s).campaign.game_clock.seconds, 10);
+}

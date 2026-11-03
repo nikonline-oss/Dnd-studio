@@ -100,6 +100,15 @@ impl Intent {
                         .flat_map(|l| [("label.x", l.x), ("label.y", l.y)]),
                 )
                 .collect(),
+            Self::ResolveActionSave { .. }
+            | Self::CancelActionSaves { .. }
+            | Self::AdvanceCalendarTime { .. }
+            | Self::CreateItem { .. }
+            | Self::InstantiateItem { .. }
+            | Self::UpdateItem { .. }
+            | Self::TransferItem { .. }
+            | Self::DeleteItem { .. } => Vec::new(),
+            Self::AdvanceGameTime { seconds } => vec![("seconds", *seconds)],
             Self::UpdateCampaignMeta { .. }
             | Self::CreatePlaylist { .. }
             | Self::UpdatePlaylist { .. }
@@ -136,6 +145,15 @@ impl Intent {
             | Self::DeleteJournalFolder { .. }
             | Self::InstallPlugin { .. }
             | Self::UninstallPlugin { .. }
+            | Self::MoveTokenWithMode { .. }
+            | Self::ResolvePluginReaction { .. }
+            | Self::CancelPluginMovement { .. }
+            | Self::ResolveActionReaction { .. }
+            | Self::ContinuePluginAction { .. }
+            | Self::CancelActionStack { .. }
+            | Self::EndMaintainedEffect { .. }
+            | Self::ExecutePluginAction { .. }
+            | Self::ConfigurePluginFeature { .. }
             | Self::SetSystemPlugin { .. }
             | Self::CreateBoard { .. }
             | Self::UpdateBoard { .. }
@@ -144,6 +162,7 @@ impl Intent {
             | Self::CreateBoardEdge { .. }
             | Self::UpdateBoardEdge { .. }
             | Self::DeleteBoardEdge { .. }
+            | Self::SetZoneOcclusion { .. }
             | Self::SetZoneColor { .. }
             | Self::DeleteZone { .. }
             | Self::MergeZones { .. }
@@ -189,6 +208,7 @@ impl Intent {
     #[must_use]
     pub fn created_id(&self) -> Option<Uuid> {
         match self {
+            Self::CreateItem { id, .. } | Self::InstantiateItem { id, .. } => Some(id.0),
             Self::CreateMap { id, .. } => Some(id.0),
             Self::CreateToken { id, .. } => Some(id.0),
             Self::CreateCharacter { id, .. } => Some(id.0),
@@ -206,7 +226,14 @@ impl Intent {
             Self::CreateBoardEdge { id, .. } => Some(id.0),
             Self::CreateZone { id, .. } => Some(id.0),
             Self::CreateTrigger { id, .. } => Some(id.0),
-            Self::UpdateCampaignMeta { .. }
+            Self::ResolveActionSave { .. }
+            | Self::CancelActionSaves { .. }
+            | Self::AdvanceCalendarTime { .. }
+            | Self::UpdateItem { .. }
+            | Self::TransferItem { .. }
+            | Self::DeleteItem { .. }
+            | Self::AdvanceGameTime { .. }
+            | Self::UpdateCampaignMeta { .. }
             | Self::UpdatePlaylist { .. }
             | Self::MovePlaylist { .. }
             | Self::DeletePlaylist { .. }
@@ -238,6 +265,15 @@ impl Intent {
             | Self::DeleteJournalFolder { .. }
             | Self::InstallPlugin { .. }
             | Self::UninstallPlugin { .. }
+            | Self::MoveTokenWithMode { .. }
+            | Self::ResolvePluginReaction { .. }
+            | Self::CancelPluginMovement { .. }
+            | Self::ResolveActionReaction { .. }
+            | Self::ContinuePluginAction { .. }
+            | Self::CancelActionStack { .. }
+            | Self::EndMaintainedEffect { .. }
+            | Self::ExecutePluginAction { .. }
+            | Self::ConfigurePluginFeature { .. }
             | Self::SetSystemPlugin { .. }
             | Self::UpdateBoard { .. }
             | Self::DeleteBoard { .. }
@@ -247,6 +283,7 @@ impl Intent {
             | Self::UpdateBoardEdge { .. }
             | Self::DeleteBoardEdge { .. }
             | Self::UpdateZone { .. }
+            | Self::SetZoneOcclusion { .. }
             | Self::SetZoneColor { .. }
             | Self::DeleteZone { .. }
             | Self::MergeZones { .. }

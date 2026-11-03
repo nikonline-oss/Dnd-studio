@@ -75,15 +75,19 @@ fn fulfill(
         .map(|hit| expr_holds(state, &character, &hit_vars, hit))
         .unwrap_or(true);
     if hit {
-        let Some(damage) = roll_dice(
-            state,
-            &request.damage_dice,
-            Some(&character),
-            &hit_vars,
-            rng,
-        )
-        .map(|roll| roll.total.max(0)) else {
-            return Err(RejectReason::invalid("steps"));
+        let damage = if request.hit.is_none() {
+            // A plain manual roll applies the displayed result; only attacks roll damage separately.
+            roll.total.max(0)
+        } else {
+            roll_dice(
+                state,
+                &request.damage_dice,
+                Some(&character),
+                &hit_vars,
+                rng,
+            )
+            .map(|roll| roll.total.max(0))
+            .ok_or_else(|| RejectReason::invalid("steps"))?
         };
         let (apply_events, delta) = apply_resource_change_delta(
             state,

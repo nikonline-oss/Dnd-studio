@@ -10,9 +10,17 @@ pub mod error;
 pub mod event;
 pub mod ids;
 pub mod intent;
+pub mod item;
 pub mod library;
+pub mod mechanics;
+pub mod rules_view;
+pub use item::*;
+pub use rules_view::*;
+pub mod modifier;
+pub use modifier::*;
 pub mod message;
 pub mod model;
+pub use mechanics::*;
 pub mod playlist;
 pub mod plugin;
 pub mod roll;
@@ -38,7 +46,7 @@ pub use error::RejectReason;
 pub use event::{Event, EventBatch};
 pub use ids::{
     AssetId, BoardEdgeId, BoardId, BoardNodeId, CharacterId, ChatMessageId, CombatId, CombatantId,
-    EffectId, FogOpId, IntentId, JournalEntryId, JournalFolderId, LibraryFolderId, MapId,
+    EffectId, FogOpId, IntentId, ItemId, JournalEntryId, JournalFolderId, LibraryFolderId, MapId,
     MessageId, PlaylistId, Role, RollRequestId, Seq, SessionId, TokenId, TriggerId, UserId,
     Version, ZoneId, uuid_v7_from_random,
 };
@@ -51,10 +59,10 @@ pub use message::{Acceptance, ClientMessage, Envelope, Rejection, ServerMessage}
 pub use model::{
     AssetDto, AssetTileDto, AssetUsage, CHAT_SNAPSHOT_LEN, CampaignMeta, CharacterDto,
     CharacterKind, CharacterStatus, ChatKind, ChatMessageDto, ChatVisibility, CombatDto,
-    CombatantDto, DiceRollDto, DiceTermDto, DieDto, FogDto, FogOp, FogOpKind, FogShape, Grid,
-    GridKind, JournalEntryDto, JournalEntryMeta, JournalFolderDto, JournalVisibility, MAX_CHAT_LEN,
-    MAX_CONDITIONS, MAX_JOURNAL_BYTES, MAX_SHEET_BYTES, MapDto, RollStatisticsDto, SystemMessage,
-    TokenDisposition, TokenDto, TokenLayer, UserDto,
+    CombatantDto, DiceRollDto, DiceTermDto, DieDto, FogDto, FogOp, FogOpKind, FogShape, GameClock,
+    Grid, GridKind, JournalEntryDto, JournalEntryMeta, JournalFolderDto, JournalVisibility,
+    MAX_CHAT_LEN, MAX_CONDITIONS, MAX_JOURNAL_BYTES, MAX_SHEET_BYTES, MapDto, RollStatisticsDto,
+    SystemMessage, TokenDisposition, TokenDto, TokenLayer, UserDto,
 };
 pub use model::{
     JournalEntryKind, JournalTable, MAX_CELL_LEN, MAX_COLUMN_WIDTH, MAX_TABLE_COLUMNS,
@@ -67,8 +75,8 @@ pub use model::{
 pub use playlist::{MAX_PLAYLIST_TRACKS, MAX_PLAYLISTS, PlaylistDto, PlaylistTrackDto};
 pub use plugin::{
     ConditionDef, InventoryDef, Label, LocalizedText, MAX_PLUGIN_BYTES, MAX_TRIGGER_TEMPLATES,
-    PluginDto, PluginKind, ResourceDef, RollDef, SystemRulesDto, TemplateParam, TemplateParamKind,
-    TriggerTemplateDto,
+    PluginDto, PluginFeatureDef, PluginKind, ResourceDef, RollDef, SystemRulesDto, TemplateParam,
+    TemplateParamKind, TriggerTemplateDto,
 };
 pub use roll::{MAX_ROLL_REQUESTS, RollRequestDto, RollRequestStatus};
 pub use snapshot::Snapshot;
@@ -83,11 +91,14 @@ pub use uuid::Uuid;
 pub use validate::{
     MAX_SAFE_INTEGER, SheetFieldError, is_js_safe, is_uuid_v7, sheet_field, validate_sheet_json,
 };
-pub use zone::{MAX_ZONE_PARTS, MAX_ZONE_POINTS, MAX_ZONES_PER_MAP, ZoneDto, ZoneLabel, ZoneShape};
+pub use zone::{
+    MAX_ZONE_PARTS, MAX_ZONE_POINTS, MAX_ZONES_PER_MAP, ZoneDto, ZoneLabel, ZoneOcclusion,
+    ZoneShape,
+};
 
 /// Protocol version. Peers with a different version are refused with
 /// [`RejectReason::ProtocolMismatch`].
-pub const PROTOCOL_VERSION: u32 = 9;
+pub const PROTOCOL_VERSION: u32 = 19;
 
 /// Registers every protocol type that is exported to TypeScript.
 #[cfg(feature = "specta")]

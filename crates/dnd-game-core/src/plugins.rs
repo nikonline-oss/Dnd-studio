@@ -32,8 +32,37 @@ pub(crate) fn apply(
             {
                 return Err(RejectReason::invalid("plugin"));
             }
+            let mut installed = plugin.clone();
+            installed.feature_settings.clear();
+            if let Some(previous) = state.plugins.get(&plugin.id)
+                && let Some(rules) = &installed.system
+            {
+                for feature in &rules.features {
+                    if let Some(value) = previous.feature_settings.get(&feature.id) {
+                        installed
+                            .feature_settings
+                            .insert(feature.id.clone(), *value);
+                    }
+                }
+            }
+            Ok(vec![Event::PluginInstalled { plugin: installed }])
+        })(),
+        Intent::ConfigurePluginFeature {
+            id,
+            feature,
+            enabled,
+        } => (|| {
+            let mut plugin = state.plugins.get(id).ok_or(RejectReason::NotFound)?.clone();
+            if !plugin
+                .system
+                .as_ref()
+                .is_some_and(|rules| rules.features.iter().any(|f| &f.id == feature))
+            {
+                return Err(RejectReason::invalid("feature"));
+            }
+            plugin.feature_settings.insert(feature.clone(), *enabled);
             Ok(vec![Event::PluginInstalled {
-                plugin: plugin.clone(),
+                plugin: Box::new(plugin),
             }])
         })(),
         Intent::UninstallPlugin { id } => (|| {
@@ -98,6 +127,22 @@ pub fn check_plugin(plugin: &PluginDto) -> Result<(), RejectReason> {
 }
 
 fn check_rules(rules: &SystemRulesDto) -> Result<(), RejectReason> {
+    crate::mechanics::validate(rules)?;
+    let mut features = std::collections::BTreeSet::new();
+    if rules.features.len() > 128
+        || rules.features.iter().any(|f| {
+            f.id.is_empty()
+                || f.id.len() > 64
+                || !f.id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
+                || !features.insert(f.id.as_str())
+                || f.label.get("en").is_empty()
+                || f.label.get("en").len() > 800
+                || f.description.get("en").len() > 800
+        })
+    {
+        return Err(RejectReason::invalid("features"));
+    }
+
     sheet_schema::check_schema(&rules.sheet_schema)
         .map_err(|_| RejectReason::invalid("sheet_schema"))?;
     if !rules.sheet_layout.is_object() {
@@ -126,6 +171,7 @@ fn check_rules(rules: &SystemRulesDto) -> Result<(), RejectReason> {
     let computed = Computed::resolve(&rules.computed, &context)
         .map_err(|_| RejectReason::invalid("computed"))?;
     let scope = computed.with_sheet(&context);
+    crate::mechanics::check_evaluation(rules, &scope)?;
 
     for resource in &rules.resources {
         for expression in [&resource.value, &resource.max] {
@@ -142,6 +188,13 @@ fn check_rules(rules: &SystemRulesDto) -> Result<(), RejectReason> {
             .map_err(|_| RejectReason::invalid("dice"))?
             .roll(&fields, &mut SplitMix64::new(0))
             .map_err(|_| RejectReason::invalid("dice"))?;
+    }
+    if rules
+        .rolls
+        .iter()
+        .any(|r| r.tags.len() > 16 || r.tags.iter().any(|t| t.is_empty() || t.len() > 64))
+    {
+        return Err(RejectReason::invalid("rolls"));
     }
     let unique = |ids: Vec<&str>| {
         let mut sorted = ids.clone();
@@ -172,6 +225,7 @@ fn check_rules(rules: &SystemRulesDto) -> Result<(), RejectReason> {
     {
         return Err(RejectReason::invalid("inventory"));
     }
+    crate::modifiers::validate(rules)?;
     Ok(())
 }
 
@@ -295,8 +349,8 @@ impl Context for SheetContext<'_> {
 /// (if any), then the integers of the sheet.
 #[derive(Debug, Default)]
 pub struct CharacterFields {
-    sheet: Value,
-    computed: BTreeMap<String, i64>,
+    pub(crate) sheet: Value,
+    pub(crate) computed: BTreeMap<String, i64>,
 }
 
 impl CharacterFields {
@@ -305,13 +359,14 @@ impl CharacterFields {
         let sheet = sheet_json
             .and_then(|s| serde_json::from_str(s).ok())
             .unwrap_or(Value::Null);
+        let sheet = state.rules().map_or_else(
+            || sheet.clone(),
+            |rules| sheet_schema::apply_defaults(&rules.sheet_schema, &sheet),
+        );
         let computed = match state.rules() {
-            Some(rules) => {
-                let filled = sheet_schema::apply_defaults(&rules.sheet_schema, &sheet);
-                Computed::resolve(&rules.computed, &SheetContext(&filled))
-                    .map(Computed::into_values)
-                    .unwrap_or_default()
-            }
+            Some(rules) => Computed::resolve(&rules.computed, &SheetContext(&sheet))
+                .map(Computed::into_values)
+                .unwrap_or_default(),
             None => BTreeMap::new(),
         };
         Self { sheet, computed }

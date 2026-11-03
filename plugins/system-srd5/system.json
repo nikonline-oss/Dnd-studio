@@ -47,6 +47,69 @@
       },
       "value": "@hp.current",
       "max": "@hp.max"
+    },
+    {
+      "id": "reaction",
+      "label": {
+        "ru": "Реакция",
+        "en": "Reaction"
+      },
+      "value": "@automation.reaction",
+      "max": "@automation.reactions_per_turn"
+    },
+    {
+      "id": "spell_slot_3",
+      "label": {
+        "ru": "Ячейки 3 уровня",
+        "en": "Level 3 spell slots"
+      },
+      "value": "@automation.spell_slots_3",
+      "max": "@automation.spell_slots_3_max"
+    },
+    {
+      "id": "action",
+      "label": {
+        "ru": "Действие",
+        "en": "Action"
+      },
+      "value": "@automation.actions",
+      "max": "@automation.actions_per_turn"
+    },
+    {
+      "id": "temporary_hp",
+      "label": {
+        "ru": "Временные хиты",
+        "en": "Temporary hit points"
+      },
+      "value": "@hp.temporary",
+      "max": "1000000"
+    },
+    {
+      "id": "bonus_action",
+      "label": {
+        "ru": "Бонусное действие",
+        "en": "Bonus action"
+      },
+      "value": "@automation.bonus_actions",
+      "max": "@automation.bonus_actions_per_turn"
+    },
+    {
+      "id": "spell_slot_1",
+      "label": {
+        "ru": "Ячейки 1 уровня",
+        "en": "Level 1 slots"
+      },
+      "value": "@automation.spell_slots_1",
+      "max": "@automation.spell_slots_1_max"
+    },
+    {
+      "id": "spell_cast",
+      "label": {
+        "ru": "Расход ячейки за ход",
+        "en": "Spell-slot expenditure this turn"
+      },
+      "value": "@automation.slot_casts_remaining",
+      "max": "1"
     }
   ],
   "health_thresholds": [75, 25, 0],
@@ -57,7 +120,9 @@
         "ru": "Проверка: Сила",
         "en": "Strength check"
       },
-      "dice": "1d20 + @str_mod"
+      "dice": "1d20 + @str_mod",
+      "kind": "check",
+      "tags": ["str"]
     },
     {
       "id": "str_save",
@@ -65,7 +130,9 @@
         "ru": "Спасбросок: Сила",
         "en": "Strength save"
       },
-      "dice": "1d20 + @str_save"
+      "dice": "1d20 + @str_save",
+      "kind": "save",
+      "tags": ["str"]
     },
     {
       "id": "dex_check",
@@ -73,7 +140,9 @@
         "ru": "Проверка: Ловкость",
         "en": "Dexterity check"
       },
-      "dice": "1d20 + @dex_mod"
+      "dice": "1d20 + @dex_mod",
+      "kind": "check",
+      "tags": ["dex"]
     },
     {
       "id": "dex_save",
@@ -81,7 +150,9 @@
         "ru": "Спасбросок: Ловкость",
         "en": "Dexterity save"
       },
-      "dice": "1d20 + @dex_save"
+      "dice": "1d20 + @dex_save",
+      "kind": "save",
+      "tags": ["dex"]
     },
     {
       "id": "con_check",
@@ -89,7 +160,9 @@
         "ru": "Проверка: Телосложение",
         "en": "Constitution check"
       },
-      "dice": "1d20 + @con_mod"
+      "dice": "1d20 + @con_mod",
+      "kind": "check",
+      "tags": ["con"]
     },
     {
       "id": "con_save",
@@ -97,7 +170,9 @@
         "ru": "Спасбросок: Телосложение",
         "en": "Constitution save"
       },
-      "dice": "1d20 + @con_save"
+      "dice": "1d20 + @con_save",
+      "kind": "save",
+      "tags": ["con"]
     },
     {
       "id": "int_check",
@@ -105,7 +180,9 @@
         "ru": "Проверка: Интеллект",
         "en": "Intelligence check"
       },
-      "dice": "1d20 + @int_mod"
+      "dice": "1d20 + @int_mod",
+      "kind": "check",
+      "tags": ["int"]
     },
     {
       "id": "int_save",
@@ -113,7 +190,9 @@
         "ru": "Спасбросок: Интеллект",
         "en": "Intelligence save"
       },
-      "dice": "1d20 + @int_save"
+      "dice": "1d20 + @int_save",
+      "kind": "save",
+      "tags": ["int"]
     },
     {
       "id": "wis_check",
@@ -121,7 +200,9 @@
         "ru": "Проверка: Мудрость",
         "en": "Wisdom check"
       },
-      "dice": "1d20 + @wis_mod"
+      "dice": "1d20 + @wis_mod",
+      "kind": "check",
+      "tags": ["wis"]
     },
     {
       "id": "wis_save",
@@ -129,7 +210,9 @@
         "ru": "Спасбросок: Мудрость",
         "en": "Wisdom save"
       },
-      "dice": "1d20 + @wis_save"
+      "dice": "1d20 + @wis_save",
+      "kind": "save",
+      "tags": ["wis"]
     },
     {
       "id": "cha_check",
@@ -137,7 +220,9 @@
         "ru": "Проверка: Харизма",
         "en": "Charisma check"
       },
-      "dice": "1d20 + @cha_mod"
+      "dice": "1d20 + @cha_mod",
+      "kind": "check",
+      "tags": ["cha"]
     },
     {
       "id": "cha_save",
@@ -145,7 +230,9 @@
         "ru": "Спасбросок: Харизма",
         "en": "Charisma save"
       },
-      "dice": "1d20 + @cha_save"
+      "dice": "1d20 + @cha_save",
+      "kind": "save",
+      "tags": ["cha"]
     },
     {
       "id": "acrobatics",
@@ -153,7 +240,9 @@
         "ru": "Акробатика",
         "en": "Acrobatics"
       },
-      "dice": "1d20 + @acrobatics"
+      "dice": "1d20 + @acrobatics",
+      "kind": "check",
+      "tags": ["dex"]
     },
     {
       "id": "animal_handling",
@@ -161,7 +250,9 @@
         "ru": "Уход за животными",
         "en": "Animal Handling"
       },
-      "dice": "1d20 + @animal_handling"
+      "dice": "1d20 + @animal_handling",
+      "kind": "check",
+      "tags": ["wis"]
     },
     {
       "id": "arcana",
@@ -169,7 +260,9 @@
         "ru": "Магия",
         "en": "Arcana"
       },
-      "dice": "1d20 + @arcana"
+      "dice": "1d20 + @arcana",
+      "kind": "check",
+      "tags": ["int"]
     },
     {
       "id": "athletics",
@@ -177,7 +270,9 @@
         "ru": "Атлетика",
         "en": "Athletics"
       },
-      "dice": "1d20 + @athletics"
+      "dice": "1d20 + @athletics",
+      "kind": "check",
+      "tags": ["str"]
     },
     {
       "id": "deception",
@@ -185,7 +280,9 @@
         "ru": "Обман",
         "en": "Deception"
       },
-      "dice": "1d20 + @deception"
+      "dice": "1d20 + @deception",
+      "kind": "check",
+      "tags": ["cha"]
     },
     {
       "id": "history",
@@ -193,7 +290,9 @@
         "ru": "История",
         "en": "History"
       },
-      "dice": "1d20 + @history"
+      "dice": "1d20 + @history",
+      "kind": "check",
+      "tags": ["int"]
     },
     {
       "id": "insight",
@@ -201,7 +300,9 @@
         "ru": "Проницательность",
         "en": "Insight"
       },
-      "dice": "1d20 + @insight"
+      "dice": "1d20 + @insight",
+      "kind": "check",
+      "tags": ["wis"]
     },
     {
       "id": "intimidation",
@@ -209,7 +310,9 @@
         "ru": "Запугивание",
         "en": "Intimidation"
       },
-      "dice": "1d20 + @intimidation"
+      "dice": "1d20 + @intimidation",
+      "kind": "check",
+      "tags": ["cha"]
     },
     {
       "id": "investigation",
@@ -217,7 +320,9 @@
         "ru": "Анализ",
         "en": "Investigation"
       },
-      "dice": "1d20 + @investigation"
+      "dice": "1d20 + @investigation",
+      "kind": "check",
+      "tags": ["int"]
     },
     {
       "id": "medicine",
@@ -225,7 +330,9 @@
         "ru": "Медицина",
         "en": "Medicine"
       },
-      "dice": "1d20 + @medicine"
+      "dice": "1d20 + @medicine",
+      "kind": "check",
+      "tags": ["wis"]
     },
     {
       "id": "nature",
@@ -233,7 +340,9 @@
         "ru": "Природа",
         "en": "Nature"
       },
-      "dice": "1d20 + @nature"
+      "dice": "1d20 + @nature",
+      "kind": "check",
+      "tags": ["int"]
     },
     {
       "id": "perception",
@@ -241,7 +350,9 @@
         "ru": "Внимательность",
         "en": "Perception"
       },
-      "dice": "1d20 + @perception"
+      "dice": "1d20 + @perception",
+      "kind": "check",
+      "tags": ["wis"]
     },
     {
       "id": "performance",
@@ -249,7 +360,9 @@
         "ru": "Выступление",
         "en": "Performance"
       },
-      "dice": "1d20 + @performance"
+      "dice": "1d20 + @performance",
+      "kind": "check",
+      "tags": ["cha"]
     },
     {
       "id": "persuasion",
@@ -257,7 +370,9 @@
         "ru": "Убеждение",
         "en": "Persuasion"
       },
-      "dice": "1d20 + @persuasion"
+      "dice": "1d20 + @persuasion",
+      "kind": "check",
+      "tags": ["cha"]
     },
     {
       "id": "religion",
@@ -265,7 +380,9 @@
         "ru": "Религия",
         "en": "Religion"
       },
-      "dice": "1d20 + @religion"
+      "dice": "1d20 + @religion",
+      "kind": "check",
+      "tags": ["int"]
     },
     {
       "id": "sleight_of_hand",
@@ -273,7 +390,9 @@
         "ru": "Ловкость рук",
         "en": "Sleight of Hand"
       },
-      "dice": "1d20 + @sleight_of_hand"
+      "dice": "1d20 + @sleight_of_hand",
+      "kind": "check",
+      "tags": ["dex"]
     },
     {
       "id": "stealth",
@@ -281,7 +400,9 @@
         "ru": "Скрытность",
         "en": "Stealth"
       },
-      "dice": "1d20 + @stealth"
+      "dice": "1d20 + @stealth",
+      "kind": "check",
+      "tags": ["dex"]
     },
     {
       "id": "survival",
@@ -289,7 +410,9 @@
         "ru": "Выживание",
         "en": "Survival"
       },
-      "dice": "1d20 + @survival"
+      "dice": "1d20 + @survival",
+      "kind": "check",
+      "tags": ["wis"]
     },
     {
       "id": "initiative",
@@ -297,7 +420,9 @@
         "ru": "Инициатива",
         "en": "Initiative"
       },
-      "dice": "1d20 + @dex_mod"
+      "dice": "1d20 + @dex_mod",
+      "kind": "check",
+      "tags": ["dex"]
     }
   ],
   "conditions": [
@@ -405,11 +530,1165 @@
         "ru": "Без сознания",
         "en": "Unconscious"
       }
+    },
+    {
+      "id": "disengaged",
+      "label": {
+        "ru": "Отход до конца хода",
+        "en": "Disengaged until turn end"
+      }
+    },
+    {
+      "id": "shield_of_faith",
+      "label": {
+        "ru": "Щит веры",
+        "en": "Shield of Faith"
+      }
+    },
+    {
+      "id": "dead",
+      "label": {
+        "ru": "Мёртв",
+        "en": "Dead"
+      }
     }
   ],
   "inventory": {
     "path": "equipment",
     "name_field": "name"
   },
-  "creature_sheet_layout": "sheet/creature.layout.json"
+  "creature_sheet_layout": "sheet/creature.layout.json",
+  "features": [
+    {
+      "id": "opportunity_attacks",
+      "label": {
+        "ru": "Провоцированные атаки",
+        "en": "Opportunity attacks"
+      },
+      "description": {
+        "ru": "Предлагать реакцию при выходе из досягаемости. Решение подтверждает владелец или мастер.",
+        "en": "Offer a reaction before a creature leaves reach. Controller or GM confirms."
+      },
+      "default_enabled": true
+    },
+    {
+      "id": "area_actions",
+      "label": {
+        "ru": "Действия по области",
+        "en": "Area actions"
+      },
+      "description": {
+        "ru": "Разрешить действия с областью поражения и эффектами на карте.",
+        "en": "Enable area actions and map effects."
+      },
+      "default_enabled": true
+    },
+    {
+      "id": "condition_rules",
+      "label": {
+        "ru": "Последствия состояний",
+        "en": "Condition consequences"
+      },
+      "description": {
+        "ru": "Автоматически применять объявленные плагином ограничения и модификаторы состояний.",
+        "en": "Apply the condition restrictions and modifiers declared by the plugin."
+      },
+      "default_enabled": true
+    },
+    {
+      "id": "disengage",
+      "label": {
+        "ru": "Отход",
+        "en": "Disengage"
+      },
+      "description": {
+        "ru": "Действие даёт защиту от провоцирования до конца текущего хода.",
+        "en": "An action prevents provoking until the current turn ends."
+      },
+      "default_enabled": true
+    },
+    {
+      "id": "damage_rules",
+      "label": {
+        "ru": "Защита и временные хиты",
+        "en": "Damage defenses and temporary hit points"
+      },
+      "description": {
+        "ru": "Применять снижение, сопротивления, уязвимости, иммунитеты и временные хиты.",
+        "en": "Apply reduction, resistance, vulnerability, immunity and temporary hit points."
+      },
+      "default_enabled": true
+    },
+    {
+      "id": "concentration",
+      "label": {
+        "ru": "Концентрация",
+        "en": "Concentration"
+      },
+      "description": {
+        "ru": "Поддерживаемые эффекты, проверки при уроне и завершение при недееспособности.",
+        "en": "Maintained effects, damage saves and ending on incapacity."
+      },
+      "default_enabled": true
+    },
+    {
+      "id": "counterspell",
+      "label": {
+        "ru": "Контрзаклинание",
+        "en": "Counterspell"
+      },
+      "description": {
+        "ru": "Предлагать реакцию на произнесение заклинания; разрешать цепочки прерываний.",
+        "en": "Offer a reaction to spellcasting and resolve interruption chains."
+      },
+      "default_enabled": true
+    },
+    {
+      "id": "turn_economy",
+      "label": {
+        "ru": "Экономика хода",
+        "en": "Turn economy"
+      },
+      "description": {
+        "ru": "Свой ход для действий, восстановление бюджетов и не больше одной ячейки за ход.",
+        "en": "Own-turn actions, budget resets and at most one spell slot per turn."
+      },
+      "default_enabled": true
+    },
+    {
+      "id": "spatial_rules",
+      "label": {
+        "ru": "Преграды и обзор",
+        "en": "Obstacles and sight"
+      },
+      "description": {
+        "ru": "Проверять зоны, блокирующие обзор или эффект. Освещение, особые чувства и частичное укрытие мастер учитывает отдельно.",
+        "en": "Check zones blocking sight or effect. Lighting, special senses and partial cover are adjudicated separately."
+      },
+      "default_enabled": true
+    }
+  ],
+  "mechanics": {
+    "actions": [
+      {
+        "feature": null,
+        "condition": "@hp.current > 0",
+        "range_cells": "@automation.reach_cells",
+        "radius_cells": null,
+        "attack_dice": "1d20 + @automation.attack_bonus",
+        "hit": "@natural == 20 || (@natural != 1 && @total >= @ac)",
+        "save_dice": null,
+        "save_dc": null,
+        "save_divisor": 2,
+        "damage_dice": "1d6 + @str_mod",
+        "resource": "hp",
+        "cost": null,
+        "visual": {
+          "color": "#efb64d",
+          "duration_ms": 700
+        },
+        "id": "melee_attack",
+        "label": {
+          "ru": "Ближняя атака (пример)",
+          "en": "Melee attack (example)"
+        },
+        "distance_metric": "chebyshev",
+        "reaction_only": false,
+        "critical_if": "@natural == 20",
+        "critical_dice": "1d6",
+        "tags": ["weapon", "melee"],
+        "timing": {
+          "turn": "own",
+          "feature": "turn_economy"
+        },
+        "spatial": {
+          "feature": "spatial_rules",
+          "sight": false,
+          "line_of_effect": true,
+          "area_line_of_effect": false
+        },
+        "sheet_group": "attacks",
+        "activation": "action",
+        "costs": [
+          {
+            "resource": "action",
+            "amount": "1",
+            "scope": "combat",
+            "feature": "turn_economy"
+          }
+        ],
+        "damage_profile": "standard_damage",
+        "damage_type": "slashing"
+      },
+      {
+        "feature": "opportunity_attacks",
+        "condition": "@hp.current > 0",
+        "range_cells": "@automation.reach_cells",
+        "radius_cells": null,
+        "attack_dice": "1d20 + @automation.attack_bonus",
+        "hit": "@natural == 20 || (@natural != 1 && @total >= @ac)",
+        "save_dice": null,
+        "save_dc": null,
+        "save_divisor": 2,
+        "damage_dice": "1d6 + @str_mod",
+        "resource": "hp",
+        "cost": null,
+        "visual": {
+          "color": "#efb64d",
+          "duration_ms": 700
+        },
+        "id": "opportunity_strike",
+        "label": {
+          "ru": "Провоцированная атака",
+          "en": "Opportunity attack"
+        },
+        "distance_metric": "chebyshev",
+        "reaction_only": true,
+        "critical_if": "@natural == 20",
+        "critical_dice": "1d6",
+        "tags": ["weapon", "melee"],
+        "damage_profile": "standard_damage",
+        "damage_type": "slashing",
+        "costs": [
+          {
+            "resource": "reaction",
+            "amount": "1",
+            "scope": "combat",
+            "feature": "turn_economy"
+          }
+        ],
+        "spatial": {
+          "feature": "spatial_rules",
+          "sight": true,
+          "line_of_effect": true,
+          "area_line_of_effect": false
+        },
+        "sheet_group": "attacks"
+      },
+      {
+        "feature": "area_actions",
+        "condition": "@hp.current > 0",
+        "range_cells": "30",
+        "radius_cells": 4,
+        "attack_dice": null,
+        "hit": "@total >= @difficulty",
+        "save_dice": "1d20 + @dex_save",
+        "save_dc": "@automation.spell_dc",
+        "save_divisor": 2,
+        "damage_dice": "8d6",
+        "resource": "hp",
+        "cost": null,
+        "visual": {
+          "color": "#f06428",
+          "duration_ms": 1200
+        },
+        "id": "fireball",
+        "label": {
+          "ru": "Огненный шар (3 уровень)",
+          "en": "Fireball (level 3)"
+        },
+        "distance_metric": "chebyshev",
+        "reaction_only": false,
+        "critical_if": null,
+        "critical_dice": null,
+        "tags": ["spell", "dex", "verbal", "somatic", "material"],
+        "costs": [
+          {
+            "resource": "action",
+            "amount": "1",
+            "scope": "combat",
+            "feature": "turn_economy"
+          },
+          {
+            "resource": "spell_slot_3",
+            "amount": "1",
+            "on_resolution": true
+          },
+          {
+            "resource": "spell_cast",
+            "amount": "1",
+            "scope": "combat",
+            "feature": "turn_economy",
+            "on_resolution": true
+          }
+        ],
+        "damage_profile": "standard_damage",
+        "damage_type": "fire",
+        "timing": {
+          "turn": "own",
+          "feature": "turn_economy"
+        },
+        "spatial": {
+          "feature": "spatial_rules",
+          "sight": false,
+          "line_of_effect": true,
+          "area_line_of_effect": true
+        },
+        "sheet_group": "spells",
+        "save_prompt": true,
+        "save_failure": "@condition.dead || @hp.current <= 0 || @condition.unconscious || @condition.paralyzed || @condition.stunned || @condition.petrified"
+      },
+      {
+        "feature": "disengage",
+        "condition": "@hp.current > 0",
+        "range_cells": "0",
+        "radius_cells": null,
+        "attack_dice": null,
+        "hit": null,
+        "save_dice": null,
+        "save_dc": null,
+        "save_divisor": 2,
+        "damage_dice": "0",
+        "resource": "hp",
+        "cost": null,
+        "visual": {
+          "color": "#55bbdd",
+          "duration_ms": 600
+        },
+        "id": "disengage",
+        "label": {
+          "ru": "Отход",
+          "en": "Disengage"
+        },
+        "distance_metric": "chebyshev",
+        "reaction_only": false,
+        "critical_if": null,
+        "critical_dice": null,
+        "tags": [],
+        "activation": "action",
+        "target_self": true,
+        "turn_condition": "disengaged",
+        "timing": {
+          "turn": "own",
+          "feature": "turn_economy"
+        },
+        "costs": [
+          {
+            "resource": "action",
+            "amount": "1",
+            "scope": "combat",
+            "feature": "turn_economy"
+          }
+        ],
+        "sheet_group": "attacks"
+      },
+      {
+        "feature": "concentration",
+        "condition": "@hp.current > 0",
+        "range_cells": "12",
+        "radius_cells": null,
+        "attack_dice": null,
+        "hit": null,
+        "save_dice": null,
+        "save_dc": null,
+        "save_divisor": 2,
+        "damage_dice": "0",
+        "resource": "hp",
+        "cost": null,
+        "visual": {
+          "color": "#c9ad52",
+          "duration_ms": 1200
+        },
+        "id": "shield_of_faith",
+        "label": {
+          "ru": "Щит веры",
+          "en": "Shield of Faith"
+        },
+        "distance_metric": "chebyshev",
+        "reaction_only": false,
+        "critical_if": null,
+        "critical_dice": null,
+        "tags": ["spell", "concentration", "verbal", "somatic", "material"],
+        "activation": "bonus_action",
+        "target_self": false,
+        "turn_condition": null,
+        "costs": [
+          {
+            "resource": "bonus_action",
+            "amount": "1",
+            "scope": "combat",
+            "feature": "turn_economy"
+          },
+          {
+            "resource": "spell_slot_1",
+            "amount": "1",
+            "on_resolution": true
+          },
+          {
+            "resource": "spell_cast",
+            "amount": "1",
+            "scope": "combat",
+            "feature": "turn_economy",
+            "on_resolution": true
+          }
+        ],
+        "maintain": {
+          "rule": "concentration",
+          "condition": "shield_of_faith",
+          "duration": {
+            "type": "rounds",
+            "rounds": 100
+          }
+        },
+        "timing": {
+          "turn": "own",
+          "feature": "turn_economy"
+        },
+        "spatial": {
+          "feature": "spatial_rules",
+          "sight": false,
+          "line_of_effect": true,
+          "area_line_of_effect": false
+        },
+        "sheet_group": "spells"
+      },
+      {
+        "feature": "counterspell",
+        "condition": "@automation.can_counterspell && @automation.can_see && @hp.current > 0",
+        "range_cells": "12",
+        "radius_cells": null,
+        "attack_dice": null,
+        "hit": null,
+        "save_dice": null,
+        "save_dc": null,
+        "save_divisor": 2,
+        "damage_dice": "0",
+        "resource": "hp",
+        "cost": null,
+        "visual": {
+          "color": "#7e78e8",
+          "duration_ms": 1000
+        },
+        "id": "counterspell",
+        "label": {
+          "ru": "Контрзаклинание",
+          "en": "Counterspell"
+        },
+        "distance_metric": "chebyshev",
+        "reaction_only": true,
+        "critical_if": null,
+        "critical_dice": null,
+        "tags": ["spell", "somatic"],
+        "activation": "reaction",
+        "target_self": false,
+        "turn_condition": null,
+        "costs": [
+          {
+            "resource": "reaction",
+            "amount": "1",
+            "scope": "combat",
+            "feature": "turn_economy"
+          },
+          {
+            "resource": "spell_slot_3",
+            "amount": "1",
+            "on_resolution": true
+          },
+          {
+            "resource": "spell_cast",
+            "amount": "1",
+            "scope": "combat",
+            "feature": "turn_economy",
+            "on_resolution": true
+          }
+        ],
+        "maintain": null,
+        "interrupt": {
+          "save_dice": "1d20 + @con_save",
+          "save_dc": "@automation.spell_dc",
+          "cancel_if": "@total < @difficulty",
+          "tags": ["con", "counterspell"]
+        },
+        "spatial": {
+          "feature": "spatial_rules",
+          "sight": true,
+          "line_of_effect": true,
+          "area_line_of_effect": false
+        },
+        "sheet_group": "spells"
+      }
+    ],
+    "movement_rules": [
+      {
+        "id": "leave_melee_reach",
+        "feature": "opportunity_attacks",
+        "action": "opportunity_strike",
+        "reach_cells": "@automation.reach_cells",
+        "metric": "chebyshev",
+        "source_condition": "@automation.can_see && @hp.current > 0",
+        "target_condition": "",
+        "hostile_only": true,
+        "combat_only": true,
+        "movement_modes": ["voluntary"]
+      }
+    ],
+    "turn_resources": ["reaction", "action", "bonus_action"],
+    "movement_condition": "@hp.current > 0",
+    "condition_rules": [
+      {
+        "id": "incapacitated_limits",
+        "label": {
+          "ru": "Недееспособность: нет действий и реакций, помеха инициативе",
+          "en": "Incapacitated: no actions or reactions, disadvantage on Initiative"
+        },
+        "condition": "incapacitated",
+        "subject": "actor",
+        "feature": "condition_rules",
+        "when": "",
+        "effects": [
+          {
+            "type": "deny",
+            "capability": "action"
+          },
+          {
+            "type": "deny",
+            "capability": "bonus_action"
+          },
+          {
+            "type": "deny",
+            "capability": "reaction"
+          },
+          {
+            "type": "roll",
+            "kind": "initiative",
+            "tags": [],
+            "mode": "disadvantage"
+          }
+        ]
+      },
+      {
+        "id": "prone_attacks",
+        "label": {
+          "ru": "Сбит с ног: помеха атакам",
+          "en": "Prone: disadvantage on attacks"
+        },
+        "condition": "prone",
+        "subject": "actor",
+        "feature": "condition_rules",
+        "when": "",
+        "effects": [
+          {
+            "type": "roll",
+            "kind": "attack",
+            "tags": [],
+            "mode": "disadvantage"
+          }
+        ]
+      },
+      {
+        "id": "prone_near_target",
+        "label": {
+          "ru": "Атака по лежащей цели рядом: преимущество",
+          "en": "Nearby prone target: advantage"
+        },
+        "condition": "prone",
+        "subject": "target",
+        "feature": "condition_rules",
+        "when": "@event.distance_cells <= 1",
+        "effects": [
+          {
+            "type": "roll",
+            "kind": "attack",
+            "tags": [],
+            "mode": "advantage"
+          }
+        ]
+      },
+      {
+        "id": "prone_far_target",
+        "label": {
+          "ru": "Атака по лежащей цели издали: помеха",
+          "en": "Distant prone target: disadvantage"
+        },
+        "condition": "prone",
+        "subject": "target",
+        "feature": "condition_rules",
+        "when": "@event.distance_cells > 1",
+        "effects": [
+          {
+            "type": "roll",
+            "kind": "attack",
+            "tags": [],
+            "mode": "disadvantage"
+          }
+        ]
+      },
+      {
+        "id": "disengaged_no_provoke",
+        "label": {
+          "ru": "Отход: движение не провоцирует",
+          "en": "Disengage: movement does not provoke"
+        },
+        "condition": "disengaged",
+        "subject": "actor",
+        "feature": "disengage",
+        "when": "",
+        "effects": [
+          {
+            "type": "deny",
+            "capability": "provoke"
+          }
+        ]
+      },
+      {
+        "id": "shield_of_faith_ac",
+        "label": {
+          "ru": "Щит веры: +2 КД",
+          "en": "Shield of Faith: +2 AC"
+        },
+        "condition": "shield_of_faith",
+        "subject": "actor",
+        "feature": "concentration",
+        "when": "",
+        "effects": [
+          {
+            "type": "parameter",
+            "path": "ac",
+            "add": 2,
+            "minimum": null,
+            "maximum": null
+          }
+        ]
+      }
+    ],
+    "gm_panel": [
+      {
+        "id": "overview",
+        "kind": "overview",
+        "label": {
+          "ru": "Сцена и бой",
+          "en": "Scene and combat"
+        },
+        "description": {
+          "ru": "Текущая сцена, участники и ход боя.",
+          "en": "Current scene, participants and combat turn."
+        },
+        "items": []
+      },
+      {
+        "id": "clock",
+        "kind": "clock",
+        "label": {
+          "ru": "Время мира",
+          "en": "World time"
+        },
+        "description": {
+          "ru": "Время кампании продвигает мастер. Реальные минуты за компьютером его не меняют.",
+          "en": "The GM advances campaign time explicitly; wall time does not change it."
+        },
+        "items": ["60", "600", "3600", "28800"]
+      },
+      {
+        "id": "reactions",
+        "kind": "reactions",
+        "label": {
+          "ru": "Ожидают решения",
+          "en": "Awaiting a decision"
+        },
+        "description": {
+          "ru": "Мастер может разрешить реакцию или остановить перемещение.",
+          "en": "Resolve a reaction or cancel movement."
+        },
+        "items": []
+      },
+      {
+        "id": "maintained",
+        "kind": "maintained",
+        "label": {
+          "ru": "Поддерживаемые эффекты",
+          "en": "Maintained effects"
+        },
+        "description": {
+          "ru": "Заклинатель или мастер может завершить поддержку в любой момент.",
+          "en": "The controller or GM may end maintenance at any time."
+        },
+        "items": []
+      },
+      {
+        "id": "actions",
+        "kind": "actions",
+        "label": {
+          "ru": "Быстрые действия",
+          "en": "Quick actions"
+        },
+        "description": {
+          "ru": "Выберите действующего и цель. Перед применением подтвердите действие.",
+          "en": "Choose the actor and target. Confirm before applying."
+        },
+        "items": ["disengage", "fireball", "shield_of_faith"]
+      },
+      {
+        "id": "characters",
+        "kind": "characters",
+        "label": {
+          "ru": "Персонажи на сцене",
+          "en": "Characters in scene"
+        },
+        "description": {
+          "ru": "Листы персонажей и активные состояния.",
+          "en": "Character sheets and current conditions."
+        },
+        "items": []
+      },
+      {
+        "id": "rules",
+        "kind": "rules",
+        "label": {
+          "ru": "Правила стола",
+          "en": "Table rules"
+        },
+        "description": {
+          "ru": "Эти переключатели общие для всех участников кампании.",
+          "en": "These switches apply to everyone in the campaign."
+        },
+        "items": [
+          "opportunity_attacks",
+          "area_actions",
+          "condition_rules",
+          "disengage",
+          "damage_rules",
+          "concentration",
+          "counterspell",
+          "turn_economy",
+          "spatial_rules"
+        ]
+      }
+    ],
+    "damage_profiles": [
+      {
+        "id": "standard_damage",
+        "label": {
+          "ru": "Урон SRD",
+          "en": "SRD damage"
+        },
+        "feature": "damage_rules",
+        "modifiers": [
+          {
+            "id": "reduction",
+            "types": [],
+            "condition": "@defenses.reduction > 0",
+            "amount": "max(0, @damage - @defenses.reduction)"
+          },
+          {
+            "id": "resistance_acid",
+            "types": ["acid"],
+            "condition": "@defenses.resistance.all || @defenses.resistance.acid",
+            "amount": "floor(@damage / 2)"
+          },
+          {
+            "id": "resistance_bludgeoning",
+            "types": ["bludgeoning"],
+            "condition": "@defenses.resistance.all || @defenses.resistance.bludgeoning",
+            "amount": "floor(@damage / 2)"
+          },
+          {
+            "id": "resistance_cold",
+            "types": ["cold"],
+            "condition": "@defenses.resistance.all || @defenses.resistance.cold",
+            "amount": "floor(@damage / 2)"
+          },
+          {
+            "id": "resistance_fire",
+            "types": ["fire"],
+            "condition": "@defenses.resistance.all || @defenses.resistance.fire",
+            "amount": "floor(@damage / 2)"
+          },
+          {
+            "id": "resistance_force",
+            "types": ["force"],
+            "condition": "@defenses.resistance.all || @defenses.resistance.force",
+            "amount": "floor(@damage / 2)"
+          },
+          {
+            "id": "resistance_lightning",
+            "types": ["lightning"],
+            "condition": "@defenses.resistance.all || @defenses.resistance.lightning",
+            "amount": "floor(@damage / 2)"
+          },
+          {
+            "id": "resistance_necrotic",
+            "types": ["necrotic"],
+            "condition": "@defenses.resistance.all || @defenses.resistance.necrotic",
+            "amount": "floor(@damage / 2)"
+          },
+          {
+            "id": "resistance_piercing",
+            "types": ["piercing"],
+            "condition": "@defenses.resistance.all || @defenses.resistance.piercing",
+            "amount": "floor(@damage / 2)"
+          },
+          {
+            "id": "resistance_poison",
+            "types": ["poison"],
+            "condition": "@defenses.resistance.all || @defenses.resistance.poison",
+            "amount": "floor(@damage / 2)"
+          },
+          {
+            "id": "resistance_psychic",
+            "types": ["psychic"],
+            "condition": "@defenses.resistance.all || @defenses.resistance.psychic",
+            "amount": "floor(@damage / 2)"
+          },
+          {
+            "id": "resistance_radiant",
+            "types": ["radiant"],
+            "condition": "@defenses.resistance.all || @defenses.resistance.radiant",
+            "amount": "floor(@damage / 2)"
+          },
+          {
+            "id": "resistance_slashing",
+            "types": ["slashing"],
+            "condition": "@defenses.resistance.all || @defenses.resistance.slashing",
+            "amount": "floor(@damage / 2)"
+          },
+          {
+            "id": "resistance_thunder",
+            "types": ["thunder"],
+            "condition": "@defenses.resistance.all || @defenses.resistance.thunder",
+            "amount": "floor(@damage / 2)"
+          },
+          {
+            "id": "vulnerability_acid",
+            "types": ["acid"],
+            "condition": "@defenses.vulnerability.all || @defenses.vulnerability.acid",
+            "amount": "@damage * 2"
+          },
+          {
+            "id": "vulnerability_bludgeoning",
+            "types": ["bludgeoning"],
+            "condition": "@defenses.vulnerability.all || @defenses.vulnerability.bludgeoning",
+            "amount": "@damage * 2"
+          },
+          {
+            "id": "vulnerability_cold",
+            "types": ["cold"],
+            "condition": "@defenses.vulnerability.all || @defenses.vulnerability.cold",
+            "amount": "@damage * 2"
+          },
+          {
+            "id": "vulnerability_fire",
+            "types": ["fire"],
+            "condition": "@defenses.vulnerability.all || @defenses.vulnerability.fire",
+            "amount": "@damage * 2"
+          },
+          {
+            "id": "vulnerability_force",
+            "types": ["force"],
+            "condition": "@defenses.vulnerability.all || @defenses.vulnerability.force",
+            "amount": "@damage * 2"
+          },
+          {
+            "id": "vulnerability_lightning",
+            "types": ["lightning"],
+            "condition": "@defenses.vulnerability.all || @defenses.vulnerability.lightning",
+            "amount": "@damage * 2"
+          },
+          {
+            "id": "vulnerability_necrotic",
+            "types": ["necrotic"],
+            "condition": "@defenses.vulnerability.all || @defenses.vulnerability.necrotic",
+            "amount": "@damage * 2"
+          },
+          {
+            "id": "vulnerability_piercing",
+            "types": ["piercing"],
+            "condition": "@defenses.vulnerability.all || @defenses.vulnerability.piercing",
+            "amount": "@damage * 2"
+          },
+          {
+            "id": "vulnerability_poison",
+            "types": ["poison"],
+            "condition": "@defenses.vulnerability.all || @defenses.vulnerability.poison",
+            "amount": "@damage * 2"
+          },
+          {
+            "id": "vulnerability_psychic",
+            "types": ["psychic"],
+            "condition": "@defenses.vulnerability.all || @defenses.vulnerability.psychic",
+            "amount": "@damage * 2"
+          },
+          {
+            "id": "vulnerability_radiant",
+            "types": ["radiant"],
+            "condition": "@defenses.vulnerability.all || @defenses.vulnerability.radiant",
+            "amount": "@damage * 2"
+          },
+          {
+            "id": "vulnerability_slashing",
+            "types": ["slashing"],
+            "condition": "@defenses.vulnerability.all || @defenses.vulnerability.slashing",
+            "amount": "@damage * 2"
+          },
+          {
+            "id": "vulnerability_thunder",
+            "types": ["thunder"],
+            "condition": "@defenses.vulnerability.all || @defenses.vulnerability.thunder",
+            "amount": "@damage * 2"
+          },
+          {
+            "id": "immunity_acid",
+            "types": ["acid"],
+            "condition": "@defenses.immunity.all || @defenses.immunity.acid",
+            "amount": "0"
+          },
+          {
+            "id": "immunity_bludgeoning",
+            "types": ["bludgeoning"],
+            "condition": "@defenses.immunity.all || @defenses.immunity.bludgeoning",
+            "amount": "0"
+          },
+          {
+            "id": "immunity_cold",
+            "types": ["cold"],
+            "condition": "@defenses.immunity.all || @defenses.immunity.cold",
+            "amount": "0"
+          },
+          {
+            "id": "immunity_fire",
+            "types": ["fire"],
+            "condition": "@defenses.immunity.all || @defenses.immunity.fire",
+            "amount": "0"
+          },
+          {
+            "id": "immunity_force",
+            "types": ["force"],
+            "condition": "@defenses.immunity.all || @defenses.immunity.force",
+            "amount": "0"
+          },
+          {
+            "id": "immunity_lightning",
+            "types": ["lightning"],
+            "condition": "@defenses.immunity.all || @defenses.immunity.lightning",
+            "amount": "0"
+          },
+          {
+            "id": "immunity_necrotic",
+            "types": ["necrotic"],
+            "condition": "@defenses.immunity.all || @defenses.immunity.necrotic",
+            "amount": "0"
+          },
+          {
+            "id": "immunity_piercing",
+            "types": ["piercing"],
+            "condition": "@defenses.immunity.all || @defenses.immunity.piercing",
+            "amount": "0"
+          },
+          {
+            "id": "immunity_poison",
+            "types": ["poison"],
+            "condition": "@defenses.immunity.all || @defenses.immunity.poison",
+            "amount": "0"
+          },
+          {
+            "id": "immunity_psychic",
+            "types": ["psychic"],
+            "condition": "@defenses.immunity.all || @defenses.immunity.psychic",
+            "amount": "0"
+          },
+          {
+            "id": "immunity_radiant",
+            "types": ["radiant"],
+            "condition": "@defenses.immunity.all || @defenses.immunity.radiant",
+            "amount": "0"
+          },
+          {
+            "id": "immunity_slashing",
+            "types": ["slashing"],
+            "condition": "@defenses.immunity.all || @defenses.immunity.slashing",
+            "amount": "0"
+          },
+          {
+            "id": "immunity_thunder",
+            "types": ["thunder"],
+            "condition": "@defenses.immunity.all || @defenses.immunity.thunder",
+            "amount": "0"
+          }
+        ],
+        "absorb": ["temporary_hp"]
+      }
+    ],
+    "maintained_rules": [
+      {
+        "id": "concentration",
+        "label": {
+          "ru": "Проверка концентрации",
+          "en": "Concentration save"
+        },
+        "feature": "concentration",
+        "exclusive_group": "concentration",
+        "keep_condition": "@hp.current > 0 && !@condition.incapacitated && !@condition.unconscious && !@condition.stunned && !@condition.paralyzed && !@condition.petrified && !@condition.dead",
+        "damage_check": {
+          "resource": "hp",
+          "dice": "1d20 + @con_save",
+          "difficulty": "min(30, max(10, floor(@damage / 2)))",
+          "success": "@total >= @difficulty",
+          "tags": ["con", "concentration"]
+        }
+      }
+    ],
+    "interruption_rules": [
+      {
+        "id": "counterspell_cast",
+        "feature": "counterspell",
+        "action": "counterspell",
+        "tags": ["spell"],
+        "any_tags": ["verbal", "somatic", "material"],
+        "range_cells": "12",
+        "metric": "chebyshev",
+        "source_condition": "@automation.can_counterspell && @automation.can_see && @hp.current > 0",
+        "target_condition": "@hp.current > 0",
+        "hostile_only": false
+      }
+    ],
+    "turn_budgets": [
+      {
+        "resource": "action",
+        "label": {
+          "ru": "Действия",
+          "en": "Actions"
+        },
+        "feature": "turn_economy",
+        "refresh": "own_turn",
+        "amount": null
+      },
+      {
+        "resource": "bonus_action",
+        "label": {
+          "ru": "Бонусные действия",
+          "en": "Bonus actions"
+        },
+        "feature": "turn_economy",
+        "refresh": "own_turn",
+        "amount": null
+      },
+      {
+        "resource": "reaction",
+        "label": {
+          "ru": "Реакции",
+          "en": "Reactions"
+        },
+        "feature": "turn_economy",
+        "refresh": "own_turn",
+        "amount": null
+      },
+      {
+        "resource": "spell_cast",
+        "label": {
+          "ru": "Расход ячейки",
+          "en": "Spell-slot expenditure"
+        },
+        "feature": "turn_economy",
+        "refresh": "every_turn",
+        "amount": null
+      }
+    ],
+    "life": {
+      "dead": "@condition.dead",
+      "npc_dead": "@condition.dead || @hp.current <= 0",
+      "unconscious": "@condition.unconscious || @hp.current <= 0"
+    },
+    "action_groups": [
+      {
+        "id": "attacks",
+        "label": {
+          "ru": "Атаки и действия",
+          "en": "Attacks and actions"
+        }
+      },
+      {
+        "id": "spells",
+        "label": {
+          "ru": "Заклинания",
+          "en": "Spells"
+        }
+      }
+    ],
+    "item_types": [
+      {
+        "id": "equipment",
+        "label": {
+          "ru": "Предмет",
+          "en": "Equipment"
+        },
+        "sheet_schema": {
+          "type": "object",
+          "properties": {
+            "description": {
+              "type": "string",
+              "default": ""
+            },
+            "charges": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000,
+              "default": 0
+            },
+            "max_charges": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000,
+              "default": 0
+            },
+            "equipped": {
+              "type": "boolean",
+              "default": false
+            },
+            "state": {
+              "type": "string",
+              "default": ""
+            }
+          }
+        },
+        "sheet_layout": {
+          "type": "section",
+          "label": {
+            "ru": "Состояние экземпляра",
+            "en": "Instance state"
+          },
+          "children": [
+            {
+              "type": "field",
+              "path": "description",
+              "label": {
+                "ru": "Описание",
+                "en": "Description"
+              }
+            },
+            {
+              "type": "field",
+              "path": "charges",
+              "label": {
+                "ru": "Заряды",
+                "en": "Charges"
+              }
+            },
+            {
+              "type": "field",
+              "path": "max_charges",
+              "label": {
+                "ru": "Максимум зарядов",
+                "en": "Maximum charges"
+              }
+            },
+            {
+              "type": "field",
+              "path": "equipped",
+              "label": {
+                "ru": "Надето",
+                "en": "Equipped"
+              }
+            },
+            {
+              "type": "field",
+              "path": "state",
+              "label": {
+                "ru": "Состояние",
+                "en": "State"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
 }

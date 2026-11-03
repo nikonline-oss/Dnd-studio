@@ -39,6 +39,47 @@ pub struct IntentEnvelope {
 #[serde(tag = "kind", rename_all = "snake_case")]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum Intent {
+    ResolveActionSave {
+        group: IntentId,
+        target: TokenId,
+    },
+    CancelActionSaves {
+        group: IntentId,
+    },
+    AdvanceCalendarTime {
+        amount: u16,
+        unit: crate::CalendarUnit,
+    },
+    CreateItem {
+        id: crate::ItemId,
+        name: String,
+        type_id: String,
+        sheet_json: Option<String>,
+        visible_to_players: bool,
+    },
+    InstantiateItem {
+        id: crate::ItemId,
+        template: crate::ItemId,
+        owner: Option<CharacterId>,
+    },
+    UpdateItem {
+        id: crate::ItemId,
+        name: Option<String>,
+        sheet_json: Option<String>,
+        visible_to_players: Option<bool>,
+    },
+    TransferItem {
+        id: crate::ItemId,
+        owner: Option<CharacterId>,
+    },
+    DeleteItem {
+        id: crate::ItemId,
+    },
+    /// GM/Co-GM: advance fictional time by 1..=604800 seconds, checked clock version.
+    AdvanceGameTime {
+        #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
+        seconds: i64,
+    },
     UpdateCampaignMeta {
         name: Option<String>,
         description: Option<String>,
@@ -298,6 +339,52 @@ pub enum Intent {
         plugin: Box<PluginDto>,
     },
     /// GM / Co-GM. The campaign's system plugin cannot be uninstalled.
+    MoveTokenWithMode {
+        id: TokenId,
+        #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
+        x: i64,
+        #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
+        y: i64,
+        mode: crate::MovementMode,
+    },
+    ResolvePluginReaction {
+        movement: crate::IntentId,
+        source: TokenId,
+        accept: bool,
+    },
+    CancelPluginMovement {
+        movement: crate::IntentId,
+    },
+    ResolveActionReaction {
+        stack: IntentId,
+        frame: IntentId,
+        source: TokenId,
+        accept: bool,
+    },
+    ContinuePluginAction {
+        stack: IntentId,
+        frame: IntentId,
+    },
+    CancelActionStack {
+        stack: IntentId,
+    },
+    EndMaintainedEffect {
+        id: crate::EffectId,
+    },
+    ExecutePluginAction {
+        source: TokenId,
+        action: String,
+        target: Option<TokenId>,
+        #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
+        x: i64,
+        #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
+        y: i64,
+    },
+    ConfigurePluginFeature {
+        id: String,
+        feature: String,
+        enabled: bool,
+    },
     UninstallPlugin {
         id: String,
     },
@@ -388,6 +475,11 @@ pub enum Intent {
         /// Moves the zone's name: the top-left corner of the text, on the map.
         #[serde(default)]
         label: Option<ZoneLabel>,
+    },
+    /// GM/Co-GM: physical blockers on a zone, checked version.
+    SetZoneOcclusion {
+        id: ZoneId,
+        occlusion: crate::ZoneOcclusion,
     },
     /// Changes RGB color (GM/Co-GM, checked version).
     SetZoneColor {
@@ -521,7 +613,16 @@ impl Intent {
     #[must_use]
     pub fn kind(&self) -> &'static str {
         match self {
+            Self::ResolveActionSave { .. } => "resolve_action_save",
+            Self::CancelActionSaves { .. } => "cancel_action_saves",
+            Self::AdvanceCalendarTime { .. } => "advance_calendar_time",
+            Self::CreateItem { .. } => "create_item",
+            Self::InstantiateItem { .. } => "instantiate_item",
+            Self::UpdateItem { .. } => "update_item",
+            Self::TransferItem { .. } => "transfer_item",
+            Self::DeleteItem { .. } => "delete_item",
             Self::UpdateCampaignMeta { .. } => "update_campaign_meta",
+            Self::AdvanceGameTime { .. } => "advance_game_time",
             Self::CreateMap { .. } => "create_map",
             Self::UpdateMap { .. } => "update_map",
             Self::DeleteMap { .. } => "delete_map",
@@ -562,6 +663,15 @@ impl Intent {
             Self::InstallPlugin { .. } => "install_plugin",
             Self::UninstallPlugin { .. } => "uninstall_plugin",
             Self::SetSystemPlugin { .. } => "set_system_plugin",
+            Self::ConfigurePluginFeature { .. } => "configure_plugin_feature",
+            Self::MoveTokenWithMode { .. } => "move_token_with_mode",
+            Self::ResolvePluginReaction { .. } => "resolve_plugin_reaction",
+            Self::CancelPluginMovement { .. } => "cancel_plugin_movement",
+            Self::ResolveActionReaction { .. } => "resolve_action_reaction",
+            Self::ContinuePluginAction { .. } => "continue_plugin_action",
+            Self::CancelActionStack { .. } => "cancel_action_stack",
+            Self::EndMaintainedEffect { .. } => "end_maintained_effect",
+            Self::ExecutePluginAction { .. } => "execute_plugin_action",
             Self::CreateBoard { .. } => "create_board",
             Self::UpdateBoard { .. } => "update_board",
             Self::DeleteBoard { .. } => "delete_board",
@@ -575,6 +685,7 @@ impl Intent {
             Self::CreateZone { .. } => "create_zone",
             Self::UpdateZone { .. } => "update_zone",
             Self::SetZoneColor { .. } => "set_zone_color",
+            Self::SetZoneOcclusion { .. } => "set_zone_occlusion",
             Self::DeleteZone { .. } => "delete_zone",
             Self::MergeZones { .. } => "merge_zones",
             Self::CreateTrigger { .. } => "create_trigger",
@@ -621,6 +732,8 @@ impl Intent {
             | Self::CreateZone { .. }
             | Self::CreateTrigger { .. }
             | Self::CreateLibraryFolder { .. }
+            | Self::CreateItem { .. }
+            | Self::InstantiateItem { .. }
             | Self::CreatePlaylist { .. } => VersionPolicy::Create,
             // Plugins are configuration the GM owns: the last choice wins.
             Self::MoveToken { .. }
@@ -632,12 +745,28 @@ impl Intent {
             | Self::ResetFog { .. }
             | Self::InstallPlugin { .. }
             | Self::UninstallPlugin { .. }
+            | Self::MoveTokenWithMode { .. }
+            | Self::ResolvePluginReaction { .. }
+            | Self::CancelPluginMovement { .. }
+            | Self::ResolveActionReaction { .. }
+            | Self::ContinuePluginAction { .. }
+            | Self::ResolveActionSave { .. }
+            | Self::CancelActionSaves { .. }
+            | Self::CancelActionStack { .. }
+            | Self::EndMaintainedEffect { .. }
+            | Self::ExecutePluginAction { .. }
+            | Self::ConfigurePluginFeature { .. }
             | Self::SetSystemPlugin { .. } => VersionPolicy::LastWriteWins,
             Self::UpdatePlaylist { .. }
             | Self::MovePlaylist { .. }
             | Self::DeletePlaylist { .. }
             | Self::FulfillRollRequest { .. }
             | Self::CancelRollRequest { .. }
+            | Self::AdvanceCalendarTime { .. }
+            | Self::AdvanceGameTime { .. }
+            | Self::UpdateItem { .. }
+            | Self::TransferItem { .. }
+            | Self::DeleteItem { .. }
             | Self::UpdateCampaignMeta { .. }
             | Self::UpdateMap { .. }
             | Self::DeleteMap { .. }
@@ -668,6 +797,7 @@ impl Intent {
             | Self::UpdateBoardEdge { .. }
             | Self::DeleteBoardEdge { .. }
             | Self::UpdateZone { .. }
+            | Self::SetZoneOcclusion { .. }
             | Self::SetZoneColor { .. }
             | Self::DeleteZone { .. }
             | Self::MergeZones { .. }

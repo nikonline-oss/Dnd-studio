@@ -5,7 +5,9 @@
   "additionalProperties": false,
   "required": ["sheet", "initiative"],
   "properties": {
-    "creature_sheet_layout": { "$ref": "#/$defs/sheet_file" },
+    "creature_sheet_layout": {
+      "$ref": "#/$defs/sheet_file"
+    },
     "sheet": {
       "type": "object",
       "additionalProperties": false,
@@ -81,6 +83,23 @@
           },
           "dice": {
             "$ref": "#/$defs/dice"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "enum": ["attack", "save", "check", "initiative"]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tags": {
+            "type": "array",
+            "maxItems": 16,
+            "items": {
+              "$ref": "#/$defs/ident"
+            }
           }
         }
       }
@@ -117,6 +136,1129 @@
           "$ref": "#/$defs/ident"
         }
       }
+    },
+    "features": {
+      "type": "array",
+      "maxItems": 128,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "label", "description", "default_enabled"],
+        "properties": {
+          "id": {
+            "$ref": "#/$defs/ident"
+          },
+          "label": {
+            "$ref": "#/$defs/label"
+          },
+          "description": {
+            "$ref": "#/$defs/label"
+          },
+          "default_enabled": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "mechanics": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "movement_condition": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "actions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/ident"
+              },
+              "label": {
+                "$ref": "#/$defs/label"
+              },
+              "feature": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ident"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "condition": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "range_cells": {
+                "$ref": "#/$defs/expression"
+              },
+              "distance_metric": {
+                "enum": ["euclidean", "chebyshev"]
+              },
+              "reaction_only": {
+                "type": "boolean"
+              },
+              "critical_if": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/expression"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "critical_dice": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/dice"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "radius_cells": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "attack_dice": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/dice"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "hit": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/expression"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "save_dice": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/dice"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "save_dc": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/expression"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "save_divisor": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10
+              },
+              "damage_dice": {
+                "$ref": "#/$defs/dice"
+              },
+              "resource": {
+                "$ref": "#/$defs/ident"
+              },
+              "cost": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ident"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "visual": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "color": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-fA-F]{6}$"
+                  },
+                  "duration_ms": {
+                    "type": "integer",
+                    "minimum": 50,
+                    "maximum": 5000
+                  }
+                },
+                "required": ["color", "duration_ms"]
+              },
+              "tags": {
+                "type": "array",
+                "maxItems": 16,
+                "items": {
+                  "$ref": "#/$defs/ident"
+                }
+              },
+              "activation": {
+                "anyOf": [
+                  {
+                    "enum": ["action", "bonus_action", "reaction", "movement", "provoke"]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "target_self": {
+                "type": "boolean"
+              },
+              "turn_condition": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ident"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "costs": {
+                "type": "array",
+                "maxItems": 16,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["resource", "amount"],
+                  "properties": {
+                    "resource": {
+                      "$ref": "#/$defs/ident"
+                    },
+                    "amount": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 1024
+                    },
+                    "on_resolution": {
+                      "type": "boolean"
+                    },
+                    "scope": {
+                      "enum": ["always", "combat"]
+                    },
+                    "feature": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/$defs/ident"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  }
+                }
+              },
+              "damage_type": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ident"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "damage_profile": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ident"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "maintain": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["rule", "condition", "duration"],
+                    "properties": {
+                      "rule": {
+                        "$ref": "#/$defs/ident"
+                      },
+                      "condition": {
+                        "$ref": "#/$defs/ident"
+                      },
+                      "duration": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": ["type", "rounds"],
+                            "properties": {
+                              "type": {
+                                "const": "rounds"
+                              },
+                              "rounds": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 100
+                              }
+                            }
+                          },
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": ["type", "turns"],
+                            "properties": {
+                              "type": {
+                                "const": "turns"
+                              },
+                              "turns": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 100
+                              }
+                            }
+                          },
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": ["type", "minutes"],
+                            "properties": {
+                              "type": {
+                                "const": "real_time"
+                              },
+                              "minutes": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 10080
+                              }
+                            }
+                          },
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": ["type", "seconds"],
+                            "properties": {
+                              "type": {
+                                "const": "game_time"
+                              },
+                              "seconds": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 604800
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              },
+              "interrupt": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["save_dice", "save_dc", "cancel_if", "tags"],
+                    "properties": {
+                      "save_dice": {
+                        "$ref": "#/$defs/dice"
+                      },
+                      "save_dc": {
+                        "type": "string",
+                        "maxLength": 1024
+                      },
+                      "cancel_if": {
+                        "type": "string",
+                        "maxLength": 1024
+                      },
+                      "tags": {
+                        "type": "array",
+                        "maxItems": 16,
+                        "items": {
+                          "$ref": "#/$defs/ident"
+                        }
+                      }
+                    }
+                  }
+                ]
+              },
+              "timing": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["turn", "feature"],
+                    "properties": {
+                      "turn": {
+                        "enum": ["own", "other"]
+                      },
+                      "feature": {
+                        "anyOf": [
+                          {
+                            "$ref": "#/$defs/ident"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              },
+              "spatial": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "feature": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/$defs/ident"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "sight": {
+                    "type": "boolean"
+                  },
+                  "line_of_effect": {
+                    "type": "boolean"
+                  },
+                  "area_line_of_effect": {
+                    "type": "boolean"
+                  }
+                }
+              },
+              "save_prompt": {
+                "type": "boolean"
+              },
+              "save_failure": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "sheet_group": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ident"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "label",
+              "condition",
+              "range_cells",
+              "distance_metric",
+              "reaction_only",
+              "save_divisor",
+              "damage_dice",
+              "resource",
+              "visual"
+            ]
+          },
+          "maxItems": 128
+        },
+        "movement_rules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/ident"
+              },
+              "feature": {
+                "$ref": "#/$defs/ident"
+              },
+              "action": {
+                "$ref": "#/$defs/ident"
+              },
+              "reach_cells": {
+                "$ref": "#/$defs/expression"
+              },
+              "metric": {
+                "enum": ["euclidean", "chebyshev"]
+              },
+              "source_condition": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "target_condition": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "hostile_only": {
+                "type": "boolean"
+              },
+              "combat_only": {
+                "type": "boolean"
+              },
+              "movement_modes": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 3,
+                "uniqueItems": true,
+                "items": {
+                  "enum": ["voluntary", "forced", "teleport"]
+                }
+              }
+            },
+            "required": [
+              "id",
+              "feature",
+              "action",
+              "reach_cells",
+              "metric",
+              "source_condition",
+              "target_condition",
+              "hostile_only",
+              "combat_only",
+              "movement_modes"
+            ]
+          },
+          "maxItems": 128
+        },
+        "turn_resources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ident"
+          },
+          "maxItems": 32
+        },
+        "condition_rules": {
+          "type": "array",
+          "maxItems": 128,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/ident"
+              },
+              "label": {
+                "$ref": "#/$defs/label"
+              },
+              "condition": {
+                "$ref": "#/$defs/ident"
+              },
+              "subject": {
+                "enum": ["actor", "target"]
+              },
+              "feature": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ident"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "when": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "effects": {
+                "type": "array",
+                "maxItems": 16,
+                "items": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "type": {
+                          "const": "deny"
+                        },
+                        "capability": {
+                          "enum": ["action", "bonus_action", "reaction", "movement", "provoke"]
+                        }
+                      },
+                      "required": ["type", "capability"]
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "type": {
+                          "const": "imply"
+                        },
+                        "condition": {
+                          "$ref": "#/$defs/ident"
+                        }
+                      },
+                      "required": ["type", "condition"]
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "type": {
+                          "const": "roll"
+                        },
+                        "kind": {
+                          "enum": ["attack", "save", "check", "initiative"]
+                        },
+                        "tags": {
+                          "type": "array",
+                          "maxItems": 16,
+                          "items": {
+                            "$ref": "#/$defs/ident"
+                          }
+                        },
+                        "mode": {
+                          "enum": ["advantage", "disadvantage"]
+                        }
+                      },
+                      "required": ["type", "kind", "mode"]
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "type": {
+                          "const": "parameter"
+                        },
+                        "path": {
+                          "type": "string",
+                          "maxLength": 128
+                        },
+                        "add": {
+                          "type": "integer",
+                          "minimum": -1000000,
+                          "maximum": 1000000
+                        },
+                        "minimum": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "maximum": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": ["type", "path", "add"]
+                    }
+                  ]
+                },
+                "minItems": 1
+              }
+            },
+            "required": ["id", "label", "condition", "subject", "effects"]
+          }
+        },
+        "gm_panel": {
+          "type": "array",
+          "maxItems": 24,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "label", "description", "kind"],
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/ident"
+              },
+              "label": {
+                "$ref": "#/$defs/label"
+              },
+              "description": {
+                "$ref": "#/$defs/label"
+              },
+              "kind": {
+                "enum": [
+                  "overview",
+                  "characters",
+                  "reactions",
+                  "rules",
+                  "actions",
+                  "maintained",
+                  "clock"
+                ]
+              },
+              "items": {
+                "type": "array",
+                "maxItems": 128,
+                "items": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/ident"
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^[1-9][0-9]{0,5}$"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "damage_profiles": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "label", "feature", "modifiers", "absorb"],
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/ident"
+              },
+              "label": {
+                "$ref": "#/$defs/label"
+              },
+              "feature": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ident"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "absorb": {
+                "type": "array",
+                "maxItems": 8,
+                "uniqueItems": true,
+                "items": {
+                  "$ref": "#/$defs/ident"
+                }
+              },
+              "modifiers": {
+                "type": "array",
+                "maxItems": 64,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["id", "types", "condition", "amount"],
+                  "properties": {
+                    "id": {
+                      "$ref": "#/$defs/ident"
+                    },
+                    "types": {
+                      "type": "array",
+                      "maxItems": 32,
+                      "items": {
+                        "$ref": "#/$defs/ident"
+                      }
+                    },
+                    "condition": {
+                      "type": "string",
+                      "maxLength": 1024
+                    },
+                    "amount": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 1024
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "maintained_rules": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "label",
+              "feature",
+              "exclusive_group",
+              "keep_condition",
+              "damage_check"
+            ],
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/ident"
+              },
+              "label": {
+                "$ref": "#/$defs/label"
+              },
+              "feature": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ident"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "exclusive_group": {
+                "$ref": "#/$defs/ident"
+              },
+              "keep_condition": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "damage_check": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["dice", "difficulty", "success", "tags", "resource"],
+                "properties": {
+                  "dice": {
+                    "$ref": "#/$defs/dice"
+                  },
+                  "difficulty": {
+                    "type": "string",
+                    "maxLength": 1024
+                  },
+                  "success": {
+                    "type": "string",
+                    "maxLength": 1024
+                  },
+                  "tags": {
+                    "type": "array",
+                    "maxItems": 16,
+                    "items": {
+                      "$ref": "#/$defs/ident"
+                    }
+                  },
+                  "resource": {
+                    "$ref": "#/$defs/ident"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "interruption_rules": {
+          "type": "array",
+          "maxItems": 128,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "feature",
+              "action",
+              "tags",
+              "any_tags",
+              "range_cells",
+              "metric",
+              "source_condition",
+              "target_condition",
+              "hostile_only"
+            ],
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/ident"
+              },
+              "feature": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ident"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "action": {
+                "$ref": "#/$defs/ident"
+              },
+              "tags": {
+                "type": "array",
+                "maxItems": 16,
+                "items": {
+                  "$ref": "#/$defs/ident"
+                }
+              },
+              "any_tags": {
+                "type": "array",
+                "maxItems": 16,
+                "items": {
+                  "$ref": "#/$defs/ident"
+                }
+              },
+              "range_cells": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "metric": {
+                "enum": ["euclidean", "chebyshev"]
+              },
+              "source_condition": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "target_condition": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "hostile_only": {
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        "turn_budgets": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["resource", "label", "feature", "refresh"],
+            "properties": {
+              "resource": {
+                "$ref": "#/$defs/ident"
+              },
+              "label": {
+                "$ref": "#/$defs/label"
+              },
+              "feature": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ident"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "refresh": {
+                "enum": ["own_turn", "every_turn"]
+              },
+              "amount": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1024
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "life": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "dead": {
+              "type": "string",
+              "maxLength": 1024
+            },
+            "npc_dead": {
+              "type": "string",
+              "maxLength": 1024
+            },
+            "unconscious": {
+              "type": "string",
+              "maxLength": 1024
+            }
+          }
+        },
+        "action_groups": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "label"],
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/ident"
+              },
+              "label": {
+                "$ref": "#/$defs/label"
+              }
+            }
+          }
+        },
+        "item_types": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "label", "sheet_schema", "sheet_layout"],
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/ident"
+              },
+              "label": {
+                "$ref": "#/$defs/label"
+              },
+              "sheet_schema": {
+                "type": "object"
+              },
+              "sheet_layout": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "calendar": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "epoch_year",
+                "day_seconds",
+                "round_seconds",
+                "months",
+                "weekdays",
+                "periods"
+              ],
+              "properties": {
+                "epoch_year": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 1000000
+                },
+                "day_seconds": {
+                  "type": "integer",
+                  "minimum": 60,
+                  "maximum": 604800
+                },
+                "round_seconds": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 86400
+                },
+                "leap_interval": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 10000
+                },
+                "leap_except": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 10000
+                },
+                "leap_include": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 10000
+                },
+                "leap_month": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 63
+                },
+                "months": {
+                  "type": "array",
+                  "minItems": 1,
+                  "maxItems": 64,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["label", "days"],
+                    "properties": {
+                      "label": {
+                        "$ref": "#/$defs/label"
+                      },
+                      "days": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 1000
+                      }
+                    }
+                  }
+                },
+                "weekdays": {
+                  "type": "array",
+                  "minItems": 1,
+                  "maxItems": 64,
+                  "items": {
+                    "$ref": "#/$defs/label"
+                  }
+                },
+                "periods": {
+                  "type": "array",
+                  "minItems": 1,
+                  "maxItems": 32,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["label", "start_second"],
+                    "properties": {
+                      "label": {
+                        "$ref": "#/$defs/label"
+                      },
+                      "start_second": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 604799
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "required": []
     }
   },
   "$defs": {

@@ -1050,9 +1050,11 @@ fn bundled_templates_make_triggers_the_core_accepts() {
         ("attack", "4"),
         ("target", "8"),
         ("turns", "3"),
+        ("label", "Marker"),
+        ("seconds", "600"),
     ];
     let srd = srd();
-    assert_eq!(srd.trigger_templates.len(), 4);
+    assert_eq!(srd.trigger_templates.len(), 5);
     for (n, template) in srd.trigger_templates.iter().enumerate() {
         let definition: TriggerDef =
             serde_json::from_value(fill(&template.definition, &params)).unwrap();
@@ -1483,8 +1485,23 @@ fn manual_change_resource_asks_each_target_controller() {
             events: events.clone(),
         },
     );
-    let dnd_game_core::ForPlayers::Batch(filtered) = filtered else {
-        panic!("requests must keep their event sequence")
+    assert!(matches!(filtered, dnd_game_core::ForPlayers::Resnapshot));
+    // Runtime changes use personalized snapshots. Without that event, request identities
+    // and notifications must still be redacted in the shared role-level delta.
+    let events: Vec<_> = events
+        .into_iter()
+        .filter(|e| !matches!(e, Event::PluginRuntimeUpdated { .. }))
+        .collect();
+    let dnd_game_core::ForPlayers::Batch(filtered) = dnd_game_core::filter_for_players(
+        &state,
+        &state,
+        &EventBatch {
+            seq: Seq(1),
+            caused_by: None,
+            events: events.clone(),
+        },
+    ) else {
+        panic!("request-only delta keeps sequence numbers");
     };
     for (original, public) in events.iter().zip(&filtered.events) {
         if matches!(original, Event::RollRequested { .. }) {
@@ -1803,5 +1820,268 @@ fn deleting_a_character_cancels_its_pending_roll_requests() {
         requests_for(&state, 0)
             .iter()
             .all(|r| r.status == RollRequestStatus::Cancelled)
+    );
+}
+
+fn manual_damage_step() -> TriggerStep {
+    step(TriggerAction::ChangeResource {
+        resource: "hp".into(),
+        dice: "2".into(),
+        heal: false,
+        target: ResourceTarget::Map,
+        attack: None,
+        manual: true,
+    })
+}
+fn finish_group(state: &mut GameState) -> Vec<Event> {
+    let pending: Vec<_> = state
+        .roll_requests
+        .values()
+        .filter(|r| r.status == RollRequestStatus::Pending)
+        .cloned()
+        .collect();
+    let mut events = Vec::new();
+    for r in pending {
+        events.extend(
+            run(
+                state,
+                Role::Gm,
+                Intent::FulfillRollRequest { id: r.id },
+                Some(r.version),
+            )
+            .unwrap(),
+        );
+    }
+    events
+}
+#[test]
+fn manual_script_waits_for_all_rolls_resumes_after_reload_and_branches_once() {
+    let mut s = world();
+    let mut after = reveal_secret();
+    after.when = Some("@roll.count == 2 && @roll.total == 4 && @roll.delta == -4".into());
+    create(&mut s, 0, manual_scoped(vec![manual_damage_step(), after]));
+    fire(&mut s, 0);
+    assert_eq!(s.plugin_runtime.trigger_runs.len(), 1);
+    assert_eq!(
+        s.board_nodes[&BoardNodeId(v7(NODE))].visibility,
+        BoardVisibility::Gm
+    );
+    let r = requests_for(&s, 0)[0].clone();
+    run(
+        &mut s,
+        Role::Player,
+        Intent::FulfillRollRequest { id: r.id },
+        Some(r.version),
+    )
+    .unwrap();
+    assert_eq!(
+        s.board_nodes[&BoardNodeId(v7(NODE))].visibility,
+        BoardVisibility::Gm
+    );
+    let snap = serde_json::to_string(&s.to_snapshot(Seq(5))).unwrap();
+    s = GameState::from_snapshot(serde_json::from_str(&snap).unwrap());
+    let events = finish_group(&mut s);
+    assert!(s.plugin_runtime.trigger_runs.is_empty());
+    assert_eq!(
+        s.board_nodes[&BoardNodeId(v7(NODE))].visibility,
+        BoardVisibility::Players
+    );
+    assert_eq!(
+        events
+            .iter()
+            .filter(|e| matches!(e, Event::BoardNodeUpdated { .. }))
+            .count(),
+        1
+    );
+    assert_eq!(hp_of(&s, 0), 8);
+    assert_eq!(hp_of(&s, 1), 8);
+    assert!(
+        run(
+            &mut s,
+            Role::Player,
+            Intent::FulfillRollRequest { id: r.id },
+            Some(r.version)
+        )
+        .is_err()
+    );
+}
+#[test]
+fn manual_steps_can_wait_twice_without_reusing_request_ids_or_replaying_steps() {
+    let mut s = world();
+    create(
+        &mut s,
+        0,
+        manual_scoped(vec![
+            manual_damage_step(),
+            manual_damage_step(),
+            reveal_secret(),
+        ]),
+    );
+    fire(&mut s, 0);
+    let first = s.plugin_runtime.trigger_runs[0].rolls.clone();
+    finish_group(&mut s);
+    let second = s.plugin_runtime.trigger_runs[0].rolls.clone();
+    assert!(first.iter().all(|id| !second.contains(id)));
+    assert_eq!(
+        s.board_nodes[&BoardNodeId(v7(NODE))].visibility,
+        BoardVisibility::Gm
+    );
+    finish_group(&mut s);
+    assert!(s.plugin_runtime.trigger_runs.is_empty());
+    assert_eq!(hp_of(&s, 0), 6);
+    assert_eq!(hp_of(&s, 1), 6);
+    assert_eq!(
+        s.board_nodes[&BoardNodeId(v7(NODE))].visibility,
+        BoardVisibility::Players
+    );
+}
+#[test]
+fn cancelling_one_manual_roll_aborts_script_and_dismisses_other_pending_requests() {
+    let mut s = world();
+    create(
+        &mut s,
+        0,
+        manual_scoped(vec![manual_damage_step(), reveal_secret()]),
+    );
+    fire(&mut s, 0);
+    let r = requests_for(&s, 0)[0].clone();
+    run(
+        &mut s,
+        Role::CoGm,
+        Intent::CancelRollRequest { id: r.id },
+        Some(r.version),
+    )
+    .unwrap();
+    assert!(s.plugin_runtime.trigger_runs.is_empty());
+    assert!(
+        s.roll_requests
+            .values()
+            .all(|r| r.status == RollRequestStatus::Cancelled)
+    );
+    assert_eq!(hp_of(&s, 0), 10);
+    assert_eq!(
+        s.board_nodes[&BoardNodeId(v7(NODE))].visibility,
+        BoardVisibility::Gm
+    );
+}
+#[test]
+fn editing_manual_script_aborts_it_and_player_snapshots_hide_continuations() {
+    let mut s = world();
+    create(
+        &mut s,
+        0,
+        manual_scoped(vec![manual_damage_step(), reveal_secret()]),
+    );
+    fire(&mut s, 0);
+    assert!(
+        dnd_game_core::snapshot_for_user(Role::Player, PLAYER, &s, Seq(0), [])
+            .plugin_runtime
+            .trigger_runs
+            .is_empty()
+    );
+    let t = s.triggers[&trigger(0)].clone();
+    run(
+        &mut s,
+        Role::Gm,
+        Intent::UpdateTrigger {
+            id: t.id,
+            definition: t.definition,
+        },
+        Some(t.version),
+    )
+    .unwrap();
+    assert!(s.plugin_runtime.trigger_runs.is_empty());
+    assert!(
+        s.roll_requests
+            .values()
+            .all(|r| r.status == RollRequestStatus::Cancelled)
+    );
+}
+#[test]
+fn plain_manual_roll_changes_resource_by_the_displayed_total() {
+    let mut s = world();
+    let mut action = manual_damage_step().action;
+    if let TriggerAction::ChangeResource { dice, .. } = &mut action {
+        *dice = "1d6".into();
+    }
+    create(&mut s, 0, manual_scoped(vec![step(action)]));
+    fire(&mut s, 0);
+    let r = requests_for(&s, 0)[0].clone();
+    run(
+        &mut s,
+        Role::Player,
+        Intent::FulfillRollRequest { id: r.id },
+        Some(r.version),
+    )
+    .unwrap();
+    let r = &s.roll_requests[&r.id];
+    assert_eq!(r.delta, r.total.map(|total| -total));
+}
+
+#[test]
+fn pending_manual_group_blocks_time_and_repeated_activation() {
+    let mut s = world();
+    create(
+        &mut s,
+        0,
+        manual_scoped(vec![manual_damage_step(), reveal_secret()]),
+    );
+    fire(&mut s, 0);
+    let before = s.to_snapshot(Seq(0));
+    assert!(
+        run(
+            &mut s,
+            Role::Gm,
+            Intent::AdvanceGameTime { seconds: 60 },
+            Some(Version::INITIAL)
+        )
+        .is_err()
+    );
+    assert_eq!(s.to_snapshot(Seq(0)), before);
+    let events = fire(&mut s, 0);
+    assert!(events.is_empty());
+    assert_eq!(s.roll_requests.len(), 2);
+    assert_eq!(s.plugin_runtime.trigger_runs.len(), 1);
+}
+
+#[test]
+fn once_manual_groups_on_multiple_maps_share_obligations_without_invalidating_each_other() {
+    let mut s = world();
+    let mut definition = scoped(
+        def(
+            TriggerEvent::Manual,
+            None,
+            vec![
+                manual_damage_step(),
+                step(TriggerAction::Chat {
+                    text: "Per map finished".into(),
+                    gm_only: true,
+                }),
+            ],
+        ),
+        &[pooled_map_id(0), pooled_map_id(1)],
+    );
+    definition.once = true;
+    create(&mut s, 0, definition);
+    let events = fire(&mut s, 0);
+    assert_eq!(fired(&events), 2);
+    assert_eq!(s.plugin_runtime.trigger_runs.len(), 2);
+    assert_eq!(s.roll_requests.len(), 2);
+    let events = finish_group(&mut s);
+    assert!(s.plugin_runtime.trigger_runs.is_empty());
+    assert_eq!(events.iter().filter(|e| matches!(e, Event::ChatMessagePosted { message } if matches!(&message.system, Some(SystemMessage::Narration { text }) if text == "Per map finished"))).count(), 2);
+    assert_eq!(hp_of(&s, 0), 8);
+    assert_eq!(hp_of(&s, 1), 8);
+    assert!(
+        run(
+            &mut s,
+            Role::Gm,
+            Intent::FireTrigger {
+                id: trigger(0),
+                token: None
+            },
+            None
+        )
+        .is_err()
     );
 }

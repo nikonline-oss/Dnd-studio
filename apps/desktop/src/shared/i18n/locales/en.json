@@ -64,7 +64,8 @@
     "hidden": "Hidden from players",
     "visibleHint": "Players see only maps marked visible",
     "import": "Import image…",
-    "downscaled": "The image ({{width}}×{{height}}) was scaled down to fit 16384 px"
+    "downscaled": "The image ({{width}}×{{height}}) was scaled down to fit 16384 px",
+    "cancelMovement": "Cancel route (Esc)"
   },
   "tokens": {
     "openCharacterSheet": "Open character sheet",
@@ -216,7 +217,8 @@
     "showBottom": "Show bottom panel"
   },
   "tabs": {
-    "close": "Close {{name}}"
+    "close": "Close {{name}}",
+    "split": "Show side by side"
   },
   "fog": {
     "title": "Fog",
@@ -398,7 +400,11 @@
       "condition_removed": "{{name}} is no longer {{condition}}",
       "item_given": "{{name}} receives {{item}}",
       "roll_requested": "{{name}} must roll ({{label}})",
-      "roll_request_cancelled": "{{name}}'s roll was cancelled ({{label}})"
+      "roll_request_cancelled": "{{name}}'s roll was cancelled ({{label}})",
+      "action_completed": "{{action}}: completed",
+      "action_countered": "{{action}}: countered",
+      "action_cancelled": "{{action}}: cancelled by GM",
+      "action_invalid": "{{action}}: cancelled because conditions changed"
     },
     "feedFilter": "Message filter",
     "allFeed": "All",
@@ -444,7 +450,8 @@
     "remove": "Remove {{name}} from combat",
     "value": "Initiative of {{name}}",
     "addTokens": "Add tokens",
-    "startHint": "Start combat on the selected map"
+    "startHint": "Start combat on the selected map",
+    "dead": "Dead"
   },
   "activity": {
     "library": "Library",
@@ -459,7 +466,8 @@
     "triggers": "Triggers",
     "images": "Pictures",
     "audio": "Music and sounds",
-    "compendia": "Compendia"
+    "compendia": "Compendia",
+    "items": "Items"
   },
   "session": {
     "host": "Invite players…",
@@ -522,7 +530,33 @@
       "ui": "Interface"
     },
     "license": "License",
-    "remote": "Connect to the server to manage plugins."
+    "remote": "Connect to the server to manage plugins.",
+    "ruleSettings": "Plugin rules",
+    "campaignRulesHint": "These settings apply to the entire campaign and all participants.",
+    "rulesReadOnly": "Only the GM and Co-GM can change rules.",
+    "noRuleSettings": "This plugin declares no configurable rules.",
+    "reactions": "Reaction offers",
+    "acceptReaction": "Use reaction",
+    "declineReaction": "Pass",
+    "cancelMovement": "Cancel movement",
+    "localAppearance": "Appearance on this device",
+    "showEffects": "Show action effects",
+    "effectOpacity": "Effect intensity",
+    "chooseTarget": "Choose a target or area center on the map, then confirm.",
+    "applyAction": "Apply",
+    "action": "Plugin action",
+    "actionSource": "Source (otherwise activator)",
+    "actionTarget": "Target",
+    "activeModifiers": "Active modifiers",
+    "maintainedEffects": "Maintained effects",
+    "noMaintainedEffects": "No maintained effects",
+    "endMaintenance": "End maintenance",
+    "unknownSource": "Source unavailable",
+    "actionWindows": "Action interruption",
+    "waitingAction": "Waiting for participants or the GM",
+    "continueAction": "Continue action",
+    "cancelActionStack": "Cancel chain",
+    "reservedCosts": "Reserved until resolution: {{costs}}"
   },
   "rolls": {
     "title": "Rolls to make",
@@ -635,7 +669,11 @@
     "editHint": "Click a zone to select it; drag it, its corners or its name. Double-click the name to rename it.",
     "nameOnMap": "Zone name",
     "color": "Color of zone {{name}}",
-    "new": "Draw a zone"
+    "new": "Draw a zone",
+    "blockSight": "Block sight: {{name}}",
+    "blockEffect": "Block effect: {{name}}",
+    "sight": "Blocks sight",
+    "effect": "Blocks effects"
   },
   "conditions": {
     "title": "Conditions",
@@ -659,11 +697,27 @@
     "turnsLeft_other": "{{count}} turns left",
     "minutesLeft_one": "{{count}} min left",
     "minutesLeft_other": "{{count}} min left",
-    "remove": "Remove the effect"
+    "remove": "Remove the effect",
+    "untilTurnEnd": "Until the current turn ends",
+    "gameTime": "Game time",
+    "gameSeconds": "Game seconds",
+    "gameSecondsLeft": "{{count}} game seconds remaining"
   },
   "items": {
-    "name": "Item",
-    "give": "Give item"
+    "title": "Items",
+    "name": "Item name",
+    "type": "Item type",
+    "createTemplate": "Create template",
+    "template": "Template",
+    "instance": "Instance",
+    "owner": "Owner",
+    "noOwner": "Unassigned",
+    "instantiate": "Create instance",
+    "shared": "Show to all players",
+    "delete": "Delete item",
+    "empty": "No items yet",
+    "missingType": "Item type unavailable: install its plugin",
+    "openTab": "Open in a tab"
   },
   "picker": {
     "title": "Pick an element",
@@ -776,7 +830,8 @@
       "play_sting": "One-shot sting",
       "spawn_tokens": "Spawn tokens",
       "start_combat": "Start a combat",
-      "apply_effect": "Apply an effect"
+      "apply_effect": "Apply an effect",
+      "plugin_action": "Plugin action"
     },
     "reveal": {
       "node": "Board card",
@@ -816,7 +871,7 @@
     "attackHit": "Hits when",
     "attackHint": "Rolled per target; the damage applies only when the condition holds (@total is the roll, @ fields are the target's).",
     "manualRoll": "Players roll it themselves",
-    "manualHint": "Each target's controller gets a die by the status bar; the damage waits for their roll. GM roles can cancel a request or undo its damage.",
+    "manualHint": "The script waits for every selected character. Next steps can use @roll.count, @roll.total and @roll.delta. GM cancellation aborts the continuation.",
     "when": "If",
     "up": "Up",
     "down": "Down",
@@ -852,7 +907,9 @@
     "unbound": "Choose maps in the editor",
     "zoneName": "Zone name",
     "zoneNameHint": "Matches this exact zone name on each selected map (case-sensitive, ignoring surrounding spaces).",
-    "zoneRequired": "Select a zone name."
+    "zoneRequired": "Select a zone name.",
+    "pluginAwaitHint": "Following steps wait for reactions. Branch with @action.completed == 1 or @action.countered == 1.",
+    "waitingRolls": "{{name}}: waiting for {{pending}} of {{count}} rolls"
   },
   "images": {
     "title": "Pictures",
@@ -964,5 +1021,90 @@
     "allRequests": "All requests ({{count}})",
     "yourTurn": "Your turn: {{name}} · round {{round}}",
     "showTurn": "Show my turn"
+  },
+  "gm": {
+    "title": "GM dashboard",
+    "onlyGm": "Available to the GM and co-GM.",
+    "noSystem": "Universal dashboard",
+    "scene": "Scene",
+    "openScene": "Open map",
+    "unavailable": "Changes unavailable: wait for connection or the current command.",
+    "tokens": "tokens in scene",
+    "waiting": "pending decisions",
+    "noPending": "No decisions waiting",
+    "search": "Find character",
+    "noConditions": "No conditions",
+    "hidden": "Hidden from players",
+    "noCharacters": "No character tokens in this scene.",
+    "allSettings": "All plugin settings",
+    "actor": "Actor",
+    "action": "Action",
+    "choose": "Choose…",
+    "areaCenter": "Area center — token",
+    "target": "Target",
+    "areaHint": "Circle with a radius of {{radius}} cells. Allies may be affected. Choose a free point on the map.",
+    "review": "Review action",
+    "confirm": "Confirm action",
+    "affected": "In area before obstacle checks",
+    "costHint": "Resources and eligibility are checked when applying.",
+    "apply": "Confirm and apply"
+  },
+  "economy": {
+    "title": "Turn resources",
+    "ownTurn": "Your turn",
+    "otherTurn": "Another turn: permitted reactions are available",
+    "notStarted": "Waiting for the first turn",
+    "outsideCombat": "Turn limits do not apply outside combat",
+    "resetOwn": "At the start of your turn",
+    "resetEvery": "At the start of every turn",
+    "reserved": "Reserved: {{count}}"
+  },
+  "gameClock": {
+    "elapsed": "World time: {{seconds}} seconds since campaign start",
+    "manual": "Advance time explicitly. Game-time effects expire against this counter.",
+    "waiting": "Resolve pending actions and roll requests first.",
+    "advance": "+{{seconds}} sec",
+    "review": "Advance by {{seconds}} seconds to {{until}}? Expired game-time effects will end.",
+    "confirm": "Advance time"
+  },
+  "actions": {
+    "title": "Character actions",
+    "token": "Token",
+    "placeToken": "Place the character on a map to choose targets.",
+    "range": "Range: {{range}} cells",
+    "outOfRange": "Target out of range",
+    "chooseOnMap": "Choose target or area on map",
+    "reason": {
+      "available": "Available",
+      "pending": "Awaiting a decision",
+      "disabled": "Rule disabled",
+      "condition_or_turn": "Unavailable in this state or outside your turn",
+      "resources": "Insufficient resources",
+      "reaction": "Use through a reaction offer"
+    }
+  },
+  "saves": {
+    "title": "Target saving throws",
+    "damage": "Shared damage: {{damage}} · DC {{dc}}",
+    "roll": "Roll saving throw",
+    "succeeded": "Success",
+    "failed": "Failure",
+    "automatic_failure": "Automatic failure",
+    "cancel": "Cancel remaining saves"
+  },
+  "calendar": {
+    "advance": "Review advance",
+    "unit": "Time unit",
+    "combat": "Round {{round}} · Turn: {{turn}}",
+    "units": {
+      "second": "sec",
+      "minute": "min",
+      "hour": "hr",
+      "day": "days",
+      "week": "weeks",
+      "month": "months",
+      "year": "years",
+      "round": "rounds"
+    }
   }
 }

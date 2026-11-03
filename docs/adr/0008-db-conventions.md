@@ -149,3 +149,11 @@ ADR-0002 выбрал SQLite. Нужно зафиксировать, как им
 - UI чата и бросков (этап 2a) показывает это имя, когда `sender_user_id`/`user_id` равен `NULL`;
   DTO сообщений и бросков в протоколе обязаны его нести.
 - Имена колонок повторяют пары ссылок: `sender_user_id` → `sender_name`, `user_id` → `user_name`.
+
+## Дополнение: ADR-0034
+
+`plugin_runtime`: SELECT dto и UPSERT состояния ожиданий покрыты
+`queries.rs::plugin_runtime_is_projected_and_loaded` (реальная SQLite, запись,
+повторное чтение и замена пустым состоянием). Всего runtime-запросов: 98.
+
+`items`: SELECT dto, UPSERT и DELETE покрыты `queries.rs::item_instances_survive_reload_updates_and_deletion` (создание, обновление зарядов и состояния, повторное чтение, удаление).

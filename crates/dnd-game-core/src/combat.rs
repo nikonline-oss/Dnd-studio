@@ -65,15 +65,20 @@ pub(crate) fn apply(
             if state.combats.values().any(|c| c.map_id == *map_id) {
                 return Some(Err(RejectReason::AlreadyExists));
             }
-            Ok(vec![Event::CombatStarted {
-                combat: CombatDto {
-                    id: *id,
-                    map_id: *map_id,
-                    round: 1,
-                    turn: None,
-                    version: Version::INITIAL,
-                },
-            }])
+            let combat = CombatDto {
+                id: *id,
+                map_id: *map_id,
+                round: 1,
+                turn: None,
+                version: Version::INITIAL,
+            };
+            let mut events = vec![Event::CombatStarted {
+                combat: combat.clone(),
+            }];
+            let mut work = state.clone();
+            crate::evolve::evolve(&mut work, &events[0]);
+            events.extend(crate::economy::refresh(&work, &combat, true, rng));
+            Ok(events)
         }
         Intent::AddCombatant {
             id,
@@ -194,12 +199,29 @@ fn roll(
         .rules()
         .map_or_else(|| initiative_expression(sheet), |r| r.initiative.as_str());
     let expr = Expr::parse(expression).map_err(|_| RejectReason::invalid("expression"))?;
-    let roll = expr
-        .roll(
+    let roll = if let Some(c) = combatant
+        .character_id
+        .and_then(|id| state.characters.get(&id))
+    {
+        crate::modifiers::roll(
+            state,
+            expression,
+            crate::modifiers::RollContext {
+                actor: c,
+                target: None,
+                kind: dnd_protocol::RollKind::Initiative,
+                tags: &[],
+                distance: None,
+            },
+            rng,
+        )?
+    } else {
+        expr.roll(
             &CharacterFields::new(state, sheet),
             &mut DiceRngAdapter(rng),
         )
-        .map_err(|_| RejectReason::invalid("expression"))?;
+        .map_err(|_| RejectReason::invalid("expression"))?
+    };
     // A combatant the players cannot see rolls where they cannot see it either.
     let hidden = combatant
         .token_id
@@ -249,26 +271,28 @@ fn next_turn(
         .get(&combat_id)
         .ok_or(RejectReason::NotFound)?;
     let order = turn_order(state, combat_id);
-    let first = order
-        .first()
-        .ok_or_else(|| RejectReason::invalid("combatants"))?;
     let current = combat
         .turn
-        .and_then(|turn| order.iter().position(|c| c.id == turn));
-    let (turn, round) = match current {
-        // The first turn of the combat, or the current combatant is gone.
-        None => (first.id, combat.round),
-        Some(pos) => match order.get(pos + 1) {
-            Some(next) => (next.id, combat.round),
-            None => (
-                first.id,
-                combat
-                    .round
-                    .checked_add(1)
-                    .ok_or_else(|| RejectReason::invalid("round"))?,
-            ),
-        },
-    };
+        .and_then(|id| order.iter().position(|c| c.id == id));
+    let start = current.map_or(0, |p| p + 1);
+    let next = (0..order.len())
+        .find_map(|offset| {
+            let index = (start + offset) % order.len();
+            let c = order[index];
+            let dead = c
+                .character_id
+                .and_then(|id| state.characters.get(&id))
+                .is_some_and(|c| {
+                    crate::rules_view::life(state, c) == dnd_protocol::LifeStatus::Dead
+                });
+            (!dead).then_some((c.id, current.is_some() && start + offset >= order.len()))
+        })
+        .ok_or_else(|| RejectReason::invalid("combatants"))?;
+    let turn = next.0;
+    let round = combat
+        .round
+        .checked_add(i64::from(next.1))
+        .ok_or_else(|| RejectReason::invalid("round"))?;
     let mut work = state.clone();
     let updated = Event::CombatUpdated {
         combat: CombatDto {
@@ -281,6 +305,13 @@ fn next_turn(
     let mut events = vec![updated];
     for event in &events {
         crate::evolve::evolve(&mut work, event);
+    }
+    if let Some(combat) = work.combats.get(&combat_id) {
+        let budgets = crate::economy::refresh(&work, combat, false, rng);
+        for event in budgets {
+            crate::evolve::evolve(&mut work, &event);
+            events.push(event);
+        }
     }
     // A wrapped order opens a new round: round effects of the map's tokens count down.
     if round > combat.round {

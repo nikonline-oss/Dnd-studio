@@ -212,6 +212,7 @@ async fn events_without_an_intent_are_committed_and_numbered() {
     engine.submit(&create_map(), &gm, 1).await.unwrap();
 
     let renamed = CampaignMeta {
+        game_clock: Default::default(),
         name: "Renamed".into(),
         description: String::new(),
         version: Version(2),
@@ -243,4 +244,30 @@ async fn events_without_an_intent_are_committed_and_numbered() {
     assert_eq!(reopened.snapshot().campaign, renamed);
     let (outcome, _) = reopened.submit(&create_map(), &gm, 4).await.unwrap();
     assert_eq!(outcome, IntentOutcome::Accepted { seq: Seq(3) });
+}
+
+#[tokio::test]
+async fn fictional_clock_persists_and_retry_after_reopen_does_not_advance_twice() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut engine, gm) = engine(dir.path()).await;
+    let intent = IntentEnvelope {
+        intent_id: IntentId::new_v7(),
+        expected_version: Some(Version::INITIAL),
+        ts_ms: 0,
+        intent: Intent::AdvanceGameTime { seconds: 600 },
+    };
+    let first = engine.submit(&intent, &gm, 1).await.unwrap().0;
+    assert_eq!(engine.snapshot().campaign.game_clock.seconds, 600);
+    engine.close().await.unwrap();
+    let (db, _) = CampaignDb::open(&dir.path().join("campaign.sqlite"), 2)
+        .await
+        .unwrap();
+    let mut engine = CampaignEngine::load(db, IntentWindow::DEFAULT, 7, 2)
+        .await
+        .unwrap();
+    assert_eq!(engine.snapshot().campaign.game_clock.seconds, 600);
+    assert_eq!(engine.snapshot().campaign.game_clock.version, Version(2));
+    let retry = engine.submit(&intent, &gm, 3).await.unwrap().0;
+    assert_eq!(retry, first);
+    assert_eq!(engine.snapshot().campaign.game_clock.seconds, 600);
 }

@@ -78,6 +78,16 @@ fn only_gm_roles_manage_zones() {
                 },
                 Some(Version::INITIAL),
             ),
+            (
+                Intent::SetZoneOcclusion {
+                    id: zone(0),
+                    occlusion: ZoneOcclusion {
+                        sight: true,
+                        effect: true,
+                    },
+                },
+                Some(Version::INITIAL),
+            ),
             (Intent::DeleteZone { id: zone(0) }, Some(Version::INITIAL)),
         ];
         for (intent, version) in intents {
@@ -497,4 +507,47 @@ fn zone_colors_are_checked_versioned_and_gm_only() {
         ),
         Err(RejectReason::invalid("color"))
     );
+}
+
+#[test]
+fn blockers_require_a_current_version_and_incompatible_zones_cannot_merge() {
+    let mut s = zoned();
+    let intent = Intent::SetZoneOcclusion {
+        id: zone(0),
+        occlusion: ZoneOcclusion {
+            sight: true,
+            effect: false,
+        },
+    };
+    assert_eq!(
+        run(&mut s, Role::Gm, intent.clone(), None),
+        Err(RejectReason::MissingExpectedVersion)
+    );
+    run(&mut s, Role::CoGm, intent.clone(), Some(Version::INITIAL)).unwrap();
+    assert!(run(&mut s, Role::Gm, intent, Some(Version::INITIAL)).is_err());
+    run(
+        &mut s,
+        Role::Gm,
+        Intent::CreateZone {
+            id: zone(1),
+            map_id: pooled_map_id(0),
+            name: "Glass".into(),
+            shape: rect(0, 0, 160, 160),
+        },
+        None,
+    )
+    .unwrap();
+    assert!(
+        run(
+            &mut s,
+            Role::Gm,
+            Intent::MergeZones {
+                into: zone(0),
+                from: vec![zone(1)]
+            },
+            Some(Version(2))
+        )
+        .is_err()
+    );
+    assert_eq!(s.zones.len(), 2);
 }

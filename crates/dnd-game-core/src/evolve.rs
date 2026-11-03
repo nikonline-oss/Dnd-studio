@@ -8,12 +8,20 @@ use crate::state::GameState;
 /// (e.g. after a resync) is harmless.
 pub fn evolve(state: &mut GameState, event: &Event) {
     match event {
+        Event::RulesViewUpdated { .. } => {}
+        Event::ItemCreated { item } | Event::ItemUpdated { item } => {
+            state.items.insert(item.id, item.clone());
+        }
+        Event::ItemDeleted { id } => {
+            state.items.remove(id);
+        }
         Event::PlaylistCreated { playlist } | Event::PlaylistUpdated { playlist } => {
             state.playlists.insert(playlist.id, playlist.clone());
         }
         Event::PlaylistDeleted { id } => {
             state.playlists.remove(id);
         }
+        Event::GameTimeAdvanced { clock } => state.campaign.game_clock = clock.clone(),
         Event::CampaignMetaUpdated { campaign } => state.campaign = campaign.clone(),
         Event::MapCreated { map } | Event::MapUpdated { map } => {
             state.maps.insert(map.id, map.clone());
@@ -106,6 +114,7 @@ pub fn evolve(state: &mut GameState, event: &Event) {
         Event::AssetRegistered { asset } => {
             state.assets.insert(asset.id, asset.as_ref().clone());
         }
+        Event::PluginRuntimeUpdated { runtime } => state.plugin_runtime = *runtime.clone(),
         Event::PluginInstalled { plugin } => {
             state
                 .plugins

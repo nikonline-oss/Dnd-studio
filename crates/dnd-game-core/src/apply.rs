@@ -37,10 +37,40 @@ pub fn apply(
         evolve(&mut work, event);
     }
     events.extend(decide(&work, envelope, actor, rng)?);
+    let mut effect_state = work.clone();
+    for event in &events {
+        evolve(&mut effect_state, event);
+    }
+    events.extend(crate::effects::expire_turn_end(&effect_state));
+    let maintained = crate::maintained::cleanup(&work, &events);
+    events.extend(maintained);
     let bindings = crate::triggers::sync_board_bindings(&work, &envelope.intent, &events, rng)?;
     events.extend(bindings);
     let reactions = crate::triggers::react(&work, &envelope.intent, &events, envelope.ts_ms, rng);
     events.extend(reactions);
+    let followups = crate::mechanics::after(&work, &events, rng);
+    events.extend(followups);
+    let maintained = crate::maintained::cleanup(&work, &events);
+    events.extend(maintained);
+    let pending = crate::interruptions::cleanup(&work, &events, envelope.ts_ms, rng);
+    events.extend(pending);
+    let scripts = crate::triggers::resume(&work, &events, envelope.ts_ms, rng);
+    events.extend(scripts);
+    let maintained = crate::maintained::cleanup(&work, &events);
+    events.extend(maintained);
+    let pending = crate::interruptions::cleanup(&work, &events, envelope.ts_ms, rng);
+    events.extend(pending);
+    let scripts = crate::triggers::resume(&work, &events, envelope.ts_ms, rng);
+    events.extend(scripts);
+    let saves = crate::saves::cleanup(&work, &events, envelope.ts_ms, rng);
+    events.extend(saves);
+    let scripts = crate::triggers::resume(&work, &events, envelope.ts_ms, rng);
+    events.extend(scripts);
+    events.extend(crate::maintained::cleanup(&work, &events));
+    let items = crate::items::cleanup(&work, &events)?;
+    events.extend(items);
+    let views = crate::rules_view::after(state, &events);
+    events.extend(views);
     Ok(events)
 }
 
@@ -54,6 +84,42 @@ fn decide(
     let intent = &envelope.intent;
     envelope.validate()?;
     authorize(actor, intent, state)?;
+    if let Intent::MoveToken { id, .. } | Intent::MoveTokenWithMode { id, .. } = intent
+        && (crate::interruptions::busy(state, *id)
+            || state
+                .tokens
+                .get(id)
+                .is_some_and(|t| crate::rules_view::map_busy(state, t.map_id)))
+    {
+        return Err(RejectReason::invalid("pending_action"));
+    }
+    if let Intent::NextTurn { combat_id: id } | Intent::EndCombat { id } = intent
+        && state.combats.get(id).is_some_and(|combat| {
+            crate::rules_view::map_busy(state, combat.map_id)
+                || state.plugin_runtime.action_stacks.iter().any(|s| {
+                    s.map == combat.map_id
+                        || s.frames.iter().any(|f| {
+                            state.combatants.values().any(|p| {
+                                p.combat_id == combat.id && p.character_id == Some(f.owner)
+                            }) || state.tokens.values().any(|t| {
+                                t.map_id == combat.map_id && t.character_id == Some(f.owner)
+                            })
+                        })
+                })
+                || state.plugin_runtime.movements.iter().any(|m| {
+                    state
+                        .tokens
+                        .get(&m.token)
+                        .is_some_and(|t| t.map_id == combat.map_id)
+                })
+        })
+    {
+        return Err(RejectReason::invalid("pending_movement"));
+    }
+
+    if let Some(result) = crate::mechanics::apply(state, envelope, actor, rng) {
+        return result;
+    }
     if let Some(id) = intent.created_id()
         && id_in_use(state, id)
     {
@@ -72,6 +138,19 @@ fn decide(
     }
 
     match intent {
+        Intent::CreateItem { .. }
+        | Intent::InstantiateItem { .. }
+        | Intent::UpdateItem { .. }
+        | Intent::TransferItem { .. }
+        | Intent::DeleteItem { .. } => crate::items::apply(state, intent)
+            .unwrap_or_else(|| Err(RejectReason::invalid("intent"))),
+        Intent::ResolveActionSave { .. } | Intent::CancelActionSaves { .. } => {
+            Err(RejectReason::invalid("intent"))
+        }
+        Intent::AdvanceCalendarTime { amount, unit } => {
+            crate::game_time::advance_inner(state, crate::calendar::delta(state, *amount, *unit)?)
+        }
+        Intent::AdvanceGameTime { seconds } => crate::game_time::advance(state, *seconds),
         Intent::UpdateCampaignMeta { name, description } => {
             if name.is_none() && description.is_none() {
                 return Err(RejectReason::invalid("intent"));
@@ -308,6 +387,15 @@ fn decide(
 
         Intent::InstallPlugin { .. }
         | Intent::UninstallPlugin { .. }
+        | Intent::MoveTokenWithMode { .. }
+        | Intent::ResolvePluginReaction { .. }
+        | Intent::CancelPluginMovement { .. }
+        | Intent::ResolveActionReaction { .. }
+        | Intent::ContinuePluginAction { .. }
+        | Intent::CancelActionStack { .. }
+        | Intent::EndMaintainedEffect { .. }
+        | Intent::ExecutePluginAction { .. }
+        | Intent::ConfigurePluginFeature { .. }
         | Intent::SetSystemPlugin { .. } => {
             crate::plugins::apply(state, intent).unwrap_or(Err(RejectReason::invalid("intent")))
         }
@@ -342,6 +430,7 @@ fn decide(
 
         Intent::CreateZone { .. }
         | Intent::UpdateZone { .. }
+        | Intent::SetZoneOcclusion { .. }
         | Intent::SetZoneColor { .. }
         | Intent::DeleteZone { .. }
         | Intent::MergeZones { .. } => {
@@ -374,6 +463,12 @@ pub fn current_version(state: &GameState, intent: &Intent) -> Result<Version, Re
         Intent::UpdatePlaylist { id, .. }
         | Intent::MovePlaylist { id, .. }
         | Intent::DeletePlaylist { id } => state.playlists.get(id).map(|p| p.version),
+        Intent::AdvanceCalendarTime { .. } | Intent::AdvanceGameTime { .. } => {
+            Some(state.campaign.game_clock.version)
+        }
+        Intent::UpdateItem { id, .. }
+        | Intent::TransferItem { id, .. }
+        | Intent::DeleteItem { id } => state.items.get(id).map(|i| i.version),
         Intent::UpdateCampaignMeta { .. } => Some(state.campaign.version),
         Intent::UpdateMap { id, .. } | Intent::DeleteMap { id } => {
             state.maps.get(id).map(|m| m.version)
@@ -393,7 +488,11 @@ pub fn current_version(state: &GameState, intent: &Intent) -> Result<Version, Re
         Intent::UpdateJournalEntry { id, .. }
         | Intent::MoveJournalEntry { id, .. }
         | Intent::DeleteJournalEntry { id } => state.journal.get(id).map(|e| e.version),
-        Intent::CreateMap { .. }
+        Intent::ResolveActionSave { .. }
+        | Intent::CancelActionSaves { .. }
+        | Intent::CreateItem { .. }
+        | Intent::InstantiateItem { .. }
+        | Intent::CreateMap { .. }
         | Intent::CreateToken { .. }
         | Intent::CreateCharacter { .. }
         | Intent::CreateJournalEntry { .. }
@@ -407,12 +506,22 @@ pub fn current_version(state: &GameState, intent: &Intent) -> Result<Version, Re
         | Intent::CreateJournalFolder { .. }
         | Intent::InstallPlugin { .. }
         | Intent::UninstallPlugin { .. }
+        | Intent::MoveTokenWithMode { .. }
+        | Intent::ResolvePluginReaction { .. }
+        | Intent::CancelPluginMovement { .. }
+        | Intent::ResolveActionReaction { .. }
+        | Intent::ContinuePluginAction { .. }
+        | Intent::CancelActionStack { .. }
+        | Intent::EndMaintainedEffect { .. }
+        | Intent::ExecutePluginAction { .. }
+        | Intent::ConfigurePluginFeature { .. }
         | Intent::SetSystemPlugin { .. }
         | Intent::CreateBoard { .. }
         | Intent::CreateBoardNode { .. }
         | Intent::CreateBoardEdge { .. }
         | Intent::CreateZone { .. } => None,
         Intent::UpdateZone { id, .. }
+        | Intent::SetZoneOcclusion { id, .. }
         | Intent::SetZoneColor { id, .. }
         | Intent::DeleteZone { id }
         | Intent::MergeZones { into: id, .. } => state.zones.get(id).map(|z| z.version),
@@ -511,7 +620,8 @@ fn valid_scale(scale: f64) -> Result<f64, RejectReason> {
 /// Whether any entity — of any kind — already uses `id`. Ids are unique across kinds, so an id
 /// never means two things to clients or the database (ADR-0015).
 pub(crate) fn id_in_use(state: &GameState, id: dnd_protocol::Uuid) -> bool {
-    state.playlists.contains_key(&dnd_protocol::PlaylistId(id))
+    state.items.contains_key(&dnd_protocol::ItemId(id))
+        || state.playlists.contains_key(&dnd_protocol::PlaylistId(id))
         || state.maps.contains_key(&dnd_protocol::MapId(id))
         || state.tokens.contains_key(&dnd_protocol::TokenId(id))
         || state
@@ -561,7 +671,7 @@ fn valid_map_size(size: i64, field: &str) -> Result<i64, RejectReason> {
 }
 
 /// A position in Units16 must lie on the map: `0..=width*16`, `0..=height*16` (ADR-0016).
-fn on_map(map: &MapDto, x: i64, y: i64) -> Result<(i64, i64), RejectReason> {
+pub(crate) fn on_map(map: &MapDto, x: i64, y: i64) -> Result<(i64, i64), RejectReason> {
     let per = dnd_protocol::UNITS16_PER_UNIT;
     if !(0..=map.width.saturating_mul(per)).contains(&x) {
         return Err(RejectReason::invalid("x"));
