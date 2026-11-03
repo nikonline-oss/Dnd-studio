@@ -62,6 +62,15 @@ pub fn apply(
     events.extend(pending);
     let scripts = crate::triggers::resume(&work, &events, envelope.ts_ms, rng);
     events.extend(scripts);
+    let saves = crate::saves::cleanup(&work, &events, envelope.ts_ms, rng);
+    events.extend(saves);
+    let scripts = crate::triggers::resume(&work, &events, envelope.ts_ms, rng);
+    events.extend(scripts);
+    events.extend(crate::maintained::cleanup(&work, &events));
+    let items = crate::items::cleanup(&work, &events)?;
+    events.extend(items);
+    let views = crate::rules_view::after(state, &events);
+    events.extend(views);
     Ok(events)
 }
 
@@ -76,29 +85,33 @@ fn decide(
     envelope.validate()?;
     authorize(actor, intent, state)?;
     if let Intent::MoveToken { id, .. } | Intent::MoveTokenWithMode { id, .. } = intent
-        && crate::interruptions::busy(state, *id)
+        && (crate::interruptions::busy(state, *id)
+            || state
+                .tokens
+                .get(id)
+                .is_some_and(|t| crate::rules_view::map_busy(state, t.map_id)))
     {
         return Err(RejectReason::invalid("pending_action"));
     }
     if let Intent::NextTurn { combat_id: id } | Intent::EndCombat { id } = intent
         && state.combats.get(id).is_some_and(|combat| {
-            state.plugin_runtime.action_stacks.iter().any(|s| {
-                s.map == combat.map_id
-                    || s.frames.iter().any(|f| {
-                        state
-                            .combatants
-                            .values()
-                            .any(|p| p.combat_id == combat.id && p.character_id == Some(f.owner))
-                            || state.tokens.values().any(|t| {
+            crate::rules_view::map_busy(state, combat.map_id)
+                || state.plugin_runtime.action_stacks.iter().any(|s| {
+                    s.map == combat.map_id
+                        || s.frames.iter().any(|f| {
+                            state.combatants.values().any(|p| {
+                                p.combat_id == combat.id && p.character_id == Some(f.owner)
+                            }) || state.tokens.values().any(|t| {
                                 t.map_id == combat.map_id && t.character_id == Some(f.owner)
                             })
-                    })
-            }) || state.plugin_runtime.movements.iter().any(|m| {
-                state
-                    .tokens
-                    .get(&m.token)
-                    .is_some_and(|t| t.map_id == combat.map_id)
-            })
+                        })
+                })
+                || state.plugin_runtime.movements.iter().any(|m| {
+                    state
+                        .tokens
+                        .get(&m.token)
+                        .is_some_and(|t| t.map_id == combat.map_id)
+                })
         })
     {
         return Err(RejectReason::invalid("pending_movement"));
@@ -125,6 +138,18 @@ fn decide(
     }
 
     match intent {
+        Intent::CreateItem { .. }
+        | Intent::InstantiateItem { .. }
+        | Intent::UpdateItem { .. }
+        | Intent::TransferItem { .. }
+        | Intent::DeleteItem { .. } => crate::items::apply(state, intent)
+            .unwrap_or_else(|| Err(RejectReason::invalid("intent"))),
+        Intent::ResolveActionSave { .. } | Intent::CancelActionSaves { .. } => {
+            Err(RejectReason::invalid("intent"))
+        }
+        Intent::AdvanceCalendarTime { amount, unit } => {
+            crate::game_time::advance_inner(state, crate::calendar::delta(state, *amount, *unit)?)
+        }
         Intent::AdvanceGameTime { seconds } => crate::game_time::advance(state, *seconds),
         Intent::UpdateCampaignMeta { name, description } => {
             if name.is_none() && description.is_none() {
@@ -438,7 +463,12 @@ pub fn current_version(state: &GameState, intent: &Intent) -> Result<Version, Re
         Intent::UpdatePlaylist { id, .. }
         | Intent::MovePlaylist { id, .. }
         | Intent::DeletePlaylist { id } => state.playlists.get(id).map(|p| p.version),
-        Intent::AdvanceGameTime { .. } => Some(state.campaign.game_clock.version),
+        Intent::AdvanceCalendarTime { .. } | Intent::AdvanceGameTime { .. } => {
+            Some(state.campaign.game_clock.version)
+        }
+        Intent::UpdateItem { id, .. }
+        | Intent::TransferItem { id, .. }
+        | Intent::DeleteItem { id } => state.items.get(id).map(|i| i.version),
         Intent::UpdateCampaignMeta { .. } => Some(state.campaign.version),
         Intent::UpdateMap { id, .. } | Intent::DeleteMap { id } => {
             state.maps.get(id).map(|m| m.version)
@@ -458,7 +488,11 @@ pub fn current_version(state: &GameState, intent: &Intent) -> Result<Version, Re
         Intent::UpdateJournalEntry { id, .. }
         | Intent::MoveJournalEntry { id, .. }
         | Intent::DeleteJournalEntry { id } => state.journal.get(id).map(|e| e.version),
-        Intent::CreateMap { .. }
+        Intent::ResolveActionSave { .. }
+        | Intent::CancelActionSaves { .. }
+        | Intent::CreateItem { .. }
+        | Intent::InstantiateItem { .. }
+        | Intent::CreateMap { .. }
         | Intent::CreateToken { .. }
         | Intent::CreateCharacter { .. }
         | Intent::CreateJournalEntry { .. }
@@ -586,7 +620,8 @@ fn valid_scale(scale: f64) -> Result<f64, RejectReason> {
 /// Whether any entity — of any kind — already uses `id`. Ids are unique across kinds, so an id
 /// never means two things to clients or the database (ADR-0015).
 pub(crate) fn id_in_use(state: &GameState, id: dnd_protocol::Uuid) -> bool {
-    state.playlists.contains_key(&dnd_protocol::PlaylistId(id))
+    state.items.contains_key(&dnd_protocol::ItemId(id))
+        || state.playlists.contains_key(&dnd_protocol::PlaylistId(id))
         || state.maps.contains_key(&dnd_protocol::MapId(id))
         || state.tokens.contains_key(&dnd_protocol::TokenId(id))
         || state

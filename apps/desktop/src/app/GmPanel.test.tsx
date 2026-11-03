@@ -44,6 +44,14 @@ function setup(role: Role = 'gm') {
         },
       },
     ],
+    rules_view: {
+      tokens: [
+        {
+          token: 'caster',
+          actions: [{ id: 'fireball', enabled: true, reason: null, range_cells: 30 }],
+        },
+      ],
+    },
     system_plugin: 'srd',
     effects: [],
     sounds: [],

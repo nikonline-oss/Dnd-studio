@@ -271,26 +271,28 @@ fn next_turn(
         .get(&combat_id)
         .ok_or(RejectReason::NotFound)?;
     let order = turn_order(state, combat_id);
-    let first = order
-        .first()
-        .ok_or_else(|| RejectReason::invalid("combatants"))?;
     let current = combat
         .turn
-        .and_then(|turn| order.iter().position(|c| c.id == turn));
-    let (turn, round) = match current {
-        // The first turn of the combat, or the current combatant is gone.
-        None => (first.id, combat.round),
-        Some(pos) => match order.get(pos + 1) {
-            Some(next) => (next.id, combat.round),
-            None => (
-                first.id,
-                combat
-                    .round
-                    .checked_add(1)
-                    .ok_or_else(|| RejectReason::invalid("round"))?,
-            ),
-        },
-    };
+        .and_then(|id| order.iter().position(|c| c.id == id));
+    let start = current.map_or(0, |p| p + 1);
+    let next = (0..order.len())
+        .find_map(|offset| {
+            let index = (start + offset) % order.len();
+            let c = order[index];
+            let dead = c
+                .character_id
+                .and_then(|id| state.characters.get(&id))
+                .is_some_and(|c| {
+                    crate::rules_view::life(state, c) == dnd_protocol::LifeStatus::Dead
+                });
+            (!dead).then_some((c.id, current.is_some() && start + offset >= order.len()))
+        })
+        .ok_or_else(|| RejectReason::invalid("combatants"))?;
+    let turn = next.0;
+    let round = combat
+        .round
+        .checked_add(i64::from(next.1))
+        .ok_or_else(|| RejectReason::invalid("round"))?;
     let mut work = state.clone();
     let updated = Event::CombatUpdated {
         combat: CombatDto {

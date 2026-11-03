@@ -1,4 +1,4 @@
-import type { PluginAction } from '@/shared/ipc/client';
+import { useActionAim } from '@/shared/state/actionAim';
 import { labelText } from '@/shared/i18n/label';
 import { useSettings } from '@/shared/settings/settings';
 import type { Application } from 'pixi.js';
@@ -30,13 +30,13 @@ import { IconButton } from '@/shared/ui/IconButton';
  * GM roles draw fog (ADR-0019) and see it translucent; players see it opaque.
  * Players without a selection see the first map shared with them.
  */
-export function MapView() {
+export function MapView({ mapId }: { mapId?: string } = {}) {
   const { t, i18n } = useTranslation();
   const { data: snapshot } = useSnapshot();
   const { data: campaign } = useCampaign();
   const submit = useSubmitIntent();
   const isGm = campaign?.role === 'gm' || campaign?.role === 'co_gm';
-  const map = useShownMap();
+  const map = useShownMap(mapId);
   const selectedTokenId = useSelection((s) => s.tokenId);
   const combat = useSnapshotSelect((s) => s.combats.some((entry) => entry.map_id === map?.id));
   const triggerZones = useSnapshotSelect((s) =>
@@ -49,14 +49,22 @@ export function MapView() {
   const background = map && snapshot?.assets.find((a) => a.id === map.background_asset_id);
   const fog = map && snapshot?.fog.find((f) => f.map_id === map.id);
   const [scene, setScene] = useState<MapScene | null>(null);
+  useEffect(() => {
+    const cancel = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') scene?.cancelMovement();
+    };
+    window.addEventListener('keydown', cancel);
+    return () => {
+      window.removeEventListener('keydown', cancel);
+    };
+  }, [scene]);
   const effects = useSettings((s) => s.pluginEffects);
   const opacity = useSettings((s) => s.pluginEffectOpacity);
-  const [aim, setAim] = useState<{
-    source: string;
-    mapId: string;
-    action: PluginAction;
-    point: { x: number; y: number; target: string | null } | null;
-  } | null>(null);
+  const sharedAim = useActionAim((s) => s.aim);
+  const setAim = useActionAim((s) => s.setAim);
+  const aim = sharedAim?.mapId === map?.id ? sharedAim : null;
+  const availability =
+    snapshot?.rules_view?.tokens?.find((t) => t.token === selectedTokenId)?.actions ?? [];
   const plugin = snapshot?.plugins.find((p) => p.id === snapshot.system_plugin);
   const selectedToken = snapshot?.tokens.find(
     (token) => token.id === selectedTokenId && token.map_id === map?.id,
@@ -74,7 +82,6 @@ export function MapView() {
           (plugin.feature_settings?.[a.feature] ??
             plugin.system?.features?.find((f) => f.id === a.feature)?.default_enabled)),
     ) ?? [];
-  if (aim && aim.mapId !== map?.id) setAim(null);
   useEffect(() => {
     scene?.showPluginArea(0, 0, 0, '#ffffff');
   }, [scene, map?.id]);
@@ -101,6 +108,22 @@ export function MapView() {
       window.clearInterval(timer);
     };
   }, [scene, map, snapshot?.plugin_runtime?.visuals, effects, opacity]);
+  useEffect(() => {
+    const source = snapshot?.tokens.find((t) => t.id === aim?.source);
+    const range =
+      snapshot?.rules_view?.tokens
+        ?.find((t) => t.token === source?.id)
+        ?.actions.find((a) => a.id === aim?.action.id)?.range_cells ?? 0;
+    scene?.showPluginRange(
+      source ? source.x / 16 : 0,
+      source ? source.y / 16 : 0,
+      aim && map ? range * map.grid.cell_size : 0,
+      aim?.action.distance_metric === 'chebyshev',
+    );
+    return () => {
+      scene?.showPluginRange(0, 0, 0, false);
+    };
+  }, [scene, aim, map, snapshot?.rules_view, snapshot?.tokens]);
   const aimAt = (clientX: number, clientY: number, canvas: HTMLCanvasElement) => {
     if (!scene || !map || !aim) return null;
     const rect = canvas.getBoundingClientRect();
@@ -118,7 +141,27 @@ export function MapView() {
         Math.hypot(token.x / 16 - at.x, token.y / 16 - at.y) <=
           (map.grid.cell_size * token.scale) / 2,
     );
-    return { ...point, target: target?.id ?? null };
+    const source = snapshot?.tokens.find((t) => t.id === aim.source);
+    const range = snapshot?.rules_view?.tokens
+      ?.find((t) => t.token === aim.source)
+      ?.actions.find((a) => a.id === aim.action.id)?.range_cells;
+    const destination = !aim.action.radius_cells && target ? target : point;
+    const dx = source ? Math.abs(destination.x - source.x) / (16 * map.grid.cell_size) : Infinity;
+    const dy = source ? Math.abs(destination.y - source.y) / (16 * map.grid.cell_size) : Infinity;
+    const distance =
+      aim.action.distance_metric === 'chebyshev' ? Math.max(dx, dy) : Math.hypot(dx, dy);
+    return {
+      ...point,
+      target: target?.id ?? null,
+      valid:
+        range !== undefined &&
+        distance <=
+          range +
+            (!aim.action.radius_cells && source && target
+              ? Math.max(0, (source.scale + target.scale) / 2 - 1)
+              : 0) +
+            1 / (16 * map.grid.cell_size),
+    };
   };
   const [failure, setFailure] = useState<'renderer' | 'images' | null>(null);
   const [chosenTool, setTool] = useState<FogToolState>(DEFAULT_FOG_TOOL);
@@ -157,8 +200,8 @@ export function MapView() {
     scene?.setZones(isGm ? (zones ?? []) : [], selectedZone, isGm && combat ? triggerZones : []);
   }, [scene, zones, isGm, selectedZone, combat, triggerZones]);
   useEffect(() => {
-    scene?.setCombatMovement(Boolean(combat));
-  }, [scene, combat]);
+    scene?.setCombatMovement(Boolean(combat) && !aim);
+  }, [scene, combat, aim]);
   // Another map: nothing of the last one stays selected or renamed.
   const shownMapIdForZones = map?.id;
   const [renaming, setRenaming] = useState<string | null>(null);
@@ -414,12 +457,26 @@ export function MapView() {
       }}
     >
       <PixiHost onReady={onReady} onError={onError} />
+      {combat && (
+        <button
+          className="map-cancel-movement"
+          onClick={() => {
+            scene?.cancelMovement();
+          }}
+        >
+          {t('maps.cancelMovement')}
+        </button>
+      )}
       {selectedToken && ownsSelected && actions.length > 0 && (
         <div className="plugin-map-actions">
           {actions.map((action) => (
             <button
               type="button"
               key={action.id}
+              disabled={!availability.find((a) => a.id === action.id)?.enabled}
+              title={t(
+                `actions.reason.${availability.find((a) => a.id === action.id)?.reason ?? 'available'}`,
+              )}
               onClick={() => {
                 setAim({
                   source: selectedToken.id,
@@ -439,11 +496,26 @@ export function MapView() {
       {aim && (
         <div className="plugin-action-confirm" role="status">
           <strong>{labelText(aim.action.label, i18n.language)}</strong>
-          <p>{t('plugins.chooseTarget')}</p>
+          <p>
+            {t('plugins.chooseTarget')} ·{' '}
+            {t('actions.range', {
+              range:
+                snapshot?.rules_view?.tokens
+                  ?.find((t) => t.token === aim.source)
+                  ?.actions.find((a) => a.id === aim.action.id)?.range_cells ?? 0,
+            })}
+          </p>
+          {aim.point?.valid === false && <p role="alert">{t('actions.outOfRange')}</p>}
           <button
             type="button"
             disabled={
-              !aim.point || (!aim.action.radius_cells && !aim.point.target) || submit.isPending
+              !aim.point ||
+              aim.point.valid === false ||
+              !snapshot?.rules_view?.tokens
+                ?.find((t) => t.token === aim.source)
+                ?.actions.find((a) => a.id === aim.action.id)?.enabled ||
+              (!aim.action.radius_cells && !aim.point.target) ||
+              submit.isPending
             }
             onClick={() => {
               if (!aim.point) return;

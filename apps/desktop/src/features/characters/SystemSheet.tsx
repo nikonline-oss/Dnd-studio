@@ -1,3 +1,5 @@
+import { ItemsView } from '@/shared/items/ItemsView';
+import { CharacterActions } from './CharacterActions';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { TurnBudgetSummary } from '@/shared/game/TurnBudgetPanel';
@@ -85,6 +87,11 @@ export function SystemSheet({
         </aside>
       )}
       <TurnBudgetSummary economy={view.data?.economy} />
+      <CharacterActions character={character} />
+      <details>
+        <summary>{t('items.title')}</summary>
+        <ItemsView owner={character.id} />
+      </details>
       <CharacterSheet
         // Checked by the plugin loader and again by the core when the plugin was installed.
         layout={

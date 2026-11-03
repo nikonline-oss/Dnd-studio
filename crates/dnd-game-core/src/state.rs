@@ -15,6 +15,7 @@ use dnd_protocol::{
 /// produced events) deterministic.
 #[derive(Clone, Debug, PartialEq)]
 pub struct GameState {
+    pub items: BTreeMap<dnd_protocol::ItemId, dnd_protocol::ItemDto>,
     pub plugin_runtime: dnd_protocol::PluginRuntime,
     pub campaign: CampaignMeta,
     pub maps: BTreeMap<MapId, MapDto>,
@@ -59,6 +60,7 @@ impl GameState {
     #[must_use]
     pub fn new(name: impl Into<String>) -> Self {
         Self {
+            items: BTreeMap::new(),
             plugin_runtime: Default::default(),
             campaign: CampaignMeta {
                 game_clock: Default::default(),
@@ -105,6 +107,7 @@ impl GameState {
     #[must_use]
     pub fn from_snapshot(snapshot: Snapshot) -> Self {
         Self {
+            items: snapshot.items.into_iter().map(|i| (i.id, i)).collect(),
             plugin_runtime: snapshot.plugin_runtime,
             campaign: snapshot.campaign,
             maps: snapshot.maps.into_iter().map(|m| (m.id, m)).collect(),
@@ -186,6 +189,8 @@ impl GameState {
     #[must_use]
     pub fn to_snapshot(&self, seq: Seq) -> Snapshot {
         Snapshot {
+            rules_view: crate::rules_view(self),
+            items: self.items.values().cloned().collect(),
             plugin_runtime: self.plugin_runtime.clone(),
             seq,
             campaign: self.campaign.clone(),

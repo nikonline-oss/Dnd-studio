@@ -7,7 +7,7 @@
 ## Конверт
 
 ```json
-{ "v": 18, "id": "<uuid>", "ts": 1760000000000, "seq": null,
+{ "v": 19, "id": "<uuid>", "ts": 1760000000000, "seq": null,
   "session_id": "<uuid>|null", "sender": "<uuid>|null",
   "type": "intent", "payload": { ... } }
 ```

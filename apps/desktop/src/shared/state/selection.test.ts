@@ -83,3 +83,14 @@ describe('center tabs', () => {
     expect(state()).toMatchObject({ tabs: [], active: null, mapId: null, characterId: null });
   });
 });
+
+it('keeps three panes visible while focusing and closing one of them', () => {
+  state().openMap('m1');
+  state().splitTab(entry('j1'));
+  state().splitTab({ kind: 'character', id: 'c1' });
+  expect(state().paneTabs).toHaveLength(3);
+  state().activate(map('m1'));
+  expect(state().paneTabs).toHaveLength(3);
+  state().closeTab(entry('j1'));
+  expect(state().paneTabs).toEqual([map('m1'), { kind: 'character', id: 'c1' }]);
+});

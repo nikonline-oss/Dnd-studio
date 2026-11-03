@@ -16,6 +16,14 @@ export const CHAT_SNAPSHOT_LEN = 200;
  */
 export function applyEvent(snapshot: Snapshot, event: Event): Snapshot {
   switch (event.kind) {
+    case 'rules_view_updated':
+      return { ...snapshot, rules_view: event.view };
+    case 'item_created':
+    case 'item_updated':
+      return { ...snapshot, items: upsert(snapshot.items ?? [], event.item) };
+    case 'item_deleted':
+      return { ...snapshot, items: (snapshot.items ?? []).filter((i) => i.id !== event.id) };
+
     case 'game_time_advanced':
       return { ...snapshot, campaign: { ...snapshot.campaign, game_clock: event.clock } };
     case 'campaign_meta_updated':

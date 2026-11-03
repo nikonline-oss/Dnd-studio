@@ -114,6 +114,10 @@ pub(crate) fn apply(
     rng: &mut dyn GameRng,
 ) -> Option<Result<Vec<Event>, RejectReason>> {
     let result = match &envelope.intent {
+        Intent::ResolveActionSave { group, target } => {
+            crate::saves::resolve(state, *group, *target, envelope.ts_ms, rng)
+        }
+        Intent::CancelActionSaves { group } => crate::saves::cancel(state, *group, rng),
         Intent::MoveToken { id, x, y } => movement(
             state,
             *id,
@@ -185,6 +189,14 @@ pub(crate) fn apply(
             x,
             y,
         } => {
+            if state
+                .tokens
+                .get(source)
+                .is_some_and(|t| crate::rules_view::map_busy(state, t.map_id))
+            {
+                return Some(Err(invalid()));
+            }
+
             if state
                 .plugin_runtime
                 .movements
@@ -450,7 +462,7 @@ pub(crate) fn execute(
 pub(crate) enum ExecutionPhase {
     Full,
     Prepare,
-    Resume(Vec<DeferredCost>),
+    Resume(Vec<DeferredCost>, IntentId),
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -471,7 +483,7 @@ pub(crate) fn execute_body(
         .and_then(|r| r.mechanics.actions.iter().find(|a| a.id == action_id))
         .ok_or_else(invalid)?
         .clone();
-    if let ExecutionPhase::Resume(costs) = &phase {
+    if let ExecutionPhase::Resume(costs, _) = &phase {
         action.cost = None;
         action.costs = costs
             .iter()
@@ -622,7 +634,27 @@ pub(crate) fn execute_body(
         .filter(|t| t.character_id.is_some())
         .map(|t| t.id)
         .collect();
+    if action.save_prompt {
+        let root = match &phase {
+            ExecutionPhase::Resume(_, id) => Some(*id),
+            _ => None,
+        };
+        let pending = crate::saves::start(
+            &work,
+            source,
+            &action,
+            &targets,
+            damage.total.max(0),
+            root,
+            at_ms,
+            rng,
+        )?;
+        emit(&mut work, &mut events, pending);
+    }
     for token in targets {
+        if action.save_prompt {
+            continue;
+        }
         let Ok(c) = character(&work, &token).cloned() else {
             continue;
         };
@@ -956,7 +988,7 @@ fn damage_amount(
     }
     Ok(amount)
 }
-fn apply_damage(
+pub(crate) fn apply_damage(
     state: &GameState,
     character: &CharacterDto,
     action: &PluginAction,
@@ -1017,6 +1049,37 @@ fn apply_damage(
 
 pub(crate) fn validate(rules: &SystemRulesDto) -> Result<(), RejectReason> {
     let m = &rules.mechanics;
+    if m.calendar
+        .as_ref()
+        .is_some_and(|c| !crate::calendar::valid(c))
+        || m.item_types.len() > 32
+        || m.action_groups.len() > 32
+    {
+        return Err(invalid());
+    }
+    let mut new_ids = BTreeSet::new();
+    for item in &m.item_types {
+        if item.id.is_empty()
+            || item.id.len() > 64
+            || !new_ids.insert(&item.id)
+            || dnd_protocol::sheet_schema::check_schema(&item.sheet_schema).is_err()
+            || !item.sheet_layout.is_object()
+        {
+            return Err(invalid());
+        }
+    }
+    new_ids.clear();
+    for group in &m.action_groups {
+        if group.id.is_empty() || !new_ids.insert(&group.id) {
+            return Err(invalid());
+        }
+    }
+    for formula in [&m.life.dead, &m.life.npc_dead, &m.life.unconscious] {
+        if !formula.is_empty() && dnd_expr::Expr::parse(formula).is_err() {
+            return Err(invalid());
+        }
+    }
+
     if m.actions.len() > 128 || m.movement_rules.len() > 128 || m.turn_resources.len() > 32 {
         return Err(invalid());
     }
@@ -1143,7 +1206,16 @@ pub(crate) fn validate(rules: &SystemRulesDto) -> Result<(), RejectReason> {
     }
     let mut ids = BTreeSet::new();
     for a in &m.actions {
-        if a.spatial.feature.as_deref().is_some_and(|f| !feature(f))
+        if (a.save_prompt
+            && (a.save_dice.is_none()
+                || a.attack_dice.is_some()
+                || a.maintain.is_some()
+                || a.reaction_only))
+            || (!a.save_failure.is_empty() && !expr(&a.save_failure))
+            || a.sheet_group
+                .as_ref()
+                .is_some_and(|id| !m.action_groups.iter().any(|g| &g.id == id))
+            || a.spatial.feature.as_deref().is_some_and(|f| !feature(f))
             || (a.spatial.area_line_of_effect && a.radius_cells.is_none())
             || a.timing
                 .as_ref()

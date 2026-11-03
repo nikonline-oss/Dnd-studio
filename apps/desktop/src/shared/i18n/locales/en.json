@@ -64,7 +64,8 @@
     "hidden": "Hidden from players",
     "visibleHint": "Players see only maps marked visible",
     "import": "Import image…",
-    "downscaled": "The image ({{width}}×{{height}}) was scaled down to fit 16384 px"
+    "downscaled": "The image ({{width}}×{{height}}) was scaled down to fit 16384 px",
+    "cancelMovement": "Cancel route (Esc)"
   },
   "tokens": {
     "openCharacterSheet": "Open character sheet",
@@ -216,7 +217,8 @@
     "showBottom": "Show bottom panel"
   },
   "tabs": {
-    "close": "Close {{name}}"
+    "close": "Close {{name}}",
+    "split": "Show side by side"
   },
   "fog": {
     "title": "Fog",
@@ -448,7 +450,8 @@
     "remove": "Remove {{name}} from combat",
     "value": "Initiative of {{name}}",
     "addTokens": "Add tokens",
-    "startHint": "Start combat on the selected map"
+    "startHint": "Start combat on the selected map",
+    "dead": "Dead"
   },
   "activity": {
     "library": "Library",
@@ -463,7 +466,8 @@
     "triggers": "Triggers",
     "images": "Pictures",
     "audio": "Music and sounds",
-    "compendia": "Compendia"
+    "compendia": "Compendia",
+    "items": "Items"
   },
   "session": {
     "host": "Invite players…",
@@ -700,8 +704,20 @@
     "gameSecondsLeft": "{{count}} game seconds remaining"
   },
   "items": {
-    "name": "Item",
-    "give": "Give item"
+    "title": "Items",
+    "name": "Item name",
+    "type": "Item type",
+    "createTemplate": "Create template",
+    "template": "Template",
+    "instance": "Instance",
+    "owner": "Owner",
+    "noOwner": "Unassigned",
+    "instantiate": "Create instance",
+    "shared": "Show to all players",
+    "delete": "Delete item",
+    "empty": "No items yet",
+    "missingType": "Item type unavailable: install its plugin",
+    "openTab": "Open in a tab"
   },
   "picker": {
     "title": "Pick an element",
@@ -1050,5 +1066,45 @@
     "advance": "+{{seconds}} sec",
     "review": "Advance by {{seconds}} seconds to {{until}}? Expired game-time effects will end.",
     "confirm": "Advance time"
+  },
+  "actions": {
+    "title": "Character actions",
+    "token": "Token",
+    "placeToken": "Place the character on a map to choose targets.",
+    "range": "Range: {{range}} cells",
+    "outOfRange": "Target out of range",
+    "chooseOnMap": "Choose target or area on map",
+    "reason": {
+      "available": "Available",
+      "pending": "Awaiting a decision",
+      "disabled": "Rule disabled",
+      "condition_or_turn": "Unavailable in this state or outside your turn",
+      "resources": "Insufficient resources",
+      "reaction": "Use through a reaction offer"
+    }
+  },
+  "saves": {
+    "title": "Target saving throws",
+    "damage": "Shared damage: {{damage}} · DC {{dc}}",
+    "roll": "Roll saving throw",
+    "succeeded": "Success",
+    "failed": "Failure",
+    "automatic_failure": "Automatic failure",
+    "cancel": "Cancel remaining saves"
+  },
+  "calendar": {
+    "advance": "Review advance",
+    "unit": "Time unit",
+    "combat": "Round {{round}} · Turn: {{turn}}",
+    "units": {
+      "second": "sec",
+      "minute": "min",
+      "hour": "hr",
+      "day": "days",
+      "week": "weeks",
+      "month": "months",
+      "year": "years",
+      "round": "rounds"
+    }
   }
 }

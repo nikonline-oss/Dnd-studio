@@ -18,10 +18,12 @@ fn world() -> GameState {
     let rules = plugin.system.as_mut().unwrap();
     for a in &mut rules.mechanics.actions {
         for cost in &mut a.costs {
-            if matches!(
-                cost.resource.as_str(),
-                "action" | "bonus_action" | "reaction"
-            ) {
+            if a.id != "melee_attack"
+                && matches!(
+                    cost.resource.as_str(),
+                    "action" | "bonus_action" | "reaction"
+                )
+            {
                 cost.feature = None;
             }
         }

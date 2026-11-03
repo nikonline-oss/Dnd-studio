@@ -17,11 +17,16 @@ fn world() -> GameState {
     check_plugin(&plugin).unwrap();
     let rules = plugin.system.as_mut().unwrap();
     for a in &mut rules.mechanics.actions {
+        // This fixture also exercises compatibility with pre-prompt declarative actions.
+        // Owner-controlled saves are exercised in rules_controls.rs.
+        a.save_prompt = false;
         for cost in &mut a.costs {
-            if matches!(
-                cost.resource.as_str(),
-                "action" | "bonus_action" | "reaction"
-            ) {
+            if a.id != "melee_attack"
+                && matches!(
+                    cost.resource.as_str(),
+                    "action" | "bonus_action" | "reaction"
+                )
+            {
                 cost.feature = None;
             }
         }

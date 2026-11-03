@@ -75,6 +75,8 @@ vi.mock('./MapScene', () => ({
       scene.onMove = onMove;
     }
     showPluginArea = vi.fn();
+    showPluginRange = vi.fn();
+    cancelMovement = vi.fn();
     showPluginEffects = vi.fn();
     setTokens(views: TokenView[]) {
       scene.tokens = views;
@@ -609,6 +611,14 @@ describe('MapView tokens', () => {
       characters: [knight],
       plugins: [plugin],
       system_plugin: 'example',
+      rules_view: {
+        tokens: [
+          {
+            token: token.id,
+            actions: [{ id: 'blast', enabled: true, reason: null, range_cells: 30 }],
+          },
+        ],
+      },
     });
     await waitFor(() => {
       expect(scene.shown.at(-1)?.map).toBe(id(1));

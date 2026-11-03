@@ -6,12 +6,12 @@ import type { MapDto } from '@/shared/ipc/client';
  * The map the table is on: the selected map tab, or for players without a selection the first
  * map shared with them. Used by the map view and everything that works on "this map".
  */
-export function useShownMap(): MapDto | undefined {
+export function useShownMap(explicitMapId?: string): MapDto | undefined {
   const maps = useSnapshotSelect((s) => s.maps) ?? [];
   const { data: campaign } = useCampaign();
   const mapId = useSelection((s) => s.mapId);
   return (
-    maps.find((m) => m.id === mapId) ??
+    maps.find((m) => m.id === (explicitMapId ?? mapId)) ??
     (campaign?.role === 'player' ? maps.find((m) => m.visible_to_players) : undefined)
   );
 }

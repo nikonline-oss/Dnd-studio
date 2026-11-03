@@ -207,3 +207,5 @@ pub fn uuid_v7_from_random(bits: u128) -> Uuid {
         .with_variant(uuid::Variant::RFC4122)
         .into_uuid()
 }
+
+define_id!(ItemId);

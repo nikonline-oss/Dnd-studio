@@ -3,7 +3,7 @@
 //! join the intent's batch, so the local game and the session server run them alike. Events
 //! caused by triggers do not set off other triggers.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use dnd_expr::{Context, Expr, LookupError, Value as ExprValue};
 use dnd_protocol::{
@@ -468,6 +468,7 @@ fn run_steps(
             .action_stacks
             .iter()
             .map(|s| s.id)
+            .chain(work.plugin_runtime.saves.iter().map(|s| s.id))
             .collect();
         let manual = matches!(
             step.action,
@@ -549,18 +550,20 @@ fn run_steps(
             }
         }
         if matches!(step.action, TriggerAction::PluginAction { .. }) {
-            if let Some(stack) = work
+            if let Some(wait_id) = work
                 .plugin_runtime
                 .action_stacks
                 .iter()
-                .find(|s| !existing.contains(&s.id))
+                .map(|s| s.id)
+                .chain(work.plugin_runtime.saves.iter().map(|s| s.id))
+                .find(|id| !existing.contains(id))
             {
                 if index + 1 < trigger.definition.steps.len()
                     && work.plugin_runtime.trigger_runs.len() < 128
                 {
                     let run = dnd_protocol::PendingTriggerRun {
                         rolls: Vec::new(),
-                        action: stack.id,
+                        action: wait_id,
                         trigger: trigger.id,
                         version: work
                             .triggers
@@ -717,11 +720,12 @@ pub(crate) fn resume(
         if trigger.is_some()
             && context_exists
             && result.is_none()
-            && work
+            && (work
                 .plugin_runtime
                 .action_stacks
                 .iter()
                 .any(|s| s.id == run.action)
+                || work.plugin_runtime.saves.iter().any(|s| s.id == run.action))
         {
             continue;
         }
@@ -1589,6 +1593,8 @@ fn set_integer(sheet_json: &str, path: &str, value: i64) -> Option<String> {
 
 /// What `@name` means in trigger expressions: `@total`, `@roll`, then the character's fields.
 struct Scope<'a> {
+    conditions: BTreeSet<String>,
+    known_conditions: BTreeSet<String>,
     fields: Option<CharacterFields>,
     vars: &'a BTreeMap<String, i64>,
 }
@@ -1600,6 +1606,13 @@ impl<'a> Scope<'a> {
         vars: &'a BTreeMap<String, i64>,
     ) -> Self {
         Self {
+            conditions: character
+                .map(|c| crate::modifiers::conditions(state, c))
+                .unwrap_or_default(),
+            known_conditions: state
+                .rules()
+                .map(|r| r.conditions.iter().map(|c| c.id.clone()).collect())
+                .unwrap_or_default(),
             fields: character.and_then(|c| crate::modifiers::effective_fields(state, c).ok()),
             vars,
         }
@@ -1608,6 +1621,13 @@ impl<'a> Scope<'a> {
 
 impl Context for Scope<'_> {
     fn lookup(&self, path: &str) -> Result<ExprValue, LookupError> {
+        if let Some(id) = path.strip_prefix("condition.") {
+            return if self.known_conditions.contains(id) {
+                Ok(ExprValue::Bool(self.conditions.contains(id)))
+            } else {
+                Err(LookupError::Unknown)
+            };
+        }
         if let Some(value) = self.vars.get(path) {
             return Ok(ExprValue::from(*value));
         }

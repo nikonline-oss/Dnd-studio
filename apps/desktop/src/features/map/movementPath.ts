@@ -38,7 +38,11 @@ export function movementDistance(path: readonly Point[], grid: Grid): number {
   for (let i = 1; i < path.length; i++) {
     const previous = path[i - 1];
     const current = path[i];
-    if (previous && current) length += Math.hypot(current.x - previous.x, current.y - previous.y);
+    if (previous && current) {
+      const dx = Math.abs(current.x - previous.x);
+      const dy = Math.abs(current.y - previous.y);
+      length += grid.kind === 'square' ? Math.max(dx, dy) : Math.hypot(dx, dy);
+    }
   }
   return grid.kind === 'none' ? length : length / grid.cell_size;
 }

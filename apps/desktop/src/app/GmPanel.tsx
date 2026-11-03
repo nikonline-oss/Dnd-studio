@@ -1,3 +1,4 @@
+import { beginActionAim } from '@/shared/state/actionAim';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useCampaign, useSnapshot, useSubmitIntent } from '@/shared/game/useGame';
@@ -326,13 +327,32 @@ export function GmPanel() {
                         <option
                           key={a.id}
                           value={a.id}
-                          disabled={!!a.feature && !featureOn(a.feature)}
+                          disabled={
+                            !snapshot.rules_view?.tokens
+                              ?.find((t) => t.token === source?.id)
+                              ?.actions.find((v) => v.id === a.id)?.enabled
+                          }
                         >
                           {labelText(a.label, lang)}
                         </option>
                       ))}
                   </select>
                 </label>
+                {source && action && (
+                  <button
+                    disabled={
+                      !canEdit ||
+                      !snapshot.rules_view?.tokens
+                        ?.find((t) => t.token === source.id)
+                        ?.actions.find((v) => v.id === action.id)?.enabled
+                    }
+                    onClick={() => {
+                      beginActionAim(source, action);
+                    }}
+                  >
+                    {t('actions.chooseOnMap')}
+                  </button>
+                )}
                 {!action?.target_self && (
                   <label>
                     {action?.radius_cells ? t('gm.areaCenter') : t('gm.target')}
@@ -356,6 +376,9 @@ export function GmPanel() {
                 <button
                   disabled={
                     !canEdit ||
+                    !snapshot.rules_view?.tokens
+                      ?.find((t) => t.token === source?.id)
+                      ?.actions.find((v) => v.id === action?.id)?.enabled ||
                     !source ||
                     !target ||
                     !action ||

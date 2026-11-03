@@ -538,6 +538,14 @@ impl CampaignDb {
             ),
         };
 
+        for row in sqlx::query("SELECT dto FROM items ORDER BY id")
+            .fetch_all(&self.pool)
+            .await?
+        {
+            let item: dnd_protocol::ItemDto =
+                serde_json::from_str(&row.try_get::<String, _>("dto")?)?;
+            state.items.insert(item.id, item);
+        }
         for row in sqlx::query("SELECT * FROM maps ORDER BY id")
             .fetch_all(&self.pool)
             .await?
@@ -1040,6 +1048,19 @@ async fn project_event(conn: &mut SqliteConnection, event: &Event, at_ms: i64) -
             Ok(())
         }
         Event::ChatMessagePosted { message } => insert_chat_message(conn, message, at_ms).await,
+        Event::RulesViewUpdated { .. } => Ok(()),
+        Event::ItemCreated { item } | Event::ItemUpdated { item } => {
+            sqlx::query("INSERT INTO items(id, dto) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET dto=excluded.dto")
+                .bind(item.id.to_string()).bind(serde_json::to_string(item)?).execute(conn).await?;
+            Ok(())
+        }
+        Event::ItemDeleted { id } => {
+            sqlx::query("DELETE FROM items WHERE id = ?")
+                .bind(id.to_string())
+                .execute(conn)
+                .await?;
+            Ok(())
+        }
         Event::PluginRuntimeUpdated { runtime } => {
             sqlx::query("INSERT INTO plugin_runtime (id, dto) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET dto = excluded.dto")
                 .bind(serde_json::to_string(runtime)?).execute(conn).await?;

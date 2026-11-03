@@ -10,8 +10,12 @@ pub mod error;
 pub mod event;
 pub mod ids;
 pub mod intent;
+pub mod item;
 pub mod library;
 pub mod mechanics;
+pub mod rules_view;
+pub use item::*;
+pub use rules_view::*;
 pub mod modifier;
 pub use modifier::*;
 pub mod message;
@@ -42,7 +46,7 @@ pub use error::RejectReason;
 pub use event::{Event, EventBatch};
 pub use ids::{
     AssetId, BoardEdgeId, BoardId, BoardNodeId, CharacterId, ChatMessageId, CombatId, CombatantId,
-    EffectId, FogOpId, IntentId, JournalEntryId, JournalFolderId, LibraryFolderId, MapId,
+    EffectId, FogOpId, IntentId, ItemId, JournalEntryId, JournalFolderId, LibraryFolderId, MapId,
     MessageId, PlaylistId, Role, RollRequestId, Seq, SessionId, TokenId, TriggerId, UserId,
     Version, ZoneId, uuid_v7_from_random,
 };
@@ -94,7 +98,7 @@ pub use zone::{
 
 /// Protocol version. Peers with a different version are refused with
 /// [`RejectReason::ProtocolMismatch`].
-pub const PROTOCOL_VERSION: u32 = 18;
+pub const PROTOCOL_VERSION: u32 = 19;
 
 /// Registers every protocol type that is exported to TypeScript.
 #[cfg(feature = "specta")]

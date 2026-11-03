@@ -26,6 +26,7 @@ export interface TokenView {
   selected: boolean;
   /** How many conditions its character has (ADR-0024): a red dot at the top right. */
   conditions: number;
+  dead?: boolean;
 }
 
 interface Sprite {
@@ -69,7 +70,7 @@ export class TokenLayer {
         this.view.addChild(sprite.root);
       }
       const diameter = tokenDiameter(grid, token.scale);
-      const look = `${diameter}:${token.name}:${view.colorKey}:${view.gmOnly}:${view.active}:${view.selected}:${view.conditions}`;
+      const look = `${diameter}:${token.name}:${view.colorKey}:${view.gmOnly}:${view.active}:${view.selected}:${view.conditions}:${view.dead}`;
       if (look !== sprite.look) {
         this.draw(sprite, view, diameter);
         sprite.look = look;
@@ -201,7 +202,7 @@ export class TokenLayer {
         .fill({ color: CONDITION_DOT })
         .stroke({ color: 0xffffff, width: Math.max(1, r * 0.05) });
     }
-    sprite.root.alpha = view.gmOnly ? 0.55 : 1;
+    sprite.root.alpha = view.dead ? 0.35 : view.gmOnly ? 0.55 : 1;
     sprite.label.text = tokenInitial(view.token.name);
     sprite.label.style.fontSize = r;
     sprite.radius = r;

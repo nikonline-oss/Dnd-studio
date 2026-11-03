@@ -11,7 +11,15 @@ export const settingsSchema = z.object({
   /** Panel preset (CLAUDE.md §5): `player` = map + chat + character sheet, other panels hidden. */
   layoutPreset: z.enum(['gm', 'player']),
   /** The view open in the side panel (Activity Bar). */
-  sideView: z.enum(['characters', 'library', 'plugins', 'boards', 'triggers', 'compendia']),
+  sideView: z.enum([
+    'characters',
+    'library',
+    'plugins',
+    'boards',
+    'triggers',
+    'compendia',
+    'items',
+  ]),
 });
 
 export type SideView = Settings['sideView'];

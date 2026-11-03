@@ -522,7 +522,7 @@ fn query_inventory_matches_adr_0008() {
         .map(|s| s.matches("sqlx::query").count())
         .sum();
     assert_eq!(
-        count, 95,
+        count, 98,
         "runtime queries changed: add a real-SQLite test and update the table in docs/adr/0008-db-conventions.md"
     );
 }
@@ -2131,6 +2131,28 @@ async fn plugin_runtime_is_projected_and_loaded() {
     let dir = tempfile::tempdir().unwrap();
     let db = new_campaign(&dir).await;
     let runtime = PluginRuntime {
+        saves: vec![PendingSaves {
+            id: IntentId(v7(0x6650)),
+            map: MapId(v7(0x6651)),
+            source: None,
+            owner: CharacterId(v7(0x6652)),
+            damage: 28,
+            difficulty: 15,
+            action: serde_json::from_value(
+                serde_json::from_str::<serde_json::Value>(include_str!(
+                    "../../../plugins/system-srd5/system.json"
+                ))
+                .unwrap()["mechanics"]["actions"][2]
+                    .clone(),
+            )
+            .unwrap(),
+            targets: vec![SaveTarget {
+                token: TokenId(v7(0x6653)),
+                character: CharacterId(v7(0x6654)),
+                status: SaveStatus::Pending,
+                total: None,
+            }],
+        }],
         trigger_runs: vec![PendingTriggerRun {
             rolls: vec![RollRequestId(v7(0x7777))],
             action: IntentId(v7(0x9920)),
@@ -2212,4 +2234,47 @@ async fn plugin_runtime_is_projected_and_loaded() {
         db.load_state().await.unwrap().0.plugin_runtime,
         PluginRuntime::default()
     );
+}
+
+#[tokio::test]
+async fn item_instances_survive_reload_updates_and_deletion() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = new_campaign(&dir).await;
+    let mut item = ItemDto {
+        id: ItemId(v7(0x2210)),
+        name: "Wand".into(),
+        type_id: "equipment".into(),
+        is_template: false,
+        template: Some(ItemId(v7(0x2211))),
+        owner: None,
+        visible_to_players: false,
+        sheet_json: r#"{"charges":3,"state":"ready"}"#.into(),
+        version: Version(1),
+    };
+    db.project(&[record(
+        1,
+        Some(0x2212),
+        vec![Event::ItemCreated { item: item.clone() }],
+    )])
+    .await
+    .unwrap();
+    assert_eq!(db.load_state().await.unwrap().0.items[&item.id], item);
+    item.sheet_json = r#"{"charges":2,"state":"used"}"#.into();
+    item.version = Version(2);
+    db.project(&[record(
+        2,
+        Some(0x2213),
+        vec![Event::ItemUpdated { item: item.clone() }],
+    )])
+    .await
+    .unwrap();
+    assert_eq!(db.load_state().await.unwrap().0.items[&item.id], item);
+    db.project(&[record(
+        3,
+        Some(0x2214),
+        vec![Event::ItemDeleted { id: item.id }],
+    )])
+    .await
+    .unwrap();
+    assert!(db.load_state().await.unwrap().0.items.is_empty());
 }

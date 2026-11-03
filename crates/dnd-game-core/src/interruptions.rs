@@ -41,14 +41,18 @@ fn actor(f: &PendingAction) -> Actor {
         user_id: f.controller.unwrap_or(UserId(f.source.0)),
     }
 }
-fn fresh_frame_id(s: &GameState, rng: &mut dyn GameRng) -> Result<IntentId, RejectReason> {
+pub(crate) fn fresh_frame_id(
+    s: &GameState,
+    rng: &mut dyn GameRng,
+) -> Result<IntentId, RejectReason> {
     for _ in 0..16 {
         let id = IntentId(crate::chat::message_id(rng).0);
-        if !s
-            .plugin_runtime
-            .action_stacks
-            .iter()
-            .any(|stack| stack.id == id || stack.frames.iter().any(|f| f.id == id))
+        if !s.plugin_runtime.saves.iter().any(|g| g.id == id)
+            && !s
+                .plugin_runtime
+                .action_stacks
+                .iter()
+                .any(|stack| stack.id == id || stack.frames.iter().any(|f| f.id == id))
             && !s
                 .plugin_runtime
                 .trigger_runs
@@ -521,12 +525,14 @@ fn drain(
                 &actor(&frame),
                 at,
                 rng,
-                ExecutionPhase::Resume(frame.deferred.clone()),
+                ExecutionPhase::Resume(frame.deferred.clone(), frame.id),
             );
             match result {
                 Ok(events) => {
                     emit(&mut work, &mut out, events);
-                    out.push(notice(&work, &frame, ActionResolution::Completed, rng));
+                    if !work.plugin_runtime.saves.iter().any(|g| g.id == frame.id) {
+                        out.push(notice(&work, &frame, ActionResolution::Completed, rng));
+                    }
                 }
                 Err(_) => out.push(notice(&work, &frame, ActionResolution::Invalid, rng)),
             }

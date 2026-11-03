@@ -154,4 +154,6 @@ ADR-0002 выбрал SQLite. Нужно зафиксировать, как им
 
 `plugin_runtime`: SELECT dto и UPSERT состояния ожиданий покрыты
 `queries.rs::plugin_runtime_is_projected_and_loaded` (реальная SQLite, запись,
-повторное чтение и замена пустым состоянием). Всего runtime-запросов: 95.
+повторное чтение и замена пустым состоянием). Всего runtime-запросов: 98.
+
+`items`: SELECT dto, UPSERT и DELETE покрыты `queries.rs::item_instances_survive_reload_updates_and_deletion` (создание, обновление зарядов и состояния, повторное чтение, удаление).

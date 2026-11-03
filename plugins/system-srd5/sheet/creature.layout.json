@@ -171,30 +171,6 @@
                 },
                 {
                   "type": "field",
-                  "path": "automation.spell_dc",
-                  "label": {
-                    "ru": "Сл спасброска заклинаний",
-                    "en": "Spell save DC"
-                  }
-                },
-                {
-                  "type": "field",
-                  "path": "automation.spell_slots_3",
-                  "label": {
-                    "ru": "Осталось ячеек 3 уровня",
-                    "en": "Level 3 slots remaining"
-                  }
-                },
-                {
-                  "type": "field",
-                  "path": "automation.spell_slots_3_max",
-                  "label": {
-                    "ru": "Максимум ячеек 3 уровня",
-                    "en": "Level 3 slots maximum"
-                  }
-                },
-                {
-                  "type": "field",
                   "path": "automation.actions",
                   "label": {
                     "ru": "Осталось действий",
@@ -607,30 +583,6 @@
             "ru": "Осталось бонусных действий",
             "en": "Bonus actions remaining"
           }
-        },
-        {
-          "type": "field",
-          "path": "automation.spell_slots_1",
-          "label": {
-            "ru": "Осталось ячеек 1 уровня",
-            "en": "Level 1 slots remaining"
-          }
-        },
-        {
-          "type": "field",
-          "path": "automation.spell_slots_1_max",
-          "label": {
-            "ru": "Максимум ячеек 1 уровня",
-            "en": "Level 1 slots maximum"
-          }
-        },
-        {
-          "type": "field",
-          "path": "automation.can_counterspell",
-          "label": {
-            "ru": "Контрзаклинание доступно и подготовлено",
-            "en": "Counterspell is available and prepared"
-          }
         }
       ]
     },
@@ -662,6 +614,62 @@
           "label": {
             "ru": "Реакций до следующего своего хода",
             "en": "Reactions until next own turn"
+          }
+        }
+      ]
+    },
+    {
+      "label": {
+        "ru": "Магия",
+        "en": "Magic"
+      },
+      "children": [
+        {
+          "type": "field",
+          "path": "automation.spell_dc",
+          "label": {
+            "ru": "Сл спасброска заклинаний",
+            "en": "Spell save DC"
+          }
+        },
+        {
+          "type": "field",
+          "path": "automation.spell_slots_3",
+          "label": {
+            "ru": "Осталось ячеек 3 уровня",
+            "en": "Level 3 slots remaining"
+          }
+        },
+        {
+          "type": "field",
+          "path": "automation.spell_slots_3_max",
+          "label": {
+            "ru": "Максимум ячеек 3 уровня",
+            "en": "Level 3 slots maximum"
+          }
+        },
+        {
+          "type": "field",
+          "path": "automation.spell_slots_1",
+          "label": {
+            "ru": "Осталось ячеек 1 уровня",
+            "en": "Level 1 slots remaining"
+          }
+        },
+        {
+          "type": "field",
+          "path": "automation.spell_slots_1_max",
+          "label": {
+            "ru": "Максимум ячеек 1 уровня",
+            "en": "Level 1 slots maximum"
+          }
+        },
+        {
+          "type": "field",
+          "path": "automation.can_counterspell",
+          "label": {
+            "ru": "Контрзаклинание доступно и подготовлено",
+            "en": "Counterspell is available and prepared"
           }
         }
       ]

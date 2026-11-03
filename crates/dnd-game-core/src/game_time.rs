@@ -6,7 +6,14 @@ pub(crate) fn advance(state: &GameState, seconds: i64) -> Result<Vec<Event>, Rej
     if !(1..=604_800).contains(&seconds) {
         return Err(RejectReason::invalid("seconds"));
     }
-    if !state.plugin_runtime.action_stacks.is_empty()
+    advance_inner(state, seconds)
+}
+pub(crate) fn advance_inner(state: &GameState, seconds: i64) -> Result<Vec<Event>, RejectReason> {
+    if !(1..=10_000_000_000).contains(&seconds) {
+        return Err(RejectReason::invalid("seconds"));
+    }
+    if !state.plugin_runtime.saves.is_empty()
+        || !state.plugin_runtime.action_stacks.is_empty()
         || !state.plugin_runtime.movements.is_empty()
         || state
             .roll_requests

@@ -8,6 +8,13 @@ use crate::state::GameState;
 /// (e.g. after a resync) is harmless.
 pub fn evolve(state: &mut GameState, event: &Event) {
     match event {
+        Event::RulesViewUpdated { .. } => {}
+        Event::ItemCreated { item } | Event::ItemUpdated { item } => {
+            state.items.insert(item.id, item.clone());
+        }
+        Event::ItemDeleted { id } => {
+            state.items.remove(id);
+        }
         Event::PlaylistCreated { playlist } | Event::PlaylistUpdated { playlist } => {
             state.playlists.insert(playlist.id, playlist.clone());
         }

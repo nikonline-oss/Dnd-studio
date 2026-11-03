@@ -39,6 +39,42 @@ pub struct IntentEnvelope {
 #[serde(tag = "kind", rename_all = "snake_case")]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum Intent {
+    ResolveActionSave {
+        group: IntentId,
+        target: TokenId,
+    },
+    CancelActionSaves {
+        group: IntentId,
+    },
+    AdvanceCalendarTime {
+        amount: u16,
+        unit: crate::CalendarUnit,
+    },
+    CreateItem {
+        id: crate::ItemId,
+        name: String,
+        type_id: String,
+        sheet_json: Option<String>,
+        visible_to_players: bool,
+    },
+    InstantiateItem {
+        id: crate::ItemId,
+        template: crate::ItemId,
+        owner: Option<CharacterId>,
+    },
+    UpdateItem {
+        id: crate::ItemId,
+        name: Option<String>,
+        sheet_json: Option<String>,
+        visible_to_players: Option<bool>,
+    },
+    TransferItem {
+        id: crate::ItemId,
+        owner: Option<CharacterId>,
+    },
+    DeleteItem {
+        id: crate::ItemId,
+    },
     /// GM/Co-GM: advance fictional time by 1..=604800 seconds, checked clock version.
     AdvanceGameTime {
         #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
@@ -577,6 +613,14 @@ impl Intent {
     #[must_use]
     pub fn kind(&self) -> &'static str {
         match self {
+            Self::ResolveActionSave { .. } => "resolve_action_save",
+            Self::CancelActionSaves { .. } => "cancel_action_saves",
+            Self::AdvanceCalendarTime { .. } => "advance_calendar_time",
+            Self::CreateItem { .. } => "create_item",
+            Self::InstantiateItem { .. } => "instantiate_item",
+            Self::UpdateItem { .. } => "update_item",
+            Self::TransferItem { .. } => "transfer_item",
+            Self::DeleteItem { .. } => "delete_item",
             Self::UpdateCampaignMeta { .. } => "update_campaign_meta",
             Self::AdvanceGameTime { .. } => "advance_game_time",
             Self::CreateMap { .. } => "create_map",
@@ -688,6 +732,8 @@ impl Intent {
             | Self::CreateZone { .. }
             | Self::CreateTrigger { .. }
             | Self::CreateLibraryFolder { .. }
+            | Self::CreateItem { .. }
+            | Self::InstantiateItem { .. }
             | Self::CreatePlaylist { .. } => VersionPolicy::Create,
             // Plugins are configuration the GM owns: the last choice wins.
             Self::MoveToken { .. }
@@ -704,6 +750,8 @@ impl Intent {
             | Self::CancelPluginMovement { .. }
             | Self::ResolveActionReaction { .. }
             | Self::ContinuePluginAction { .. }
+            | Self::ResolveActionSave { .. }
+            | Self::CancelActionSaves { .. }
             | Self::CancelActionStack { .. }
             | Self::EndMaintainedEffect { .. }
             | Self::ExecutePluginAction { .. }
@@ -714,7 +762,11 @@ impl Intent {
             | Self::DeletePlaylist { .. }
             | Self::FulfillRollRequest { .. }
             | Self::CancelRollRequest { .. }
+            | Self::AdvanceCalendarTime { .. }
             | Self::AdvanceGameTime { .. }
+            | Self::UpdateItem { .. }
+            | Self::TransferItem { .. }
+            | Self::DeleteItem { .. }
             | Self::UpdateCampaignMeta { .. }
             | Self::UpdateMap { .. }
             | Self::DeleteMap { .. }

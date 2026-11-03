@@ -7,6 +7,14 @@ use serde::{Deserialize, Serialize};
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct PluginMechanics {
     #[serde(default)]
+    pub calendar: Option<crate::CalendarDef>,
+    #[serde(default)]
+    pub life: crate::LifeRules,
+    #[serde(default)]
+    pub action_groups: Vec<crate::ActionGroup>,
+    #[serde(default)]
+    pub item_types: Vec<crate::ItemTypeDef>,
+    #[serde(default)]
     pub turn_budgets: Vec<TurnBudget>,
     #[serde(default)]
     pub interruption_rules: Vec<InterruptionRule>,
@@ -31,6 +39,12 @@ pub struct PluginMechanics {
 #[serde(deny_unknown_fields)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct PluginAction {
+    #[serde(default)]
+    pub save_prompt: bool,
+    #[serde(default)]
+    pub save_failure: String,
+    #[serde(default)]
+    pub sheet_group: Option<String>,
     #[serde(default)]
     pub spatial: SpatialRequirements,
     #[serde(default)]
@@ -124,6 +138,8 @@ pub enum MovementMode {
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct PluginRuntime {
+    #[serde(default)]
+    pub saves: Vec<PendingSaves>,
     #[serde(default)]
     pub trigger_runs: Vec<PendingTriggerRun>,
     #[serde(default)]
@@ -440,4 +456,38 @@ pub struct SpatialRequirements {
     pub line_of_effect: bool,
     #[serde(default)]
     pub area_line_of_effect: bool,
+}
+
+/// A frozen damage roll awaiting saves by the affected controllers.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct PendingSaves {
+    pub id: crate::IntentId,
+    pub map: crate::MapId,
+    pub source: Option<TokenId>,
+    pub owner: crate::CharacterId,
+    pub action: PluginAction,
+    #[cfg_attr(feature="specta", specta(type=specta_typescript::Number))]
+    pub damage: i64,
+    #[cfg_attr(feature="specta", specta(type=specta_typescript::Number))]
+    pub difficulty: i64,
+    pub targets: Vec<SaveTarget>,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct SaveTarget {
+    pub token: TokenId,
+    pub character: crate::CharacterId,
+    pub status: SaveStatus,
+    #[cfg_attr(feature="specta", specta(type=Option<specta_typescript::Number>))]
+    pub total: Option<i64>,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub enum SaveStatus {
+    Pending,
+    Succeeded,
+    Failed,
+    AutomaticFailure,
 }

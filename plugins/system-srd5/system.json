@@ -706,7 +706,19 @@
           "sight": false,
           "line_of_effect": true,
           "area_line_of_effect": false
-        }
+        },
+        "sheet_group": "attacks",
+        "activation": "action",
+        "costs": [
+          {
+            "resource": "action",
+            "amount": "1",
+            "scope": "combat",
+            "feature": "turn_economy"
+          }
+        ],
+        "damage_profile": "standard_damage",
+        "damage_type": "slashing"
       },
       {
         "feature": "opportunity_attacks",
@@ -750,7 +762,8 @@
           "sight": true,
           "line_of_effect": true,
           "area_line_of_effect": false
-        }
+        },
+        "sheet_group": "attacks"
       },
       {
         "feature": "area_actions",
@@ -810,7 +823,10 @@
           "sight": false,
           "line_of_effect": true,
           "area_line_of_effect": true
-        }
+        },
+        "sheet_group": "spells",
+        "save_prompt": true,
+        "save_failure": "@condition.dead || @hp.current <= 0 || @condition.unconscious || @condition.paralyzed || @condition.stunned || @condition.petrified"
       },
       {
         "feature": "disengage",
@@ -853,7 +869,8 @@
             "scope": "combat",
             "feature": "turn_economy"
           }
-        ]
+        ],
+        "sheet_group": "attacks"
       },
       {
         "feature": "concentration",
@@ -922,7 +939,8 @@
           "sight": false,
           "line_of_effect": true,
           "area_line_of_effect": false
-        }
+        },
+        "sheet_group": "spells"
       },
       {
         "feature": "counterspell",
@@ -986,7 +1004,8 @@
           "sight": true,
           "line_of_effect": true,
           "area_line_of_effect": false
-        }
+        },
+        "sheet_group": "spells"
       }
     ],
     "movement_rules": [
@@ -1157,7 +1176,7 @@
           "ru": "Время кампании продвигает мастер. Реальные минуты за компьютером его не меняют.",
           "en": "The GM advances campaign time explicitly; wall time does not change it."
         },
-        "items": ["6", "60", "600", "3600"]
+        "items": ["60", "600", "3600", "28800"]
       },
       {
         "id": "reactions",
@@ -1561,6 +1580,114 @@
         "feature": "turn_economy",
         "refresh": "every_turn",
         "amount": null
+      }
+    ],
+    "life": {
+      "dead": "@condition.dead",
+      "npc_dead": "@condition.dead || @hp.current <= 0",
+      "unconscious": "@condition.unconscious || @hp.current <= 0"
+    },
+    "action_groups": [
+      {
+        "id": "attacks",
+        "label": {
+          "ru": "Атаки и действия",
+          "en": "Attacks and actions"
+        }
+      },
+      {
+        "id": "spells",
+        "label": {
+          "ru": "Заклинания",
+          "en": "Spells"
+        }
+      }
+    ],
+    "item_types": [
+      {
+        "id": "equipment",
+        "label": {
+          "ru": "Предмет",
+          "en": "Equipment"
+        },
+        "sheet_schema": {
+          "type": "object",
+          "properties": {
+            "description": {
+              "type": "string",
+              "default": ""
+            },
+            "charges": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000,
+              "default": 0
+            },
+            "max_charges": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000,
+              "default": 0
+            },
+            "equipped": {
+              "type": "boolean",
+              "default": false
+            },
+            "state": {
+              "type": "string",
+              "default": ""
+            }
+          }
+        },
+        "sheet_layout": {
+          "type": "section",
+          "label": {
+            "ru": "Состояние экземпляра",
+            "en": "Instance state"
+          },
+          "children": [
+            {
+              "type": "field",
+              "path": "description",
+              "label": {
+                "ru": "Описание",
+                "en": "Description"
+              }
+            },
+            {
+              "type": "field",
+              "path": "charges",
+              "label": {
+                "ru": "Заряды",
+                "en": "Charges"
+              }
+            },
+            {
+              "type": "field",
+              "path": "max_charges",
+              "label": {
+                "ru": "Максимум зарядов",
+                "en": "Maximum charges"
+              }
+            },
+            {
+              "type": "field",
+              "path": "equipped",
+              "label": {
+                "ru": "Надето",
+                "en": "Equipped"
+              }
+            },
+            {
+              "type": "field",
+              "path": "state",
+              "label": {
+                "ru": "Состояние",
+                "en": "State"
+              }
+            }
+          ]
+        }
       }
     ]
   }

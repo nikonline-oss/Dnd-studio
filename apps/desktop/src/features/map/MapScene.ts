@@ -119,6 +119,7 @@ async function loadBitmap(sha256: string): Promise<ImageBitmap> {
 export class MapScene {
   private readonly world = new Container();
   private readonly pluginArea = new Graphics();
+  private readonly pluginRange = new Graphics();
   private readonly pluginEffects = new Graphics();
   private readonly background = new Container();
   private readonly gridLayer = new Container();
@@ -225,6 +226,7 @@ export class MapScene {
       this.movementPreview,
       this.movementLabel,
       this.pluginArea,
+      this.pluginRange,
       this.pluginEffects,
     );
     app.stage.addChild(this.world);
@@ -362,6 +364,15 @@ export class MapScene {
     }
     this.pendingFit = false;
     this.setCamera(fitCamera(screen, this.mapSize));
+  }
+
+  showPluginRange(x: number, y: number, radius: number, square: boolean): void {
+    this.pluginRange.clear();
+    this.pluginRange.eventMode = 'none';
+    if (radius <= 0) return;
+    if (square) this.pluginRange.rect(x - radius, y - radius, radius * 2, radius * 2);
+    else this.pluginRange.circle(x, y, radius);
+    this.pluginRange.stroke({ color: '#e3aa45', alpha: 0.7, width: 2 });
   }
 
   showPluginArea(x: number, y: number, radius: number, color: string): void {
@@ -956,6 +967,10 @@ export class MapScene {
       this.movementLabel.scale.set(1 / this.camera.zoom);
       this.movementLabel.visible = true;
     }
+  }
+
+  cancelMovement(): void {
+    this.clearMovementPlan();
   }
 
   private clearMovementPlan(): void {

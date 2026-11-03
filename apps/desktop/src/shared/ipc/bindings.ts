@@ -191,6 +191,13 @@ export type Acceptance = {
 	seq: Seq,
 };
 
+export type ActionAvailability = {
+	id: string,
+	enabled: boolean,
+	reason: string | null,
+	range_cells: number,
+};
+
 /**  A positive, bounded resource expense evaluated before any action effects. */
 export type ActionCost = {
 	scope?: CostScope,
@@ -199,6 +206,11 @@ export type ActionCost = {
 	on_resolution?: boolean,
 	resource: string,
 	amount: string,
+};
+
+export type ActionGroup = {
+	id: string,
+	label: Label,
 };
 
 export type ActionPresentation = {
@@ -374,6 +386,39 @@ export type BundledPlugin = {
 	license: string,
 };
 
+export type CalendarDef = {
+	epoch_year: number,
+	day_seconds: number,
+	round_seconds: number,
+	months: CalendarMonth[],
+	weekdays: Label[],
+	periods: DayPeriod[],
+	leap_interval?: number,
+	leap_except?: number,
+	leap_include?: number,
+	leap_month?: number,
+};
+
+export type CalendarMonth = {
+	label: Label,
+	days: number,
+};
+
+export type CalendarUnit = "second" | "minute" | "hour" | "day" | "week" | "month" | "year" | "round";
+
+export type CalendarView = {
+	year: number,
+	month: Label,
+	month_index: number,
+	day: number,
+	weekday: Label,
+	hour: number,
+	minute: number,
+	second: number,
+	period: Label,
+	elapsed_days: number,
+};
+
 /**  What the UI needs to know about the open campaign. */
 export type CampaignInfo = {
 	name: string,
@@ -412,6 +457,11 @@ export type CharacterId = string;
 
 /**  Player character or non-player character. */
 export type CharacterKind = "pc" | "npc";
+
+export type CharacterRuleView = {
+	character: CharacterId,
+	life: LifeStatus,
+};
 
 /**  Lifecycle of a character (CLAUDE.md §5): draft → pending_approval → active → archived. */
 export type CharacterStatus = "draft" | "pending_approval" | "active" | "archived";
@@ -545,6 +595,11 @@ export type DamageProfile = {
 	absorb: string[],
 };
 
+export type DayPeriod = {
+	label: Label,
+	start_second: number,
+};
+
 export type DeferredCost = {
 	resource: string,
 	amount: number,
@@ -608,7 +663,7 @@ export type EffectDurationDef =
 export type EffectId = string;
 
 /**  A fact about a state change. */
-export type Event = { kind: "game_time_advanced"; clock: GameClock } | { kind: "plugin_runtime_updated"; runtime: PluginRuntime } | { kind: "campaign_meta_updated"; campaign: CampaignMeta } | { kind: "map_created"; map: MapDto } | { kind: "map_updated"; map: MapDto } | { kind: "map_deleted"; id: MapId } | 
+export type Event = { kind: "rules_view_updated"; view: RulesView } | { kind: "item_created"; item: ItemDto } | { kind: "item_updated"; item: ItemDto } | { kind: "item_deleted"; id: ItemId } | { kind: "game_time_advanced"; clock: GameClock } | { kind: "plugin_runtime_updated"; runtime: PluginRuntime } | { kind: "campaign_meta_updated"; campaign: CampaignMeta } | { kind: "map_created"; map: MapDto } | { kind: "map_updated"; map: MapDto } | { kind: "map_deleted"; id: MapId } | 
 /**  Appended to the map's fog; applying the same `op.id` twice adds it once. */
 { kind: "fog_applied"; map_id: MapId; op: FogOp } | 
 /**  The map's fog now has no operations, only the initial state. */
@@ -774,7 +829,7 @@ export type HostedSession = {
 };
 
 /**  A request to change state. Update intents carry only the fields to change (`null` = keep). */
-export type Intent = 
+export type Intent = { kind: "resolve_action_save"; group: IntentId; target: TokenId } | { kind: "cancel_action_saves"; group: IntentId } | { kind: "advance_calendar_time"; amount: number; unit: CalendarUnit } | { kind: "create_item"; id: ItemId; name: string; type_id: string; sheet_json: string | null; visible_to_players: boolean } | { kind: "instantiate_item"; id: ItemId; template: ItemId; owner: CharacterId | null } | { kind: "update_item"; id: ItemId; name: string | null; sheet_json: string | null; visible_to_players: boolean | null } | { kind: "transfer_item"; id: ItemId; owner: CharacterId | null } | { kind: "delete_item"; id: ItemId } | 
 /**  GM/Co-GM: advance fictional time by 1..=604800 seconds, checked clock version. */
 { kind: "advance_game_time"; seconds: number } | { kind: "update_campaign_meta"; name: string | null; description: string | null } | { kind: "create_map"; id: MapId; name: string; background_asset_id: AssetId | null; 
 /**  Logical size (ADR-0016), `1..=MAX_MAP_SIZE`; fixed for the life of the map. */
@@ -1022,6 +1077,27 @@ export type IpcErrorKind =
 /**  The application cannot continue. */
 "fatal";
 
+export type ItemDto = {
+	id: ItemId,
+	name: string,
+	type_id: string,
+	is_template: boolean,
+	template: ItemId | null,
+	owner: CharacterId | null,
+	visible_to_players: boolean,
+	sheet_json: string,
+	version: Version,
+};
+
+export type ItemId = string;
+
+export type ItemTypeDef = {
+	id: string,
+	label: Label,
+	sheet_schema: unknown,
+	sheet_layout: unknown,
+};
+
 /**  A journal entry with its Markdown text. */
 export type JournalEntryDto = {
 	id: JournalEntryId,
@@ -1128,6 +1204,14 @@ export type LibraryFolderDto = {
 
 /**  A folder of the image or audio library (ADR-0026). */
 export type LibraryFolderId = string;
+
+export type LifeRules = {
+	dead?: string,
+	npc_dead?: string,
+	unconscious?: string,
+};
+
+export type LifeStatus = "alive" | "unconscious" | "dead";
 
 /**  At least one of the languages is present. */
 export type LocalizedText = {
@@ -1259,6 +1343,18 @@ export type PendingMovement = {
 	handled: string[],
 };
 
+/**  A frozen damage roll awaiting saves by the affected controllers. */
+export type PendingSaves = {
+	id: IntentId,
+	map: MapId,
+	source: TokenId | null,
+	owner: CharacterId,
+	action: PluginAction,
+	damage: number,
+	difficulty: number,
+	targets: SaveTarget[],
+};
+
 /**  Frozen position and variables of a trigger waiting for its plugin action. */
 export type PendingTriggerRun = {
 	/**  Nonempty for a manual group; empty for a plugin action window (legacy default). */
@@ -1293,6 +1389,9 @@ export type PlaylistTrackDto = {
 };
 
 export type PluginAction = {
+	save_prompt?: boolean,
+	save_failure?: string,
+	sheet_group?: string | null,
 	spatial?: SpatialRequirements,
 	timing?: ActionTiming | null,
 	interrupt?: InterruptEffect | null,
@@ -1368,6 +1467,10 @@ export type PluginKind =
 "system" | "content" | "theme" | "ui";
 
 export type PluginMechanics = {
+	calendar?: CalendarDef | null,
+	life?: LifeRules,
+	action_groups?: ActionGroup[],
+	item_types?: ItemTypeDef[],
 	turn_budgets?: TurnBudget[],
 	interruption_rules?: InterruptionRule[],
 	maintained_rules?: MaintainedRule[],
@@ -1381,6 +1484,7 @@ export type PluginMechanics = {
 };
 
 export type PluginRuntime = {
+	saves?: PendingSaves[],
 	trigger_runs?: PendingTriggerRun[],
 	action_stacks?: ActionStack[],
 	maintained?: MaintainedEffect[],
@@ -1577,6 +1681,21 @@ export type RuleCapability = "action" | "bonus_action" | "reaction" | "movement"
 
 export type RuleSubject = "actor" | "target";
 
+export type RulesView = {
+	characters?: CharacterRuleView[],
+	tokens?: TokenActionView[],
+	calendar?: CalendarView | null,
+};
+
+export type SaveStatus = "pending" | "succeeded" | "failed" | "automatic_failure";
+
+export type SaveTarget = {
+	token: TokenId,
+	character: CharacterId,
+	status: SaveStatus,
+	total: number | null,
+};
+
 /**
  *  Position of an event in the campaign/session event log.
  * 
@@ -1615,6 +1734,8 @@ export type SheetView = {
 
 /**  The visible state as of event `seq`. */
 export type Snapshot = {
+	rules_view?: RulesView,
+	items?: ItemDto[],
 	plugin_runtime?: PluginRuntime,
 	/**  Sequence number of the last event included (0 = no events yet). */
 	seq: Seq,
@@ -1763,6 +1884,11 @@ export type TemplateParamKind = "zone" | "board_node" | "board" | "map" | "journ
 export type ThemeDto = {
 	light?: { [key in string]: string },
 	dark?: { [key in string]: string },
+};
+
+export type TokenActionView = {
+	token: TokenId,
+	actions: ActionAvailability[],
 };
 
 /**  Whose side a token is on: GM bookkeeping for frames and quick scans. */

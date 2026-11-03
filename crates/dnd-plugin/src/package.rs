@@ -513,6 +513,16 @@ fn parse_system(
         serde_json::from_value(layout_value).map_err(|e| invalid_layout(e.to_string()))?;
     sheet::check_layout(&sheet_layout, &sheet_schema, &rules).map_err(invalid_layout)?;
 
+    for item in &rules.mechanics.item_types {
+        sheet::check_schema(&item.sheet_schema).map_err(invalid_layout)?;
+        MetaSchema::Layout
+            .check(&item.sheet_layout)?
+            .map_err(invalid_layout)?;
+        let layout: LayoutNode = serde_json::from_value(item.sheet_layout.clone())
+            .map_err(|e| invalid_layout(e.to_string()))?;
+        sheet::check_layout(&layout, &item.sheet_schema, &rules).map_err(invalid_layout)?;
+    }
+
     let creature_sheet_layout = rules
         .creature_sheet_layout
         .as_ref()

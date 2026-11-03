@@ -10,13 +10,18 @@
 mod apply;
 mod assets;
 mod boards;
+mod calendar;
 mod characters;
 mod chat;
 mod combat;
 mod economy;
 mod effects;
 mod game_time;
+mod items;
+mod rules_view;
+mod saves;
 pub use economy::view as turn_economy_view;
+pub use rules_view::view as rules_view;
 mod evolve;
 mod fog;
 mod interruptions;

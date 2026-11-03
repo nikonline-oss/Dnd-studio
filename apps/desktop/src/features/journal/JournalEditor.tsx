@@ -17,9 +17,10 @@ export const DRAFT_DEBOUNCE_MS = 2000;
 type Content = string | JournalTable;
 
 /** Center view of the selected journal entry. */
-export function JournalEditor() {
+export function JournalEditor({ entryId }: { entryId?: string } = {}) {
   const { t } = useTranslation();
-  const journalId = useSelection((s) => s.journalId);
+  const selectedJournalId = useSelection((s) => s.journalId);
+  const journalId = entryId ?? selectedJournalId;
   const { data: entry, isPending } = useJournalEntry(journalId);
   if (!journalId || isPending) return null;
   if (!entry) return <p className="muted">{t('journal.missing')}</p>;

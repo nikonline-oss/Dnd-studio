@@ -40,8 +40,12 @@ export function tokenViews(
     .sort((a, b) => LAYER_ORDER[a.layer] - LAYER_ORDER[b.layer])
     .map((token) => ({
       token,
+      dead:
+        snapshot.rules_view?.characters?.find((c) => c.character === token.character_id)?.life ===
+        'dead',
       movable:
         !(snapshot.plugin_runtime?.action_stacks ?? []).some((stack) => stack.map === mapId) &&
+        !(snapshot.plugin_runtime?.saves ?? []).some((g) => g.map === mapId) &&
         !paused.has(token.id) &&
         (isGm ||
           (campaign.role === 'player' &&
