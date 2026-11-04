@@ -121,6 +121,8 @@ ADR-0002 выбрал SQLite. Нужно зафиксировать, как им
 | `SELECT dto FROM triggers`                                           | `load_state`                       | `queries.rs::triggers_are_projected_loaded_and_deleted`                                         |
 | `INSERT … ON CONFLICT` `token_effects`                               | `project_event`                    | `queries.rs::effects_are_projected_loaded_and_removed`                                          |
 | `DELETE FROM token_effects`                                          | `project_event`                    | `queries.rs::effects_are_projected_loaded_and_removed`                                          |
+| `DELETE FROM token_effects` (по токену)                              | `project_event`                    | `queries.rs::effects_go_away_with_their_token_and_map`                                          |
+| `DELETE FROM token_effects` (по карте через tokens)                  | `project_event`                    | `queries.rs::effects_go_away_with_their_token_and_map`                                          |
 | `SELECT dto FROM token_effects`                                      | `load_state`                       | `queries.rs::effects_are_projected_loaded_and_removed`                                          |
 | `INSERT … ON CONFLICT` `roll_requests`                               | `project_event`                    | `queries.rs::roll_requests_are_projected_loaded_and_updated`                                    |
 | `SELECT dto FROM roll_requests`                                      | `load_state`                       | `queries.rs::roll_requests_are_projected_loaded_and_updated`                                    |
@@ -149,3 +151,12 @@ ADR-0002 выбрал SQLite. Нужно зафиксировать, как им
 - UI чата и бросков (этап 2a) показывает это имя, когда `sender_user_id`/`user_id` равен `NULL`;
   DTO сообщений и бросков в протоколе обязаны его нести.
 - Имена колонок повторяют пары ссылок: `sender_user_id` → `sender_name`, `user_id` → `user_name`.
+
+## Дополнение: ADR-0034
+
+`plugin_runtime`: SELECT dto и UPSERT состояния ожиданий покрыты
+`queries.rs::plugin_runtime_is_projected_and_loaded` (реальная SQLite, запись,
+повторное чтение и замена пустым состоянием). Каскадное удаление эффектов вместе с токеном и
+картой покрыто `queries.rs::effects_go_away_with_their_token_and_map`. Всего runtime-запросов: 100.
+
+`items`: SELECT dto, UPSERT и DELETE покрыты `queries.rs::item_instances_survive_reload_updates_and_deletion` (создание, обновление зарядов и состояния, повторное чтение, удаление).

@@ -354,6 +354,16 @@
             "ru": "Временные",
             "en": "Temporary"
           }
+        },
+        "temporary": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000,
+          "default": 0,
+          "title": {
+            "ru": "Временные хиты",
+            "en": "Temporary hit points"
+          }
         }
       },
       "required": ["current", "max"]
@@ -453,6 +463,561 @@
               "ru": "Количество",
               "en": "Quantity"
             }
+          }
+        }
+      }
+    },
+    "automation": {
+      "type": "object",
+      "properties": {
+        "reach_cells": {
+          "type": "integer",
+          "default": 1,
+          "title": {
+            "ru": "Досягаемость (клетки)",
+            "en": "Reach (cells)"
+          },
+          "minimum": 1,
+          "maximum": 100
+        },
+        "attack_bonus": {
+          "type": "integer",
+          "default": 2,
+          "title": {
+            "ru": "Бонус ближней атаки",
+            "en": "Melee attack bonus"
+          },
+          "minimum": -100,
+          "maximum": 100
+        },
+        "can_see": {
+          "type": "boolean",
+          "default": true,
+          "title": {
+            "ru": "Видит провоцирующую цель (проверяет мастер)",
+            "en": "Can see the provoking target (GM adjudicates)"
+          }
+        },
+        "can_react": {
+          "type": "boolean",
+          "default": true,
+          "title": {
+            "ru": "Может реагировать (проверяет мастер)",
+            "en": "Can take reactions (GM adjudicates)"
+          }
+        },
+        "disengaged": {
+          "type": "boolean",
+          "default": false,
+          "title": {
+            "ru": "Отход: движение без провоцирования",
+            "en": "Disengage: movement does not provoke"
+          }
+        },
+        "reaction": {
+          "type": "integer",
+          "default": 1,
+          "title": {
+            "ru": "Осталось реакций",
+            "en": "Reactions remaining"
+          },
+          "minimum": 0,
+          "maximum": 10
+        },
+        "spell_dc": {
+          "type": "integer",
+          "default": 13,
+          "title": {
+            "ru": "Сл спасброска заклинаний",
+            "en": "Spell save DC"
+          },
+          "minimum": 1,
+          "maximum": 100
+        },
+        "spell_slots_3": {
+          "type": "integer",
+          "default": 0,
+          "title": {
+            "ru": "Осталось ячеек 3 уровня",
+            "en": "Level 3 slots remaining"
+          },
+          "minimum": 0,
+          "maximum": 100
+        },
+        "spell_slots_3_max": {
+          "type": "integer",
+          "default": 0,
+          "title": {
+            "ru": "Максимум ячеек 3 уровня",
+            "en": "Level 3 slots maximum"
+          },
+          "minimum": 0,
+          "maximum": 100
+        },
+        "actions": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10,
+          "default": 1,
+          "title": {
+            "ru": "Осталось действий",
+            "en": "Actions remaining"
+          }
+        },
+        "bonus_actions": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10,
+          "default": 1,
+          "title": {
+            "ru": "Осталось бонусных действий",
+            "en": "Bonus actions remaining"
+          }
+        },
+        "spell_slots_1": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100,
+          "default": 0,
+          "title": {
+            "ru": "Осталось ячеек 1 уровня",
+            "en": "Level 1 slots remaining"
+          }
+        },
+        "spell_slots_1_max": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100,
+          "default": 0,
+          "title": {
+            "ru": "Максимум ячеек 1 уровня",
+            "en": "Level 1 slots maximum"
+          }
+        },
+        "can_counterspell": {
+          "type": "boolean",
+          "default": false,
+          "title": {
+            "ru": "Контрзаклинание доступно и подготовлено",
+            "en": "Counterspell is available and prepared"
+          }
+        },
+        "actions_per_turn": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10,
+          "default": 1,
+          "title": {
+            "ru": "Действий за свой ход",
+            "en": "Actions per own turn"
+          }
+        },
+        "bonus_actions_per_turn": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10,
+          "default": 1,
+          "title": {
+            "ru": "Бонусных действий за свой ход",
+            "en": "Bonus actions per own turn"
+          }
+        },
+        "reactions_per_turn": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10,
+          "default": 1,
+          "title": {
+            "ru": "Реакций до следующего своего хода",
+            "en": "Reactions until next own turn"
+          }
+        },
+        "slot_casts_remaining": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 1,
+          "title": {
+            "ru": "Осталось расходов ячейки за ход",
+            "en": "Spell-slot expenditures remaining this turn"
+          }
+        }
+      }
+    },
+    "defenses": {
+      "type": "object",
+      "properties": {
+        "resistance": {
+          "type": "object",
+          "properties": {
+            "all": {
+              "type": "boolean",
+              "default": false,
+              "title": {
+                "ru": "Все типы",
+                "en": "All types"
+              }
+            },
+            "acid": {
+              "type": "boolean",
+              "default": false,
+              "title": {
+                "ru": "Кислота",
+                "en": "Acid"
+              }
+            },
+            "bludgeoning": {
+              "type": "boolean",
+              "default": false,
+              "title": {
+                "ru": "Дробящий",
+                "en": "Bludgeoning"
+              }
+            },
+            "cold": {
+              "type": "boolean",
+              "default": false,
+              "title": {
+                "ru": "Холод",
+                "en": "Cold"
+              }
+            },
+            "fire": {
+              "type": "boolean",
+              "default": false,
+              "title": {
+                "ru": "Огонь",
+                "en": "Fire"
+              }
+            },
+            "force": {
+              "type": "boolean",
+              "default": false,
+              "title": {
+                "ru": "Силовое поле",
+                "en": "Force"
+              }
+            },
+            "lightning": {
+              "type": "boolean",
+              "default": false,
+              "title": {
+                "ru": "Электричество",
+                "en": "Lightning"
+              }
+            },
+            "necrotic": {
+              "type": "boolean",
+              "default": false,
+              "title": {
+                "ru": "Некротический",
+                "en": "Necrotic"
+              }
+            },
+            "piercing": {
+              "type": "boolean",
+              "default": false,
+              "title": {
+                "ru": "Колющий",
+                "en": "Piercing"
+              }
+            },
+            "poison": {
+              "type": "boolean",
+              "default": false,
+              "title": {
+                "ru": "Яд",
+                "en": "Poison"
+              }
+            },
+            "psychic": {
+              "type": "boolean",
+              "default": false,
+              "title": {
+                "ru": "Психический",
+                "en": "Psychic"
+              }
+            },
+            "radiant": {
+              "type": "boolean",
+              "default": false,
+              "title": {
+                "ru": "Излучение",
+                "en": "Radiant"
+              }
+            },
+            "slashing": {
+              "type": "boolean",
+              "default": false,
+              "title": {
+                "ru": "Рубящий",
+                "en": "Slashing"
+              }
+            },
+            "thunder": {
+              "type": "boolean",
+              "default": false,
+              "title": {
+                "ru": "Звук",
+                "en": "Thunder"
+              }
+            }
+          },
+          "title": {
+            "ru": "Сопротивления",
+            "en": "Resistances"
+          }
+        },
+        "vulnerability": {
+          "type": "object",
+          "properties": {
+            "all": {
+              "type": "boolean",
+              "default": false,
+              "title": {
+                "ru": "Все типы",
+                "en": "All types"
+              }
+            },
+            "acid": {
+              "type": "boolean",
+              "default": false,
+              "title": {
+                "ru": "Кислота",
+                "en": "Acid"
+              }
+            },
+            "bludgeoning": {
+              "type": "boolean",
+              "default": false,
+              "title": {
+                "ru": "Дробящий",
+                "en": "Bludgeoning"
+              }
+            },
+            "cold": {
+              "type": "boolean",
+              "default": false,
+              "title": {
+                "ru": "Холод",
+                "en": "Cold"
+              }
+            },
+            "fire": {
+              "type": "boolean",
+              "default": false,
+              "title": {
+                "ru": "Огонь",
+                "en": "Fire"
+              }
+            },
+            "force": {
+              "type": "boolean",
+              "default": false,
+              "title": {
+                "ru": "Силовое поле",
+                "en": "Force"
+              }
+            },
+            "lightning": {
+              "type": "boolean",
+              "default": false,
+              "title": {
+                "ru": "Электричество",
+                "en": "Lightning"
+              }
+            },
+            "necrotic": {
+              "type": "boolean",
+              "default": false,
+              "title": {
+                "ru": "Некротический",
+                "en": "Necrotic"
+              }
+            },
+            "piercing": {
+              "type": "boolean",
+              "default": false,
+              "title": {
+                "ru": "Колющий",
+                "en": "Piercing"
+              }
+            },
+            "poison": {
+              "type": "boolean",
+              "default": false,
+              "title": {
+                "ru": "Яд",
+                "en": "Poison"
+              }
+            },
+            "psychic": {
+              "type": "boolean",
+              "default": false,
+              "title": {
+                "ru": "Психический",
+                "en": "Psychic"
+              }
+            },
+            "radiant": {
+              "type": "boolean",
+              "default": false,
+              "title": {
+                "ru": "Излучение",
+                "en": "Radiant"
+              }
+            },
+            "slashing": {
+              "type": "boolean",
+              "default": false,
+              "title": {
+                "ru": "Рубящий",
+                "en": "Slashing"
+              }
+            },
+            "thunder": {
+              "type": "boolean",
+              "default": false,
+              "title": {
+                "ru": "Звук",
+                "en": "Thunder"
+              }
+            }
+          },
+          "title": {
+            "ru": "Уязвимости",
+            "en": "Vulnerabilities"
+          }
+        },
+        "immunity": {
+          "type": "object",
+          "properties": {
+            "all": {
+              "type": "boolean",
+              "default": false,
+              "title": {
+                "ru": "Все типы",
+                "en": "All types"
+              }
+            },
+            "acid": {
+              "type": "boolean",
+              "default": false,
+              "title": {
+                "ru": "Кислота",
+                "en": "Acid"
+              }
+            },
+            "bludgeoning": {
+              "type": "boolean",
+              "default": false,
+              "title": {
+                "ru": "Дробящий",
+                "en": "Bludgeoning"
+              }
+            },
+            "cold": {
+              "type": "boolean",
+              "default": false,
+              "title": {
+                "ru": "Холод",
+                "en": "Cold"
+              }
+            },
+            "fire": {
+              "type": "boolean",
+              "default": false,
+              "title": {
+                "ru": "Огонь",
+                "en": "Fire"
+              }
+            },
+            "force": {
+              "type": "boolean",
+              "default": false,
+              "title": {
+                "ru": "Силовое поле",
+                "en": "Force"
+              }
+            },
+            "lightning": {
+              "type": "boolean",
+              "default": false,
+              "title": {
+                "ru": "Электричество",
+                "en": "Lightning"
+              }
+            },
+            "necrotic": {
+              "type": "boolean",
+              "default": false,
+              "title": {
+                "ru": "Некротический",
+                "en": "Necrotic"
+              }
+            },
+            "piercing": {
+              "type": "boolean",
+              "default": false,
+              "title": {
+                "ru": "Колющий",
+                "en": "Piercing"
+              }
+            },
+            "poison": {
+              "type": "boolean",
+              "default": false,
+              "title": {
+                "ru": "Яд",
+                "en": "Poison"
+              }
+            },
+            "psychic": {
+              "type": "boolean",
+              "default": false,
+              "title": {
+                "ru": "Психический",
+                "en": "Psychic"
+              }
+            },
+            "radiant": {
+              "type": "boolean",
+              "default": false,
+              "title": {
+                "ru": "Излучение",
+                "en": "Radiant"
+              }
+            },
+            "slashing": {
+              "type": "boolean",
+              "default": false,
+              "title": {
+                "ru": "Рубящий",
+                "en": "Slashing"
+              }
+            },
+            "thunder": {
+              "type": "boolean",
+              "default": false,
+              "title": {
+                "ru": "Звук",
+                "en": "Thunder"
+              }
+            }
+          },
+          "title": {
+            "ru": "Иммунитеты",
+            "en": "Immunities"
+          }
+        },
+        "reduction": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000,
+          "default": 0,
+          "title": {
+            "ru": "Снижение урона до сопротивления",
+            "en": "Damage reduction before resistance"
           }
         }
       }

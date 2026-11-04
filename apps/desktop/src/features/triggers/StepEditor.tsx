@@ -22,11 +22,21 @@ export const ACTION_TYPES: ActionType[] = [
   'spawn_tokens',
   'start_combat',
   'apply_effect',
+  'plugin_action',
 ];
 
 /** A fresh action of `type`, with the first sensible choices filled in. */
 export function newAction(type: ActionType, rules: SystemRulesDto | null): TriggerAction {
   switch (type) {
+    case 'plugin_action':
+      return {
+        type,
+        action: rules?.mechanics?.actions?.find((a) => !a.interrupt)?.id ?? '',
+        source: null,
+        target: null,
+        x: 0,
+        y: 0,
+      };
     case 'reveal':
       return { type, target: { kind: 'node', id: '' } };
     case 'set_node_visibility':
@@ -269,6 +279,66 @@ export function StepEditor({
             </label>
             <p className="muted trigger-hint">{t('triggers.rollHint')}</p>
           </>
+        )}
+        {action.type === 'plugin_action' && (
+          <div>
+            <p className="muted trigger-hint">{t('triggers.pluginAwaitHint')}</p>
+            <label>
+              {t('plugins.action')}
+              <select
+                value={action.action}
+                onChange={(e) => {
+                  set({ ...action, action: e.target.value });
+                }}
+              >
+                {(rules?.mechanics?.actions ?? [])
+                  .filter((a) => !a.interrupt)
+                  .map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {labelText(a.label, lang)}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <ElementField
+              label={t('plugins.actionSource')}
+              kinds={['token']}
+              value={action.source ? { kind: 'token', id: action.source } : null}
+              onChange={({ id }) => {
+                set({ ...action, source: id });
+              }}
+            />
+            <ElementField
+              label={t('plugins.actionTarget')}
+              kinds={['token']}
+              value={action.target ? { kind: 'token', id: action.target } : null}
+              onChange={({ id }) => {
+                set({ ...action, target: id });
+              }}
+            />
+            <label>
+              X
+              <input
+                type="number"
+                min="0"
+                value={action.x / 16}
+                onChange={(e) => {
+                  set({ ...action, x: Math.round(Number(e.target.value) * 16) });
+                }}
+              />
+            </label>
+            <label>
+              Y
+              <input
+                type="number"
+                min="0"
+                value={action.y / 16}
+                onChange={(e) => {
+                  set({ ...action, y: Math.round(Number(e.target.value) * 16) });
+                }}
+              />
+            </label>
+          </div>
         )}
         {action.type === 'change_resource' && (
           <>
@@ -708,16 +778,39 @@ export function StepEditor({
                         ? { type, rounds: 3 }
                         : type === 'turns'
                           ? { type, turns: 3 }
-                          : { type: 'real_time', minutes: 60 },
+                          : type === 'game_time'
+                            ? { type, seconds: 600 }
+                            : { type: 'real_time', minutes: 60 },
                   });
                 }}
               >
                 <option value="rounds">{t('effects.rounds')}</option>
                 <option value="turns">{t('effects.turns')}</option>
+                <option value="game_time">{t('effects.gameTime')}</option>
                 <option value="real_time">{t('effects.realTime')}</option>
               </select>
             </label>
-            {action.duration.type === 'real_time' ? (
+            {action.duration.type === 'game_time' ? (
+              <label className="trigger-field">
+                <span>{t('effects.gameSeconds')}</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={604800}
+                  value={action.duration.seconds}
+                  onChange={(e) => {
+                    const seconds = Math.round(Number(e.target.value));
+                    set({
+                      ...action,
+                      duration: {
+                        type: 'game_time',
+                        seconds: Number.isFinite(seconds) ? seconds : 1,
+                      },
+                    });
+                  }}
+                />
+              </label>
+            ) : action.duration.type === 'real_time' ? (
               <label className="trigger-field">
                 <span>{t('effects.minutes')}</span>
                 <input
@@ -753,7 +846,11 @@ export function StepEditor({
                       : action.duration.turns
                   }
                   onChange={(e) => {
-                    if (action.duration.type === 'real_time') return;
+                    if (
+                      action.duration.type === 'real_time' ||
+                      action.duration.type === 'game_time'
+                    )
+                      return;
                     const span = Math.round(Number(e.target.value));
                     const value = Number.isFinite(span) ? span : 1;
                     set({

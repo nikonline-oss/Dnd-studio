@@ -246,7 +246,7 @@ fn bad_manifests() {
 
 #[test]
 fn newer_format_is_reported_as_such() {
-    let err = with_manifest(|m| m["format"] = json!(2))
+    let err = with_manifest(|m| m["format"] = json!(3))
         .read()
         .unwrap_err();
     assert_eq!(err.code(), "unsupported_format");

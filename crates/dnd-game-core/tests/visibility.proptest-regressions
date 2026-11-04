@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc f5f4ef5319dce74eb8f26bdbf97ec03db9dd0df37109871ba92ead1604f9c457 # shrinks to steps = [(Gm, IntentEnvelope { intent_id: IntentId(00000000-0000-7000-8000-000000000000), expected_version: None, ts_ms: 0, intent: CreateTrigger { id: TriggerId(00000005-4001-7000-8000-000000000000), definition: TriggerDef { name: "0", enabled: false, once: false, map_ids: [], event: Manual, tokens: [], condition: None, steps: [TriggerStep { when: None, action: ApplyEffect { label: "0", condition: None, resource: None, dice: None, heal: false, duration: Rounds { rounds: 1 } } }] } } }), (Gm, IntentEnvelope { intent_id: IntentId(00000000-0000-7000-8000-000000000000), expected_version: None, ts_ms: 0, intent: FireTrigger { id: TriggerId(00000005-4001-7000-8000-000000000000), token: Some(TokenId(00000000-2000-7000-8000-000000000000)) } }), (Gm, IntentEnvelope { intent_id: IntentId(00000000-0000-7000-8000-000000000000), expected_version: None, ts_ms: 0, intent: DeleteMap { id: MapId(00000000-1000-7000-8000-000000000000) } })]

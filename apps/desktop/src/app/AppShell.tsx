@@ -1,3 +1,6 @@
+import { useActionAim } from '@/shared/state/actionAim';
+import { ItemsView } from '@/shared/items/ItemsView';
+import { ActionSaves } from '@/shared/game/ActionSaves';
 import { useMutation } from '@tanstack/react-query';
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -14,6 +17,9 @@ import { CompendiumList } from '@/features/compendium/CompendiumList';
 import { CompendiumView } from '@/features/compendium/CompendiumView';
 import { LibraryPanel } from './LibraryPanel';
 import { OfflineEdits } from '@/features/connect/OfflineEdits';
+import { ActionWindows } from '@/features/plugins/ActionWindows';
+import { MaintainedEffects } from '@/features/plugins/MaintainedEffects';
+import { PluginReactions } from '@/features/plugins/PluginReactions';
 import { RollRequests } from '@/features/triggers/RollRequests';
 import { AttentionNotice } from '@/features/notifications/AttentionNotice';
 import { ImagePresentation } from '@/features/images/ImagePresentation';
@@ -23,6 +29,8 @@ import { CharacterEditor } from '@/features/characters/CharacterEditor';
 import { CharacterList } from '@/features/characters/CharacterList';
 import { ChatPanel } from '@/features/chat/ChatPanel';
 import { JournalEditor } from '@/features/journal/JournalEditor';
+import { GmPanel } from './GmPanel';
+import { PluginSettingsView } from '@/features/plugins/PluginSettingsView';
 import { PluginsView } from '@/features/plugins/PluginsView';
 import { InitiativePanel } from '@/features/initiative/InitiativePanel';
 import { LogPanel } from '@/features/logs/LogPanel';
@@ -33,7 +41,7 @@ import { TokenList } from '@/features/tokens/TokenList';
 import { useSnapshotSelect } from '@/shared/game/useGame';
 import { errorCode, ipc, type CampaignInfo } from '@/shared/ipc/client';
 import { useSettings, type SideView } from '@/shared/settings/settings';
-import { useSelection } from '@/shared/state/selection';
+import { useSelection, type TabRef } from '@/shared/state/selection';
 import { ErrorBoundary } from '@/shared/ui/ErrorBoundary';
 import { Icon } from '@/shared/ui/Icon';
 import { IconButton } from '@/shared/ui/IconButton';
@@ -45,9 +53,10 @@ const BOTTOM_TAB_ICONS = { chat: 'send', initiative: 'dice', logs: 'book' } as c
 const MapView = lazy(() => import('@/features/map/MapView').then((m) => ({ default: m.MapView })));
 
 /** Side panel views per preset; players get no map list (§5: the map is chosen for them). */
-const GM_VIEWS: SideView[] = ['boards', 'characters', 'library', 'plugins', 'compendia'];
-const PLAYER_VIEWS: SideView[] = ['characters', 'library', 'boards', 'compendia'];
+const GM_VIEWS: SideView[] = ['boards', 'characters', 'library', 'plugins', 'compendia', 'items'];
+const PLAYER_VIEWS: SideView[] = ['characters', 'library', 'boards', 'compendia', 'items'];
 const VIEW_ICONS = {
+  items: 'book',
   characters: 'users',
   library: 'book',
   plugins: 'puzzle',
@@ -63,6 +72,12 @@ const VIEW_ICONS = {
  */
 export function AppShell({ campaign }: { campaign: CampaignInfo }) {
   const { t } = useTranslation();
+  useEffect(() => {
+    useActionAim.getState().setAim(null);
+    return () => {
+      useActionAim.getState().setAim(null);
+    };
+  }, [campaign.path]);
   const [triggerTemplate, setTriggerTemplate] = useState<{
     boardId: string;
     x: number;
@@ -71,6 +86,10 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
   const preset = useSettings((s) => (campaign.role === 'player' ? 'player' : s.layoutPreset));
   const mapId = useSelection((s) => s.mapId);
   const inspect = useSelection((s) => s.inspect);
+  const pendingActions = useSnapshotSelect((s) => s.plugin_runtime?.action_stacks?.length ?? 0);
+  const maintainedCount = useSnapshotSelect((s) => s.plugin_runtime?.maintained?.length ?? 0);
+  const paneTabs = useSelection((s) => s.paneTabs);
+  const activatePane = useSelection((s) => s.activate);
   const center = useSelection((s) => s.center);
   const journalId = useSelection((s) => s.journalId);
   const active = useSelection((s) => s.active);
@@ -79,7 +98,6 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
   const boardId = active?.kind === 'board' ? active.id : null;
   const boardName = useSnapshotSelect((s) => s.boards.find((b) => b.id === boardId)?.name);
   const triggerId = active?.kind === 'trigger' ? active.id : null;
-  const compendiumKey = active?.kind === 'compendium' ? active.id : null;
   const triggerName = useSnapshotSelect(
     (s) => s.triggers.find((tr) => tr.id === triggerId)?.definition.name,
   );
@@ -91,6 +109,9 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
     character: sheetName,
     board: boardName,
     trigger: triggerName,
+    plugin: t('plugins.title'),
+    gm_panel: t('gm.title'),
+    items: t('items.title'),
     compendium: t('compendia.title'),
     images: t('images.title'),
     audio: t('audio.title'),
@@ -174,6 +195,59 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
   });
   const vertical = useDefaultLayout({ id: `dndstudio.layout.${preset}.v`, storage: localStorage });
 
+  const renderPane = (pane: TabRef | null) => {
+    const paneKind = pane?.kind ?? 'map';
+    const paneId = pane?.id ?? null;
+    return (paneKind === 'images' || paneKind === 'audio') && pane ? (
+      <ErrorBoundary name={t(`${paneKind}.title`)}>
+        <MediaFolderView
+          key={`${paneKind}:${pane.id}`}
+          library={paneKind}
+          folderId={pane.id === 'root' ? null : pane.id}
+        />
+      </ErrorBoundary>
+    ) : paneKind === 'items' ? (
+      <ItemsView />
+    ) : paneKind === 'gm_panel' ? (
+      <ErrorBoundary name={t('gm.title')}>
+        <GmPanel />
+      </ErrorBoundary>
+    ) : paneKind === 'plugin' && pane ? (
+      <PluginSettingsView pluginId={pane.id} />
+    ) : paneKind === 'journal' ? (
+      <ErrorBoundary name={t('journal.title')}>
+        <JournalEditor {...(paneId ? { entryId: paneId } : {})} />
+      </ErrorBoundary>
+    ) : paneKind === 'compendium' && paneId !== null ? (
+      <ErrorBoundary name={t('compendia.title')}>
+        <CompendiumView key={paneId} compendiumKey={paneId} />
+      </ErrorBoundary>
+    ) : paneKind === 'trigger' && paneId !== null ? (
+      <ErrorBoundary name={t('triggers.title')}>
+        <TriggerEditor key={paneId} triggerId={paneId} />
+      </ErrorBoundary>
+    ) : paneKind === 'board' && paneId !== null ? (
+      <ErrorBoundary name={t('boards.title')}>
+        <BoardView
+          key={paneId}
+          boardId={paneId}
+          onTriggerTemplate={(position) => {
+            setTriggerTemplate({ boardId: paneId, ...position });
+          }}
+        />
+      </ErrorBoundary>
+    ) : paneKind === 'character' && paneId !== null ? (
+      <ErrorBoundary name={t('characters.title')}>
+        <CharacterEditor key={paneId} characterId={paneId} />
+      </ErrorBoundary>
+    ) : (
+      <ErrorBoundary name={t('panels.map')}>
+        <Suspense fallback={<p className="muted">{t('mapView.loading')}</p>}>
+          <MapView {...(pane?.kind === 'map' ? { mapId: pane.id } : {})} />
+        </Suspense>
+      </ErrorBoundary>
+    );
+  };
   return (
     <div className="app-shell">
       <MenuBar breadcrumbs={[campaign.name, ...(crumb ? [crumb] : [])]} />
@@ -216,6 +290,17 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
               <ErrorBoundary name={t('boards.title')}>
                 <BoardList />
               </ErrorBoundary>
+            ) : sideView === 'items' ? (
+              <>
+                <button
+                  onClick={() => {
+                    useSelection.getState().splitTab({ kind: 'items', id: 'items' });
+                  }}
+                >
+                  {t('items.openTab')}
+                </button>
+                <ItemsView />
+              </>
             ) : sideView === 'plugins' ? (
               <ErrorBoundary name={t('plugins.title')}>
                 <PluginsView />
@@ -236,47 +321,20 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
               <Panel id="main" minSize="20" className="center-panel">
                 <CenterTabs />
                 <div role="tabpanel" className="tab-body">
-                  {(center === 'images' || center === 'audio') && active ? (
-                    <ErrorBoundary name={t(`${center}.title`)}>
-                      <MediaFolderView
-                        key={`${center}:${active.id}`}
-                        library={center}
-                        folderId={active.id === 'root' ? null : active.id}
-                      />
-                    </ErrorBoundary>
-                  ) : center === 'journal' ? (
-                    <ErrorBoundary name={t('journal.title')}>
-                      <JournalEditor />
-                    </ErrorBoundary>
-                  ) : center === 'compendium' && compendiumKey !== null ? (
-                    <ErrorBoundary name={t('compendia.title')}>
-                      <CompendiumView key={compendiumKey} compendiumKey={compendiumKey} />
-                    </ErrorBoundary>
-                  ) : center === 'trigger' && triggerId !== null ? (
-                    <ErrorBoundary name={t('triggers.title')}>
-                      <TriggerEditor key={triggerId} triggerId={triggerId} />
-                    </ErrorBoundary>
-                  ) : center === 'board' && boardId !== null ? (
-                    <ErrorBoundary name={t('boards.title')}>
-                      <BoardView
-                        key={boardId}
-                        boardId={boardId}
-                        onTriggerTemplate={(position) => {
-                          setTriggerTemplate({ boardId, ...position });
+                  <div className="center-panes">
+                    {(paneTabs.length ? paneTabs : active ? [active] : [null]).map((pane) => (
+                      <div
+                        key={pane ? `${pane.kind}:${pane.id}` : 'default-map'}
+                        className="center-pane"
+                        onPointerDownCapture={() => {
+                          if (pane && (pane.kind !== active?.kind || pane.id !== active.id))
+                            activatePane(pane);
                         }}
-                      />
-                    </ErrorBoundary>
-                  ) : center === 'character' && sheetId !== null ? (
-                    <ErrorBoundary name={t('characters.title')}>
-                      <CharacterEditor key={sheetId} characterId={sheetId} />
-                    </ErrorBoundary>
-                  ) : (
-                    <ErrorBoundary name={t('panels.map')}>
-                      <Suspense fallback={<p className="muted">{t('mapView.loading')}</p>}>
-                        <MapView />
-                      </Suspense>
-                    </ErrorBoundary>
-                  )}
+                      >
+                        {renderPane(pane)}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </Panel>
               {bottomVisible && <Separator className="separator" />}
@@ -334,8 +392,17 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
             {isGm ? (
               <>
                 <h2 className="panel-title">{t('inspector.title')}</h2>
+                <button
+                  onClick={() => {
+                    useSelection.getState().inspectGmPanel();
+                  }}
+                >
+                  {t('gm.title')}
+                </button>
                 <ErrorBoundary name={t('inspector.title')}>
-                  {inspect === 'character' ? (
+                  {inspect === 'gm_panel' ? (
+                    <GmPanel />
+                  ) : inspect === 'character' ? (
                     <CharacterEditor />
                   ) : inspect === 'token' ? (
                     <TokenInspector />
@@ -369,6 +436,12 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
           />
         )}
         <CompactAudioPlayers />
+        <div className="plugin-notices">
+          {!!pendingActions && <ActionWindows />}
+          {!!maintainedCount && <MaintainedEffects floating />}
+          <PluginReactions />
+          <ActionSaves />
+        </div>
         <RollRequests />
         <AttentionNotice key={campaign.path} />
         <StatusBar campaign={campaign} />

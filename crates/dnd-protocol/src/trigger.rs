@@ -98,6 +98,16 @@ pub enum RevealTarget {
 #[serde(tag = "type", rename_all = "snake_case")]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum TriggerAction {
+    /// An installed system action; source defaults to the activating token.
+    PluginAction {
+        action: String,
+        source: Option<TokenId>,
+        target: Option<TokenId>,
+        #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
+        x: i64,
+        #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
+        y: i64,
+    },
     /// Shows something to players.
     Reveal {
         target: RevealTarget,
@@ -184,6 +194,8 @@ pub enum TriggerAction {
 #[serde(tag = "type", rename_all = "snake_case")]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum EffectDurationDef {
+    /// Fictional seconds, independent of wall time and combat countdowns.
+    GameTime { seconds: u32 },
     /// Combat rounds on the token's map.
     Rounds { rounds: u8 },
     /// The token's own turns.

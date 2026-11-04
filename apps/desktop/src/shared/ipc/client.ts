@@ -76,7 +76,8 @@ export const ipc = {
     unwrap(commands.pluginInstallFile()).then((outcome) =>
       outcome === null ? null : requireAccepted(outcome),
     ),
-  sheetView: (sheetJson: string) => unwrap(commands.sheetView(sheetJson)),
+  sheetView: (sheetJson: string, characterId?: string) =>
+    unwrap(commands.sheetView(sheetJson, characterId ?? null)),
   campaignCheckpoint: () => unwrap(commands.campaignCheckpoint()),
   campaignCurrent: () => unwrap(commands.campaignCurrent()),
   getSnapshot: () => unwrap(commands.getSnapshot()),

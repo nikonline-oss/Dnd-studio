@@ -29,6 +29,24 @@ pub enum Event {
     ImagePresentationChanged {
         presentation: Option<crate::model::PresentedImageDto>,
     },
+    RulesViewUpdated {
+        view: crate::RulesView,
+    },
+    ItemCreated {
+        item: crate::ItemDto,
+    },
+    ItemUpdated {
+        item: crate::ItemDto,
+    },
+    ItemDeleted {
+        id: crate::ItemId,
+    },
+    GameTimeAdvanced {
+        clock: crate::GameClock,
+    },
+    PluginRuntimeUpdated {
+        runtime: Box<crate::PluginRuntime>,
+    },
     CampaignMetaUpdated {
         campaign: CampaignMeta,
     },

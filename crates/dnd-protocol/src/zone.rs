@@ -129,6 +129,9 @@ pub struct ZoneLabel {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct ZoneDto {
+    /// Independent physical blockers. Hidden from players along with the zone.
+    #[serde(default)]
+    pub occlusion: ZoneOcclusion,
     pub id: ZoneId,
     pub map_id: MapId,
     pub name: String,
@@ -185,5 +188,44 @@ mod tests {
             l.contains(100, 75) && l.contains(75, 50) && l.contains(0, 0) && l.contains(50, 25)
         );
         assert!(!l.contains(101, 75));
+    }
+}
+
+/// A filled obstacle: sight (opaque wall/smoke) and effect (solid wall/glass) are independent.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct ZoneOcclusion {
+    #[serde(default)]
+    pub sight: bool,
+    #[serde(default)]
+    pub effect: bool,
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod occlusion_tests {
+    use super::*;
+    #[test]
+    fn legacy_zones_are_transparent_and_new_flags_round_trip() {
+        let zone: ZoneDto = serde_json::from_value(serde_json::json!({
+            "id":"0190a000-0000-7000-8000-000000000001",
+            "map_id":"0190a000-0000-7000-8000-000000000002",
+            "name":"Legacy", "shape":{"type":"rect","x":0,"y":0,"width":16,"height":16},
+            "version":1
+        }))
+        .unwrap();
+        assert_eq!(zone.occlusion, ZoneOcclusion::default());
+        let mut zone = zone;
+        zone.occlusion.sight = true;
+        let restored: ZoneDto =
+            serde_json::from_str(&serde_json::to_string(&zone).unwrap()).unwrap();
+        assert_eq!(
+            restored.occlusion,
+            ZoneOcclusion {
+                sight: true,
+                effect: false
+            }
+        );
     }
 }

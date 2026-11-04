@@ -14,11 +14,13 @@ import { ConfirmButton, ConfirmDelete, IconButton } from '@/shared/ui/IconButton
  * Initiative tracker of the shown map (ADR-0020, bottom panel). GM roles run the combat; a player
  * rolls for their own character and ends their own turn. The core checks every action.
  */
-export function InitiativePanel() {
+export function InitiativePanel({ scopeMapId }: { scopeMapId?: string | undefined } = {}) {
   const { t } = useTranslation();
   const { data: campaign } = useCampaign();
   const submit = useSubmitIntent();
-  const map = useShownMap();
+  const shownMap = useShownMap();
+  const scopedMap = useSnapshotSelect((s) => s.maps.find((m) => m.id === scopeMapId));
+  const map = scopeMapId ? scopedMap : shownMap;
   const mapId = map?.id;
   // Token positions are left out: a token being dragged does not re-render the tracker.
   const mapTokens = useSnapshotSelect((s) =>
@@ -29,6 +31,7 @@ export function InitiativePanel() {
   const combat = useSnapshotSelect((s) => s.combats.find((c) => c.map_id === mapId));
   const combatants = useSnapshotSelect((s) => s.combatants);
   const characters = useSnapshotSelect((s) => s.characters);
+  const life = useSnapshotSelect((s) => s.rules_view?.characters ?? []);
   const isGm = campaign?.role === 'gm' || campaign?.role === 'co_gm';
 
   if (!map || !mapTokens || !combatants || !characters || !campaign) {
@@ -89,7 +92,11 @@ export function InitiativePanel() {
     );
   }
 
-  const order = turnOrder(combatants, combat.id);
+  const isDead = (c: CombatantDto) =>
+    life?.find((v) => v.character === c.character_id)?.life === 'dead';
+  const order = turnOrder(combatants, combat.id).filter(
+    (c) => !isDead(c) || characters.find((v) => v.id === c.character_id)?.kind === 'pc',
+  );
   const owns = (c: CombatantDto) => ownsCombatant(characters, c, campaign.user_id);
   const current = order.find((c) => c.id === combat.turn);
   const canPassTurn = isGm || (current !== undefined && owns(current));
@@ -173,7 +180,10 @@ export function InitiativePanel() {
             >
               {tokenInitial(c.name)}
             </span>
-            <span className="row-name">{c.name}</span>
+            <span className="row-name">
+              {c.name}
+              {isDead(c) && ` · ${t('initiative.dead')}`}
+            </span>
             {isGm ? (
               <InitiativeInput key={c.version} combatant={c} />
             ) : (

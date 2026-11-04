@@ -29,6 +29,7 @@ pub(crate) fn apply(
             }
             Ok(vec![Event::ZoneCreated {
                 zone: ZoneDto {
+                    occlusion: Default::default(),
                     id: *id,
                     map_id: *map_id,
                     name: valid_name(name, "name")?,
@@ -68,6 +69,12 @@ pub(crate) fn apply(
             zone.version = bump(zone.version)?;
             Ok(vec![Event::ZoneUpdated { zone }])
         })(),
+        Intent::SetZoneOcclusion { id, occlusion } => (|| {
+            let mut zone = state.zones.get(id).cloned().ok_or(RejectReason::NotFound)?;
+            zone.occlusion = *occlusion;
+            zone.version = bump(zone.version)?;
+            Ok(vec![Event::ZoneUpdated { zone }])
+        })(),
         Intent::SetZoneColor { id, color } => (|| {
             if *color > 0xffffff {
                 return Err(RejectReason::invalid("color"));
@@ -92,7 +99,11 @@ pub(crate) fn apply(
             let mut merged = Vec::with_capacity(from.len());
             for id in from {
                 let other = state.zones.get(id).ok_or(RejectReason::NotFound)?;
-                if *id == *into || other.map_id != zone.map_id || merged.contains(id) {
+                if *id == *into
+                    || other.map_id != zone.map_id
+                    || other.occlusion != zone.occlusion
+                    || merged.contains(id)
+                {
                     return Err(RejectReason::invalid("from"));
                 }
                 merged.push(*id);

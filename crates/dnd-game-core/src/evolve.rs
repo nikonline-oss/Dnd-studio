@@ -11,19 +11,36 @@ pub fn evolve(state: &mut GameState, event: &Event) {
         Event::ImagePresentationChanged { presentation } => {
             state.presented_image = presentation.clone()
         }
+        Event::RulesViewUpdated { .. } => {}
+        Event::ItemCreated { item } | Event::ItemUpdated { item } => {
+            state.items.insert(item.id, item.clone());
+        }
+        Event::ItemDeleted { id } => {
+            state.items.remove(id);
+        }
         Event::PlaylistCreated { playlist } | Event::PlaylistUpdated { playlist } => {
             state.playlists.insert(playlist.id, playlist.clone());
         }
         Event::PlaylistDeleted { id } => {
             state.playlists.remove(id);
         }
+        Event::GameTimeAdvanced { clock } => state.campaign.game_clock = clock.clone(),
         Event::CampaignMetaUpdated { campaign } => state.campaign = campaign.clone(),
         Event::MapCreated { map } | Event::MapUpdated { map } => {
             state.maps.insert(map.id, map.clone());
         }
         Event::MapDeleted { id } => {
             state.maps.remove(id);
+            let removed_tokens: Vec<_> = state
+                .tokens
+                .values()
+                .filter(|t| t.map_id == *id)
+                .map(|t| t.id)
+                .collect();
             state.tokens.retain(|_, t| t.map_id != *id);
+            state
+                .effects
+                .retain(|_, e| !removed_tokens.contains(&e.token));
             state.fog.remove(id);
             state.zones.retain(|_, z| z.map_id != *id);
             // The map's combat goes with it (FK cascade in the database).
@@ -71,6 +88,7 @@ pub fn evolve(state: &mut GameState, event: &Event) {
         }
         Event::TokenDeleted { id } => {
             state.tokens.remove(id);
+            state.effects.retain(|_, e| e.token != *id);
             // Its combatant stays in the fight without a token (ON DELETE SET NULL).
             for combatant in state.combatants.values_mut() {
                 if combatant.token_id == Some(*id) {
@@ -109,6 +127,7 @@ pub fn evolve(state: &mut GameState, event: &Event) {
         Event::AssetRegistered { asset } => {
             state.assets.insert(asset.id, asset.as_ref().clone());
         }
+        Event::PluginRuntimeUpdated { runtime } => state.plugin_runtime = *runtime.clone(),
         Event::PluginInstalled { plugin } => {
             state
                 .plugins

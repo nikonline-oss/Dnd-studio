@@ -26,7 +26,91 @@ pub fn authorize(actor: &Actor, intent: &Intent, state: &GameState) -> Result<()
         Role::Gm | Role::CoGm => Ok(()),
         Role::Spectator => Err(RejectReason::Forbidden),
         Role::Player => match intent {
+            Intent::ResolveActionSave { group, target }
+                if state
+                    .plugin_runtime
+                    .saves
+                    .iter()
+                    .find(|g| g.id == *group)
+                    .is_some_and(|g| {
+                        g.targets.iter().any(|t| {
+                            t.token == *target
+                                && t.status == dnd_protocol::SaveStatus::Pending
+                                && owns(actor.user_id, Some(t.character), state)
+                        })
+                    }) =>
+            {
+                Ok(())
+            }
+            Intent::UpdateItem {
+                id,
+                visible_to_players: None,
+                ..
+            } if state
+                .items
+                .get(id)
+                .is_some_and(|i| !i.is_template && owns(actor.user_id, i.owner, state)) =>
+            {
+                Ok(())
+            }
             Intent::MoveToken { id, .. } if player_controls_token(actor.user_id, *id, state) => {
+                Ok(())
+            }
+            Intent::ResolveActionReaction {
+                stack,
+                frame,
+                source,
+                ..
+            } if player_controls_token(actor.user_id, *source, state)
+                && state.plugin_runtime.action_stacks.iter().any(|s| {
+                    s.id == *stack
+                        && s.frames.last().is_some_and(|f| {
+                            f.id == *frame && f.offers.first().is_some_and(|o| o.source == *source)
+                        })
+                }) =>
+            {
+                Ok(())
+            }
+            Intent::ContinuePluginAction { stack, frame }
+                if state.plugin_runtime.action_stacks.iter().any(|s| {
+                    s.id == *stack
+                        && s.frames.last().is_some_and(|f| {
+                            f.id == *frame
+                                && f.offers.is_empty()
+                                && state
+                                    .characters
+                                    .get(&f.owner)
+                                    .is_some_and(|c| c.owner == Some(actor.user_id))
+                        })
+                }) =>
+            {
+                Ok(())
+            }
+            Intent::EndMaintainedEffect { id }
+                if state.plugin_runtime.maintained.iter().any(|m| {
+                    m.id == *id
+                        && state
+                            .characters
+                            .get(&m.owner)
+                            .is_some_and(|c| c.owner == Some(actor.user_id))
+                }) =>
+            {
+                Ok(())
+            }
+            Intent::ExecutePluginAction { source, .. }
+                if player_controls_token(actor.user_id, *source, state) =>
+            {
+                Ok(())
+            }
+            Intent::ResolvePluginReaction {
+                movement, source, ..
+            } if player_controls_token(actor.user_id, *source, state)
+                && state
+                    .plugin_runtime
+                    .movements
+                    .iter()
+                    .any(|m| m.id == *movement && m.offers.iter().any(|o| o.source == *source)) =>
+            {
                 Ok(())
             }
             // Initiative for their own character, and ending their own turn (ADR-0020).

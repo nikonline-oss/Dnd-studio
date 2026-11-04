@@ -599,6 +599,13 @@ pub async fn remote_pending(state: State<'_, AppState>) -> Result<PendingEdits, 
                             .find(|entity| entity.get("id").and_then(|v| v.as_str()) == Some(id))?,
                         None if matches!(
                             op.envelope.intent,
+                            dnd_protocol::Intent::AdvanceGameTime { .. }
+                        ) =>
+                        {
+                            snapshot.get("campaign")?.get("game_clock")?
+                        }
+                        None if matches!(
+                            op.envelope.intent,
                             dnd_protocol::Intent::UpdateCampaignMeta { .. }
                         ) =>
                         {
@@ -918,19 +925,28 @@ async fn install_package<R: Runtime>(
 pub async fn sheet_view(
     state: State<'_, AppState>,
     sheet_json: String,
+    character_id: Option<dnd_protocol::CharacterId>,
 ) -> Result<Option<crate::plugins::SheetView>, IpcError> {
     if let Some(remote) = state.remote.lock().await.as_ref() {
         if remote.info().hosted
             && matches!(remote.status(), RemoteStatus::Reconnecting { .. })
             && let Some(local) = state.server.lock().await.as_ref()
         {
-            return Ok(crate::plugins::sheet_view(local.state(), &sheet_json));
+            return Ok(crate::plugins::sheet_view_for_character(
+                local.state(),
+                &sheet_json,
+                character_id,
+            ));
         }
         return Ok(remote
-            .with_state(|s| crate::plugins::sheet_view(s, &sheet_json))
+            .with_state(|s| crate::plugins::sheet_view_for_character(s, &sheet_json, character_id))
             .flatten());
     }
     let guard = state.server.lock().await;
     let server = guard.as_ref().ok_or_else(IpcError::no_campaign)?;
-    Ok(crate::plugins::sheet_view(server.state(), &sheet_json))
+    Ok(crate::plugins::sheet_view_for_character(
+        server.state(),
+        &sheet_json,
+        character_id,
+    ))
 }

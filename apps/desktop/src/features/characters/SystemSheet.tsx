@@ -1,8 +1,13 @@
+import { ItemsView } from '@/shared/items/ItemsView';
+import { CharacterActions } from './CharacterActions';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
+import { TurnBudgetSummary } from '@/shared/game/TurnBudgetPanel';
 import { CharacterSheet } from '@/shared/sheet/CharacterSheet';
 import type { JsonSchema, SheetData, SheetNode } from '@/shared/sheet/model';
-import { useSubmitIntent } from '@/shared/game/useGame';
+import { useTranslation } from 'react-i18next';
+import { labelText } from '@/shared/i18n/label';
+import { useSnapshotSelect, useSubmitIntent } from '@/shared/game/useGame';
 import { ipc, type CharacterDto, type SystemRulesDto } from '@/shared/ipc/client';
 import { uuidv7 } from '@/shared/ipc/uuid';
 import { ErrorText } from '@/shared/ui/ErrorText';
@@ -33,10 +38,31 @@ export function SystemSheet({
   canEdit: boolean;
 }) {
   const submit = useSubmitIntent();
+  const { t, i18n } = useTranslation();
+  const effects = useSnapshotSelect((s) =>
+    (s.effects ?? []).filter((e) =>
+      s.tokens.some((token) => token.id === e.token && token.character_id === character.id),
+    ),
+  );
+  const flags = useSnapshotSelect(
+    (s) => s.plugins.find((p) => p.id === s.system_plugin)?.feature_settings,
+  );
+  const stacks = useSnapshotSelect((s) => s.plugin_runtime?.action_stacks);
+  const combats = useSnapshotSelect((s) => s.combats);
   const data = useMemo(() => parseSheet(character.sheet_json), [character.sheet_json]);
   const view = useQuery({
-    queryKey: ['sheetView', character.sheet_json],
-    queryFn: () => ipc.sheetView(character.sheet_json),
+    queryKey: [
+      'sheetView',
+      character.id,
+      character.sheet_json,
+      character.conditions,
+      rules,
+      flags,
+      effects,
+      stacks,
+      combats,
+    ],
+    queryFn: () => ipc.sheetView(character.sheet_json, character.id),
     placeholderData: keepPreviousData,
   });
   const resources = rules.resources.map((r) => {
@@ -50,6 +76,22 @@ export function SystemSheet({
 
   return (
     <>
+      {(view.data?.modifiers ?? []).length > 0 && (
+        <aside className="sheet-modifiers" aria-label={t('plugins.activeModifiers')}>
+          <strong>{t('plugins.activeModifiers')}</strong>
+          <ul>
+            {view.data?.modifiers?.map((label, index) => (
+              <li key={index}>{labelText(label, i18n.language)}</li>
+            ))}
+          </ul>
+        </aside>
+      )}
+      <TurnBudgetSummary economy={view.data?.economy} />
+      <CharacterActions character={character} />
+      <details>
+        <summary>{t('items.title')}</summary>
+        <ItemsView owner={character.id} />
+      </details>
       <CharacterSheet
         // Checked by the plugin loader and again by the core when the plugin was installed.
         layout={

@@ -17,6 +17,12 @@ use crate::zone::ZoneDto;
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct Snapshot {
+    #[serde(default)]
+    pub rules_view: crate::RulesView,
+    #[serde(default)]
+    pub items: Vec<crate::ItemDto>,
+    #[serde(default)]
+    pub plugin_runtime: crate::PluginRuntime,
     /// Sequence number of the last event included (0 = no events yet).
     pub seq: Seq,
     #[serde(default)]

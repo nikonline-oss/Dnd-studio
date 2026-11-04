@@ -11,6 +11,8 @@ use crate::ids::{
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct CampaignMeta {
+    #[serde(default)]
+    pub game_clock: GameClock,
     pub name: String,
     pub description: String,
     pub version: Version,
@@ -517,6 +519,12 @@ pub struct PresentedImageDto {
 #[serde(tag = "code", rename_all = "snake_case")]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum SystemMessage {
+    PluginActionResolved {
+        #[serde(default)]
+        action: Option<crate::IntentId>,
+        label: crate::Label,
+        outcome: crate::ActionResolution,
+    },
     CharacterSubmitted {
         name: String,
     },
@@ -643,4 +651,21 @@ pub struct AssetDto {
     #[serde(default)]
     pub folder_id: Option<LibraryFolderId>,
     pub version: Version,
+}
+
+/// Elapsed fictional seconds since the campaign epoch; independent from wall time.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct GameClock {
+    #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
+    pub seconds: i64,
+    pub version: Version,
+}
+impl Default for GameClock {
+    fn default() -> Self {
+        Self {
+            seconds: 0,
+            version: Version::INITIAL,
+        }
+    }
 }

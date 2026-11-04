@@ -8,6 +8,7 @@ import type {
   CampaignInfo,
   CharacterDto,
   IntentEnvelope,
+  Label,
   PluginDto,
   Role,
   Snapshot,
@@ -64,7 +65,13 @@ const hero: CharacterDto = {
   version: 4,
 };
 
-function setup(role: Role, system: string | null = 'srd5', creature = false, kind = hero.kind) {
+function setup(
+  role: Role,
+  system: string | null = 'srd5',
+  creature = false,
+  kind = hero.kind,
+  modifiers: Label[] = [],
+) {
   const snapshot: Snapshot = {
     seq: 1,
     campaign: { name: 'C', description: '', version: 1 },
@@ -109,7 +116,7 @@ function setup(role: Role, system: string | null = 'srd5', creature = false, kin
       case 'campaign_current':
         return info;
       case 'sheet_view':
-        return { computed: { str_mod: 3 }, resources: [] };
+        return { computed: { str_mod: modifiers.length ? 4 : 3 }, resources: [], modifiers };
       case 'submit_intent':
         sent.push((args as { envelope: IntentEnvelope }).envelope);
         return { status: 'accepted', seq: 2 };
@@ -199,4 +206,12 @@ describe('CharacterEditor with a system plugin', () => {
     expect(await screen.findByText('Save sheet')).toBeInTheDocument();
     expect(screen.queryByLabelText('Strength')).not.toBeInTheDocument();
   });
+});
+
+it('shows authoritative modifier explanations while editing the base sheet', async () => {
+  setup('gm', 'srd5', false, 'npc', ['Strength +2 from a condition']);
+  expect(await screen.findByLabelText('Active modifiers')).toHaveTextContent(
+    'Strength +2 from a condition',
+  );
+  expect(screen.getByLabelText('Strength')).toHaveValue('16');
 });

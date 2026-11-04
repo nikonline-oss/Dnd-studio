@@ -79,6 +79,7 @@ async fn every_event_kind_is_projected() {
     let dir = tempfile::tempdir().unwrap();
     let db = new_campaign(&dir).await;
     let campaign = CampaignMeta {
+        game_clock: Default::default(),
         name: "Renamed".into(),
         description: "Desc".into(),
         version: Version(2),
@@ -521,7 +522,7 @@ fn query_inventory_matches_adr_0008() {
         .map(|s| s.matches("sqlx::query").count())
         .sum();
     assert_eq!(
-        count, 93,
+        count, 100,
         "runtime queries changed: add a real-SQLite test and update the table in docs/adr/0008-db-conventions.md"
     );
 }
@@ -705,6 +706,7 @@ async fn plugins_and_the_system_are_projected_and_loaded() {
     let dir = tempfile::tempdir().unwrap();
     let db = new_campaign(&dir).await;
     let mut plugin = PluginDto {
+        feature_settings: Default::default(),
         theme: None,
         id: "srd5".into(),
         version: "0.1.0".into(),
@@ -715,6 +717,8 @@ async fn plugins_and_the_system_are_projected_and_loaded() {
         archive_sha256: "a".repeat(64),
         trigger_templates: Vec::new(),
         system: Some(SystemRulesDto {
+            mechanics: Default::default(),
+            features: Default::default(),
             sheet_schema: serde_json::json!({ "type": "object", "properties": {} }),
             sheet_layout: serde_json::json!({ "type": "section", "children": [] }),
             creature_sheet_layout: None,
@@ -728,6 +732,7 @@ async fn plugins_and_the_system_are_projected_and_loaded() {
         }),
     };
     let theme = PluginDto {
+        feature_settings: Default::default(),
         id: "dark".into(),
         kind: PluginKind::Theme,
         system: None,
@@ -1858,6 +1863,7 @@ async fn zones_are_projected_loaded_and_go_with_their_map() {
     let db = new_campaign(&dir).await;
     let map = map(0, "Crypt", 1);
     let zone = ZoneDto {
+        occlusion: Default::default(),
         id: ZoneId(v7(0x900)),
         map_id: map.id,
         name: "Altar".into(),
@@ -1880,6 +1886,10 @@ async fn zones_are_projected_loaded_and_go_with_their_map() {
     .unwrap();
     let moved = ZoneDto {
         name: "Old altar".into(),
+        occlusion: ZoneOcclusion {
+            sight: true,
+            effect: false,
+        },
         color: 0x12abef,
         shape: ZoneShape::Rect {
             x: 16,
@@ -2063,6 +2073,103 @@ async fn effects_are_projected_loaded_and_removed() {
     assert!(db.load_state().await.unwrap().0.effects.is_empty());
 }
 
+/// Effects die with their token — directly (token deleted) and through the map cascade (map
+/// deleted): `token_effects` has no foreign key, the projection removes them explicitly, like
+/// the core's `evolve`.
+#[tokio::test]
+async fn effects_go_away_with_their_token_and_map() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = new_campaign(&dir).await;
+    let effect_on = |n: u128, token_n: u128| TokenEffectDto {
+        id: EffectId(v7(n)),
+        token: TokenId(v7(0x200 + token_n)),
+        label: "Mark".into(),
+        condition: None,
+        resource: None,
+        dice: None,
+        heal: false,
+        duration: EffectDuration::Turns { remaining: 3 },
+        version: Version(1),
+    };
+    db.project(&[
+        record(
+            1,
+            Some(1),
+            vec![Event::MapCreated {
+                map: map(1, "One", 1),
+            }],
+        ),
+        record(
+            2,
+            Some(2),
+            vec![Event::MapCreated {
+                map: map(2, "Two", 1),
+            }],
+        ),
+        record(
+            3,
+            Some(3),
+            vec![Event::TokenCreated {
+                token: token(1, 1, 1),
+            }],
+        ),
+        record(
+            4,
+            Some(4),
+            vec![Event::TokenCreated {
+                token: token(2, 2, 1),
+            }],
+        ),
+        record(
+            5,
+            Some(5),
+            vec![Event::TokenEffectApplied {
+                effect: effect_on(0xE10, 1),
+            }],
+        ),
+        record(
+            6,
+            Some(6),
+            vec![Event::TokenEffectApplied {
+                effect: effect_on(0xE11, 2),
+            }],
+        ),
+    ])
+    .await
+    .unwrap();
+    // The map's delete cascades its token, and the effect goes with it.
+    db.project(&[record(
+        7,
+        Some(7),
+        vec![Event::MapDeleted {
+            id: MapId(v7(0x102)),
+        }],
+    )])
+    .await
+    .unwrap();
+    assert_eq!(
+        db.load_state()
+            .await
+            .unwrap()
+            .0
+            .effects
+            .values()
+            .cloned()
+            .collect::<Vec<_>>(),
+        vec![effect_on(0xE10, 1)]
+    );
+    db.project(&[record(
+        8,
+        Some(8),
+        vec![Event::TokenDeleted {
+            id: TokenId(v7(0x201)),
+        }],
+    )])
+    .await
+    .unwrap();
+    assert!(db.load_state().await.unwrap().0.effects.is_empty());
+}
+
 #[tokio::test]
 async fn image_presentations_are_projected_loaded_and_cleared() {
     let dir = tempfile::tempdir().unwrap();
@@ -2154,4 +2261,157 @@ async fn roll_requests_are_projected_loaded_and_updated() {
         state.roll_requests.values().cloned().collect::<Vec<_>>(),
         vec![rolled]
     );
+}
+
+#[tokio::test]
+async fn plugin_runtime_is_projected_and_loaded() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = new_campaign(&dir).await;
+    let runtime = PluginRuntime {
+        saves: vec![PendingSaves {
+            id: IntentId(v7(0x6650)),
+            map: MapId(v7(0x6651)),
+            source: None,
+            owner: CharacterId(v7(0x6652)),
+            damage: 28,
+            difficulty: 15,
+            action: serde_json::from_value(
+                serde_json::from_str::<serde_json::Value>(include_str!(
+                    "../../../plugins/system-srd5/system.json"
+                ))
+                .unwrap()["mechanics"]["actions"][2]
+                    .clone(),
+            )
+            .unwrap(),
+            targets: vec![SaveTarget {
+                token: TokenId(v7(0x6653)),
+                character: CharacterId(v7(0x6654)),
+                status: SaveStatus::Pending,
+                total: None,
+            }],
+        }],
+        trigger_runs: vec![PendingTriggerRun {
+            rolls: vec![RollRequestId(v7(0x7777))],
+            action: IntentId(v7(0x9920)),
+            trigger: TriggerId(v7(0x9930)),
+            version: Version::INITIAL,
+            map: Some(MapId(v7(0x9921))),
+            character: Some(CharacterId(v7(0x9924))),
+            token: Some(TokenId(v7(0x9923))),
+            next_step: 1,
+            variables: std::collections::BTreeMap::from([("total".into(), 17)]),
+        }],
+        action_stacks: vec![ActionStack {
+            id: IntentId(v7(0x9920)),
+            map: MapId(v7(0x9921)),
+            frames: vec![PendingAction {
+                awaiting_reactions: true,
+                id: IntentId(v7(0x9922)),
+                source: TokenId(v7(0x9923)),
+                owner: CharacterId(v7(0x9924)),
+                controller: None,
+                action: "casting".into(),
+                label: Label::Text("Casting".into()),
+                target: None,
+                x: 1120,
+                y: 2240,
+                deferred: vec![DeferredCost {
+                    resource: "slot".into(),
+                    amount: 1,
+                }],
+                offers: Vec::new(),
+                ready: true,
+            }],
+        }],
+        maintained: vec![MaintainedEffect {
+            id: EffectId(v7(0x9910)),
+            owner: CharacterId(v7(0x9911)),
+            source: TokenId(v7(0x9912)),
+            rule: "maintain".into(),
+            label: Label::Text("A maintained effect".into()),
+            effects: vec![EffectId(v7(0x9913))],
+        }],
+        visuals: Vec::new(),
+        movements: vec![PendingMovement {
+            id: IntentId(v7(0x9900)),
+            token: TokenId(v7(0x9901)),
+            destination_x: 1120,
+            destination_y: 2240,
+            mode: MovementMode::Voluntary,
+            handled: vec!["first:source".into()],
+            offers: vec![ReactionOffer {
+                ready: true,
+                source: TokenId(v7(0x9902)),
+                rule: "leave_reach".into(),
+                action: "strike".into(),
+                label: Label::Text("React".into()),
+            }],
+        }],
+    };
+    db.project(&[record(
+        1,
+        None,
+        vec![Event::PluginRuntimeUpdated {
+            runtime: Box::new(runtime.clone()),
+        }],
+    )])
+    .await
+    .unwrap();
+    assert_eq!(db.load_state().await.unwrap().0.plugin_runtime, runtime);
+    db.project(&[record(
+        2,
+        None,
+        vec![Event::PluginRuntimeUpdated {
+            runtime: Box::default(),
+        }],
+    )])
+    .await
+    .unwrap();
+    assert_eq!(
+        db.load_state().await.unwrap().0.plugin_runtime,
+        PluginRuntime::default()
+    );
+}
+
+#[tokio::test]
+async fn item_instances_survive_reload_updates_and_deletion() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = new_campaign(&dir).await;
+    let mut item = ItemDto {
+        id: ItemId(v7(0x2210)),
+        name: "Wand".into(),
+        type_id: "equipment".into(),
+        is_template: false,
+        template: Some(ItemId(v7(0x2211))),
+        owner: None,
+        visible_to_players: false,
+        sheet_json: r#"{"charges":3,"state":"ready"}"#.into(),
+        version: Version(1),
+    };
+    db.project(&[record(
+        1,
+        Some(0x2212),
+        vec![Event::ItemCreated { item: item.clone() }],
+    )])
+    .await
+    .unwrap();
+    assert_eq!(db.load_state().await.unwrap().0.items[&item.id], item);
+    item.sheet_json = r#"{"charges":2,"state":"used"}"#.into();
+    item.version = Version(2);
+    db.project(&[record(
+        2,
+        Some(0x2213),
+        vec![Event::ItemUpdated { item: item.clone() }],
+    )])
+    .await
+    .unwrap();
+    assert_eq!(db.load_state().await.unwrap().0.items[&item.id], item);
+    db.project(&[record(
+        3,
+        Some(0x2214),
+        vec![Event::ItemDeleted { id: item.id }],
+    )])
+    .await
+    .unwrap();
+    assert!(db.load_state().await.unwrap().0.items.is_empty());
 }

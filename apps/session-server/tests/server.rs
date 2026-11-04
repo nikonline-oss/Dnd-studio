@@ -2,6 +2,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)] // test code
 
+use std::collections::VecDeque;
 use std::path::Path;
 use std::time::Duration;
 
@@ -273,7 +274,10 @@ impl Harness {
             .headers_mut()
             .insert("authorization", format!("Bearer {token}").parse().unwrap());
         let (stream, _) = tokio_tungstenite::connect_async(request).await?;
-        Ok(Ws { stream })
+        Ok(Ws {
+            stream,
+            stash: VecDeque::new(),
+        })
     }
 }
 
@@ -290,6 +294,8 @@ struct Ws {
     stream: tokio_tungstenite::WebSocketStream<
         tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
     >,
+    /// Messages drained from the socket while waiting on another one (see [`until_draining`]).
+    stash: VecDeque<ServerMessage>,
 }
 
 impl Ws {
@@ -310,8 +316,11 @@ impl Ws {
         id
     }
 
-    /// The next server message (text frames only).
+    /// The next server message: stashed (drained earlier) first, then text frames.
     async fn next(&mut self) -> ServerMessage {
+        if let Some(stashed) = self.stash.pop_front() {
+            return stashed;
+        }
         self.next_envelope().await.body
     }
 
@@ -1606,10 +1615,23 @@ async fn the_root_says_the_server_works() {
     h.server.stop().await.unwrap();
 }
 
-/// The next message `pick` accepts; others are skipped.
-async fn until<T>(ws: &mut Ws, mut pick: impl FnMut(ServerMessage) -> Option<T>) -> T {
+/// The next message `pick` accepts from `ws`, also draining `other` into its stash: a socket
+/// nobody reads eventually fills its send buffer (the plugin rules batch is large), and then
+/// that connection's own intents stop reaching the session.
+async fn until_draining<T>(
+    ws: &mut Ws,
+    other: &mut Ws,
+    mut pick: impl FnMut(ServerMessage) -> Option<T>,
+) -> T {
     loop {
-        if let Some(found) = pick(ws.next().await) {
+        let msg = tokio::select! {
+            msg = ws.next() => msg,
+            envelope = other.next_envelope() => {
+                other.stash.push_back(envelope.body);
+                continue;
+            }
+        };
+        if let Some(found) = pick(msg) {
             return found;
         }
     }
@@ -1778,7 +1800,7 @@ async fn a_trigger_reveals_a_secret_through_the_server() {
                 intent: intent.clone(),
             })))
             .await;
-        until(&mut gm_ws, |m| match m {
+        until_draining(&mut gm_ws, &mut mira_ws, |m| match m {
             ServerMessage::Accepted(a) if a.intent_id == intent_id => Some(()),
             ServerMessage::Rejected(r) if r.intent_id == intent_id => {
                 panic!("{intent:?} rejected: {:?}", r.reason)
@@ -1805,7 +1827,7 @@ async fn a_trigger_reveals_a_secret_through_the_server() {
 
     // A failed check: the roll, and nothing else.
     mira_ws.send(roll(0)).await;
-    let batch = until(&mut gm_ws, |m| match m {
+    let batch = until_draining(&mut gm_ws, &mut mira_ws, |m| match m {
         ServerMessage::Events(b) if b.caused_by == Some(IntentId(v7(0x70))) => Some(b),
         _ => None,
     })
@@ -1825,13 +1847,13 @@ async fn a_trigger_reveals_a_secret_through_the_server() {
             },
         })))
         .await;
-    until(&mut gm_ws, |m| match m {
+    until_draining(&mut gm_ws, &mut mira_ws, |m| match m {
         ServerMessage::Accepted(a) if a.intent_id == update => Some(()),
         _ => None,
     })
     .await;
     mira_ws.send(roll(1)).await;
-    let batch = until(&mut gm_ws, |m| match m {
+    let batch = until_draining(&mut gm_ws, &mut mira_ws, |m| match m {
         ServerMessage::Events(b) if b.caused_by == Some(IntentId(v7(0x71))) => Some(b),
         _ => None,
     })
@@ -1845,7 +1867,7 @@ async fn a_trigger_reveals_a_secret_through_the_server() {
     );
 
     // The player is sent a fresh view: the card is open, no zone or trigger in sight.
-    let view = until(&mut mira_ws, |m| match m {
+    let view = until_draining(&mut mira_ws, &mut gm_ws, |m| match m {
         ServerMessage::Snapshot(s) if s.board_nodes.iter().any(|n| n.id == node) => Some(*s),
         _ => None,
     })
@@ -1858,5 +1880,25 @@ async fn a_trigger_reveals_a_secret_through_the_server() {
         Some(BoardVisibility::Players)
     );
     assert!(view.zones.is_empty() && view.triggers.is_empty());
+    h.server.stop().await.unwrap();
+}
+
+#[tokio::test]
+async fn gm_ordinary_messages_keep_the_configured_transport_limit() {
+    let h = Harness::start(Limits {
+        max_message_bytes: 512,
+        ..relaxed()
+    })
+    .await;
+    let created = h.create().await;
+    let gm = h.join_gm(&created).await;
+    let mut ws = h.connect(created.session_id, &gm.token).await;
+    ws.snapshot().await;
+    // Valid JSON, but not a plugin installation. The wider GM transport must not bypass this bound.
+    let message = Envelope::new(MessageId::new_v7(), 0, ClientMessage::Ping);
+    let mut text = serde_json::to_string(&message).unwrap();
+    text.push_str(&" ".repeat(1024));
+    ws.send_raw(text).await;
+    assert_eq!(ws.closed().await, "message_too_large");
     h.server.stop().await.unwrap();
 }

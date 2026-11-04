@@ -28,6 +28,15 @@ impl Computed {
         definitions: &BTreeMap<String, String>,
         sheet: &C,
     ) -> Result<Self, ExprError> {
+        Self::resolve_adjusted(definitions, sheet, |_, value| value)
+    }
+
+    /// Resolve in dependency order, applying a caller-provided numeric adjustment before dependants read each value.
+    pub fn resolve_adjusted<C: Context + ?Sized>(
+        definitions: &BTreeMap<String, String>,
+        sheet: &C,
+        adjust: impl Fn(&str, i64) -> i64,
+    ) -> Result<Self, ExprError> {
         let in_field = |field: &str, source| ExprError::Computed {
             field: field.to_owned(),
             source: Box::new(source),
@@ -67,7 +76,7 @@ impl Computed {
                 .eval(&scope)
                 .and_then(Value::as_integer)
                 .map_err(|e| in_field(name, e))?;
-            values.insert(name.to_owned(), value);
+            values.insert(name.to_owned(), adjust(name, value));
         }
         Ok(Self { values })
     }

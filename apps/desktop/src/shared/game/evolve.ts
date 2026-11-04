@@ -18,16 +18,30 @@ export function applyEvent(snapshot: Snapshot, event: Event): Snapshot {
   switch (event.kind) {
     case 'image_presentation_changed':
       return { ...snapshot, presented_image: event.presentation };
+    case 'rules_view_updated':
+      return { ...snapshot, rules_view: event.view };
+    case 'item_created':
+    case 'item_updated':
+      return { ...snapshot, items: upsert(snapshot.items ?? [], event.item) };
+    case 'item_deleted':
+      return { ...snapshot, items: (snapshot.items ?? []).filter((i) => i.id !== event.id) };
+
+    case 'game_time_advanced':
+      return { ...snapshot, campaign: { ...snapshot.campaign, game_clock: event.clock } };
     case 'campaign_meta_updated':
       return { ...snapshot, campaign: event.campaign };
     case 'map_created':
     case 'map_updated':
       return { ...snapshot, maps: upsert(snapshot.maps, event.map) };
-    case 'map_deleted':
+    case 'map_deleted': {
+      const removedTokens = new Set(
+        snapshot.tokens.filter((t) => t.map_id === event.id).map((t) => t.id),
+      );
       return {
         ...snapshot,
         maps: snapshot.maps.filter((m) => m.id !== event.id),
         tokens: snapshot.tokens.filter((t) => t.map_id !== event.id),
+        effects: (snapshot.effects ?? []).filter((e) => !removedTokens.has(e.token)),
         fog: snapshot.fog.filter((f) => f.map_id !== event.id),
         zones: snapshot.zones.filter((z) => z.map_id !== event.id),
         // The map's combat goes with it.
@@ -36,6 +50,7 @@ export function applyEvent(snapshot: Snapshot, event: Event): Snapshot {
           snapshot.combats.filter((c) => c.map_id === event.id).map((c) => c.id),
         ),
       };
+    }
     case 'fog_applied': {
       // Fog of an unknown map is ignored; a replayed operation is drawn once (as in the core).
       if (!snapshot.maps.some((m) => m.id === event.map_id)) return snapshot;
@@ -70,6 +85,7 @@ export function applyEvent(snapshot: Snapshot, event: Event): Snapshot {
       return {
         ...snapshot,
         tokens: snapshot.tokens.filter((t) => t.id !== event.id),
+        effects: (snapshot.effects ?? []).filter((e) => e.token !== event.id),
         // Its combatant stays in the fight without a token.
         combatants: snapshot.combatants.map((c) =>
           c.token_id === event.id ? { ...c, token_id: null } : c,
@@ -128,6 +144,8 @@ export function applyEvent(snapshot: Snapshot, event: Event): Snapshot {
       };
     case 'user_joined':
       return { ...snapshot, users: upsert(snapshot.users, event.user) };
+    case 'plugin_runtime_updated':
+      return { ...snapshot, plugin_runtime: event.runtime };
     case 'plugin_installed':
       return {
         ...snapshot,

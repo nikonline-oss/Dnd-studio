@@ -16,6 +16,8 @@ use dnd_protocol::{
 #[derive(Clone, Debug, PartialEq)]
 pub struct GameState {
     pub presented_image: Option<dnd_protocol::model::PresentedImageDto>,
+    pub items: BTreeMap<dnd_protocol::ItemId, dnd_protocol::ItemDto>,
+    pub plugin_runtime: dnd_protocol::PluginRuntime,
     pub campaign: CampaignMeta,
     pub maps: BTreeMap<MapId, MapDto>,
     pub tokens: BTreeMap<TokenId, TokenDto>,
@@ -59,7 +61,10 @@ impl GameState {
     #[must_use]
     pub fn new(name: impl Into<String>) -> Self {
         Self {
+            items: BTreeMap::new(),
+            plugin_runtime: Default::default(),
             campaign: CampaignMeta {
+                game_clock: Default::default(),
                 name: name.into(),
                 description: String::new(),
                 version: Version::INITIAL,
@@ -105,6 +110,8 @@ impl GameState {
     pub fn from_snapshot(snapshot: Snapshot) -> Self {
         Self {
             presented_image: snapshot.presented_image,
+            items: snapshot.items.into_iter().map(|i| (i.id, i)).collect(),
+            plugin_runtime: snapshot.plugin_runtime,
             campaign: snapshot.campaign,
             maps: snapshot.maps.into_iter().map(|m| (m.id, m)).collect(),
             tokens: snapshot.tokens.into_iter().map(|t| (t.id, t)).collect(),
@@ -186,6 +193,9 @@ impl GameState {
     pub fn to_snapshot(&self, seq: Seq) -> Snapshot {
         Snapshot {
             presented_image: self.presented_image.clone(),
+            rules_view: crate::rules_view(self),
+            items: self.items.values().cloned().collect(),
+            plugin_runtime: self.plugin_runtime.clone(),
             seq,
             campaign: self.campaign.clone(),
             maps: self.maps.values().cloned().collect(),

@@ -183,6 +183,33 @@ export function ZoneList({ mapId }: { mapId: string }) {
                   });
                 }}
               />
+              {(['sight', 'effect'] as const).map((channel) => (
+                <label key={channel} className="zone-occlusion-option">
+                  <input
+                    type="checkbox"
+                    aria-label={t(`zones.block${channel === 'sight' ? 'Sight' : 'Effect'}`, {
+                      name: zone.name,
+                    })}
+                    checked={zone.occlusion?.[channel] ?? false}
+                    disabled={submit.isPending}
+                    onChange={(event) => {
+                      submit.mutate({
+                        intent: {
+                          kind: 'set_zone_occlusion',
+                          id: zone.id,
+                          occlusion: {
+                            sight: zone.occlusion?.sight ?? false,
+                            effect: zone.occlusion?.effect ?? false,
+                            [channel]: event.target.checked,
+                          },
+                        },
+                        expectedVersion: zone.version,
+                      });
+                    }}
+                  />
+                  {t(`zones.${channel === 'sight' ? 'sight' : 'effect'}`)}
+                </label>
+              ))}
               <span className="row-actions">
                 <IconButton
                   icon="pointer"
