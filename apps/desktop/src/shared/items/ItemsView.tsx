@@ -35,9 +35,12 @@ export function ItemsView({ owner }: { owner?: string }) {
   }
   return (
     <section className="items-view">
-      <h3>{t('items.title')}</h3>
+      <header className="control-page-header">
+        <h2>{t('items.title')}</h2>
+      </header>
       {gm && !owner && (
         <form
+          className="items-create control-section"
           onSubmit={(e) => {
             e.preventDefault();
             submit.mutate(
@@ -59,184 +62,200 @@ export function ItemsView({ owner }: { owner?: string }) {
             );
           }}
         >
-          <input
-            aria-label={t('items.name')}
-            value={name}
-            onChange={(e) => {
-              setName(e.target.value);
-            }}
-            placeholder={t('items.name')}
-            maxLength={200}
-          />
-          <select
-            aria-label={t('items.type')}
-            value={typeId || defs[0]?.id || ''}
-            onChange={(e) => {
-              setTypeId(e.target.value);
-            }}
-          >
-            {defs.map((d) => (
-              <option key={d.id} value={d.id}>
-                {labelText(d.label, i18n.language)}
-              </option>
-            ))}
-          </select>
-          <button disabled={!name.trim() || !defs.length || submit.isPending}>
+          <label className="control-field">
+            <span>{t('items.name')}</span>
+            <input
+              aria-label={t('items.name')}
+              value={name}
+              onChange={(e) => {
+                setName(e.target.value);
+              }}
+              placeholder={t('items.name')}
+              maxLength={200}
+            />
+          </label>
+          <label className="control-field">
+            <span>{t('items.type')}</span>
+            <select
+              aria-label={t('items.type')}
+              value={typeId || defs[0]?.id || ''}
+              onChange={(e) => {
+                setTypeId(e.target.value);
+              }}
+            >
+              {defs.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {labelText(d.label, i18n.language)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button className="primary" disabled={!name.trim() || !defs.length || submit.isPending}>
             {t('items.createTemplate')}
           </button>
         </form>
       )}
-      <div className="items-list">
-        {items.map((i) => (
-          <button
-            key={i.id}
-            aria-pressed={item?.id === i.id}
-            onClick={() => {
-              setSelected(i.id);
-            }}
+      <div className="items-workspace">
+        <nav className="items-list" aria-label={t('items.library')}>
+          {items.map((i) => (
+            <button
+              key={i.id}
+              aria-pressed={item?.id === i.id}
+              onClick={() => {
+                setSelected(i.id);
+              }}
+            >
+              <strong>{i.name}</strong>
+              <span className="muted">
+                {t(i.is_template ? 'items.template' : 'items.instance')}
+                {i.owner && ` · ${snapshot?.characters.find((c) => c.id === i.owner)?.name ?? ''}`}
+              </span>
+            </button>
+          ))}
+        </nav>
+        {item && (
+          <section
+            key={item.id}
+            className="items-detail control-section"
+            aria-label={t('items.details')}
           >
-            {i.name} · {t(i.is_template ? 'items.template' : 'items.instance')}
-            {i.owner && ` · ${snapshot?.characters.find((c) => c.id === i.owner)?.name ?? ''}`}
-          </button>
-        ))}
-      </div>
-      {item && (
-        <div key={item.id}>
-          <h4>{item.name}</h4>
-          {gm && (
-            <>
-              <label>
-                {t('items.name')}
-                <input
-                  defaultValue={item.name}
-                  onBlur={(e) => {
-                    if (e.target.value.trim() && e.target.value !== item.name)
+            <h3>{item.name}</h3>
+            {gm && (
+              <div className="items-properties">
+                <label className="control-field">
+                  {t('items.name')}
+                  <input
+                    defaultValue={item.name}
+                    onBlur={(e) => {
+                      if (e.target.value.trim() && e.target.value !== item.name)
+                        submit.mutate({
+                          intent: {
+                            kind: 'update_item',
+                            id: item.id,
+                            name: e.target.value,
+                            sheet_json: null,
+                            visible_to_players: null,
+                          },
+                          expectedVersion: item.version,
+                        });
+                    }}
+                  />
+                </label>
+                <label className="control-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={item.visible_to_players}
+                    onChange={(e) => {
                       submit.mutate({
                         intent: {
                           kind: 'update_item',
                           id: item.id,
-                          name: e.target.value,
+                          name: null,
                           sheet_json: null,
-                          visible_to_players: null,
+                          visible_to_players: e.target.checked,
                         },
                         expectedVersion: item.version,
                       });
-                  }}
-                />
-              </label>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={item.visible_to_players}
-                  onChange={(e) => {
-                    submit.mutate({
-                      intent: {
-                        kind: 'update_item',
-                        id: item.id,
-                        name: null,
-                        sheet_json: null,
-                        visible_to_players: e.target.checked,
-                      },
-                      expectedVersion: item.version,
-                    });
-                  }}
-                />
-                {t('items.shared')}
-              </label>
-              <label>
-                {t('items.owner')}
-                <select
-                  value={item.is_template ? recipient : (item.owner ?? '')}
-                  onChange={(e) => {
-                    if (item.is_template) {
-                      setRecipient(e.target.value);
-                    } else {
-                      submit.mutate({
-                        intent: {
-                          kind: 'transfer_item',
-                          id: item.id,
-                          owner: e.target.value || null,
+                    }}
+                  />
+                  {t('items.shared')}
+                </label>
+                <label className="control-field">
+                  {t('items.owner')}
+                  <select
+                    value={item.is_template ? recipient : (item.owner ?? '')}
+                    onChange={(e) => {
+                      if (item.is_template) {
+                        setRecipient(e.target.value);
+                      } else {
+                        submit.mutate({
+                          intent: {
+                            kind: 'transfer_item',
+                            id: item.id,
+                            owner: e.target.value || null,
+                          },
+                          expectedVersion: item.version,
+                        });
+                      }
+                    }}
+                  >
+                    <option value="">{t('items.noOwner')}</option>
+                    {snapshot?.characters.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {item.is_template && (
+                  <button
+                    disabled={submit.isPending}
+                    onClick={() => {
+                      const id = uuidv7();
+                      submit.mutate(
+                        {
+                          intent: {
+                            kind: 'instantiate_item',
+                            id,
+                            template: item.id,
+                            owner: recipient || null,
+                          },
                         },
-                        expectedVersion: item.version,
-                      });
-                    }
-                  }}
-                >
-                  <option value="">{t('items.noOwner')}</option>
-                  {snapshot?.characters.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              {item.is_template && (
-                <button
-                  disabled={submit.isPending}
-                  onClick={() => {
-                    const id = uuidv7();
-                    submit.mutate(
-                      {
-                        intent: {
-                          kind: 'instantiate_item',
-                          id,
-                          template: item.id,
-                          owner: recipient || null,
+                        {
+                          onSuccess: () => {
+                            setSelected(id);
+                          },
                         },
-                      },
-                      {
-                        onSuccess: () => {
-                          setSelected(id);
-                        },
-                      },
-                    );
-                  }}
-                >
-                  {t('items.instantiate')}
-                </button>
-              )}
-            </>
-          )}
-          {def ? (
-            <CharacterSheet
-              layout={def.sheet_layout as SheetNode}
-              schema={def.sheet_schema as JsonSchema}
-              data={data}
-              computed={{}}
-              resources={[]}
-              rolls={[]}
-              canEdit={canEdit && !submit.isPending}
-              onRoll={() => undefined}
-              onChange={(next) => {
-                submit.mutate({
-                  intent: {
-                    kind: 'update_item',
-                    id: item.id,
-                    name: null,
-                    sheet_json: JSON.stringify(next),
-                    visible_to_players: null,
-                  },
-                  expectedVersion: item.version,
-                });
-              }}
-            />
-          ) : (
-            <p>{t('items.missingType')}</p>
-          )}
-          {gm && (
-            <button
-              onClick={() => {
-                submit.mutate({
-                  intent: { kind: 'delete_item', id: item.id },
-                  expectedVersion: item.version,
-                });
-              }}
-            >
-              {t('items.delete')}
-            </button>
-          )}
-        </div>
-      )}
+                      );
+                    }}
+                  >
+                    {t('items.instantiate')}
+                  </button>
+                )}
+              </div>
+            )}
+            {def ? (
+              <CharacterSheet
+                layout={def.sheet_layout as SheetNode}
+                schema={def.sheet_schema as JsonSchema}
+                data={data}
+                computed={{}}
+                resources={[]}
+                rolls={[]}
+                canEdit={canEdit && !submit.isPending}
+                onRoll={() => undefined}
+                onChange={(next) => {
+                  submit.mutate({
+                    intent: {
+                      kind: 'update_item',
+                      id: item.id,
+                      name: null,
+                      sheet_json: JSON.stringify(next),
+                      visible_to_players: null,
+                    },
+                    expectedVersion: item.version,
+                  });
+                }}
+              />
+            ) : (
+              <p>{t('items.missingType')}</p>
+            )}
+            {gm && (
+              <button
+                className="danger items-delete"
+                onClick={() => {
+                  submit.mutate({
+                    intent: { kind: 'delete_item', id: item.id },
+                    expectedVersion: item.version,
+                  });
+                }}
+              >
+                {t('items.delete')}
+              </button>
+            )}
+          </section>
+        )}
+      </div>
       {!items.length && <p className="muted">{t('items.empty')}</p>}
       <ErrorText error={submit.error} />
     </section>

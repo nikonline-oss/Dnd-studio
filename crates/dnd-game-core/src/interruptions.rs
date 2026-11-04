@@ -13,6 +13,12 @@ fn invalid() -> RejectReason {
 fn action<'a>(s: &'a GameState, id: &str) -> Option<&'a PluginAction> {
     s.rules()?.mechanics.actions.iter().find(|a| a.id == id)
 }
+fn frame_action<'a>(s: &'a GameState, frame: &'a PendingAction) -> Option<&'a PluginAction> {
+    frame
+        .definition
+        .as_ref()
+        .or_else(|| action(s, &frame.action))
+}
 pub(crate) fn reserved(s: &GameState, owner: CharacterId, resource: &str) -> i64 {
     s.plugin_runtime
         .action_stacks
@@ -229,7 +235,7 @@ fn refresh(s: &GameState, frame: &mut PendingAction) {
         frame.offers.clear();
         return;
     };
-    let Some(a) = action(s, &frame.action) else {
+    let Some(a) = frame_action(s, frame).cloned() else {
         frame.offers.clear();
         return;
     };
@@ -242,7 +248,7 @@ fn refresh(s: &GameState, frame: &mut PendingAction) {
                     .find(|r| r.id == offer.rule && r.action == offer.action)
             })
             .zip(s.tokens.get(&offer.source))
-            .is_some_and(|(r, reactor)| rule_matches(s, r, reactor, source, a))
+            .is_some_and(|(r, reactor)| rule_matches(s, r, reactor, source, &a))
     });
     frame.awaiting_reactions = !frame.offers.is_empty();
     for (i, offer) in frame.offers.iter_mut().enumerate() {
@@ -261,9 +267,10 @@ fn prepare(
     at: i64,
     rng: &mut dyn GameRng,
 ) -> Result<(Vec<Event>, PendingAction), RejectReason> {
-    let a = action(s, id).ok_or_else(invalid)?;
+    let a = crate::sheet_actions::resolve(s, source, id).ok_or_else(invalid)?;
     let token = s.tokens.get(&source).ok_or_else(invalid)?;
     let frame = PendingAction {
+        definition: id.starts_with("sheet:").then(|| a.clone()),
         awaiting_reactions: false,
         id: fresh_frame_id(s, rng)?,
         source,
@@ -274,7 +281,7 @@ fn prepare(
         target: if a.target_self { Some(source) } else { target },
         x,
         y,
-        deferred: deferred(s, token, a)?,
+        deferred: deferred(s, token, &a)?,
         offers: Vec::new(),
         ready: true,
     };
@@ -304,12 +311,12 @@ pub(crate) fn begin(
     at: i64,
     rng: &mut dyn GameRng,
 ) -> Result<Option<Vec<Event>>, RejectReason> {
-    let a = action(s, id).ok_or_else(invalid)?;
+    let a = crate::sheet_actions::resolve(s, source, id).ok_or_else(invalid)?;
     if a.reaction_only {
         return Ok(None);
     }
     let token = s.tokens.get(&source).ok_or_else(invalid)?;
-    let reactions = offers(s, token, a);
+    let reactions = offers(s, token, &a);
     if reactions.is_empty() {
         return Ok(None);
     }
@@ -342,7 +349,7 @@ fn commit(
     f: &PendingAction,
     rng: &mut dyn GameRng,
 ) -> Result<Vec<Event>, RejectReason> {
-    let a = action(s, &f.action).ok_or_else(invalid)?;
+    let a = frame_action(s, f).ok_or_else(invalid)?;
     let token = s.tokens.get(&f.source).ok_or_else(invalid)?;
     if !eligible_base(s, token, a) {
         return Err(invalid());
@@ -404,7 +411,7 @@ fn counter(
     at: i64,
     rng: &mut dyn GameRng,
 ) -> Result<(Vec<Event>, bool), RejectReason> {
-    let def = action(s, &f.action)
+    let def = frame_action(s, f)
         .and_then(|a| a.interrupt.as_ref())
         .ok_or_else(invalid)?;
     let source = s.tokens.get(&f.source).ok_or_else(invalid)?;
@@ -442,7 +449,7 @@ fn counter(
         .as_bool()
         .unwrap_or_else(|| value.as_integer().is_ok_and(|n| n != 0));
     let mut work = s.clone();
-    let a = action(s, &f.action).ok_or_else(invalid)?;
+    let a = frame_action(s, f).ok_or_else(invalid)?;
     work.plugin_runtime
         .visuals
         .retain(|v| at.saturating_sub(v.at_ms) < 5000);
@@ -488,11 +495,11 @@ fn drain(
         }
         let frame = stack.frames.pop().ok_or_else(invalid)?;
         put(&mut work, &stack); // Release only this frame's reservations before committing it.
-        if action(&work, &frame.action).is_some_and(|a| a.interrupt.is_some()) {
+        if frame_action(&work, &frame).is_some_and(|a| a.interrupt.is_some()) {
             let Some(parent) = stack.frames.last().cloned() else {
                 return Err(invalid());
             };
-            let path_valid = action(&work, &frame.action).is_some_and(|a| {
+            let path_valid = frame_action(&work, &frame).is_some_and(|a| {
                 work.tokens.get(&frame.source).is_some_and(|source| {
                     work.tokens.get(&parent.source).is_some_and(|target| {
                         source.map_id == target.map_id
@@ -525,7 +532,11 @@ fn drain(
                 &actor(&frame),
                 at,
                 rng,
-                ExecutionPhase::Resume(frame.deferred.clone(), frame.id),
+                ExecutionPhase::Resume(
+                    frame.deferred.clone(),
+                    frame.id,
+                    frame.definition.clone().map(Box::new),
+                ),
             );
             match result {
                 Ok(events) => {
@@ -682,7 +693,7 @@ pub(crate) fn cleanup(
                 work.tokens.get(&f.source).is_some_and(|t| {
                     t.character_id == Some(f.owner)
                         && t.map_id == stack.map
-                        && action(&work, &f.action).is_some_and(|a| eligible_base(&work, t, a))
+                        && frame_action(&work, f).is_some_and(|a| eligible_base(&work, t, a))
                 }) && f.controller.is_none_or(|user| {
                     work.characters
                         .get(&f.owner)

@@ -1193,6 +1193,27 @@
                 "ru": "Урон",
                 "en": "Damage"
               }
+            },
+            {
+              "type": "field",
+              "path": "range",
+              "label": {
+                "ru": "Дальность (клетки)",
+                "en": "Range (cells)"
+              }
+            },
+            {
+              "type": "field",
+              "path": "damage_type",
+              "label": {
+                "ru": "Тип урона",
+                "en": "Damage type"
+              },
+              "widget": "select"
+            },
+            {
+              "type": "action",
+              "collection": "attacks"
             }
           ]
         },
@@ -1705,6 +1726,37 @@
         "en": "Magic"
       },
       "children": [
+        {
+          "type": "list",
+          "path": "spells",
+          "label": {
+            "ru": "Заклинания",
+            "en": "Spells"
+          },
+          "item": [
+            {
+              "type": "field",
+              "path": "name",
+              "label": {
+                "ru": "Название (необязательно)",
+                "en": "Name (optional)"
+              }
+            },
+            {
+              "type": "action",
+              "collection": "spells"
+            },
+            {
+              "type": "field",
+              "path": "notes",
+              "label": {
+                "ru": "Заметки",
+                "en": "Notes"
+              },
+              "widget": "textarea"
+            }
+          ]
+        },
         {
           "type": "field",
           "path": "automation.spell_dc",

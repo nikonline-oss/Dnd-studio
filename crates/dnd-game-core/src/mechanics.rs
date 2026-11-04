@@ -205,9 +205,7 @@ pub(crate) fn apply(
             {
                 return Some(Err(invalid()));
             }
-            if state
-                .rules()
-                .and_then(|r| r.mechanics.actions.iter().find(|a| a.id == *action))
+            if crate::sheet_actions::resolve(state, *source, action)
                 .is_some_and(|a| a.reaction_only)
             {
                 return Some(Err(invalid()));
@@ -430,9 +428,7 @@ pub(crate) fn execute(
     at_ms: i64,
     rng: &mut dyn GameRng,
 ) -> Result<Vec<Event>, RejectReason> {
-    if state
-        .rules()
-        .and_then(|r| r.mechanics.actions.iter().find(|a| a.id == action_id))
+    if crate::sheet_actions::resolve(state, source_id, action_id)
         .is_some_and(|a| a.interrupt.is_some())
     {
         return Err(invalid());
@@ -462,7 +458,7 @@ pub(crate) fn execute(
 pub(crate) enum ExecutionPhase {
     Full,
     Prepare,
-    Resume(Vec<DeferredCost>, IntentId),
+    Resume(Vec<DeferredCost>, IntentId, Option<Box<PluginAction>>),
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -478,12 +474,11 @@ pub(crate) fn execute_body(
     rng: &mut dyn GameRng,
     phase: ExecutionPhase,
 ) -> Result<Vec<Event>, RejectReason> {
-    let mut action = state
-        .rules()
-        .and_then(|r| r.mechanics.actions.iter().find(|a| a.id == action_id))
-        .ok_or_else(invalid)?
-        .clone();
-    if let ExecutionPhase::Resume(costs, _) = &phase {
+    let mut action = match &phase {
+        ExecutionPhase::Resume(_, _, Some(definition)) => definition.as_ref().clone(),
+        _ => crate::sheet_actions::resolve(state, source_id, action_id).ok_or_else(invalid)?,
+    };
+    if let ExecutionPhase::Resume(costs, _, _) = &phase {
         action.cost = None;
         action.costs = costs
             .iter()
@@ -636,7 +631,7 @@ pub(crate) fn execute_body(
         .collect();
     if action.save_prompt {
         let root = match &phase {
-            ExecutionPhase::Resume(_, id) => Some(*id),
+            ExecutionPhase::Resume(_, id, _) => Some(*id),
             _ => None,
         };
         let pending = crate::saves::start(
@@ -1048,6 +1043,7 @@ pub(crate) fn apply_damage(
 }
 
 pub(crate) fn validate(rules: &SystemRulesDto) -> Result<(), RejectReason> {
+    crate::sheet_actions::validate(rules)?;
     let m = &rules.mechanics;
     if m.calendar
         .as_ref()

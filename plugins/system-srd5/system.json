@@ -1006,6 +1006,56 @@
           "area_line_of_effect": false
         },
         "sheet_group": "spells"
+      },
+      {
+        "feature": null,
+        "condition": "@hp.current > 0",
+        "range_cells": "12",
+        "radius_cells": null,
+        "attack_dice": "1d20 + @automation.attack_bonus",
+        "hit": "@natural == 20 || (@natural != 1 && @total >= @ac)",
+        "save_dice": null,
+        "save_dc": null,
+        "save_divisor": 2,
+        "damage_dice": "1d6 + @str_mod",
+        "resource": "hp",
+        "cost": null,
+        "visual": {
+          "color": "#efb64d",
+          "duration_ms": 700
+        },
+        "id": "ranged_attack",
+        "label": {
+          "ru": "Дальнобойная атака",
+          "en": "Ranged attack"
+        },
+        "distance_metric": "chebyshev",
+        "reaction_only": false,
+        "critical_if": "@natural == 20",
+        "critical_dice": "1d6",
+        "tags": ["weapon", "ranged"],
+        "timing": {
+          "turn": "own",
+          "feature": "turn_economy"
+        },
+        "spatial": {
+          "feature": "spatial_rules",
+          "sight": false,
+          "line_of_effect": true,
+          "area_line_of_effect": false
+        },
+        "sheet_group": "attacks",
+        "activation": "action",
+        "costs": [
+          {
+            "resource": "action",
+            "amount": "1",
+            "scope": "combat",
+            "feature": "turn_economy"
+          }
+        ],
+        "damage_profile": "standard_damage",
+        "damage_type": "slashing"
       }
     ],
     "movement_rules": [
@@ -1688,6 +1738,29 @@
             }
           ]
         }
+      }
+    ],
+    "sheet_actions": [
+      {
+        "id": "attacks",
+        "path": "attacks",
+        "name_field": "name",
+        "actions": ["melee_attack", "ranged_attack"],
+        "bindings": {
+          "damage_dice": "damage",
+          "range_cells": "range",
+          "damage_type": "damage_type"
+        },
+        "action_field": "action",
+        "attack_dice": "1d20 + @row.bonus"
+      },
+      {
+        "id": "spells",
+        "path": "spells",
+        "name_field": "name",
+        "action_field": "action",
+        "actions": ["fireball", "shield_of_faith"],
+        "bindings": {}
       }
     ]
   }

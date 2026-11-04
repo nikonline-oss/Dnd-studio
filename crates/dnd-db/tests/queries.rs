@@ -2168,6 +2168,7 @@ async fn plugin_runtime_is_projected_and_loaded() {
             id: IntentId(v7(0x9920)),
             map: MapId(v7(0x9921)),
             frames: vec![PendingAction {
+                definition: None,
                 awaiting_reactions: true,
                 id: IntentId(v7(0x9922)),
                 source: TokenId(v7(0x9923)),

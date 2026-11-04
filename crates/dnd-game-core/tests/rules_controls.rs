@@ -586,3 +586,198 @@ fn deleting_a_character_detaches_owned_items_atomically() {
     assert!(!s.items[&id].visible_to_players);
     assert_eq!(s.items[&id].version, Version(2));
 }
+
+fn row_action(s: &dnd_game_core::GameState, collection: &str) -> ActionAvailability {
+    dnd_game_core::rules_view(s)
+        .tokens
+        .into_iter()
+        .find(|t| t.token == tid(0))
+        .unwrap()
+        .actions
+        .into_iter()
+        .find(|a| {
+            a.sheet_action
+                .as_ref()
+                .is_some_and(|r| r.collection == collection)
+        })
+        .unwrap()
+}
+fn edit_sheet(
+    s: &mut dnd_game_core::GameState,
+    n: u128,
+    edit: impl FnOnce(&mut serde_json::Value),
+) {
+    let c = &s.characters[&cid(n)];
+    let mut data: serde_json::Value = serde_json::from_str(&c.sheet_json).unwrap();
+    edit(&mut data);
+    let version = c.version;
+    run(
+        s,
+        Role::Gm,
+        Intent::UpdateCharacter {
+            id: cid(n),
+            name: None,
+            sheet_json: Some(data.to_string()),
+        },
+        Some(version),
+    )
+    .unwrap();
+}
+#[test]
+fn sheet_attack_uses_its_own_damage_range_and_bonus_with_authoritative_permissions() {
+    let mut s = world();
+    edit_sheet(
+        &mut s,
+        0,
+        |v| v["attacks"] = serde_json::json!([{"name":"Ice lance","action":"ranged_attack","bonus":17,"damage":"1d8+3","range":12,"damage_type":"cold"}]),
+    );
+    let available = row_action(&s, "attacks");
+    let row = available.sheet_action.unwrap();
+    assert!(available.enabled);
+    assert_eq!(available.range_cells, 12);
+    assert_eq!(row.action.label.get("en"), "Ice lance");
+    assert_eq!(row.action.damage_dice, "d8+3");
+    assert_eq!(row.action.critical_dice.as_deref(), Some("0+d8"));
+    assert_eq!(row.action.attack_dice.as_deref(), Some("0+d20+17"));
+    assert_eq!(row.action.tags, ["weapon", "ranged"]);
+    let cast = Intent::ExecutePluginAction {
+        source: tid(0),
+        action: available.id,
+        target: Some(tid(1)),
+        x: 0,
+        y: 0,
+    };
+    let before = s.clone();
+    assert!(run(&mut s, Role::Spectator, cast.clone(), None).is_err());
+    assert!(
+        dnd_game_core::apply(
+            &s,
+            &envelope(cast.clone(), None),
+            &dnd_game_core::Actor {
+                role: Role::Player,
+                user_id: OTHER_PLAYER
+            },
+            &mut dnd_game_core::SplitMix64::new(0)
+        )
+        .is_err()
+    );
+    assert_eq!(s, before);
+    let events = run(&mut s, Role::Player, cast, None).unwrap();
+    assert!(events.iter().any(|e| matches!(e, Event::ChatMessagePosted { message } if message.body == "Ice lance" && message.roll.as_ref().is_some_and(|r| r.expression.contains("d8")))));
+    assert!(hp(&s, 1) < 100);
+}
+#[test]
+fn stale_row_action_cannot_cast_a_different_row_and_invalid_dice_cannot_execute() {
+    let mut s = world();
+    edit_sheet(
+        &mut s,
+        0,
+        |v| v["attacks"] = serde_json::json!([{"name":"First","bonus":2,"damage":"3"},{"name":"Second","bonus":4,"damage":"9"}]),
+    );
+    let id = row_action(&s, "attacks").id;
+    edit_sheet(&mut s, 0, |v| {
+        v["attacks"].as_array_mut().unwrap().remove(0);
+    });
+    let before = s.clone();
+    assert!(
+        run(
+            &mut s,
+            Role::Player,
+            Intent::ExecutePluginAction {
+                source: tid(0),
+                action: id,
+                target: Some(tid(1)),
+                x: 0,
+                y: 0
+            },
+            None
+        )
+        .is_err()
+    );
+    assert_eq!(s, before);
+    edit_sheet(&mut s, 0, |v| v["attacks"][0]["damage"] = "not dice".into());
+    assert!(
+        dnd_game_core::rules_view(&s)
+            .tokens
+            .iter()
+            .find(|t| t.token == tid(0))
+            .unwrap()
+            .actions
+            .iter()
+            .all(|a| a.sheet_action.is_none())
+    );
+}
+#[test]
+fn a_declared_sheet_spell_survives_list_changes_and_restart_without_changing_its_effect() {
+    let mut s = world();
+    edit_sheet(
+        &mut s,
+        0,
+        |v| {
+            v["spells"] = serde_json::json!([{"name":"My fireball","action":"fireball","notes":""}])
+        },
+    );
+    edit_sheet(&mut s, 1, |v| {
+        v["automation"]["can_counterspell"] = true.into();
+        v["automation"]["spell_slots_3"] = 1.into();
+    });
+    let id = row_action(&s, "spells").id;
+    run(
+        &mut s,
+        Role::Player,
+        Intent::ExecutePluginAction {
+            source: tid(0),
+            action: id,
+            target: None,
+            x: 0,
+            y: 0,
+        },
+        None,
+    )
+    .unwrap();
+    let frame = s.plugin_runtime.action_stacks[0].frames[0].clone();
+    assert!(frame.definition.is_some());
+    edit_sheet(&mut s, 0, |v| v["spells"] = serde_json::json!([]));
+    let json = serde_json::to_string(&s.to_snapshot(Seq(42))).unwrap();
+    s = dnd_game_core::GameState::from_snapshot(serde_json::from_str(&json).unwrap());
+    let stack = s.plugin_runtime.action_stacks[0].id;
+    run(
+        &mut s,
+        Role::Gm,
+        Intent::ResolveActionReaction {
+            stack,
+            frame: frame.id,
+            source: tid(1),
+            accept: false,
+        },
+        None,
+    )
+    .unwrap();
+    assert!(s.plugin_runtime.action_stacks.is_empty());
+    let save = &s.plugin_runtime.saves[0];
+    assert_eq!(save.action.label.get("en"), "My fireball");
+    assert_eq!(save.damage, 10);
+    assert_eq!(hp(&s, 1), 100);
+}
+
+#[test]
+fn sheet_action_collections_reject_unknown_rules_invalid_fields_and_unbounded_lists() {
+    let s = world();
+    let plugin = &s.plugins[s.system_plugin.as_ref().unwrap()];
+    for case in 0..5 {
+        let mut p = plugin.clone();
+        let rules = p.system.as_mut().unwrap();
+        match case {
+            0 => rules.mechanics.sheet_actions[0].actions = vec!["missing".into()],
+            1 => rules.mechanics.sheet_actions[0].attack_dice = Some("1d20 + @row.name".into()),
+            2 => {
+                rules.mechanics.sheet_actions[0]
+                    .bindings
+                    .insert(SheetActionField::RangeCells, "damage".into());
+            }
+            3 => rules.sheet_schema["properties"]["attacks"]["maxItems"] = 101.into(),
+            _ => rules.mechanics.sheet_actions[0].actions = vec!["counterspell".into()],
+        }
+        assert!(check_plugin(&p).is_err(), "invalid collection case {case}");
+    }
+}

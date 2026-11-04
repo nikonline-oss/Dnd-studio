@@ -34,9 +34,9 @@ export function GameClockPanel({
   const presets = steps.length ? steps.map(Number) : [60, 600, 3600, 28800];
   const describe = (n: number, u: CalendarUnit) => `${n} ${t(`calendar.units.${u}`)}`;
   return (
-    <div>
+    <div className="game-clock-panel">
       {date && (
-        <p role="status">
+        <p role="status" className="game-clock-date">
           {date.day} {labelText(date.month, lang)} {date.year} · {labelText(date.weekday, lang)}
           <br />
           {String(date.hour).padStart(2, '0')}:{String(date.minute).padStart(2, '0')} ·{' '}
@@ -72,41 +72,46 @@ export function GameClockPanel({
             );
           })}
         </div>
-        <label>
-          {t('calendar.advance')}
-          <input
-            type="number"
-            min={1}
-            max={10000}
-            value={amount}
-            onChange={(e) => {
-              setAmount(Number(e.target.value));
+        <div className="game-clock-advance">
+          <label className="control-field">
+            {t('calendar.advance')}
+            <input
+              type="number"
+              min={1}
+              max={10000}
+              value={amount}
+              onChange={(e) => {
+                setAmount(Number(e.target.value));
+              }}
+            />
+          </label>
+          <label className="control-field">
+            {t('calendar.unit')}
+            <select
+              aria-label={t('calendar.unit')}
+              value={unit}
+              onChange={(e) => {
+                setUnit(e.target.value as CalendarUnit);
+              }}
+            >
+              {UNITS.map((u) => (
+                <option key={u} value={u}>
+                  {t(`calendar.units.${u}`)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            disabled={!Number.isInteger(amount) || amount < 1 || amount > 10000}
+            onClick={() => {
+              setPending({ amount, unit, version: clock.version });
             }}
-          />
-        </label>
-        <select
-          aria-label={t('calendar.unit')}
-          value={unit}
-          onChange={(e) => {
-            setUnit(e.target.value as CalendarUnit);
-          }}
-        >
-          {UNITS.map((u) => (
-            <option key={u} value={u}>
-              {t(`calendar.units.${u}`)}
-            </option>
-          ))}
-        </select>
-        <button
-          disabled={!Number.isInteger(amount) || amount < 1 || amount > 10000}
-          onClick={() => {
-            setPending({ amount, unit, version: clock.version });
-          }}
-        >
-          {t('calendar.advance')}
-        </button>
+          >
+            {t('calendar.advance')}
+          </button>
+        </div>
         {pending && pending.version === clock.version && (
-          <div>
+          <div className="game-clock-confirm">
             <p>+ {describe(pending.amount, pending.unit)}</p>
             <button
               onClick={() => {

@@ -1256,6 +1256,74 @@
               }
             }
           ]
+        },
+        "sheet_actions": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "path", "name_field", "actions"],
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/ident"
+              },
+              "path": {
+                "$ref": "#/$defs/path"
+              },
+              "name_field": {
+                "$ref": "#/$defs/path"
+              },
+              "action_field": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/path"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "actions": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 32,
+                "uniqueItems": true,
+                "items": {
+                  "$ref": "#/$defs/ident"
+                }
+              },
+              "bindings": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "damage_dice": {
+                    "$ref": "#/$defs/path"
+                  },
+                  "range_cells": {
+                    "$ref": "#/$defs/path"
+                  },
+                  "radius_cells": {
+                    "$ref": "#/$defs/path"
+                  },
+                  "damage_type": {
+                    "$ref": "#/$defs/path"
+                  }
+                }
+              },
+              "attack_dice": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 256
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          }
         }
       },
       "required": []
@@ -1307,6 +1375,11 @@
           }
         }
       ]
+    },
+    "path": {
+      "type": "string",
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*$",
+      "maxLength": 256
     }
   }
 }

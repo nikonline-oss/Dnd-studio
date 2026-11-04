@@ -1,0 +1,366 @@
+/* Campaign controls remain readable in both a center pane and the narrow inspector. */
+.gm-dashboard,
+.plugin-settings,
+.items-view {
+  container-type: inline-size;
+  min-width: 0;
+  padding: 20px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.control-page-header {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 20px;
+}
+.control-page-header h2,
+.gm-dashboard-header h1 {
+  font-size: 20px;
+  line-height: 1.3;
+}
+.control-section {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+.control-section + .control-section {
+  margin-top: 20px;
+}
+.control-section h3 {
+  font-size: 15px;
+}
+.control-field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.control-checkbox {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.control-checkbox input[type='checkbox'] {
+  flex: 0 0 auto;
+  margin-top: 3px;
+}
+:is(.gm-dashboard, .plugin-settings, .items-view) :is(button, input, select) {
+  min-height: 32px;
+}
+:is(.gm-dashboard, .plugin-settings, .items-view) :is(input, select, textarea) {
+  min-width: 0;
+  max-width: 100%;
+}
+:is(.gm-dashboard, .plugin-settings, .items-view) button {
+  white-space: normal;
+  padding-block: 6px;
+  height: auto;
+  line-height: 1.35;
+}
+:is(.gm-dashboard, .plugin-settings, .items-view) input[type='checkbox'] {
+  min-height: 0;
+  width: 16px;
+  height: 16px;
+}
+.gm-dashboard-header {
+  gap: 12px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--color-border);
+  align-items: end;
+}
+.gm-dashboard-header > div {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+.gm-dashboard-header p {
+  margin-top: 6px;
+}
+.gm-dashboard-header > label {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+.gm-dashboard-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
+  gap: 18px;
+}
+.gm-card {
+  min-width: 0;
+  padding: 18px;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+.gm-card > summary {
+  padding-bottom: 2px;
+  line-height: 1.4;
+}
+.gm-card > :not(summary) {
+  margin-top: 14px;
+}
+.gm-card > p:empty {
+  display: none;
+}
+.gm-card :is(label, select, input) {
+  min-width: 0;
+}
+.gm-card label:not(.gm-rule) > :is(input:not([type='checkbox']), select) {
+  width: 100%;
+}
+.gm-card .gm-rule {
+  gap: 10px;
+  padding-block: 12px;
+  margin: 0;
+  border-top: 1px solid var(--color-border);
+}
+.gm-rule input {
+  flex: none;
+  margin-top: 3px;
+}
+.gm-rule small {
+  margin-top: 4px;
+  line-height: 1.5;
+}
+.gm-character-list li {
+  gap: 8px;
+  padding-block: 12px;
+}
+.gm-character-list li > span {
+  min-width: 100px;
+}
+.gm-action-form {
+  gap: 14px;
+}
+.gm-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.gm-confirm > p {
+  flex-basis: 100%;
+}
+.gm-confirm button {
+  margin: 0;
+}
+.game-clock-panel {
+  display: grid;
+  gap: 14px;
+}
+.game-clock-date {
+  padding: 12px;
+  border-radius: var(--radius);
+  background: var(--color-accent-soft);
+  font-size: 15px;
+  line-height: 1.7;
+  font-variant-numeric: tabular-nums;
+}
+.game-clock-panel > fieldset {
+  display: grid;
+  gap: 14px;
+}
+.game-clock-advance {
+  display: grid;
+  grid-template-columns: minmax(70px, 1fr) minmax(90px, 1fr);
+  gap: 10px;
+  align-items: end;
+}
+.game-clock-advance > button {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+.game-clock-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius);
+}
+.game-clock-confirm p {
+  flex-basis: 100%;
+}
+.plugin-features {
+  display: grid;
+  gap: 10px;
+}
+.plugin-feature {
+  padding: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface-raised);
+}
+.plugin-feature label {
+  gap: 12px;
+  align-items: start;
+  cursor: pointer;
+}
+.plugin-feature input {
+  flex: none;
+  margin-top: 3px;
+}
+.plugin-feature label > span {
+  min-width: 0;
+}
+.plugin-feature-description {
+  display: block;
+  margin-top: 5px;
+}
+.plugin-appearance {
+  margin-top: 20px;
+}
+.control-range {
+  display: grid;
+  gap: 10px;
+  max-width: 480px;
+}
+.control-range > span {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+.control-range input {
+  width: 100%;
+}
+.plugin-row {
+  gap: 10px;
+  padding-block: 12px;
+  flex-wrap: wrap;
+}
+.plugin-row .plugin-name {
+  gap: 6px;
+  min-width: 0;
+}
+.plugin-open {
+  white-space: normal;
+  line-height: 1.4;
+  justify-content: start;
+  padding-block: 6px;
+}
+.plugin-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.items-create {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: end;
+  margin-bottom: 20px;
+}
+.items-create > button {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+.items-workspace {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.75fr) minmax(0, 2fr);
+  align-items: start;
+  gap: 18px;
+}
+.items-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+.items-list button {
+  display: grid;
+  justify-content: stretch;
+  gap: 4px;
+  padding: 12px;
+  text-align: start;
+  min-width: 0;
+}
+.items-list button[aria-pressed='true'] {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+.items-list span {
+  font-size: 12px;
+}
+.items-properties {
+  display: grid;
+  gap: 14px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--color-border);
+}
+.items-properties > button,
+.items-delete {
+  justify-self: start;
+}
+.items-detail {
+  margin: 0;
+}
+.sheet-action-control {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  min-width: min(100%, 160px);
+}
+.sheet-action-control select {
+  width: 100%;
+  min-width: 0;
+}
+.sheet-action-control button {
+  white-space: normal;
+}
+.sheet-action-control small {
+  line-height: 1.45;
+}
+.plugin-map-actions {
+  max-width: calc(100% - 32px);
+  flex-wrap: wrap;
+  max-height: 100px;
+  overflow: auto;
+}
+.plugin-action-confirm {
+  top: auto;
+  bottom: 64px;
+  max-height: calc(100% - 120px);
+  overflow: auto;
+  width: min(420px, calc(100% - 32px));
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--color-border);
+}
+.plugin-action-confirm strong {
+  flex-basis: 100%;
+}
+@container (max-width: 560px) {
+  .items-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .items-list {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+  }
+}
+@container (max-width: 340px) {
+  .items-create {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .control-section,
+  .gm-card {
+    padding: 12px;
+  }
+  .control-page-header h2,
+  .gm-dashboard-header h1 {
+    font-size: 18px;
+  }
+}
+.sheet-list-row {
+  align-items: start;
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+  gap: 12px;
+  margin-block: 12px;
+  padding: 38px 12px 12px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+.sheet-list-row > .sheet-list-remove {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+}

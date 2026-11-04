@@ -1,5 +1,5 @@
 import { ItemsView } from '@/shared/items/ItemsView';
-import { CharacterActions } from './CharacterActions';
+import { CharacterActions, CharacterSheetAction } from './CharacterActions';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { TurnBudgetSummary } from '@/shared/game/TurnBudgetPanel';
@@ -87,7 +87,7 @@ export function SystemSheet({
         </aside>
       )}
       <TurnBudgetSummary economy={view.data?.economy} />
-      <CharacterActions character={character} />
+      {!rules.mechanics?.sheet_actions?.length && <CharacterActions character={character} />}
       <details>
         <summary>{t('items.title')}</summary>
         <ItemsView owner={character.id} />
@@ -104,6 +104,15 @@ export function SystemSheet({
         computed={computed}
         rolls={rules.rolls}
         resources={resources}
+        renderAction={(collection, path, change) => (
+          <CharacterSheetAction
+            character={character}
+            collection={collection}
+            path={path}
+            canEdit={canEdit && !submit.isPending}
+            onChange={change}
+          />
+        )}
         canEdit={canEdit}
         onChange={(next) => {
           submit.mutate({

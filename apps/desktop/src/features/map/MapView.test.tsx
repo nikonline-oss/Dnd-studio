@@ -26,6 +26,7 @@ import type {
   ZoneDto,
   ZoneShape,
 } from '@/shared/ipc/client';
+import { useActionAim } from '@/shared/state/actionAim';
 import { useSelection } from '@/shared/state/selection';
 
 // jsdom has no WebGL: the host hands over a fake app, the scene records what it is shown.
@@ -50,6 +51,7 @@ const scene = vi.hoisted(() => ({
   clearZoneOverride: vi.fn(),
   tokens: [] as TokenView[],
   /** canvasToMap returns the canvas point as is (scale 1, no pan). */
+  showPluginArea: vi.fn(),
   fit: vi.fn(),
   destroy: vi.fn(),
   loadError: null as ((error: unknown) => void) | null,
@@ -74,7 +76,7 @@ vi.mock('./MapScene', () => ({
       scene.onFog = onFog;
       scene.onMove = onMove;
     }
-    showPluginArea = vi.fn();
+    showPluginArea = scene.showPluginArea;
     showPluginRange = vi.fn();
     cancelMovement = vi.fn();
     showPluginEffects = vi.fn();
@@ -228,6 +230,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  useActionAim.getState().setAim(null);
   useSelection.setState({ mapId: null, tokenId: null, inspect: 'map' });
 });
 
@@ -241,7 +244,9 @@ describe('MapView', () => {
       expect(scene.combatMovement.at(-1)).toBe(true);
     });
     expect(
-      await screen.findByText('Select one of your tokens, then point to its destination.'),
+      await screen.findByText(
+        'Hold the left mouse button on a token and drag. Release to move; Esc to cancel.',
+      ),
     ).toBeInTheDocument();
   });
 
@@ -630,9 +635,19 @@ describe('MapView tokens', () => {
     const canvas = document.createElement('canvas');
     document.querySelector('.map-view')?.append(canvas);
     const event = new Event('pointerdown', { bubbles: true });
-    Object.assign(event, { clientX: 80, clientY: 90 });
+    Object.assign(event, { clientX: 80, clientY: 90, button: 0 });
     fireEvent(canvas, event);
     expect(sent).toHaveLength(0);
+    const marker = scene.showPluginArea.mock.calls.at(-1);
+    const move = new Event('pointermove', { bubbles: true });
+    Object.assign(move, { clientX: 240, clientY: 210 });
+    fireEvent(canvas, move);
+    expect(scene.showPluginArea.mock.calls.at(-1)).toEqual(marker);
+    expect(useActionAim.getState().aim?.point).toMatchObject({ x: 1280, y: 1440 });
+    await userEvent.click(screen.getByRole('button', { name: 'Choose again' }));
+    expect(useActionAim.getState().aim?.point).toBeNull();
+    expect(screen.getByRole('button', { name: 'Apply' })).toBeDisabled();
+    fireEvent(canvas, event);
     await userEvent.click(screen.getByRole('button', { name: 'Apply' }));
     await waitFor(() => {
       expect(sent[0]?.intent).toEqual({

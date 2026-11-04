@@ -422,7 +422,39 @@
             "title": {
               "ru": "Урон",
               "en": "Damage"
-            }
+            },
+            "default": "1d6"
+          },
+          "range": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000,
+            "default": 1
+          },
+          "damage_type": {
+            "type": "string",
+            "maxLength": 64,
+            "default": "slashing",
+            "enum": [
+              "slashing",
+              "piercing",
+              "bludgeoning",
+              "acid",
+              "cold",
+              "fire",
+              "force",
+              "lightning",
+              "necrotic",
+              "poison",
+              "psychic",
+              "radiant",
+              "thunder"
+            ]
+          },
+          "action": {
+            "type": "string",
+            "enum": ["melee_attack", "ranged_attack"],
+            "default": "melee_attack"
           }
         }
       }
@@ -1018,6 +1050,31 @@
           "title": {
             "ru": "Снижение урона до сопротивления",
             "en": "Damage reduction before resistance"
+          }
+        }
+      }
+    },
+    "spells": {
+      "type": "array",
+      "maxItems": 100,
+      "default": [],
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "default": ""
+          },
+          "action": {
+            "type": "string",
+            "enum": ["fireball", "shield_of_faith"],
+            "default": "fireball"
+          },
+          "notes": {
+            "type": "string",
+            "maxLength": 2000,
+            "default": ""
           }
         }
       }

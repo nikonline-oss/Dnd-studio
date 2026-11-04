@@ -98,7 +98,7 @@ pub use zone::{
 
 /// Protocol version. Peers with a different version are refused with
 /// [`RejectReason::ProtocolMismatch`].
-pub const PROTOCOL_VERSION: u32 = 19;
+pub const PROTOCOL_VERSION: u32 = 20;
 
 /// Registers every protocol type that is exported to TypeScript.
 #[cfg(feature = "specta")]

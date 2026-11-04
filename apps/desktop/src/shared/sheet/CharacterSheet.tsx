@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type ReactNode,
   type KeyboardEvent,
 } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -50,6 +51,11 @@ export interface CharacterSheetProps {
   /** The whole next sheet; untouched branches keep their identity. */
   onChange: (nextData: SheetData) => void;
   onRoll: (rollId: string) => void;
+  renderAction?: (
+    collection: string,
+    path: string[],
+    change: (path: string, value: unknown) => void,
+  ) => ReactNode;
 }
 
 interface Actions {
@@ -66,6 +72,7 @@ interface Values {
   computed: Record<string, number>;
   rolls: SheetRoll[];
   resources: SheetResource[];
+  renderAction?: CharacterSheetProps['renderAction'];
 }
 
 // Two contexts: fields subscribe only to the stable one, so new computed values (which arrive after
@@ -90,6 +97,7 @@ export function CharacterSheet({
   canEdit,
   onChange,
   onRoll,
+  renderAction,
 }: CharacterSheetProps) {
   const { t, i18n } = useTranslation();
   const lang = i18n.resolvedLanguage ?? i18n.language;
@@ -113,7 +121,7 @@ export function CharacterSheet({
   const roots = Array.isArray(layout) ? layout : [layout];
   return (
     <ActionsContext value={{ lang, t, canEdit, schema, emit, roll }}>
-      <ValuesContext value={{ data, computed, rolls, resources }}>
+      <ValuesContext value={{ data, computed, rolls, resources, renderAction }}>
         <div className={canEdit ? 'sheet' : 'sheet sheet-readonly'}>
           <Nodes nodes={roots} scope={data} base={[]} />
         </div>
@@ -179,6 +187,8 @@ function NodeView({ node, scope, base }: ScopeProps & { node: SheetNode }) {
       return <Computed name={node.name} label={node.label} format={node.format} />;
     case 'roll':
       return <RollButton rollId={node.roll} label={node.label} />;
+    case 'action':
+      return <SheetAction collection={node.collection} base={base} />;
     case 'resource':
       return <Resource id={node.resource} />;
     case 'list': {
@@ -570,5 +580,15 @@ function Resource({ id }: { id: string }) {
         {resource.value} / {resource.max}
       </span>
     </div>
+  );
+}
+
+function SheetAction({ collection, base }: { collection: string; base: string[] }) {
+  const { renderAction } = useContext(ValuesContext);
+  const { emit } = useActions();
+  return (
+    renderAction?.(collection, base, (path, value) => {
+      emit([...base, ...splitPath(path)], value);
+    }) ?? null
   );
 }
