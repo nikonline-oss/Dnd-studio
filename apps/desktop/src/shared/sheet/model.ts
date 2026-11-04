@@ -44,6 +44,10 @@ export interface RollNode {
   roll: string;
   label?: Label;
 }
+export interface ActionNode {
+  type: 'action';
+  collection: string;
+}
 export interface ResourceNode {
   type: 'resource';
   resource: string;
@@ -67,6 +71,7 @@ export type SheetNode =
   | FieldNode
   | ComputedNode
   | RollNode
+  | ActionNode
   | ResourceNode
   | ListNode
   | TextNode;

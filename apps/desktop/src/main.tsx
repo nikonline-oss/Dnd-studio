@@ -5,6 +5,7 @@ import { App } from '@/app/App';
 import type { Role } from '@/shared/ipc/client';
 import '@/shared/i18n';
 import '@/app/styles.css';
+import '@/app/controlPanels.css';
 
 const queryClient = new QueryClient({
   defaultOptions: {

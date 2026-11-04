@@ -13,6 +13,8 @@ pub struct PluginMechanics {
     #[serde(default)]
     pub action_groups: Vec<crate::ActionGroup>,
     #[serde(default)]
+    pub sheet_actions: Vec<SheetActionCollection>,
+    #[serde(default)]
     pub item_types: Vec<crate::ItemTypeDef>,
     #[serde(default)]
     pub turn_budgets: Vec<TurnBudget>,
@@ -35,6 +37,31 @@ pub struct PluginMechanics {
     #[serde(default)]
     pub turn_resources: Vec<String>,
 }
+/// A bounded sheet list whose rows instantiate trusted plugin actions.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct SheetActionCollection {
+    pub id: String,
+    pub path: String,
+    pub name_field: String,
+    /// Dice formula; @row.* references the current list row.
+    pub attack_dice: Option<String>,
+    pub action_field: Option<String>,
+    pub actions: Vec<String>,
+    #[serde(default)]
+    pub bindings: std::collections::BTreeMap<SheetActionField, String>,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub enum SheetActionField {
+    DamageDice,
+    RangeCells,
+    RadiusCells,
+    DamageType,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
@@ -336,6 +363,9 @@ pub struct ActionStack {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct PendingAction {
+    /// Frozen sheet action: editing or reordering the list cannot change a declared cast.
+    #[serde(default)]
+    pub definition: Option<PluginAction>,
     pub awaiting_reactions: bool,
     pub id: crate::IntentId,
     pub source: TokenId,

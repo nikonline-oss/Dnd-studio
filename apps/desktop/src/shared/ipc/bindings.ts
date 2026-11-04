@@ -192,6 +192,7 @@ export type Acceptance = {
 };
 
 export type ActionAvailability = {
+	sheet_action?: SheetActionView | null,
 	id: string,
 	enabled: boolean,
 	reason: string | null,
@@ -1308,6 +1309,8 @@ export type MovementRule = {
 };
 
 export type PendingAction = {
+	/**  Frozen sheet action: editing or reordering the list cannot change a declared cast. */
+	definition?: PluginAction | null,
 	awaiting_reactions: boolean,
 	id: IntentId,
 	source: TokenId,
@@ -1473,6 +1476,7 @@ export type PluginMechanics = {
 	calendar?: CalendarDef | null,
 	life?: LifeRules,
 	action_groups?: ActionGroup[],
+	sheet_actions?: SheetActionCollection[],
 	item_types?: ItemTypeDef[],
 	turn_budgets?: TurnBudget[],
 	interruption_rules?: InterruptionRule[],
@@ -1742,6 +1746,26 @@ export type ServerMessage = { type: "events"; payload: EventBatch } |
 
 /**  A session on the session server. */
 export type SessionId = string;
+
+/**  A bounded sheet list whose rows instantiate trusted plugin actions. */
+export type SheetActionCollection = {
+	id: string,
+	path: string,
+	name_field: string,
+	/**  Dice formula; @row.* references the current list row. */
+	attack_dice: string | null,
+	action_field: string | null,
+	actions: string[],
+	bindings?: Partial<{ [key in SheetActionField]: string }>,
+};
+
+export type SheetActionField = "damage_dice" | "range_cells" | "radius_cells" | "damage_type";
+
+export type SheetActionView = {
+	collection: string,
+	index: number,
+	action: PluginAction,
+};
 
 /**  What a sheet shows besides its data (numbers as JSON numbers for the UI). */
 export type SheetView = {

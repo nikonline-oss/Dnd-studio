@@ -121,6 +121,9 @@ pub enum LayoutNode {
     Resource {
         resource: String,
     },
+    Action {
+        collection: String,
+    },
     /// An array of objects; `item` nodes address fields relative to one element.
     List {
         path: String,

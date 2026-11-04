@@ -242,9 +242,9 @@
     "rendererFailed": "Could not start the map renderer (WebGL is unavailable)",
     "imagesFailed": "Some map images could not be loaded",
     "dropHint": "Drop to place the token",
-    "combatMoveSelectHint": "Select one of your tokens, then point to its destination.",
-    "combatMoveSelectHintGm": "Select a token, then point to its destination. Trigger zones are marked ⚡.",
-    "combatMoveTargetHint": "Point to a destination cell to preview the shortest route, then click to move.",
+    "combatMoveSelectHint": "Hold the left mouse button on a token and drag. Release to move; Esc to cancel.",
+    "combatMoveSelectHintGm": "Hold the left mouse button on a token and drag. Release to move; Esc to cancel. Trigger zones are marked with ⚡.",
+    "combatMoveTargetHint": "Hold the left mouse button on a token and drag. Release to move; Esc to cancel.",
     "toolbar": "Map tools"
   },
   "inspector": {
@@ -737,7 +737,10 @@
     "delete": "Delete item",
     "empty": "No items yet",
     "missingType": "Item type unavailable: install its plugin",
-    "openTab": "Open in a tab"
+    "openTab": "Open in a tab",
+    "library": "Item library",
+    "details": "Item details",
+    "give": "Give"
   },
   "picker": {
     "title": "Pick an element",
@@ -1110,7 +1113,12 @@
       "condition_or_turn": "Unavailable in this state or outside your turn",
       "resources": "Insufficient resources",
       "reaction": "Use through a reaction offer"
-    }
+    },
+    "targetLocked": "Target selected. Confirm to use the action.",
+    "retarget": "Choose again",
+    "useEntry": "Use",
+    "rule": "Action rule",
+    "invalidEntry": "Check the damage formula and the selected action rule."
   },
   "saves": {
     "title": "Target saving throws",

@@ -46,7 +46,14 @@ pub fn view(state: &GameState) -> RulesView {
                     r.mechanics
                         .actions
                         .iter()
-                        .map(|a| {
+                        .cloned()
+                        .map(|a| (a, None))
+                        .chain(
+                            crate::sheet_actions::rows(state, t)
+                                .into_iter()
+                                .map(|row| (row.action.clone(), Some(row))),
+                        )
+                        .map(|(a, sheet_action)| {
                             let range = crate::mechanics::character(state, t)
                                 .ok()
                                 .and_then(|c| {
@@ -64,14 +71,15 @@ pub fn view(state: &GameState) -> RulesView {
                                 a.feature.as_deref(),
                             ) {
                                 Some("disabled")
-                            } else if !crate::mechanics::eligible_base(state, t, a) {
+                            } else if !crate::mechanics::eligible_base(state, t, &a) {
                                 Some("condition_or_turn")
-                            } else if !crate::mechanics::eligible(state, t, a) {
+                            } else if !crate::mechanics::eligible(state, t, &a) {
                                 Some("resources")
                             } else {
                                 None
                             };
                             ActionAvailability {
+                                sheet_action,
                                 id: a.id.clone(),
                                 enabled: reason.is_none(),
                                 reason: reason.map(str::to_owned),

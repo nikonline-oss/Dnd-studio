@@ -29,7 +29,7 @@ import {
   type Point16,
 } from './zoneEdit';
 import { HANDLE_PX, ZoneLayer } from './ZoneLayer';
-import { snapToGrid, Throttle, tokenPosition } from './tokenMath';
+import { snapToGrid, tokenPosition } from './tokenMath';
 import {
   clampCamera,
   fitCamera,
@@ -66,8 +66,6 @@ const ZONE_PREVIEW = 0x9b7bff;
 const MOVEMENT_PATH = 0x163e42;
 /** A press that moves less than this (CSS px) is a click, not a drag. */
 const CLICK_SLOP_PX = 4;
-/** Token moves while dragging: ~12 Hz (ADR-0003 asks for 10–15 Hz). */
-const MOVE_INTERVAL_MS = 80;
 /** Two presses on a zone's name within this time rename it. */
 const DOUBLE_CLICK_MS = 400;
 
@@ -168,14 +166,12 @@ export class MapScene {
     start: Point;
     moved: boolean;
   } | null = null;
-  private readonly moves: Throttle<TokenMove>;
   private zoneList: ZoneDto[] = [];
   private selectedZone: string | null = null;
   private triggeredZones: string[] = [];
   private zoneEditing = false;
   private combatMovement = false;
   private movementTokenId: string | null = null;
-  private movementPress = false;
   /** The zone being dragged in edit mode and from where (Units16). */
   private zoneDrag: {
     zone: ZoneDto;
@@ -193,7 +189,7 @@ export class MapScene {
     private readonly onLoadError: (error: unknown) => void,
     /** A finished fog drawing: one shape per operation to send, in order. */
     private readonly onFog: (kind: FogOpKind, shapes: FogShape[]) => void = () => undefined,
-    /** A token was dragged: throttled positions while moving, then the final one. */
+    /** A token was dropped: movement is committed only on release. */
     private readonly onMoveToken: (move: TokenMove) => void = () => undefined,
     /** A token was clicked (`null`: the empty map was clicked). */
     private readonly onSelectToken: (id: string | null) => void = () => undefined,
@@ -207,9 +203,6 @@ export class MapScene {
   ) {
     this.fog = new FogLayer(app);
     this.tokens = new TokenLayer(this.onGrabToken);
-    this.moves = new Throttle(MOVE_INTERVAL_MS, (move) => {
-      this.onMoveToken(move);
-    });
     this.preview.scale.set(1 / 16);
     this.movementPreview.scale.set(1 / 16);
     this.movementLabel.visible = false;
@@ -234,7 +227,9 @@ export class MapScene {
     stage.eventMode = 'static';
     stage.hitArea = app.screen;
     stage.on('pointerdown', this.onDown).on('globalpointermove', this.onMove);
-    stage.on('pointerup', this.onUp).on('pointerupoutside', this.onUp);
+    stage.on('pointerup', this.onUp).on('pointerupoutside', this.onCancel);
+    stage.on('pointercancel', this.onCancel);
+    window.addEventListener('blur', this.onCancel);
     app.canvas.addEventListener('wheel', this.onWheel, { passive: false });
     app.canvas.style.cursor = 'grab';
     app.renderer.on('resize', this.onResize);
@@ -324,11 +319,11 @@ export class MapScene {
     this.drawZones();
   }
 
-  /** Combat uses click-to-plan movement instead of dragging the token itself. */
+  /** Combat previews a route while the left button is held, then commits it on release. */
   setCombatMovement(on: boolean): void {
     if (on === this.combatMovement) return;
     this.combatMovement = on;
-    this.clearMovementPlan();
+    this.cancelMovement();
     this.drawZones();
   }
 
@@ -405,11 +400,12 @@ export class MapScene {
     this.loadSerial++;
     const stage = this.app.stage;
     stage.off('pointerdown', this.onDown).off('globalpointermove', this.onMove);
-    stage.off('pointerup', this.onUp).off('pointerupoutside', this.onUp);
+    stage.off('pointerup', this.onUp).off('pointerupoutside', this.onCancel);
+    stage.off('pointercancel', this.onCancel);
+    window.removeEventListener('blur', this.onCancel);
     this.app.canvas.removeEventListener('wheel', this.onWheel);
     this.app.renderer.off('resize', this.onResize);
     this.app.stage.removeChild(this.world);
-    this.moves.cancel();
     this.tokens.destroy();
     this.fog.destroy();
     this.zones.destroy();
@@ -691,9 +687,9 @@ export class MapScene {
 
   /** Stops a token drag without sending anything more. */
   private endTokenDrag(): void {
-    this.moves.cancel();
     this.tokenDrag = null;
     this.tokens.release();
+    if (this.grid) this.tokens.show(this.tokenViews, this.grid, this.tokensGrabbable());
   }
 
   /** Where the dragged token is now, in map units. */
@@ -706,14 +702,9 @@ export class MapScene {
   private readonly onGrabToken = (id: string, event: FederatedPointerEvent): void => {
     const view = this.tokenViews.find((v) => v.token.id === id);
     if (!view || this.tool) return;
-    if (this.combatMovement) {
-      this.movementTokenId = id;
-      this.onSelectToken(id);
-      this.movementPreview.clear();
-      this.movementLabel.visible = false;
-      this.app.canvas.style.cursor = 'crosshair';
-      return;
-    }
+    this.clearMovementPlan();
+    this.onSelectToken(id);
+    if (this.combatMovement) this.movementTokenId = id;
     const at = this.world.toLocal(event.global);
     this.tokenDrag = {
       id,
@@ -795,13 +786,6 @@ export class MapScene {
     }
     // In zone edit mode the left button works on zones; on the empty map it still pans.
     if (event.button === 0 && this.zoneEditing && this.mapSize && this.zoneDown(event)) return;
-    if (event.button === 0 && this.combatMovement && this.movementTokenId && this.mapSize) {
-      this.movementPress = true;
-      this.dragFrom = { x: event.global.x, y: event.global.y };
-      this.panStart = { ...this.dragFrom };
-      this.drawMovementPath(this.world.toLocal(event.global));
-      return;
-    }
     if (event.button !== 0 && event.button !== 1) return;
     this.dragFrom = { x: event.global.x, y: event.global.y };
     this.panStart = event.button === 0 ? { ...this.dragFrom } : null;
@@ -810,28 +794,6 @@ export class MapScene {
 
   private readonly onMove = (event: FederatedPointerEvent): void => {
     if (!this.mapSize) return;
-    // Camera gestures take precedence over the combat route preview. A short left press
-    // still confirms movement; dragging pans while keeping the planned token selected.
-    if (this.dragFrom && this.combatMovement && this.movementTokenId) {
-      if (
-        this.movementPress &&
-        this.panStart &&
-        Math.hypot(event.global.x - this.panStart.x, event.global.y - this.panStart.y) <
-          CLICK_SLOP_PX
-      )
-        return;
-      this.movementPress = false;
-      const dx = event.global.x - this.dragFrom.x;
-      const dy = event.global.y - this.dragFrom.y;
-      this.dragFrom = { x: event.global.x, y: event.global.y };
-      this.setCamera(panBy(this.camera, dx, dy, this.screenSize(), this.mapSize));
-      this.app.canvas.style.cursor = 'grabbing';
-      return;
-    }
-    if (this.combatMovement && this.movementTokenId && !this.tokenDrag) {
-      this.drawMovementPath(this.world.toLocal(event.global));
-      return;
-    }
     const drag = this.tokenDrag;
     if (drag) {
       if (!drag.moved) {
@@ -840,9 +802,13 @@ export class MapScene {
         drag.moved = true;
       }
       const p = this.tokenDragPoint(event);
+      if (this.combatMovement) {
+        this.app.canvas.style.cursor = 'grabbing';
+        this.drawMovementPath(p);
+        return;
+      }
       const clamped = tokenPosition(p, this.mapSize);
       this.tokens.dragTo(drag.id, clamped.x / 16, clamped.y / 16);
-      this.moves.push({ id: drag.id, ...clamped, final: false });
       return;
     }
     if (this.zoneEditing && !this.dragFrom) {
@@ -870,22 +836,7 @@ export class MapScene {
   };
 
   private readonly onUp = (event: FederatedPointerEvent): void => {
-    if (this.movementPress) {
-      this.movementPress = false;
-      this.dragFrom = null;
-      this.panStart = null;
-      const path = this.movementPathAt(this.world.toLocal(event.global));
-      const token = this.tokenViews.find((view) => view.token.id === this.movementTokenId)?.token;
-      const destination = path?.at(-1);
-      if (token && destination && this.mapSize) {
-        const final = tokenPosition(destination, this.mapSize);
-        if (final.x !== token.x || final.y !== token.y) {
-          this.onMoveToken({ id: token.id, ...final, final: true });
-        }
-      }
-      this.clearMovementPlan();
-      return;
-    }
+    if (this.tokenDrag && event.button !== 0) return;
     if (this.zoneDrag) {
       this.zoneUp(event);
       return;
@@ -893,16 +844,27 @@ export class MapScene {
     const drag = this.tokenDrag;
     if (drag && !drag.moved) {
       // A click: select the token, do not move it.
-      this.endTokenDrag();
+      this.cancelMovement();
       this.onSelectToken(drag.id);
       return;
     }
+    if (drag && this.mapSize && this.combatMovement) {
+      const token = this.tokenViews.find((view) => view.token.id === drag.id)?.token;
+      const destination = this.movementPathAt(this.tokenDragPoint(event))?.at(-1);
+      this.cancelMovement();
+      if (token && destination) {
+        const final = tokenPosition(destination, this.mapSize);
+        if (final.x !== token.x || final.y !== token.y) {
+          this.onMoveToken({ id: token.id, ...final, final: true });
+        }
+      }
+      return;
+    }
     if (drag && this.mapSize) {
-      // Drop: snapped to the grid unless Alt is held; replaces any move still waiting.
+      // Drop: commit the final position, snapped to the grid unless Alt is held.
       const p = this.tokenDragPoint(event);
       const snapped = event.altKey || !this.grid ? p : snapToGrid(p, this.grid);
       const final = tokenPosition(snapped, this.mapSize);
-      this.moves.cancel();
       this.tokens.dragTo(drag.id, final.x / 16, final.y / 16);
       this.onMoveToken({ id: drag.id, ...final, final: true });
       this.tokenDrag = null;
@@ -970,13 +932,20 @@ export class MapScene {
   }
 
   cancelMovement(): void {
+    this.endTokenDrag();
     this.clearMovementPlan();
   }
+
+  private readonly onCancel = (): void => {
+    this.cancelMovement();
+    this.cancelDrawing();
+    this.dragFrom = null;
+    this.panStart = null;
+  };
 
   private clearMovementPlan(): void {
     this.movementLabel.visible = false;
     this.movementTokenId = null;
-    this.movementPress = false;
     this.movementPreview.clear();
     this.app.canvas.style.cursor = this.idleCursor();
   }

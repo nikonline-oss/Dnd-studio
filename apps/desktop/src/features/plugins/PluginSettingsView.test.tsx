@@ -61,6 +61,7 @@ it('GM changes a campaign rule through an intent', async () => {
   const sent = setup('co_gm');
   const flag = await screen.findByRole('checkbox', { name: 'Reach reactions' });
   expect(flag).toBeChecked();
+  expect(flag).toHaveAccessibleDescription('Offer before leaving reach');
   await userEvent.click(flag);
   await waitFor(() => {
     expect(sent[0]?.intent).toEqual({
