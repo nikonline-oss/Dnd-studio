@@ -14,6 +14,41 @@ use ring::signature::{Ed25519KeyPair, KeyPair as _};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
+#[tokio::test]
+async fn an_oversized_signature_is_rejected_before_decoding() {
+    let files = Arc::new(Files {
+        routes: BTreeMap::from([
+            ("/index.json".into(), b"{}".to_vec()),
+            ("/index.sig".into(), vec![b'a'; 2048]),
+        ]),
+        hits: BTreeMap::new(),
+    });
+    let base = serve(files, TcpListener::bind("127.0.0.1:0").await.unwrap()).await;
+    let error = CatalogClient::new(&base, vec![0; 32]).unwrap().fetch().await.unwrap_err();
+    assert_eq!(error.code(), "download_too_large");
+}
+
+#[tokio::test]
+async fn a_chunked_index_cannot_bypass_the_download_limit() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let base = format!("http://{}", listener.local_addr().unwrap());
+    tokio::spawn(async move {
+        let (mut socket, _) = listener.accept().await.unwrap();
+        let mut request = [0; 4096];
+        socket.read(&mut request).await.unwrap();
+        socket.write_all(b"HTTP/1.1 200 OK\r\ntransfer-encoding: chunked\r\nconnection: close\r\n\r\n").await.unwrap();
+        let chunk = vec![b' '; 64 * 1024];
+        for _ in 0..257 {
+            if socket.write_all(b"10000\r\n").await.is_err()
+                || socket.write_all(&chunk).await.is_err()
+                || socket.write_all(b"\r\n").await.is_err() { return; }
+        }
+        let _ = socket.write_all(b"0\r\n\r\n").await;
+    });
+    let error = CatalogClient::new(&base, vec![0; 32]).unwrap().fetch().await.unwrap_err();
+    assert_eq!(error.code(), "download_too_large");
+}
+
 fn key() -> (Ed25519KeyPair, Vec<u8>) {
     let document = Ed25519KeyPair::generate_pkcs8(&SystemRandom::new()).unwrap();
     let pair = Ed25519KeyPair::from_pkcs8(document.as_ref()).unwrap();
