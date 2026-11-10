@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { mockIPC } from '@tauri-apps/api/mocks';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { TriggerEditor } from './TriggerEditor';
@@ -88,6 +88,24 @@ function setup(role: Role = 'gm', rejected = false, spent = false) {
 }
 
 describe('Map-scoped trigger editor', () => {
+  it('explains unsaved changes instead of calling the trigger spent', async () => {
+    setup();
+    await userEvent.type(await screen.findByRole('textbox', { name: 'Trigger name' }), ' edited');
+    expect(screen.getByRole('button', { name: 'Run' })).toBeDisabled();
+    expect(screen.getByText('Save changes before running.')).toBeInTheDocument();
+    expect(screen.queryByText('Already fired')).not.toBeInTheDocument();
+  });
+
+  it('explains a disabled trigger and does not send an intent', async () => {
+    const { client, sent } = setup();
+    await screen.findByRole('form', { name: 'Alarm' });
+    act(() => client.setQueryData<Snapshot>(['snapshot'], (s) => s && ({
+      ...s, triggers: s.triggers.map(t => ({...t, definition:{...t.definition, enabled:false}})),
+    })));
+    expect(screen.getByRole('button', { name: 'Run' })).toBeDisabled();
+    expect(screen.getByText('Enable the trigger before running.')).toBeInTheDocument();
+    expect(sent).toEqual([]);
+  });
   it('saves selected maps using the trigger version and explains automatic board links', async () => {
     const { sent } = setup('co_gm');
     const crypt = await screen.findByRole('checkbox', { name: 'Crypt' });

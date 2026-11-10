@@ -25,6 +25,14 @@ afterEach(async () => {
 });
 
 describe('CharacterSheet', () => {
+  it('selects a section compactly without changing the sheet data', async () => {
+    const { onChange } = renderSheet(d20Sheet, { compact: true });
+    const select = screen.getByRole('combobox', { name: 'Sheet section' });
+    expect(screen.queryByRole('tablist')).not.toBeInTheDocument();
+    await userEvent.selectOptions(select, '1');
+    expect(screen.getByRole('tabpanel')).toHaveAccessibleName('Skills');
+    expect(onChange).not.toHaveBeenCalled();
+  });
   it('steps numbers with −/+ within the schema and shows rolls with the character’s numbers', async () => {
     const user = userEvent.setup();
     const { onChange } = renderSheet(d20Sheet);
