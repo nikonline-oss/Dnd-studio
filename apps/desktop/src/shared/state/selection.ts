@@ -14,6 +14,7 @@ export interface TabRef {
     | 'plugin'
     | 'gm_panel'
     | 'items'
+    | 'item'
     | 'skills';
   id: string;
 }
@@ -54,6 +55,7 @@ interface SelectionState {
   /** Opens a compendium (`<plugin id>/<compendium id>`) in a tab. */
   openCompendium: (key: string) => void;
   openPlugin: (id: string) => void;
+  openItem: (id: string) => void;
   openGmPanel: () => void;
   activate: (tab: TabRef) => void;
   /** Brings the map view to the front without a map tab (the default map; players have no navigator). */
@@ -171,6 +173,9 @@ export const useSelection = create<SelectionState>()((set) => {
     },
     openPlugin: (id) => {
       open({ kind: 'plugin', id });
+    },
+    openItem: (id) => {
+      open({ kind: 'item', id });
     },
     openCompendium: (key) => {
       // `plugin/book` or `plugin/book/entry`: a link may point at one entry.

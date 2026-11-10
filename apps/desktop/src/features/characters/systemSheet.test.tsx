@@ -150,6 +150,21 @@ afterEach(() => {
 });
 
 describe('CharacterEditor with a system plugin', () => {
+  it('also provides skills in campaigns without a system plugin', async () => {
+    setup('gm', null);
+    await waitFor(() => {
+      expect(document.querySelectorAll('.character-inventory > summary')[1]).toHaveTextContent(
+        'Skills',
+      );
+    });
+  });
+  it('keeps the character skills section available alongside inventory', async () => {
+    setup('gm');
+    await screen.findByLabelText('Strength');
+    const summaries = Array.from(document.querySelectorAll('.character-inventory > summary'));
+    expect(summaries.map((node) => node.textContent.trim())).toEqual(['Items', 'Skills']);
+    expect(summaries[1]?.parentElement).toHaveAttribute('open');
+  });
   it('shows the plugin sheet with computed values; rolls and edits become intents', async () => {
     const sent = setup('gm');
     const strength = await screen.findByLabelText('Strength');

@@ -440,8 +440,19 @@ export function ItemOwnerDialog({ item, onClose }: { item: ItemDto; onClose: () 
   const save = () => {
     submit.mutate(
       {
-        intent: { kind: 'transfer_item', id: item.id, owner: owner || null },
-        expectedVersion: item.version,
+        ...(item.is_template
+          ? {
+              intent: {
+                kind: 'instantiate_item' as const,
+                id: uuidv7(),
+                template: item.id,
+                owner: owner || null,
+              },
+            }
+          : {
+              intent: { kind: 'transfer_item' as const, id: item.id, owner: owner || null },
+              expectedVersion: item.version,
+            }),
       },
       { onSuccess: onClose },
     );

@@ -12,11 +12,12 @@ const TAB_ICONS = {
   character: 'user',
   board: 'board',
   trigger: 'bolt',
-  compendium: 'book',
+  compendium: 'books',
   plugin: 'puzzle',
   gm_panel: 'grid',
-  items: 'book',
-  skills: 'bolt',
+  items: 'backpack',
+  item: 'backpack',
+  skills: 'sparkle',
   images: 'image',
   audio: 'music',
 } as const;
@@ -31,6 +32,7 @@ export function CenterTabs() {
   const gm = campaign?.role === 'gm' || campaign?.role === 'co_gm';
   const openGmPanel = useSelection((s) => s.openGmPanel);
   const plugins = useSnapshotSelect((s) => s.plugins);
+  const items = useSnapshotSelect((s) => s.items ?? []);
   // Names only: a tab title does not change when a token moves.
   const maps = useSnapshotSelect((s) => s.maps.map((m) => ({ id: m.id, name: m.name })));
   const entries = useSnapshotSelect((s) => s.journal.map((e) => ({ id: e.id, title: e.title })));
@@ -62,42 +64,58 @@ export function CenterTabs() {
     };
     // Compendia are not in the snapshot; their tabs stay until closed.
     const listed = (tab: TabRef) =>
-      tab.kind === 'items' || tab.kind === 'skills'
-        ? true
-        : tab.kind === 'gm_panel'
-          ? campaign === undefined || gm
-          : tab.kind === 'plugin'
-            ? (plugins ?? []).some((p) => p.id === tab.id)
-            : tab.kind === 'compendium' ||
-              (tab.kind === 'images' || tab.kind === 'audio'
-                ? tab.id === 'root' ||
-                  (folders ?? []).some((f) => f.id === tab.id && f.library === tab.kind)
-                : lists[tab.kind].some((item) => item.id === tab.id));
+      tab.kind === 'item'
+        ? (items?.some((item) => item.id === tab.id) ?? true)
+        : tab.kind === 'items' || tab.kind === 'skills'
+          ? true
+          : tab.kind === 'gm_panel'
+            ? campaign === undefined || gm
+            : tab.kind === 'plugin'
+              ? (plugins ?? []).some((p) => p.id === tab.id)
+              : tab.kind === 'compendium' ||
+                (tab.kind === 'images' || tab.kind === 'audio'
+                  ? tab.id === 'root' ||
+                    (folders ?? []).some((f) => f.id === tab.id && f.library === tab.kind)
+                  : lists[tab.kind].some((item) => item.id === tab.id));
     pruneTabs(listed);
-  }, [maps, entries, characters, boards, triggers, folders, plugins, campaign, gm, pruneTabs]);
+  }, [
+    maps,
+    entries,
+    characters,
+    boards,
+    triggers,
+    folders,
+    plugins,
+    items,
+    campaign,
+    gm,
+    pruneTabs,
+  ]);
 
   const title = (tab: TabRef) =>
-    tab.kind === 'items'
-      ? t('items.title')
-      : tab.kind === 'skills'
-        ? t('items.skillsTitle')
-        : tab.kind === 'gm_panel'
-          ? t('gm.title')
-          : tab.kind === 'plugin'
-            ? labelText(plugins?.find((p) => p.id === tab.id)?.name ?? '', i18n.language)
-            : tab.kind === 'images' || tab.kind === 'audio'
-              ? (folders?.find((f) => f.id === tab.id)?.name ?? t(`${tab.kind}.title`))
-              : tab.kind === 'map'
-                ? (maps?.find((m) => m.id === tab.id)?.name ?? t('panels.map'))
-                : tab.kind === 'journal'
-                  ? (entries?.find((e) => e.id === tab.id)?.title ?? t('journal.title'))
-                  : tab.kind === 'character'
-                    ? (characters?.find((c) => c.id === tab.id)?.name ?? t('characters.title'))
-                    : tab.kind === 'board'
-                      ? (boards?.find((b) => b.id === tab.id)?.name ?? t('boards.title'))
-                      : tab.kind === 'trigger'
-                        ? (triggers?.find((tr) => tr.id === tab.id)?.name ?? t('triggers.title'))
-                        : t('compendia.title');
+    tab.kind === 'item'
+      ? (items?.find((item) => item.id === tab.id)?.name ?? t('items.title'))
+      : tab.kind === 'items'
+        ? t('items.title')
+        : tab.kind === 'skills'
+          ? t('items.skillsTitle')
+          : tab.kind === 'gm_panel'
+            ? t('gm.title')
+            : tab.kind === 'plugin'
+              ? labelText(plugins?.find((p) => p.id === tab.id)?.name ?? '', i18n.language)
+              : tab.kind === 'images' || tab.kind === 'audio'
+                ? (folders?.find((f) => f.id === tab.id)?.name ?? t(`${tab.kind}.title`))
+                : tab.kind === 'map'
+                  ? (maps?.find((m) => m.id === tab.id)?.name ?? t('panels.map'))
+                  : tab.kind === 'journal'
+                    ? (entries?.find((e) => e.id === tab.id)?.title ?? t('journal.title'))
+                    : tab.kind === 'character'
+                      ? (characters?.find((c) => c.id === tab.id)?.name ?? t('characters.title'))
+                      : tab.kind === 'board'
+                        ? (boards?.find((b) => b.id === tab.id)?.name ?? t('boards.title'))
+                        : tab.kind === 'trigger'
+                          ? (triggers?.find((tr) => tr.id === tab.id)?.name ?? t('triggers.title'))
+                          : t('compendia.title');
 
   // No map opened in a tab (always so for players, who have no navigator): the map view keeps a
   // tab of its own, so opening a journal entry does not hide the map.

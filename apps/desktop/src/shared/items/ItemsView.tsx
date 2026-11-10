@@ -15,6 +15,9 @@ import {
 import { IconButton } from '@/shared/ui/IconButton';
 import { useListCommands } from '@/shared/ui/useListCommands';
 import type { MenuItem } from '@/shared/ui/Menu';
+import { Icon } from '@/shared/ui/Icon';
+import { useSelection } from '@/shared/state/selection';
+import { cardFields } from './cardFields';
 import { ErrorText } from '@/shared/ui/ErrorText';
 
 /** Drag payload of an inventory row: the item id. */
@@ -23,11 +26,18 @@ const ITEM_DRAG = 'application/x-dndstudio-item';
 type DialogKind = 'create' | 'edit' | 'effects' | 'owner' | 'data';
 
 /**
- * The campaign inventory (ADR-0062): a list of items — or skills — filtered by owner, and a card
- * that only shows what is there. Every change happens in a dialog: the card itself has no form
- * fields, so a long entry never turns into a wall of inputs.
+ * Campaign inventory cards, or one entry's details in its own center tab (ADR-0062).
+ * Plugin fields are read-only in cards; edits continue through checked intents in dialogs.
  */
-export function ItemsView({ owner, kind = 'item' }: { owner?: string; kind?: ItemKind }) {
+export function ItemsView({
+  owner,
+  kind = 'item',
+  itemId,
+}: {
+  owner?: string;
+  kind?: ItemKind;
+  itemId?: string;
+}) {
   const { t, i18n } = useTranslation();
   const { data: snapshot } = useSnapshot();
   const { data: campaign } = useCampaign();
@@ -42,6 +52,7 @@ export function ItemsView({ owner, kind = 'item' }: { owner?: string; kind?: Ite
   const defs = system?.mechanics?.item_types ?? [];
   const states = campaignItemStates(snapshot?.campaign.item_states);
   const entries = (snapshot?.items ?? []).filter((entry) => {
+    if (itemId) return entry.id === itemId;
     if ((entry.kind ?? 'item') !== kind) return false;
     if (owner) return entry.owner === owner;
     if (filter === 'all') return true;
@@ -101,13 +112,12 @@ export function ItemsView({ owner, kind = 'item' }: { owner?: string; kind?: Ite
         open('effects');
       },
     });
-    if (!entry.is_template)
-      items.push({
-        label: t('items.give'),
-        onSelect: () => {
-          open('owner');
-        },
-      });
+    items.push({
+      label: t('items.give'),
+      onSelect: () => {
+        open('owner');
+      },
+    });
     items.push(
       {
         label: t('items.duplicate'),
@@ -143,8 +153,16 @@ export function ItemsView({ owner, kind = 'item' }: { owner?: string; kind?: Ite
   return (
     <section className="items-view">
       <header className="control-page-header">
-        <h2>{kind === 'skill' ? t('items.skillsTitle') : t('items.title')}</h2>
-        {gm && (
+        {!owner && (
+          <h2>
+            {itemId
+              ? (item?.name ?? t('items.empty'))
+              : kind === 'skill'
+                ? t('items.skillsTitle')
+                : t('items.title')}
+          </h2>
+        )}
+        {gm && !itemId && (
           <button
             type="button"
             className="btn-primary"
@@ -156,7 +174,7 @@ export function ItemsView({ owner, kind = 'item' }: { owner?: string; kind?: Ite
           </button>
         )}
       </header>
-      {!owner && (
+      {!owner && !itemId && (
         <div className="items-filters" role="group" aria-label={t('items.filterByOwner')}>
           {(
             [
@@ -202,36 +220,66 @@ export function ItemsView({ owner, kind = 'item' }: { owner?: string; kind?: Ite
         </div>
       )}
       <div className="items-workspace">
-        <nav className="items-list" aria-label={t('items.library')}>
-          {entries.map((entry) => (
-            <button
-              key={entry.id}
-              aria-pressed={item?.id === entry.id}
-              onContextMenu={(e) => {
-                commands.context(e, commandItems(entry));
-              }}
-              // Handing an entry over is the GM's move: players do not transfer entries.
-              draggable={!entry.is_template && gm}
-              onDragStart={(e) => {
-                e.dataTransfer.setData(ITEM_DRAG, entry.id);
-                e.dataTransfer.effectAllowed = 'move';
-              }}
-              onClick={() => {
-                setSelected(entry.id);
-              }}
-            >
-              <strong>{entry.name}</strong>
-              <span className="muted">
-                {stateLabel(entry, states, lang, t)}
-                {entry.is_template && ` · ${t('items.template')}`}
-                {entry.owner &&
-                  ` · ${snapshot?.characters.find((c) => c.id === entry.owner)?.name ?? ''}`}
-              </span>
-            </button>
-          ))}
-          {entries.length === 0 && <p className="muted">{t('items.empty')}</p>}
-        </nav>
-        {item && (
+        {!itemId && (
+          <nav className="items-list" aria-label={t('items.library')}>
+            {entries.map((entry) => (
+              <article className="item-card" key={entry.id}>
+                <button
+                  type="button"
+                  className="item-card-open"
+                  onContextMenu={(e) => {
+                    commands.context(e, commandItems(entry));
+                  }}
+                  // Handing an entry over is the GM's move: players do not transfer entries.
+                  draggable={!entry.is_template && gm}
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData(ITEM_DRAG, entry.id);
+                    e.dataTransfer.effectAllowed = 'move';
+                  }}
+                  onClick={() => {
+                    useSelection.getState().openItem(entry.id);
+                  }}
+                >
+                  <Icon
+                    name={(entry.kind ?? 'item') === 'skill' ? 'sparkle' : 'backpack'}
+                    size={26}
+                  />
+                  <strong>{entry.name}</strong>
+                  <span className="muted">
+                    {stateLabel(entry, states, lang, t)}
+                    {entry.is_template && ` · ${t('items.template')}`}
+                    {entry.owner &&
+                      ` · ${snapshot?.characters.find((c) => c.id === entry.owner)?.name ?? ''}`}
+                  </span>
+                  <dl className="item-card-fields">
+                    {cardFields(
+                      entry,
+                      defs.find((d) => d.id === entry.type_id),
+                    ).map((field, index) => (
+                      <div key={index}>
+                        <dt>{labelText(field.label, lang)}</dt>
+                        <dd>{field.value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </button>
+                {commandItems(entry).length > 0 && (
+                  <IconButton
+                    icon="more"
+                    label={t('items.commands')}
+                    onClick={(e) => {
+                      commands.context(e, commandItems(entry));
+                    }}
+                  />
+                )}
+              </article>
+            ))}
+            {entries.length === 0 && (
+              <p className="muted">{t(kind === 'skill' ? 'items.skillsEmpty' : 'items.empty')}</p>
+            )}
+          </nav>
+        )}
+        {itemId && item && (
           <section
             key={item.id}
             className="items-detail control-section"
@@ -306,7 +354,9 @@ export function ItemsView({ owner, kind = 'item' }: { owner?: string; kind?: Ite
                 />
               )}
             </div>
-            {!def && kind === 'item' && <p className="muted">{t('items.freeItem')}</p>}
+            {!def && (item.kind ?? 'item') === 'item' && (
+              <p className="muted">{t('items.freeItem')}</p>
+            )}
           </section>
         )}
       </div>
@@ -320,6 +370,17 @@ export function ItemsView({ owner, kind = 'item' }: { owner?: string; kind?: Ite
           }}
           onCreated={(id) => {
             setSelected(id);
+            if (owner) {
+              const instance = uuidv7();
+              submit.mutate(
+                { intent: { kind: 'instantiate_item', id: instance, template: id, owner } },
+                {
+                  onSuccess: () => {
+                    useSelection.getState().openItem(instance);
+                  },
+                },
+              );
+            } else useSelection.getState().openItem(id);
           }}
         />
       )}

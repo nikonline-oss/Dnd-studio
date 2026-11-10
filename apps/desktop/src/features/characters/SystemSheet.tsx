@@ -1,4 +1,3 @@
-import { ItemsView } from '@/shared/items/ItemsView';
 import { CharacterActions, CharacterSheetAction } from './CharacterActions';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
@@ -103,10 +102,6 @@ export function SystemSheet({
       )}
       <TurnBudgetSummary economy={view.data?.economy} />
       {!rules.mechanics?.sheet_actions?.length && <CharacterActions character={character} />}
-      <details>
-        <summary>{t('items.title')}</summary>
-        <ItemsView owner={character.id} />
-      </details>
       <CharacterSheet
         compact={compact}
         // Checked by the plugin loader and again by the core when the plugin was installed.

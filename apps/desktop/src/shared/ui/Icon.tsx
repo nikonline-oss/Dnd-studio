@@ -2,6 +2,9 @@
 // an icon package: a dozen glyphs do not justify a dependency (CLAUDE.md §14).
 
 const PATHS = {
+  backpack:
+    'M8 7V5a4 4 0 0 1 8 0v2M7 7h10a3 3 0 0 1 3 3v10H4V10a3 3 0 0 1 3-3zM8 13h8v7M4 11H2v7h2M20 11h2v7h-2M10 10h4',
+  books: 'M3 5h5v16H3zM9 3h5v18H9zM15 5l4-1 4 16-4 1zM3 9h5M9 7h5M16 9l4-1',
   plus: 'M12 5v14M5 12h14',
   more: 'M5 12h.01M12 12h.01M19 12h.01',
   refresh: 'M20 4v6h-6M4 20v-6h6M5.5 8a7 7 0 0 1 11.6-3L20 10M4 14l2.9 5A7 7 0 0 0 18.5 16',

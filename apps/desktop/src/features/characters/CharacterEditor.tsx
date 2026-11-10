@@ -1,3 +1,4 @@
+import { ItemsView } from '@/shared/items/ItemsView';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useCampaign, useSnapshotSelect, useSubmitIntent } from '@/shared/game/useGame';
@@ -147,6 +148,19 @@ function Editor({ character, inTab }: { character: CharacterDto; inTab: boolean 
           )}
         </dd>
       </dl>
+
+      <details className="character-inventory">
+        <summary>
+          <Icon name="backpack" /> {t('items.title')}
+        </summary>
+        <ItemsView owner={character.id} />
+      </details>
+      <details className="character-inventory" open>
+        <summary>
+          <Icon name="sparkle" /> {t('items.skillsTitle')}
+        </summary>
+        <ItemsView owner={character.id} kind="skill" />
+      </details>
 
       {rules ? (
         <>

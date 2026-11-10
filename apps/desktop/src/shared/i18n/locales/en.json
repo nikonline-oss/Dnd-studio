@@ -836,7 +836,8 @@
     "removeValue": "Remove value",
     "data": "Data",
     "dataTitle": "Data of “{{name}}”",
-    "commands": "Item commands"
+    "commands": "Item commands",
+    "skillsEmpty": "No skills yet"
   },
   "picker": {
     "title": "Pick an element",

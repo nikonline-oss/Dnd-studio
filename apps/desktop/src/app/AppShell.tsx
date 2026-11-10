@@ -75,15 +75,15 @@ const PLAYER_VIEWS: SideView[] = [
   'skills',
 ];
 const VIEW_ICONS = {
-  items: 'book',
-  skills: 'bolt',
+  items: 'backpack',
+  skills: 'sparkle',
   characters: 'users',
   library: 'book',
   plugins: 'puzzle',
   catalog: 'download',
   boards: 'board',
   triggers: 'bolt',
-  compendia: 'book',
+  compendia: 'books',
 } as const;
 
 /**
@@ -132,6 +132,9 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
     trigger: triggerName,
     plugin: t('plugins.title'),
     gm_panel: t('gm.title'),
+    item:
+      useSnapshotSelect((s) => s.items?.find((item) => item.id === active?.id)?.name) ??
+      t('items.title'),
     items: t('items.title'),
     skills: t('items.skillsTitle'),
     compendium: t('compendia.title'),
@@ -234,6 +237,8 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
           folderId={pane.id === 'root' ? null : pane.id}
         />
       </ErrorBoundary>
+    ) : paneKind === 'item' && paneId ? (
+      <ItemsView key={paneId} itemId={paneId} />
     ) : paneKind === 'items' ? (
       <ItemsView />
     ) : paneKind === 'skills' ? (
