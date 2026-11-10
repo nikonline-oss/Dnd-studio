@@ -6,10 +6,15 @@
 //! replaced rather than installed.
 
 use std::path::{Path, PathBuf};
+use tokio::io::AsyncReadExt as _;
 
 use dnd_plugin::catalog::{Catalog, CatalogEntry};
 
 use crate::error::NetError;
+
+const MAX_INDEX_BYTES: u64 = 16 * 1024 * 1024;
+const MAX_SIGNATURE_BYTES: u64 = 1024;
+const MAX_PACKAGE_BYTES: u64 = dnd_plugin::PackageLimits::DEFAULT.max_package_bytes;
 
 /// Reads the catalog over HTTP from a base URL (the directory holding `index.json`).
 #[derive(Clone, Debug)]
@@ -44,8 +49,12 @@ impl CatalogClient {
     /// Downloads and verifies the index. A wrong key, a tampered file or a newer format is an
     /// error, never a partially trusted index.
     pub async fn fetch(&self) -> Result<Catalog, NetError> {
-        let index = self.get(&format!("{}/index.json", self.base)).await?;
-        let signature = self.get(&format!("{}/index.sig", self.base)).await?;
+        let index = self
+            .get(&format!("{}/index.json", self.base), MAX_INDEX_BYTES)
+            .await?;
+        let signature = self
+            .get(&format!("{}/index.sig", self.base), MAX_SIGNATURE_BYTES)
+            .await?;
         let signature = String::from_utf8(signature)
             .map_err(|_| NetError::Protocol("index.sig is not text".to_owned()))?;
         Ok(dnd_plugin::catalog::read_index(
@@ -66,13 +75,13 @@ impl CatalogClient {
         cache_dir: &Path,
     ) -> Result<Vec<u8>, NetError> {
         let path = cached_path(entry, cache_dir);
-        if let Ok(bytes) = tokio::fs::read(&path).await
+        if let Some(bytes) = read_cache(&path, MAX_PACKAGE_BYTES).await
             && entry.verify_package(&bytes, &self.public_key).is_ok()
         {
             tracing::debug!(id = %entry.id, version = %entry.version, "catalog package from cache");
             return Ok(bytes);
         }
-        let bytes = self.get(&entry.archive_url).await?;
+        let bytes = self.get(&entry.archive_url, MAX_PACKAGE_BYTES).await?;
         entry.verify_package(&bytes, &self.public_key)?;
         if let Some(parent) = path.parent() {
             tokio::fs::create_dir_all(parent)
@@ -92,8 +101,8 @@ impl CatalogClient {
         Ok(bytes)
     }
 
-    async fn get(&self, url: &str) -> Result<Vec<u8>, NetError> {
-        let response = self
+    async fn get(&self, url: &str, limit: u64) -> Result<Vec<u8>, NetError> {
+        let mut response = self
             .http
             .get(url)
             .send()
@@ -106,11 +115,46 @@ impl CatalogClient {
                 message: url.to_owned(),
             });
         }
-        response
-            .bytes()
+        if response.content_length().is_some_and(|size| size > limit) {
+            return Err(NetError::DownloadTooLarge { limit });
+        }
+        let mut bytes = Vec::new();
+        while let Some(chunk) = response
+            .chunk()
             .await
-            .map(|bytes| bytes.to_vec())
-            .map_err(|error| NetError::Transport(error.to_string()))
+            .map_err(|e| NetError::Transport(e.to_string()))?
+        {
+            if chunk.len() as u64 > limit.saturating_sub(bytes.len() as u64) {
+                return Err(NetError::DownloadTooLarge { limit });
+            }
+            bytes.extend_from_slice(&chunk);
+        }
+        Ok(bytes)
+    }
+}
+
+// Bound actual reads as well as metadata: a growing or corrupted cache is never trusted.
+async fn read_cache(path: &Path, limit: u64) -> Option<Vec<u8>> {
+    let file = tokio::fs::File::open(path).await.ok()?;
+    let metadata = file.metadata().await.ok()?;
+    if !metadata.is_file() || metadata.len() > limit {
+        return None;
+    }
+    let mut bytes = Vec::new();
+    file.take(limit + 1).read_to_end(&mut bytes).await.ok()?;
+    (bytes.len() as u64 <= limit).then_some(bytes)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[tokio::test]
+    async fn cache_reads_accept_the_limit_and_refuse_larger_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("package");
+        tokio::fs::write(&path, b"1234").await.unwrap();
+        assert_eq!(read_cache(&path, 4).await, Some(b"1234".to_vec()));
+        assert_eq!(read_cache(&path, 3).await, None);
     }
 }
 

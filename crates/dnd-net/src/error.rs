@@ -13,6 +13,8 @@ pub enum NetError {
     /// The server could not be reached, or the connection broke.
     #[error("connection failed: {0}")]
     Transport(String),
+    #[error("download exceeds the limit of {limit} bytes")]
+    DownloadTooLarge { limit: u64 },
     /// The server sent something unexpected.
     #[error("protocol error: {0}")]
     Protocol(String),
@@ -41,6 +43,7 @@ impl NetError {
             Self::InvalidAddress(_) => "invalid_address",
             Self::Http { code, .. } => code,
             Self::Transport(_) => "server_unreachable",
+            Self::DownloadTooLarge { .. } => "download_too_large",
             Self::Protocol(_) => "protocol_error",
             Self::Offline => "offline",
             Self::ConnectionLost => "connection_lost",
