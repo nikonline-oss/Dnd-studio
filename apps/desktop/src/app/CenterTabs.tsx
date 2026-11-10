@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { TabStrip } from './TabStrip';
 import { useTranslation } from 'react-i18next';
 import { useCampaign, useSnapshotSelect } from '@/shared/game/useGame';
 import { useSelection, type TabRef } from '@/shared/state/selection';
@@ -103,7 +104,7 @@ export function CenterTabs() {
   const defaultMapTab = !tabs.some((tab) => tab.kind === 'map');
 
   return (
-    <div role="tablist" className="tabs">
+    <TabStrip activeKey={active ? `${active.kind}:${active.id}` : 'default-map'}>
       {gm && !tabs.some((tab) => tab.kind === 'gm_panel') && (
         <button type="button" className="tab tab-launcher" onClick={openGmPanel}>
           <Icon name="grid" />
@@ -179,6 +180,6 @@ export function CenterTabs() {
           </div>
         );
       })}
-    </div>
+    </TabStrip>
   );
 }

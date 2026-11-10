@@ -226,7 +226,9 @@
   },
   "tabs": {
     "close": "Close {{name}}",
-    "split": "Show side by side"
+    "split": "Show side by side",
+    "scrollLeft": "Scroll tabs left",
+    "scrollRight": "Scroll tabs right"
   },
   "fog": {
     "title": "Fog",

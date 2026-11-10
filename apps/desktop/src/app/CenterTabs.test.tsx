@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { mockIPC } from '@tauri-apps/api/mocks';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it } from 'vitest';
 import { CenterTabs } from './CenterTabs';
@@ -69,6 +69,22 @@ afterEach(() => {
 });
 
 describe('CenterTabs', () => {
+  it('scrolls overflowing tabs with the mouse wheel without changing the active tab', async () => {
+    useSelection.getState().openMap('m1');
+    renderTabs([map('m1', 'Crypt')]);
+    await screen.findByRole('tab', { name: /Crypt/ });
+    const strip = screen.getByRole('tablist');
+    Object.defineProperties(strip, {
+      scrollWidth: { configurable: true, value: 800 },
+      clientWidth: { configurable: true, value: 200 },
+    });
+    fireEvent.wheel(strip, { deltaY: 80 });
+    expect(strip.scrollLeft).toBe(80);
+    expect(useSelection.getState().active).toEqual({ kind: 'map', id: 'm1' });
+    fireEvent.wheel(strip, { deltaY: -80 });
+    expect(strip.scrollLeft).toBe(0);
+  });
+
   it('keeps every opened tab; clicking one does not close the others', async () => {
     useSelection.getState().openMap('m1');
     useSelection.getState().openJournal('j1');
