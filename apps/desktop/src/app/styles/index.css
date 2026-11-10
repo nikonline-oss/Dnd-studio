@@ -1,0 +1,34 @@
+/*
+ * Global stylesheet, split by area.
+ *
+ * Order is the cascade: index.css imports the modules in the order they used to appear in the
+ * single file. Add new global rules to the module of their area; feature-local styles belong
+ * next to the feature (e.g. features/catalog/catalog.css).
+ */
+
+@import './00-preamble.css';
+@import './01-base.css';
+@import './02-controls.css';
+@import './03-start-screen.css';
+@import './04-shell.css';
+@import './05-navigator.css';
+@import './06-inspector.css';
+@import './07-map.css';
+@import './08-chat.css';
+@import './09-editors.css';
+@import './10-journal-tables.css';
+@import './11-feedback.css';
+@import './12-logs.css';
+@import './13-initiative.css';
+@import './14-token-inspector.css';
+@import './15-activity-bar.css';
+@import './16-journal-explorer.css';
+@import './17-virtual-lists.css';
+@import './18-dialogs.css';
+@import './19-sheet.css';
+@import './20-plugins.css';
+@import './21-boards.css';
+@import './22-element-picker.css';
+@import './23-triggers.css';
+@import './24-library.css';
+@import './25-compendia.css';

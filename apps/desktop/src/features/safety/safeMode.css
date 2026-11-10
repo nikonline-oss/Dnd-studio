@@ -1,0 +1,26 @@
+.safe-mode {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--warning-surface, #4a3a12);
+  color: var(--text);
+}
+
+.safe-mode strong {
+  display: block;
+  margin-bottom: 2px;
+}
+
+.safe-mode p {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.safe-mode-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}

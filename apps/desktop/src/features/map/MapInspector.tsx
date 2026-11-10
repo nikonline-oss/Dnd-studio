@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { GridForm } from './GridForm';
+import { MapDescription } from './MapDescription';
 import { ZoneList } from './ZoneList';
 import { useCampaign, useSnapshotSelect } from '@/shared/game/useGame';
 import { assetUrl, type AssetDto, type MapDto } from '@/shared/ipc/client';
@@ -27,8 +28,14 @@ export function MapInspector() {
     <div className="inspector-stack">
       <section className="inspector-section">
         <MapPreview map={map} background={background} />
-        <MapProperties map={map} tokenCount={tokenCount ?? 0} showGrid={!isGm} />
+        <MapProperties
+          map={map}
+          tokenCount={tokenCount ?? 0}
+          showGrid={!isGm}
+          showVisibility={isGm}
+        />
       </section>
+      <MapDescription map={map} />
       {isGm && (
         <section className="inspector-section">
           <h3 className="section-title">
@@ -74,9 +81,11 @@ interface PropertiesProps {
   map: MapDto;
   tokenCount: number;
   showGrid: boolean;
+  /** A player only sees maps they may see, so the flag means nothing to them. */
+  showVisibility: boolean;
 }
 
-function MapProperties({ map, tokenCount, showGrid }: PropertiesProps) {
+function MapProperties({ map, tokenCount, showGrid, showVisibility }: PropertiesProps) {
   const { t } = useTranslation();
   return (
     <dl className="properties">
@@ -92,8 +101,12 @@ function MapProperties({ map, tokenCount, showGrid }: PropertiesProps) {
           </dd>
         </>
       )}
-      <dt>{t('inspector.visibility')}</dt>
-      <dd>{map.visible_to_players ? t('maps.visible') : t('maps.hidden')}</dd>
+      {showVisibility && (
+        <>
+          <dt>{t('inspector.visibility')}</dt>
+          <dd>{map.visible_to_players ? t('maps.visible') : t('maps.hidden')}</dd>
+        </>
+      )}
       <dt>{t('inspector.tokens')}</dt>
       <dd>{tokenCount}</dd>
       <dt>{t('inspector.version')}</dt>

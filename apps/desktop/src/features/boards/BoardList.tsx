@@ -60,7 +60,7 @@ export function BoardList() {
       intent:
         target.kind === 'board'
           ? { kind: 'update_board', ...common }
-          : { kind: 'update_map', ...common, grid: null },
+          : { kind: 'update_map', ...common, description: null, grid: null },
       expectedVersion: target.item.version,
     });
   };

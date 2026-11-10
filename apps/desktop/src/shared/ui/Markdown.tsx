@@ -15,6 +15,9 @@ const ASSET_PREFIX = 'asset:';
 /** A playlist embedded in a text: `[name](playlist:<id>)` — personal listening (ADR-0026). */
 const PLAYLIST_LINK = /^playlist:([0-9a-f-]{36})$/;
 
+/** An entry of an installed compendium: `[name](compendium:<plugin>/<compendium>/<entry>)`. */
+const COMPENDIUM_LINK = /^compendium:([\w.-]+)\/([\w.-]+)\/([\w.-]+)$/;
+
 /** What a text may link to inside the campaign: `[text](journal:<id>)` and the like (ADR-0026). */
 export type LinkKind = 'journal' | 'map' | 'character' | 'board';
 const LINK_KINDS: readonly LinkKind[] = ['journal', 'map', 'character', 'board'];
@@ -39,12 +42,21 @@ const schema = {
   protocols: {
     ...defaultSchema.protocols,
     src: [...(defaultSchema.protocols?.src ?? []), 'asset'],
-    href: [...(defaultSchema.protocols?.href ?? []), ...LINK_KINDS, 'asset', 'playlist'],
+    href: [
+      ...(defaultSchema.protocols?.href ?? []),
+      ...LINK_KINDS,
+      'asset',
+      'playlist',
+      'compendium',
+    ],
   },
 };
 
 function urlTransform(url: string): string {
-  return url.startsWith(ASSET_PREFIX) || elementLink(url) || PLAYLIST_LINK.test(url)
+  return url.startsWith(ASSET_PREFIX) ||
+    elementLink(url) ||
+    PLAYLIST_LINK.test(url) ||
+    COMPENDIUM_LINK.test(url)
     ? url
     : defaultUrlTransform(url);
 }
@@ -144,6 +156,21 @@ const components: Components = {
     }
     const playlistId = typeof href === 'string' ? PLAYLIST_LINK.exec(href)?.[1] : undefined;
     if (playlistId) return <PlaylistLink id={playlistId}>{children}</PlaylistLink>;
+    const compendium = typeof href === 'string' ? COMPENDIUM_LINK.exec(href) : null;
+    if (compendium) {
+      const [, plugin = '', book = '', entry = ''] = compendium;
+      return (
+        <button
+          type="button"
+          className="md-element-link md-compendium-link"
+          onClick={() => {
+            useSelection.getState().openCompendium(`${plugin}/${book}/${entry}`);
+          }}
+        >
+          {children}
+        </button>
+      );
+    }
     const link = typeof href === 'string' ? elementLink(href) : null;
     return link ? (
       <ElementLink kind={link.kind} id={link.id}>

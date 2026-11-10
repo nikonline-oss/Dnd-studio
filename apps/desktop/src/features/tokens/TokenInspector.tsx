@@ -3,13 +3,22 @@ import { useTranslation } from 'react-i18next';
 import { useCampaign, useSnapshotSelect, useSubmitIntent } from '@/shared/game/useGame';
 import { tokenCssColor, tokenInitial } from '@/shared/game/tokenLook';
 import { labelText } from '@/shared/i18n/label';
-import type { ConditionDef, TokenDto, TokenEffectDto, TokenLayer } from '@/shared/ipc/client';
+import type {
+  ConditionDef,
+  TokenDto,
+  TokenEffectDto,
+  TokenField,
+  TokenLayer,
+} from '@/shared/ipc/client';
 import { useSelection } from '@/shared/state/selection';
+import { TokenInspectorPolicyForm } from './TokenInspectorPolicy';
 import { ErrorText } from '@/shared/ui/ErrorText';
 import { Icon } from '@/shared/ui/Icon';
 import { ConfirmDelete, IconButton } from '@/shared/ui/IconButton';
 
 const LAYERS: TokenLayer[] = ['background', 'tokens', 'gm'];
+/** What a player sees when the campaign never changed the policy (ADR-0061). */
+const BASE_FIELDS: TokenField[] = ['name', 'size', 'character', 'conditions'];
 const DISPOSITIONS = ['neutral', 'ally', 'enemy'] as const;
 /** Sizes offered in grid cells; the core accepts any positive scale. */
 const SCALES = [0.5, 1, 2, 3, 4];
@@ -26,7 +35,13 @@ export function TokenInspector() {
   const selectToken = useSelection((s) => s.selectToken);
   const openCharacter = useSelection((s) => s.openCharacter);
   const token = useSnapshotSelect((s) => s.tokens.find((tok) => tok.id === tokenId));
+  // Which rows this recipient may see (ADR-0061); an older server sends none, so fall back to the
+  // base policy for players and to everything for GM roles.
+  const inspectorFields = useSnapshotSelect(
+    (s) => s.token_inspector?.find((v) => v.token === tokenId)?.fields,
+  );
   const characters = useSnapshotSelect((s) => s.characters);
+  const campaignMeta = useSnapshotSelect((s) => s.campaign);
   const effects = (useSnapshotSelect((s) => s.effects) ?? []).filter((e) => e.token === tokenId);
   const conditions =
     useSnapshotSelect((s) => s.plugins.find((p) => p.id === s.system_plugin)?.system?.conditions) ??
@@ -35,6 +50,11 @@ export function TokenInspector() {
   if (!token || !characters) return <p className="inspector-empty muted">{t('inspector.empty')}</p>;
   const isGm = campaign?.role === 'gm' || campaign?.role === 'co_gm';
   const character = characters.find((c) => c.id === token.character_id);
+  const fields = new Set<TokenField>(
+    isGm
+      ? ['name', 'size', 'disposition', 'character', 'conditions', 'effects', 'position']
+      : (inspectorFields ?? BASE_FIELDS),
+  );
 
   return (
     <div className="inspector-stack">
@@ -48,11 +68,17 @@ export function TokenInspector() {
             {tokenInitial(token.name)}
           </span>
           <div>
-            <strong>{token.name || t('tokens.unnamed')}</strong>
-            <p className="muted">
-              {character ? t('tokens.linkedTo', { name: character.name }) : t('tokens.noCharacter')}
-            </p>
-            {character && (
+            <strong>
+              {fields.has('name') ? token.name || t('tokens.unnamed') : t('tokens.unknown')}
+            </strong>
+            {fields.has('character') && (
+              <p className="muted">
+                {character
+                  ? t('tokens.linkedTo', { name: character.name })
+                  : t('tokens.noCharacter')}
+              </p>
+            )}
+            {character && fields.has('character') && (
               <button
                 className="btn btn-ghost"
                 onClick={() => {
@@ -75,17 +101,49 @@ export function TokenInspector() {
           />
         ) : (
           <dl className="properties">
-            <dt>{t('tokens.size')}</dt>
-            <dd>{t('tokens.cells', { count: token.scale })}</dd>
+            {fields.has('size') && (
+              <>
+                <dt>{t('tokens.size')}</dt>
+                <dd>{t('tokens.cells', { count: token.scale })}</dd>
+              </>
+            )}
+            {fields.has('disposition') && (
+              <>
+                <dt>{t('tokens.disposition')}</dt>
+                <dd>{t(`tokens.dispositions.${token.disposition ?? 'neutral'}`)}</dd>
+              </>
+            )}
+            {fields.has('position') && (
+              <>
+                <dt>{t('tokens.position')}</dt>
+                <dd>
+                  {Math.round(token.x / 16)}, {Math.round(token.y / 16)}
+                </dd>
+              </>
+            )}
           </dl>
         )}
       </section>
-      {effects.length > 0 && (
+      {isGm && campaignMeta && (
+        <section className="inspector-section">
+          <TokenInspectorPolicyForm
+            token={token}
+            campaign={campaignMeta}
+            effectReveals={[...new Set(effects.flatMap((e) => e.reveal ?? []))]}
+          />
+        </section>
+      )}
+      {effects.length > 0 && fields.has('effects') && (
         <section className="inspector-section" aria-label={t('effects.title')}>
           <h3>{t('effects.title')}</h3>
           <ul className="token-effects">
             {effects.map((effect) => (
-              <TokenEffect key={effect.id} effect={effect} conditions={conditions} isGm={isGm} />
+              <TokenEffect
+                key={effect.id}
+                effect={effect}
+                conditions={fields.has('conditions') ? conditions : []}
+                isGm={isGm}
+              />
             ))}
           </ul>
         </section>

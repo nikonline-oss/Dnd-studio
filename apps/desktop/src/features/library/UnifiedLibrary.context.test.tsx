@@ -3,7 +3,7 @@ import { mockIPC } from '@tauri-apps/api/mocks';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it } from 'vitest';
-import { JournalTree } from './JournalTree';
+import { UnifiedLibrary } from './UnifiedLibrary';
 import type { IntentEnvelope, Role, Snapshot } from '@/shared/ipc/client';
 import { useSelection } from '@/shared/state/selection';
 
@@ -76,9 +76,9 @@ const snapshot: Snapshot = {
     },
   ],
 };
+
 function setup(role: Role = 'gm', pending = false) {
   const sent: IntentEnvelope[] = [];
-  const calls: string[] = [];
   let release = () => {};
   const waiting = new Promise<{ status: 'accepted'; seq: number }>((resolve) => {
     release = () => {
@@ -86,18 +86,9 @@ function setup(role: Role = 'gm', pending = false) {
     };
   });
   mockIPC((cmd, args) => {
-    calls.push(cmd);
     if (cmd === 'get_snapshot') return snapshot;
     if (cmd === 'campaign_current') return { name: 'C', path: '/menus', user_id: 'u', role };
     if (cmd === 'remote_current') return null;
-    if (cmd === 'plugin_bundled')
-      return [{ id: 'extra', name: 'Extra', version: '1.0.0', kind: 'system', license: 'MIT' }];
-    if (cmd === 'compendium_list')
-      return [
-        { id: 'monsters', plugin_id: 'system', name: 'Monsters', entry_type: 'monster', count: 3 },
-      ];
-    if (cmd === 'plugin_install_bundled' || cmd === 'plugin_install_file')
-      return pending ? waiting : { status: 'accepted', seq: 2 };
     if (cmd === 'submit_intent') {
       sent.push((args as { envelope: IntentEnvelope }).envelope);
       return pending ? waiting : { status: 'accepted', seq: 2 };
@@ -109,17 +100,18 @@ function setup(role: Role = 'gm', pending = false) {
   });
   render(
     <QueryClientProvider client={client}>
-      <JournalTree />
+      <UnifiedLibrary />
     </QueryClientProvider>,
   );
-  return { sent, calls, release, client };
+  return { sent, release, client };
 }
+
 afterEach(() => {
   useSelection.getState().reset();
   localStorage.clear();
 });
 
-describe('journal context menus', () => {
+describe('unified library context menus', () => {
   it('opens a shared entry for a reader without offering destructive commands', async () => {
     const { sent } = setup('spectator');
     fireEvent.contextMenu(await screen.findByText('Shared note'));
@@ -128,6 +120,7 @@ describe('journal context menus', () => {
     expect(useSelection.getState().journalId).toBe('entry');
     expect(sent).toHaveLength(0);
   });
+
   it('changes visibility with the current version and blocks repeat writes', async () => {
     const { sent, release } = setup('co_gm', true);
     fireEvent.contextMenu(await screen.findByText('Shared note'));
@@ -146,6 +139,7 @@ describe('journal context menus', () => {
       await Promise.resolve();
     });
   });
+
   it('moves the clicked entry through a destination dialog', async () => {
     const { sent } = setup();
     fireEvent.contextMenu(await screen.findByText('Shared note'));
@@ -160,9 +154,10 @@ describe('journal context menus', () => {
       });
     });
   });
-  it('background expansion is available to readers and closes on Escape', async () => {
+
+  it('background expansion is available to readers and closes on Escape', () => {
     setup('player');
-    fireEvent.contextMenu(await screen.findByRole('tree'));
+    fireEvent.contextMenu(screen.getByRole('tree'));
     expect(screen.getByRole('menuitem', { name: 'Expand all' })).toBeEnabled();
     expect(screen.queryByRole('menuitem', { name: 'New entry' })).not.toBeInTheDocument();
     fireEvent.keyDown(document, { key: 'Escape' });

@@ -76,11 +76,17 @@ describe('compendium character templates', () => {
     await userEvent.click(await screen.findByRole('option', { name: 'Scout' }));
     return sent;
   }
+  /** Creating a character opens its own modal; the opener keeps the entry's button label. */
+  async function openCreateDialog() {
+    await userEvent.click(screen.getByRole('button', { name: 'Create character' }));
+    await screen.findByRole('dialog');
+  }
   it.each(['gm', 'co_gm'] as const)(
     'lets %s create a sheet then place its linked token',
     async (role) => {
       const sent = await setup(role);
-      await userEvent.click(screen.getByRole('button', { name: 'Create character' }));
+      await openCreateDialog();
+      await userEvent.click(screen.getByRole('button', { name: 'Create' }));
       expect(
         await screen.findByRole('button', { name: 'Open character sheet' }),
       ).toBeInTheDocument();
@@ -116,6 +122,7 @@ describe('compendium character templates', () => {
   it('previews the creature form without mutating or creating the entry', async () => {
     const data = structuredClone({ character_template: template });
     const sent = await setup('gm', false, data, true);
+    await openCreateDialog();
     expect(await screen.findByText('Creature form')).toBeInTheDocument();
     expect(screen.queryByText('Ordinary character form')).not.toBeInTheDocument();
     expect(screen.getByText('Creature agility')).toBeInTheDocument();
@@ -125,16 +132,18 @@ describe('compendium character templates', () => {
   });
   it('keeps the ordinary form for PC templates', async () => {
     await setup('gm', false, { character_template: { ...template, kind: 'pc' } }, true);
+    await openCreateDialog();
     expect(await screen.findByText('Ordinary character form')).toBeInTheDocument();
     expect(screen.queryByText('Creature form')).not.toBeInTheDocument();
   });
   it('uses the instance name for both character and token', async () => {
     const sent = await setup('gm');
+    await openCreateDialog();
     const input = screen.getByRole('textbox', { name: 'Character name' });
     await userEvent.clear(input);
-    expect(screen.getByRole('button', { name: 'Create character' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Create' })).toBeDisabled();
     await userEvent.type(input, 'Forest scout');
-    await userEvent.click(screen.getByRole('button', { name: 'Create character' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }));
     expect(await screen.findByRole('status')).toHaveTextContent('Forest scout');
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Map for token' }), 'map1');
     await userEvent.click(screen.getByRole('button', { name: 'Place token at map centre' }));
@@ -146,25 +155,20 @@ describe('compendium character templates', () => {
   });
   it('does not offer placement after rejected character creation', async () => {
     const sent = await setup('gm', true);
-    await userEvent.click(screen.getByRole('button', { name: 'Create character' }));
+    await openCreateDialog();
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }));
     expect(await screen.findByRole('alert')).toBeInTheDocument();
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
     expect(sent).toHaveLength(1);
   });
-  it('creates a default NPC from an ordinary entry without mutating its data', async () => {
+  it('offers no character form for an entry without a character template', async () => {
+    // A stray "create character" form on every entry read as an unexplained dialog: an entry that
+    // is not a character becomes an item or a skill instead.
     const data = Object.freeze({ description: 'A guide', agility: 2 });
     const sent = await setup('gm', false, data);
-    expect(
-      screen.getByText('No character template: creates an editable sheet with system defaults.'),
-    ).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Create character' }));
-    await screen.findByRole('button', { name: 'Open character sheet' });
-    expect(sent[0]?.intent).toMatchObject({
-      kind: 'create_character',
-      name: 'Scout',
-      character_kind: 'npc',
-      sheet_json: '{}',
-    });
+    expect(screen.queryByRole('button', { name: 'Create character' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(sent).toHaveLength(0);
     expect(data).toEqual({ description: 'A guide', agility: 2 });
   });
   it.each([null, { kind: 'monster', sheet_data: {} }, { kind: 'npc', sheet_data: [] }])(

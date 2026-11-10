@@ -76,6 +76,12 @@ export const ipc = {
     unwrap(commands.pluginInstallFile()).then((outcome) =>
       outcome === null ? null : requireAccepted(outcome),
     ),
+  pluginInstallBytes: (name: string, bytes: number[]) =>
+    unwrap(commands.pluginInstallBytes(name, bytes)).then(requireAccepted),
+  catalogFetch: (baseUrl: string, publicKey: string) =>
+    unwrap(commands.catalogFetch(baseUrl, publicKey)),
+  catalogInstall: (baseUrl: string, publicKey: string, id: string, version: string) =>
+    unwrap(commands.catalogInstall(baseUrl, publicKey, id, version)).then(requireAccepted),
   sheetView: (sheetJson: string, characterId?: string) =>
     unwrap(commands.sheetView(sheetJson, characterId ?? null)),
   campaignCheckpoint: () => unwrap(commands.campaignCheckpoint()),

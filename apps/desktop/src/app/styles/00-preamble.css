@@ -1,0 +1,3 @@
+/* Split from app/styles.css (workboard: «стили»). Order matters: index.css imports these in cascade order. */
+
+@import '../../shared/theme/tokens.css';

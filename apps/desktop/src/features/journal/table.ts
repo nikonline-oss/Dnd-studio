@@ -8,14 +8,6 @@ export const MAX_WIDTH = 2000;
 export const DEFAULT_WIDTH = 140;
 export const MAX_CELL = 4000;
 
-/** A fresh table: three named columns, three empty rows. */
-export function newTable(): JournalTable {
-  return {
-    columns: ['A', 'B', 'C'].map((name) => ({ name, width: DEFAULT_WIDTH })),
-    rows: Array.from({ length: 3 }, () => ['', '', '']),
-  };
-}
-
 /** Spreadsheet column letters: A … Z, AA … (cell addresses for formulas later). */
 export function columnLetter(index: number): string {
   let n = index + 1;

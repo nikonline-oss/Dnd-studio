@@ -11,6 +11,8 @@ import { ActionWindows } from '@/features/plugins/ActionWindows';
 import { MaintainedEffects } from '@/features/plugins/MaintainedEffects';
 import { PluginReactions } from '@/features/plugins/PluginReactions';
 import { InitiativePanel } from '@/features/initiative/InitiativePanel';
+import { ItemStatesEditor } from '@/shared/items/ItemStatesEditor';
+import { VisibilityEditor } from '@/shared/visibility/VisibilityEditor';
 import { ErrorText } from '@/shared/ui/ErrorText';
 import type { GmPanelSection } from '@/shared/ipc/client';
 
@@ -136,6 +138,22 @@ export function GmPanel() {
         )}
       </header>
       {!canEdit && <p role="status">{t('gm.unavailable')}</p>}
+      {/* Not a plugin section: item states belong to the campaign, with or without a system. */}
+      <details className="gm-card">
+        <summary>{t('items.statesTitle')}</summary>
+        <p className="muted">{t('items.statesDescription')}</p>
+        <fieldset disabled={!canEdit}>
+          <ItemStatesEditor />
+        </fieldset>
+      </details>
+      {/* What players read of other people's characters (ADR-0063). */}
+      <details className="gm-card">
+        <summary>{t('visibility.title')}</summary>
+        <p className="muted">{t('visibility.description')}</p>
+        <fieldset disabled={!canEdit}>
+          <VisibilityEditor />
+        </fieldset>
+      </details>
       <div className="gm-dashboard-grid">
         {sections.map((section) => (
           <details open className="gm-card" key={section.id}>

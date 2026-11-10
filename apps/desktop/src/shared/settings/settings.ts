@@ -10,6 +10,10 @@ export const settingsSchema = z.object({
   language: z.enum(['system', 'ru', 'en']),
   /** Panel preset (CLAUDE.md §5): `player` = map + chat + character sheet, other panels hidden. */
   layoutPreset: z.enum(['gm', 'player']),
+  /** Plugin catalog: the directory URL that holds `index.json` and its signature (ADR-0060). */
+  catalogUrl: z.string().max(500),
+  /** The catalog's Ed25519 public key, 64 hex characters. Empty means "catalog not set up". */
+  catalogKey: z.string().max(64),
   /** The view open in the side panel (Activity Bar). */
   sideView: z.enum([
     'characters',
@@ -19,6 +23,8 @@ export const settingsSchema = z.object({
     'triggers',
     'compendia',
     'items',
+    'skills',
+    'catalog',
   ]),
 });
 
@@ -34,6 +40,8 @@ export const defaultSettings: Settings = {
   language: 'system',
   layoutPreset: 'gm',
   sideView: 'boards',
+  catalogUrl: '',
+  catalogKey: '',
 };
 
 interface SettingsState extends Settings {

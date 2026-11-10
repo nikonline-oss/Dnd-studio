@@ -12,6 +12,8 @@ import { applyEvent } from '@/shared/game/evolve';
 import { uuidv7 } from '@/shared/ipc/uuid';
 import type {
   CampaignInfo,
+  ItemDto,
+  TokenField,
   ChatMessageDto,
   Event,
   IntentEnvelope,
@@ -30,6 +32,50 @@ const PLAYER = id(2);
 const LORE = id(70);
 const GM_NOTES = id(71);
 const sha = (n: number) => n.toString(16).padStart(2, '0').repeat(32);
+
+const ALL_TOKEN_FIELDS: TokenField[] = [
+  'name',
+  'size',
+  'disposition',
+  'character',
+  'conditions',
+  'effects',
+  'position',
+];
+const BASE_TOKEN_FIELDS: TokenField[] = ['name', 'size', 'character', 'conditions'];
+
+/** Mirrors `ItemStateDef::builtin` (ADR-0062). */
+const BUILTIN_ITEM_STATES = [
+  { id: 'ok', label: { ru: 'Целый', en: 'Intact' }, active: true },
+  { id: 'broken', label: { ru: 'Сломан', en: 'Broken' }, active: false },
+  { id: 'fragment', label: { ru: 'Обломок', en: 'Fragment' }, active: false },
+  { id: 'activated', label: { ru: 'Активирован', en: 'Activated' }, active: true },
+  { id: 'deactivated', label: { ru: 'Деактивирован', en: 'Deactivated' }, active: false },
+];
+
+/** The rows the server would build for this role (ADR-0061); the mock keeps them in step. */
+function withInspectorRows(snapshot: Snapshot, role: Role): Snapshot {
+  const everything = role === 'gm' || role === 'co_gm';
+  const policy = snapshot.campaign.token_inspector ?? {
+    reveal: BASE_TOKEN_FIELDS,
+    conceal: [],
+  };
+  const rows = (token: Snapshot['tokens'][number]): TokenField[] => {
+    if (everything) return ALL_TOKEN_FIELDS;
+    const open = new Set<TokenField>(policy.reveal ?? []);
+    for (const field of policy.conceal ?? []) open.delete(field);
+    for (const field of token.inspector?.reveal ?? []) open.add(field);
+    for (const field of token.inspector?.conceal ?? []) open.delete(field);
+    return ALL_TOKEN_FIELDS.filter((field) => open.has(field));
+  };
+  return {
+    ...snapshot,
+    tokens: everything
+      ? snapshot.tokens
+      : snapshot.tokens.map((token) => ({ ...token, inspector: null })),
+    token_inspector: snapshot.tokens.map((token) => ({ token: token.id, fields: rows(token) })),
+  };
+}
 
 function sampleJournal(): JournalEntryDto[] {
   return [
@@ -173,6 +219,8 @@ export async function installMockIpc(
       {
         id: id(10),
         name: 'Sunken Crypt',
+        description:
+          'Half-flooded halls beneath the old chapel. The river gets in at high water, and something answers from the far end.',
         background_asset_id: id(20),
         width: image.width,
         height: image.height,
@@ -201,6 +249,21 @@ export async function installMockIpc(
         name: 'Restless Knight',
         x: (17 * 64 + 32) * 16,
         y: (15 * 64 + 32) * 16,
+        rotation: 0,
+        scale: 1,
+        layer: 'tokens',
+        visible: true,
+        version: 1,
+      },
+      // An unlinked prop, so the token inspector (not a sheet) can be reached from the map.
+      {
+        id: id(81),
+        map_id: id(10),
+        character_id: null,
+        asset_id: null,
+        name: 'Old lantern',
+        x: (5 * 64 + 32) * 16,
+        y: (5 * 64 + 32) * 16,
         rotation: 0,
         scale: 1,
         layer: 'tokens',
@@ -242,7 +305,7 @@ export async function installMockIpc(
     ],
     plugins: [SRD_PLUGIN],
     system_plugin: SRD_PLUGIN.id,
-    ...sampleBoard(id),
+    ...sampleBoard(id, { id: id(10), name: 'Sunken Crypt' }),
     journal: journal.map((e) => ({
       id: e.id,
       folder_id: e.folder_id,
@@ -287,6 +350,77 @@ export async function installMockIpc(
     combats: [],
     combatants: [],
     chat: sampleChat(),
+    // A small inventory, so the items tab has something to show (ADR-0062).
+    items: [
+      {
+        id: id(100),
+        kind: 'item',
+        name: 'Ring of protection',
+        type_id: null,
+        is_template: false,
+        template: null,
+        owner: id(50),
+        visible_to_players: true,
+        description: 'A worn silver band. It hums faintly near the flooded hall.',
+        state: null,
+        effects: [{ path: 'ac', add: 1, minimum: null, maximum: null }],
+        grants: [],
+        values: [{ key: 'armor_bonus', value: 1 }],
+        sheet_json: '{}',
+        version: 1,
+      },
+      {
+        id: id(102),
+        kind: 'skill',
+        name: 'Fire bolt',
+        type_id: null,
+        is_template: true,
+        template: null,
+        owner: null,
+        visible_to_players: false,
+        description: 'A ranged spell attack.',
+        state: 'activated',
+        effects: [],
+        grants: [],
+        values: [{ key: 'spell_damage', value: 10 }],
+        sheet_json: '{}',
+        version: 1,
+      },
+      {
+        id: id(103),
+        kind: 'item',
+        name: 'Wand of sparks',
+        type_id: 'equipment',
+        is_template: false,
+        template: null,
+        owner: id(50),
+        visible_to_players: false,
+        description: 'Three charges left.',
+        state: null,
+        effects: [],
+        grants: [],
+        values: [],
+        sheet_json: '{"charges":3}',
+        version: 1,
+      },
+      {
+        id: id(101),
+        kind: 'item',
+        name: 'Cracked lantern',
+        type_id: null,
+        is_template: true,
+        template: null,
+        owner: null,
+        visible_to_players: false,
+        description: 'The glass is gone; the wick still lights.',
+        state: 'broken',
+        effects: [],
+        grants: [],
+        values: [],
+        sheet_json: '{}',
+        version: 1,
+      },
+    ],
   };
   if (stress) snapshot = addStress(snapshot, journal);
   const info: CampaignInfo = {
@@ -333,6 +467,7 @@ export async function installMockIpc(
               map: {
                 id: intent.id,
                 name: intent.name,
+                description: intent.description ?? '',
                 background_asset_id: intent.background_asset_id,
                 width: intent.width,
                 height: intent.height,
@@ -350,6 +485,7 @@ export async function installMockIpc(
         const updated = {
           ...map,
           name: intent.name ?? map.name,
+          description: intent.description ?? map.description ?? '',
           grid: intent.grid ?? map.grid,
           visible_to_players: intent.visible_to_players ?? map.visible_to_players,
           version: map.version + 1,
@@ -483,6 +619,7 @@ export async function installMockIpc(
       case 'update_token': {
         const tok = snapshot.tokens.find((x) => x.id === intent.id);
         if (!tok) return { status: 'rejected', reason: { code: 'not_found' } };
+        const override = intent.inspector;
         return commit(
           [
             {
@@ -494,7 +631,116 @@ export async function installMockIpc(
                 scale: intent.scale ?? tok.scale,
                 layer: intent.layer ?? tok.layer,
                 visible: intent.visible ?? tok.visible,
+                disposition: intent.disposition ?? tok.disposition ?? 'neutral',
+                // An empty override means "follow the campaign" (ADR-0061).
+                inspector:
+                  override && (override.reveal?.length || override.conceal?.length)
+                    ? override
+                    : null,
                 version: tok.version + 1,
+              },
+            },
+          ],
+          intent_id,
+        );
+      }
+      case 'create_item': {
+        const item: ItemDto = {
+          id: intent.id,
+          kind: intent.item_kind ?? 'item',
+          name: intent.name,
+          type_id: intent.type_id ?? null,
+          is_template: true,
+          template: null,
+          owner: null,
+          visible_to_players: intent.visible_to_players,
+          description: intent.description ?? '',
+          state: null,
+          effects: [],
+          grants: [],
+          values: [],
+          sheet_json: intent.sheet_json ?? '{}',
+          version: 1,
+        };
+        return commit([{ kind: 'item_created', item }], intent_id);
+      }
+      case 'update_item': {
+        const item = snapshot.items?.find((i) => i.id === intent.id);
+        if (!item) return { status: 'rejected', reason: { code: 'not_found' } };
+        return commit(
+          [
+            {
+              kind: 'item_updated',
+              item: {
+                ...item,
+                name: intent.name ?? item.name,
+                description: intent.description ?? item.description ?? '',
+                sheet_json: intent.sheet_json ?? item.sheet_json,
+                visible_to_players: intent.visible_to_players ?? item.visible_to_players,
+                state: intent.state === null ? (item.state ?? null) : intent.state || null,
+                effects: intent.effects ?? item.effects ?? [],
+                grants: intent.grants ?? item.grants ?? [],
+                values: intent.values ?? item.values ?? [],
+                version: item.version + 1,
+              },
+            },
+          ],
+          intent_id,
+        );
+      }
+      case 'instantiate_item': {
+        const source = snapshot.items?.find((i) => i.id === intent.template);
+        if (!source) return { status: 'rejected', reason: { code: 'not_found' } };
+        const copy: ItemDto = {
+          ...source,
+          id: intent.id,
+          is_template: false,
+          template: source.id,
+          owner: intent.owner ?? null,
+          visible_to_players: false,
+          version: 1,
+        };
+        return commit([{ kind: 'item_created', item: copy }], intent_id);
+      }
+      case 'duplicate_item': {
+        const source = snapshot.items?.find((i) => i.id === intent.id);
+        if (!source) return { status: 'rejected', reason: { code: 'not_found' } };
+        const copy: ItemDto = { ...source, id: intent.new_id, version: 1 };
+        return commit([{ kind: 'item_created', item: copy }], intent_id);
+      }
+      case 'transfer_item': {
+        const item = snapshot.items?.find((i) => i.id === intent.id);
+        if (!item) return { status: 'rejected', reason: { code: 'not_found' } };
+        return commit(
+          [
+            {
+              kind: 'item_updated',
+              item: {
+                ...item,
+                owner: intent.owner,
+                visible_to_players: false,
+                version: item.version + 1,
+              },
+            },
+          ],
+          intent_id,
+        );
+      }
+      case 'delete_item':
+        return commit([{ kind: 'item_deleted', id: intent.id }], intent_id);
+      case 'update_campaign_meta': {
+        const token_inspector = intent.token_inspector ?? snapshot.campaign.token_inspector;
+        return commit(
+          [
+            {
+              kind: 'campaign_meta_updated',
+              campaign: {
+                ...snapshot.campaign,
+                name: intent.name ?? snapshot.campaign.name,
+                description: intent.description ?? snapshot.campaign.description,
+                ...(token_inspector ? { token_inspector } : {}),
+                ...(intent.item_states ? { item_states: intent.item_states } : {}),
+                version: snapshot.campaign.version + 1,
               },
             },
           ],
@@ -636,7 +882,7 @@ export async function installMockIpc(
         case 'campaign_current':
           return open ? info : null;
         case 'get_snapshot':
-          return snapshot;
+          return withInspectorRows(snapshot, role);
         case 'submit_intent':
           return submit(payload.envelope as IntentEnvelope);
         case 'journal_entry':
@@ -717,8 +963,38 @@ export async function installMockIpc(
         // Plugins (ADR-0023): the SRD rules, evaluated by a stand-in for the core.
         case 'plugin_bundled':
           return [];
-        case 'sheet_view':
-          return srdSheetView(String(payload.sheetJson));
+        case 'sheet_view': {
+          const view = srdSheetView(String(payload.sheetJson));
+          // ADR-0062: spread the effects of the character's working items over the numbers, the
+          // same way the core does, so the browser mock shows the effective values too.
+          const characterId = payload.characterId as string | null;
+          const adjusted: Record<string, number> = {};
+          let sheet: Record<string, unknown>;
+          try {
+            sheet = JSON.parse(String(payload.sheetJson)) as Record<string, unknown>;
+          } catch {
+            sheet = {};
+          }
+          // A campaign that never edited its states carries none; the core falls back to the
+          // built-in set, and so must the mock.
+          const states = snapshot.campaign.item_states?.length
+            ? snapshot.campaign.item_states
+            : BUILTIN_ITEM_STATES;
+          const active = (id: string) => states.some((s) => s.id === id && s.active !== false);
+          for (const item of snapshot.items ?? []) {
+            if (item.owner !== characterId || item.is_template) continue;
+            if (item.state && !active(item.state)) continue;
+            for (const effect of item.effects ?? []) {
+              if (!effect.path.includes('.')) {
+                const stored = sheet[effect.path];
+                if (typeof stored === 'number') {
+                  adjusted[effect.path] = (adjusted[effect.path] ?? stored) + effect.add;
+                }
+              }
+            }
+          }
+          return { ...view, adjusted };
+        }
         case 'asset_import_images':
           return [];
         case 'compendium_list':

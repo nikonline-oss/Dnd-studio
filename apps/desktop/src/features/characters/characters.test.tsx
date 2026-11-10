@@ -108,6 +108,8 @@ describe('CharacterList', () => {
   it('GM can add PCs and NPCs; NPCs have no owner', async () => {
     const sent = renderWith('gm', [], <CharacterList />);
     await userEvent.click(await screen.findByRole('button', { name: 'Add NPC' }));
+    // Creating is a form now: the name is chosen before the intent is sent.
+    await userEvent.click(await screen.findByRole('button', { name: 'Create' }));
     await waitFor(() => {
       expect(sent).toHaveLength(1);
     });
@@ -122,6 +124,7 @@ describe('CharacterList', () => {
     const sent = renderWith('player', [], <CharacterList />);
     await userEvent.click(await screen.findByRole('button', { name: 'Add PC' }));
     expect(screen.queryByRole('button', { name: 'Add NPC' })).not.toBeInTheDocument();
+    await userEvent.click(await screen.findByRole('button', { name: 'Create' }));
     await waitFor(() => {
       expect(sent).toHaveLength(1);
     });

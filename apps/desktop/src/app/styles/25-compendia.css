@@ -1,0 +1,900 @@
+/* Split from app/styles.css (workboard: «стили»). Order matters: index.css imports these in cascade order. */
+
+/* ---------- Compendia (ADR-0025) ---------- */
+
+.compendium-view {
+  display: grid;
+  grid-template-columns: minmax(200px, 320px) minmax(0, 1fr);
+  gap: var(--space-3);
+  height: 100%;
+  min-height: 0;
+}
+
+.compendium-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-height: 0;
+}
+
+.compendium-list ul {
+  flex: 1;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.compendium-list [role='option'] {
+  padding: 4px var(--space-2);
+  cursor: pointer;
+}
+
+.compendium-list [role='option']:hover {
+  background: var(--color-hover);
+}
+
+.compendium-list [role='option'][aria-selected='true'] {
+  background: var(--color-accent-soft);
+}
+
+.compendium-entry {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-height: 0;
+  overflow: auto;
+}
+
+.offline-edits {
+  max-height: 35vh;
+  overflow: auto;
+  padding: 8px 12px;
+  border-top: 1px solid var(--color-border);
+}
+.offline-edit-comparison {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.offline-edit-comparison pre {
+  overflow: auto;
+  max-height: 22vh;
+}
+
+.media-folder-view {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+.media-folder-files {
+  width: 250px;
+  min-width: 160px;
+  max-width: 50%;
+  resize: horizontal;
+  overflow: auto;
+  padding: 12px;
+  border-right: 1px solid var(--color-border);
+}
+.media-folder-files header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.media-folder-files [role='listbox'] {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.media-folder-files [role='option'] {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  text-align: left;
+  min-height: 40px;
+}
+.media-folder-files [role='option'][aria-selected='true'] {
+  background: var(--color-surface-raised);
+  outline: 1px solid var(--color-accent);
+}
+.media-folder-files [role='option'] span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.media-folder-files [role='option'] img {
+  width: 42px;
+  height: 32px;
+  object-fit: contain;
+}
+.media-folder-preview {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  padding: 24px;
+}
+.media-full-image {
+  display: block;
+  max-width: 100%;
+  max-height: calc(100% - 60px);
+  object-fit: contain;
+  margin: auto;
+}
+.media-inline-audio {
+  display: block;
+  max-width: 100%;
+  width: 360px;
+  margin: 8px 0;
+}
+.md-media-attachment {
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: top;
+}
+.md-media-attachment > span {
+  display: block;
+}
+.session-audio {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+}
+.session-audio-title,
+.session-audio-buttons {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.session-audio-title strong {
+  overflow-wrap: anywhere;
+}
+.session-audio-title > span {
+  font-size: 24px;
+  color: var(--color-accent);
+}
+.media-range {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.media-range input {
+  flex: 1;
+  min-width: 90px;
+}
+.media-range output {
+  font-variant-numeric: tabular-nums;
+}
+.compact-audio-players {
+  display: flex;
+  gap: 6px;
+  padding: 6px 10px;
+  max-height: 150px;
+  overflow: auto;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+.session-audio.compact {
+  flex: 1;
+  min-width: 240px;
+  padding: 6px 10px;
+  gap: 4px;
+}
+.session-audio.compact .session-audio-title > span {
+  font-size: 18px;
+}
+.session-audio.compact button {
+  font-size: 12px;
+  padding: 3px 8px;
+}
+.picker-details audio {
+  max-width: 100%;
+}
+.media-tiled-image {
+  width: 100%;
+  position: relative;
+}
+.media-tiled-image img {
+  position: absolute;
+  display: block;
+}
+
+.playlist-view {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+  max-width: 640px;
+}
+.playlist-view .playlist-player {
+  align-self: stretch;
+}
+.playlist-header {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.playlist-header h2 {
+  margin: 0;
+}
+.playlist-shared {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.playlist-tracks {
+  align-self: stretch;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.playlist-tracks li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: 8px;
+}
+.playlist-tracks li[data-shared] {
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  outline: 1px solid var(--color-accent);
+}
+.playlist-track-name {
+  flex: 1;
+  min-width: 0;
+  padding: 4px;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.playlist-track-name:hover {
+  color: var(--color-accent);
+}
+.playlist-track-actions {
+  display: flex;
+  gap: 2px;
+}
+.playlist-track-actions button {
+  padding: 4px;
+}
+
+.compendium-character {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin: 12px 0;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+.compendium-character p {
+  flex-basis: 100%;
+  margin: 0;
+}
+.compendium-character label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.plugin-settings {
+  padding: 24px;
+  overflow: auto;
+  height: 100%;
+}
+.plugin-feature {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+.plugin-feature label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.plugin-open {
+  text-align: left;
+  font-weight: 600;
+}
+
+.plugin-reactions {
+  position: fixed;
+  right: 20px;
+  bottom: 50px;
+  z-index: 100;
+  padding: 16px;
+  max-width: 380px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+.plugin-reactions button {
+  margin-right: 8px;
+}
+.plugin-map-actions,
+.plugin-action-confirm {
+  position: absolute;
+  left: 16px;
+  top: 56px;
+  z-index: 4;
+  display: flex;
+  gap: 8px;
+  background: var(--color-bg);
+  padding: 8px;
+  border-radius: 6px;
+}
+.plugin-action-confirm {
+  top: 110px;
+  flex-wrap: wrap;
+  max-width: 480px;
+}
+.plugin-action-confirm p {
+  width: 100%;
+}
+
+.sheet-modifiers {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg);
+}
+
+/* The dashboard follows the installed system's ordered, collapsible cards. */
+.gm-dashboard {
+  padding: var(--space-4);
+  overflow: auto;
+  height: 100%;
+}
+.gm-dashboard-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+.gm-dashboard-header h1 {
+  margin: 0;
+}
+.gm-dashboard-header > div {
+  margin-right: auto;
+}
+.gm-dashboard label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.gm-dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+  align-items: start;
+  gap: var(--space-4);
+}
+.gm-card {
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-4);
+}
+.gm-card summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 1.1em;
+}
+.gm-card fieldset {
+  padding: 0;
+  margin: 0;
+  border: 0;
+  min-width: 0;
+}
+.gm-stats {
+  display: flex;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+.gm-stats div {
+  display: flex;
+  flex-direction: column;
+}
+.gm-stats strong {
+  font-size: 1.8em;
+  color: var(--color-accent);
+}
+.gm-stats span,
+.gm-character-list span {
+  color: var(--color-text-muted);
+}
+.gm-character-list {
+  padding: 0;
+  list-style: none;
+}
+.gm-character-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+.gm-character-list li span {
+  flex: 1;
+}
+.gm-dashboard .gm-rule {
+  flex-direction: row;
+  align-items: start;
+  margin: var(--space-3) 0;
+}
+.gm-rule small {
+  display: block;
+  color: var(--color-text-muted);
+}
+.gm-action-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.gm-confirm {
+  padding: var(--space-3);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius);
+}
+.gm-confirm button {
+  margin-right: var(--space-2);
+}
+.gm-card .plugin-reactions {
+  position: static;
+  max-width: none;
+}
+
+.plugin-notices {
+  position: fixed;
+  right: 20px;
+  bottom: 50px;
+  z-index: 100;
+  width: min(380px, calc(100vw - 40px));
+  max-height: 60vh;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.plugin-notices:empty {
+  display: none;
+}
+.plugin-notices .plugin-reactions {
+  position: static;
+}
+.plugin-maintained {
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-bg);
+}
+.plugin-maintained summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.maintained-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.maintained-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+}
+.maintained-list li div {
+  display: flex;
+  flex-direction: column;
+}
+.maintained-list span {
+  color: var(--color-text-muted);
+}
+
+.action-windows {
+  padding: var(--space-3);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius);
+  background: var(--color-bg);
+}
+.action-windows h3 {
+  margin-top: 0;
+}
+.action-windows ol {
+  padding-left: var(--space-4);
+}
+.action-windows li {
+  margin-bottom: var(--space-3);
+}
+.action-windows button {
+  margin-right: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.turn-budget-panel {
+  margin: var(--space-3) 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface-raised);
+}
+.turn-budget-panel p {
+  color: var(--color-text-muted);
+}
+.turn-budget-panel ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-3);
+}
+.turn-budget-panel li {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.turn-budget-panel li > div {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+.turn-budget-panel small {
+  color: var(--color-text-muted);
+}
+.turn-budget-panel li > strong {
+  font-size: 1.4em;
+  color: var(--color-accent);
+}
+
+.zone-occlusion-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+}
+.zone-list .nav-row {
+  flex-wrap: wrap;
+}
+
+/* Sheets and split panes adapt to their own container, including the inspector. */
+.center-panes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  grid-auto-rows: minmax(240px, 1fr);
+  gap: 4px;
+  height: 100%;
+  min-height: 0;
+  overflow: auto;
+}
+.center-pane {
+  min-width: 0;
+  min-height: 240px;
+  overflow: auto;
+  position: relative;
+  border: 1px solid var(--color-border);
+}
+.sheet {
+  min-width: 0;
+  max-width: 100%;
+  container-type: inline-size;
+}
+.sheet-grid {
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(
+      min(
+        100%,
+        max(
+          var(--sheet-min),
+          calc((100% - (var(--sheet-cols) - 1) * var(--space-2)) / var(--sheet-cols))
+        )
+      ),
+      1fr
+    )
+  );
+}
+.sheet-tabs,
+.sheet-tabs [role='tablist'] {
+  min-width: 0;
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+.sheet-list {
+  max-width: 100%;
+  overflow-x: auto;
+}
+.sheet-field-label,
+.sheet-computed-value {
+  overflow-wrap: anywhere;
+}
+@container (max-width: 400px) {
+  .sheet-grid,
+  .sheet-grid:has(> .sheet-row) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .sheet-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .sheet-row > * {
+    flex-basis: auto;
+    width: 100%;
+  }
+}
+.map-cancel-movement {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 5;
+}
+
+.action-buttons,
+.items-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-block: 0.5rem;
+}
+.action-buttons button {
+  white-space: normal;
+  text-align: start;
+}
+.action-buttons small {
+  display: block;
+  opacity: 0.75;
+}
+.character-actions,
+.items-view {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.items-view {
+  padding: 0.5rem;
+  overflow: auto;
+}
+.items-view input,
+.items-view select {
+  max-width: 100%;
+  min-width: 0;
+}
+.action-saves {
+  min-width: 0;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  padding: var(--space-3);
+  border-radius: var(--radius);
+}
+.action-saves section + section {
+  margin-top: 1rem;
+}
+
+/* ADR-0062: the campaign inventory. */
+.items-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-block: var(--space-2);
+}
+
+.items-filters .chip[aria-pressed='true'] {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-accent-contrast);
+}
+
+.items-view {
+  /* The tab may be a narrow split pane; the layout follows the pane, not the window. */
+  container-type: inline-size;
+}
+
+.items-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 220px) minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: start;
+}
+
+@container (max-width: 520px) {
+  .items-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .items-list,
+  .items-detail {
+    min-width: 0;
+    max-width: 100%;
+  }
+}
+
+.items-workspace > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.items-workspace .items-list {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  margin: 0;
+}
+
+.items-detail {
+  min-width: 0;
+}
+
+.items-view .items-detail label,
+.items-view .items-detail input,
+.items-view .items-detail select,
+.items-view .items-detail textarea {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.items-effects ul {
+  list-style: none;
+  margin: 0 0 var(--space-2);
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.items-effects li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.items-effects li code {
+  overflow-wrap: anywhere;
+}
+
+.items-effect-add {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-2);
+}
+
+.items-effect-add input {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* The field path gets its own row: the pane can be 130 px wide. */
+.items-effect-add input:first-child {
+  grid-column: 1 / -1;
+}
+
+.items-effect-add input[type='number'] {
+  width: 100%;
+  max-width: 8ch;
+}
+
+.items-grants {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(150px, 100%), 1fr));
+  gap: 2px var(--space-2);
+}
+
+.items-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.items-description {
+  white-space: pre-wrap;
+}
+
+/* ADR-0062: the campaign's item states, edited from the GM dashboard. */
+.item-states {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.item-states-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.item-states-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.item-states-list code {
+  flex: 0 0 auto;
+  padding: 2px 6px;
+  border-radius: var(--radius);
+  background: var(--color-bg);
+}
+
+.item-states-list input[type='text'],
+.item-states-list li > input {
+  flex: 1 1 120px;
+  min-width: 0;
+}
+
+.item-states-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.item-states-add input {
+  flex: 1 1 120px;
+  min-width: 0;
+}
+
+/* ADR-0063: the GM's visibility switches. */
+.visibility-editor {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.visibility-identity,
+.visibility-group ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.visibility-identity {
+  grid-template-columns: repeat(auto-fill, minmax(min(180px, 100%), 1fr));
+  margin-bottom: var(--space-2);
+}
+
+.visibility-group h4 {
+  margin: var(--space-2) 0 2px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.visibility-group ul {
+  grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr));
+}
+
+/* A compendium entry becomes an item or a skill (ADR-0062). */
+.compendium-create {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}

@@ -1,9 +1,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { mockIPC } from '@tauri-apps/api/mocks';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { createEvent, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { JournalTree } from './JournalTree';
+import { UnifiedLibrary } from './UnifiedLibrary';
 import type {
   CampaignInfo,
   IntentEnvelope,
@@ -75,6 +75,7 @@ function setup(role: Role = 'gm') {
   mockIPC((cmd, args) => {
     if (cmd === 'get_snapshot') return snapshot;
     if (cmd === 'campaign_current') return info;
+    if (cmd === 'remote_current') return null;
     if (cmd === 'submit_intent') {
       sent.push((args as { envelope: IntentEnvelope }).envelope);
       return { status: 'accepted', seq: 2 };
@@ -83,7 +84,7 @@ function setup(role: Role = 'gm') {
   });
   return render(
     <QueryClientProvider client={new QueryClient()}>
-      <JournalTree />
+      <UnifiedLibrary />
     </QueryClientProvider>,
   );
 }
@@ -100,7 +101,7 @@ afterEach(() => {
   useSelection.getState().reset();
 });
 
-describe('JournalTree', () => {
+describe('UnifiedLibrary journal commands', () => {
   it('starts collapsed; a click opens a folder and the tree remembers it', async () => {
     const view = setup();
     await userEvent.click(await screen.findByRole('treeitem', { name: 'Lore' }));
@@ -242,7 +243,7 @@ describe('JournalTree', () => {
     });
 
     // Dropping on an entry means its folder; on empty space — the root.
-    drag(row('Deep'), document.querySelector('.journal-tree') as HTMLElement);
+    drag(row('Deep'), document.querySelector('.library-tree-root') as HTMLElement);
     await waitFor(() => {
       expect(sent).toHaveLength(2);
     });
@@ -253,7 +254,7 @@ describe('JournalTree', () => {
     });
   });
 
-  it('arrow keys walk and fold the tree; Enter opens an entry', async () => {
+  it('arrow keys walk and fold the tree; Enter and Space open an entry', async () => {
     setup();
     await screen.findByRole('treeitem', { name: 'Lore' });
     tree().focus();
@@ -265,10 +266,22 @@ describe('JournalTree', () => {
     expect(row('Crypt')).toHaveAttribute('aria-selected', 'true');
     await userEvent.keyboard('{Enter}');
     expect(useSelection.getState().journalId).toBe('crypt');
-    await userEvent.keyboard('{ArrowLeft}');
+    await userEvent.keyboard('{ArrowDown}');
+    expect(row('Plan')).toHaveAttribute('aria-selected', 'true');
+    await userEvent.keyboard(' ');
+    expect(useSelection.getState().journalId).toBe('plan');
+    await userEvent.keyboard('{ArrowUp}{ArrowLeft}');
     expect(row('Lore')).toHaveAttribute('aria-selected', 'true');
     await userEvent.keyboard('{ArrowLeft}');
     expect(row('Lore')).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('reveals the folders of an entry opened from a tab', async () => {
+    useSelection.getState().openJournal('secret');
+    setup();
+    expect(await screen.findByRole('treeitem', { name: 'Secret' })).toBeInTheDocument();
+    expect(row('Lore')).toHaveAttribute('aria-expanded', 'true');
+    expect(row('Deep')).toHaveAttribute('aria-expanded', 'true');
   });
 
   it('the context menu creates inside the clicked folder', async () => {
@@ -294,5 +307,33 @@ describe('JournalTree', () => {
     await userEvent.keyboard('{F2}{Delete}');
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+  });
+
+  it('leaves Enter inside a row to that row control, not to the tree', async () => {
+    setup();
+    const lore = await screen.findByRole('treeitem', { name: 'Lore' });
+    const inner = lore.querySelector('span');
+    if (!inner) throw new Error('a row renders children');
+    const event = createEvent.keyDown(inner, { key: 'Enter', bubbles: true });
+    fireEvent(inner, event);
+    // The tree's navigation handler must not swallow a key pressed inside a row.
+    expect(event.defaultPrevented).toBe(false);
+    // Pressed on the tree itself it does navigate.
+    const tree = screen.getByRole('tree');
+    const own = createEvent.keyDown(tree, { key: 'ArrowDown', bubbles: true });
+    fireEvent(tree, own);
+    expect(own.defaultPrevented).toBe(true);
+  });
+
+  it('clears the search when a create starts, so the new row is visible', async () => {
+    setup();
+    // The campaign (and with it the GM toolbar) arrives asynchronously.
+    const newFolder = await screen.findByRole('button', { name: 'New folder' });
+    const search = screen.getByRole('searchbox');
+    fireEvent.change(search, { target: { value: 'zzz-nothing' } });
+    fireEvent.click(newFolder);
+    expect(search).toHaveValue('');
+    // The pending row appears right away instead of a silently ignored click.
+    expect(screen.getByLabelText('Folder name')).toBeInTheDocument();
   });
 });

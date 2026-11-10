@@ -4,7 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { App } from '@/app/App';
 import type { Role } from '@/shared/ipc/client';
 import '@/shared/i18n';
-import '@/app/styles.css';
+import '@/app/styles/index.css';
 import '@/app/controlPanels.css';
 
 const queryClient = new QueryClient({
