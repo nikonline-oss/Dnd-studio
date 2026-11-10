@@ -13,6 +13,7 @@ members = [
     "apps/desktop/src-tauri",
     "tools/plugin-tool",
     "tools/spike-map-gen",
+    "tools/perf-harness",
 ]
 
 [workspace.package]
@@ -65,6 +66,10 @@ winnow = "1.0.4"
 # runtime / storage
 # hashing (CLAUDE.md §3)
 sha2 = "0.11.1"
+# Ed25519 for plugin and index signatures (ADR-0060). `ring` is preferred over `ed25519-dalek`
+# here because it is already compiled for rustls: no new transitive dependency, same algorithm,
+# so a later switch does not change the signature format.
+ring = "0.17.14"
 # Campaign archives (CLAUDE.md §3, §6); deflate only (zlib-rs), no other codecs or encryption.
 zip = { version = "9.0.5", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 

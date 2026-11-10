@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DndStudio — доска работ</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="dot"></span>
+        <strong>DndStudio</strong>
+        <span class="muted" id="branch">…</span>
+      </div>
+      <nav class="tabs" role="tablist">
+        <button class="tab active" data-view="board" role="tab">Доска</button>
+        <button class="tab" data-view="files" role="tab">Файлы</button>
+        <button class="tab" data-view="changes" role="tab">Изменения</button>
+      </nav>
+      <div class="spacer"></div>
+      <input id="filter" class="filter" type="search" placeholder="Фильтр по названию, файлу…" />
+      <button id="new-task" class="primary">Новая задача</button>
+    </header>
+
+    <main id="board" class="board" role="tabpanel"></main>
+
+    <section id="files" class="split hidden">
+      <aside class="tree" id="tree"></aside>
+      <article class="doc" id="doc"><p class="muted">Выберите файл слева.</p></article>
+    </section>
+
+    <section id="changes" class="split hidden">
+      <aside class="tree" id="change-list"></aside>
+      <article class="doc"><pre id="diff" class="diff">Выберите файл слева.</pre></article>
+    </section>
+
+    <aside id="drawer" class="drawer hidden" aria-label="Задача"></aside>
+
+    <template id="card-template">
+      <article class="card" draggable="true">
+        <div class="card-head">
+          <span class="kind"></span>
+          <span class="prio"></span>
+        </div>
+        <h3 class="card-title"></h3>
+        <p class="card-desc muted"></p>
+        <footer class="card-foot">
+          <span class="checks"></span>
+          <span class="files muted"></span>
+        </footer>
+      </article>
+    </template>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

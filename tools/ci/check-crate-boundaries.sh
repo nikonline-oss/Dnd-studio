@@ -11,7 +11,8 @@ declare -A ALLOWED=(
   [dnd-db]="dnd-protocol dnd-game-core"
   [dnd-plugin]="dnd-protocol dnd-expr"
   [dnd-assets]="dnd-protocol"
-  [dnd-net]="dnd-protocol"
+  # dnd-net also fetches and verifies the signed plugin index (CLAUDE.md §4).
+  [dnd-net]="dnd-protocol dnd-plugin"
 )
 
 # Crates that must stay free of I/O, async runtimes and Tauri.

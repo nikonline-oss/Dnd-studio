@@ -18,6 +18,9 @@ if [ "$(git hash-object "$BINDINGS")" != "$bindings_before" ]; then
   echo "$BINDINGS was out of date and has been regenerated — review and commit it"; exit 1
 fi
 
+echo "== release readiness"
+bash tools/ci/check-release.sh
+
 if [ -f pnpm-lock.yaml ]; then
   echo "== pnpm";       pnpm install --frozen-lockfile
   pnpm format:check
