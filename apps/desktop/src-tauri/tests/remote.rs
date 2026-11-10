@@ -92,6 +92,7 @@ async fn host_join_and_play_through_the_server() {
             intent: Intent::CreateMap {
                 id: map,
                 name: "Cave".into(),
+                description: String::new(),
                 background_asset_id: None,
                 width: 100,
                 height: 100,
@@ -415,6 +416,7 @@ async fn host_join_and_play_through_the_server() {
             intent: Intent::UpdateMap {
                 id: imported_map.id,
                 name: None,
+                description: None,
                 grid: None,
                 visible_to_players: Some(true)
             },
@@ -566,6 +568,76 @@ async fn host_join_and_play_through_the_server() {
     .await
     .unwrap();
     gm.sync_pending(local.db()).await.unwrap();
+
+    // A crash between the server's acceptance and the local delete leaves the edit on disk.
+    // Replaying it must not apply it twice: the same intent id returns the stored outcome
+    // (ADR-0015, ADR-0055).
+    let crash_note = JournalEntryId::new_v7();
+    let crash_envelope = IntentEnvelope {
+        intent_id: IntentId::new_v7(),
+        expected_version: None,
+        ts_ms: 0,
+        intent: Intent::CreateJournalEntry {
+            id: crash_note,
+            folder_id: None,
+            title: "Crash safe".into(),
+            markdown: "written once".into(),
+            visibility: JournalVisibility::Gm,
+            players_can_edit: false,
+            table: None,
+        },
+    };
+    local
+        .db()
+        .enqueue_pending_op(&crash_envelope, 1_234)
+        .await
+        .unwrap();
+    gm.sync_pending(local.db()).await.unwrap();
+    // The accepted batch reaches the GM's view asynchronously; wait for it before recording the
+    // sequence number this repeat must not change.
+    tokio::time::timeout(Duration::from_secs(10), async {
+        while !gm
+            .snapshot()
+            .unwrap()
+            .journal
+            .iter()
+            .any(|entry| entry.id == crash_note)
+        {
+            gm_rx.recv().await.unwrap();
+        }
+    })
+    .await
+    .unwrap();
+    // Drain anything still in flight so the comparison below is about the repeat alone.
+    while gm_rx.try_recv().is_ok() {}
+    let after_first = gm.snapshot().unwrap().seq;
+    // The process "died" before deleting: the row is still there and is replayed again.
+    local
+        .db()
+        .enqueue_pending_op(&crash_envelope, 1_234)
+        .await
+        .unwrap();
+    gm.sync_pending(local.db()).await.unwrap();
+    tokio::time::sleep(Duration::from_millis(400)).await;
+    assert_eq!(
+        gm.snapshot().unwrap().seq,
+        after_first,
+        "a repeated intent produces no new events"
+    );
+    assert_eq!(
+        gm.snapshot()
+            .unwrap()
+            .journal
+            .iter()
+            .filter(|entry| entry.id == crash_note)
+            .count(),
+        1
+    );
+    assert!(
+        local.db().pending_ops().await.unwrap().is_empty(),
+        "the repeat clears the queue"
+    );
+
     let downloaded = gm
         .asset(
             &imported.thumbnail.sha256,
@@ -593,6 +665,7 @@ async fn host_join_and_play_through_the_server() {
                     intent: Intent::UpdateMap {
                         id: map,
                         name: Some(name.into()),
+                        description: None,
                         grid: None,
                         visible_to_players: None,
                     },

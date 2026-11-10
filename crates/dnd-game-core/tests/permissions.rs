@@ -16,6 +16,9 @@ fn intents() -> Vec<(&'static str, Intent)> {
             Intent::UpdateCampaignMeta {
                 name: Some("Renamed".into()),
                 description: None,
+                token_inspector: None,
+                item_states: None,
+                visibility: None,
             },
         ),
         (
@@ -23,6 +26,7 @@ fn intents() -> Vec<(&'static str, Intent)> {
             Intent::CreateMap {
                 id: pooled_map_id(2),
                 name: "New".into(),
+                description: String::new(),
                 background_asset_id: None,
                 width: 4000,
                 height: 3000,
@@ -35,6 +39,7 @@ fn intents() -> Vec<(&'static str, Intent)> {
             Intent::UpdateMap {
                 id: pooled_map_id(0),
                 name: Some("Renamed".into()),
+                description: None,
                 grid: None,
                 visible_to_players: None,
             },
@@ -72,6 +77,7 @@ fn intents() -> Vec<(&'static str, Intent)> {
                 layer: None,
                 visible: None,
                 disposition: None,
+                inspector: None,
             },
         ),
         (

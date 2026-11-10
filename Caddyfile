@@ -1,0 +1,7 @@
+# Automatic HTTPS for the session server (R2.2). Caddy obtains and renews the certificate for the
+# domain itself; the serve reaches the app over the compose network, not through a published port.
+{$DND_DOMAIN} {
+	encode zstd gzip
+	# WebSocket upgrades and asset uploads need no special handling: Caddy proxies them as-is.
+	reverse_proxy session-server:8080
+}

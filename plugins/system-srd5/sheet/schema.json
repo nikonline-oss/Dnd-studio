@@ -3,6 +3,7 @@
   "properties": {
     "level": {
       "type": "integer",
+      "visible_to_players": true,
       "minimum": 1,
       "maximum": 20,
       "default": 1,
@@ -13,6 +14,7 @@
     },
     "class": {
       "type": "string",
+      "visible_to_players": true,
       "maxLength": 100,
       "default": "",
       "title": {
@@ -22,6 +24,7 @@
     },
     "species": {
       "type": "string",
+      "visible_to_players": true,
       "maxLength": 100,
       "default": "",
       "title": {
@@ -31,6 +34,7 @@
     },
     "background": {
       "type": "string",
+      "visible_to_players": true,
       "maxLength": 100,
       "default": "",
       "title": {
@@ -40,6 +44,7 @@
     },
     "abilities": {
       "type": "object",
+      "visible_to_players": true,
       "title": {
         "ru": "Характеристики",
         "en": "Abilities"
@@ -110,6 +115,7 @@
     },
     "saves": {
       "type": "object",
+      "visible_to_players": true,
       "title": {
         "ru": "Владение спасбросками",
         "en": "Saving throw proficiencies"
@@ -167,6 +173,7 @@
     },
     "skills": {
       "type": "object",
+      "visible_to_players": true,
       "title": {
         "ru": "Владение навыками",
         "en": "Skill proficiencies"
@@ -370,6 +377,7 @@
     },
     "ac": {
       "type": "integer",
+      "visible_to_players": true,
       "minimum": 0,
       "maximum": 50,
       "default": 10,
@@ -380,6 +388,7 @@
     },
     "speed": {
       "type": "integer",
+      "visible_to_players": true,
       "minimum": 0,
       "maximum": 200,
       "default": 30,
@@ -390,6 +399,7 @@
     },
     "attacks": {
       "type": "array",
+      "visible_to_players": true,
       "title": {
         "ru": "Атаки",
         "en": "Attacks"
@@ -397,6 +407,7 @@
       "maxItems": 20,
       "items": {
         "type": "object",
+        "visible_to_players": true,
         "properties": {
           "name": {
             "type": "string",
@@ -678,6 +689,7 @@
     },
     "defenses": {
       "type": "object",
+      "visible_to_players": true,
       "properties": {
         "resistance": {
           "type": "object",
@@ -1056,6 +1068,7 @@
     },
     "spells": {
       "type": "array",
+      "visible_to_players": true,
       "maxItems": 100,
       "default": [],
       "items": {
@@ -1064,12 +1077,14 @@
           "name": {
             "type": "string",
             "maxLength": 100,
-            "default": ""
+            "default": "",
+            "visible_to_players": true
           },
           "action": {
             "type": "string",
             "enum": ["fireball", "shield_of_faith"],
-            "default": "fireball"
+            "default": "fireball",
+            "visible_to_players": true
           },
           "notes": {
             "type": "string",

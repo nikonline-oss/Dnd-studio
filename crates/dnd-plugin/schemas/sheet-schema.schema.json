@@ -11,6 +11,7 @@
         "type": { "enum": ["object", "integer", "string", "boolean", "array"] },
         "title": { "$ref": "#/$defs/label" },
         "default": true,
+        "visible_to_players": { "type": "boolean" },
         "properties": {
           "type": "object",
           "maxProperties": 256,

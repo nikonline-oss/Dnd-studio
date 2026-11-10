@@ -1,0 +1,233 @@
+/* Split from app/styles.css (workboard: «стили»). Order matters: index.css imports these in cascade order. */
+
+/* ---------- Navigator ---------- */
+
+.nav-section {
+  display: flex;
+  flex-direction: column;
+}
+
+.nav-section + .nav-section {
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border);
+}
+
+.nav-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 var(--space-2) 0 var(--space-3);
+  color: var(--color-text-muted);
+}
+
+.nav-header h2 {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.nav-count {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--color-surface-alt);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.nav-actions {
+  display: inline-flex;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.nav-empty {
+  padding: var(--space-1) var(--space-3) var(--space-2);
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.nav-list {
+  margin: 0;
+  padding: 0 var(--space-1);
+  list-style: none;
+}
+
+.nav-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 30px;
+  padding: 2px var(--space-1) 2px var(--space-2);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.nav-row[data-nested='true'] {
+  padding-left: 22px;
+}
+
+.board-tree-group {
+  list-style: none;
+}
+
+.board-expand,
+.board-open {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.board-expand {
+  justify-content: center;
+  width: 20px;
+  height: 26px;
+  padding: 0;
+  color: var(--color-text-muted);
+}
+
+.board-expand[aria-expanded='true'] .icon {
+  transform: rotate(90deg);
+}
+
+.board-open {
+  flex: 1;
+  gap: var(--space-2);
+  padding: 0;
+  text-align: left;
+}
+
+.board-map-list {
+  margin: 0;
+  padding: 0 0 0 22px;
+  list-style: none;
+}
+
+.board-map-row {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.library-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.library-empty-art {
+  display: grid;
+  justify-items: center;
+  padding: var(--space-3);
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.library-empty-art img {
+  width: min(100%, 150px);
+  max-height: 120px;
+  object-fit: contain;
+}
+
+.nav-row:hover {
+  background: var(--color-hover);
+}
+
+.nav-row[aria-current='true'] {
+  background: var(--color-accent-soft);
+  box-shadow: inset 2px 0 0 var(--color-accent);
+}
+
+.nav-row[aria-current='true'] .row-name,
+.nav-row[aria-current='true'] .inline-edit {
+  font-weight: 600;
+}
+
+.row-icon {
+  color: var(--color-text-muted);
+}
+
+.nav-row[aria-current='true'] .row-icon {
+  color: var(--color-accent);
+}
+
+.row-name,
+.inline-edit {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-row input:not([type='checkbox']) {
+  flex: 1;
+  min-width: 0;
+  min-height: 24px;
+}
+
+.row-meta {
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+/* Row actions appear on hover or keyboard focus (and stay while a delete is armed). */
+.row-actions {
+  display: inline-flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.nav-row:hover .row-actions,
+.nav-row:focus-within .row-actions,
+.row-actions:has(.confirm-delete) {
+  opacity: 1;
+}
+
+.eye-toggle {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  opacity: 0.55;
+}
+
+.eye-toggle[data-on='true'] {
+  color: var(--color-accent);
+  opacity: 1;
+}
+
+.eye-toggle:hover {
+  background: var(--color-hover);
+  opacity: 1;
+}
+
+.eye-toggle:has(:focus-visible) {
+  outline: 2px solid var(--color-focus);
+}
+
+.folder-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: var(--space-1) 0 0;
+  padding: 0 var(--space-3);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}

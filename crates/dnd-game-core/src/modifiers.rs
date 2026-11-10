@@ -27,10 +27,30 @@ pub(crate) fn feature_enabled(state: &GameState, id: Option<&str>) -> bool {
             })
     })
 }
+/// Items of `c` that work right now (ADR-0062): owned, instances, in an active state. A state id
+/// the campaign no longer defines counts as inactive, so a stray id cannot keep a bonus alive.
+pub(crate) fn active_items<'a>(state: &'a GameState, c: &CharacterDto) -> Vec<&'a ItemDto> {
+    let states = state.campaign.item_states();
+    let active = |item: &ItemDto| match &item.state {
+        None => crate::items::default_state_active(&states),
+        Some(id) => states.iter().any(|s| s.id == *id && s.active),
+    };
+    state
+        .items
+        .values()
+        .filter(|item| item.owner == Some(c.id) && !item.is_template && active(item))
+        .collect()
+}
+
 fn base_conditions(state: &GameState, c: &CharacterDto) -> BTreeSet<String> {
     c.conditions
         .iter()
         .cloned()
+        .chain(
+            active_items(state, c)
+                .into_iter()
+                .flat_map(|item| item.grants.clone()),
+        )
         .chain(
             state
                 .effects
@@ -87,12 +107,14 @@ fn holds(context: &impl Context, expression: &str) -> bool {
                     .unwrap_or_else(|| v.as_integer().is_ok_and(|n| n != 0))
             })
 }
-pub(crate) fn conditions(state: &GameState, c: &CharacterDto) -> BTreeSet<String> {
+/// Conditions a character has: stored ones, those of its token effects, and those its active
+/// items grant (ADR-0062). Plugins decide what each condition does.
+pub fn active_conditions(state: &GameState, c: &CharacterDto) -> BTreeSet<String> {
     let mut set = base_conditions(state, c);
     let Some(rules) = state.rules() else {
         return set;
     };
-    let fields = CharacterFields::new(state, Some(&c.sheet_json));
+    let fields = CharacterFields::for_character(state, c);
     for _ in 0..=rules.conditions.len() {
         let context = RuleContext {
             actor: &fields,
@@ -133,8 +155,8 @@ pub(crate) fn allowed(state: &GameState, c: &CharacterDto, capability: RuleCapab
     let Some(rules) = state.rules() else {
         return true;
     };
-    let set = conditions(state, c);
-    let fields = CharacterFields::new(state, Some(&c.sheet_json));
+    let set = active_conditions(state, c);
+    let fields = CharacterFields::for_character(state, c);
     let context = RuleContext {
         actor: &fields,
         target: None,
@@ -175,8 +197,8 @@ fn adjustments(state: &GameState, c: &CharacterDto) -> BTreeMap<String, Adjustme
     let Some(rules) = state.rules() else {
         return BTreeMap::new();
     };
-    let set = conditions(state, c);
-    let fields = CharacterFields::new(state, Some(&c.sheet_json));
+    let set = active_conditions(state, c);
+    let fields = CharacterFields::for_character(state, c);
     let context = RuleContext {
         actor: &fields,
         target: None,
@@ -185,6 +207,19 @@ fn adjustments(state: &GameState, c: &CharacterDto) -> BTreeMap<String, Adjustme
         distance: None,
     };
     let mut result: BTreeMap<String, Adjustment> = BTreeMap::new();
+    // Active items add up exactly like condition rules: summed, then bounded (ADR-0062).
+    for item in active_items(state, c) {
+        for effect in &item.effects {
+            let a = result.entry(effect.path.clone()).or_default();
+            a.add = a.add.saturating_add(effect.add);
+            if let Some(min) = effect.minimum {
+                a.minimum = Some(a.minimum.map_or(min, |v| v.max(min)));
+            }
+            if let Some(max) = effect.maximum {
+                a.maximum = Some(a.maximum.map_or(max, |v| v.min(max)));
+            }
+        }
+    }
     for rule in rules.mechanics.condition_rules.iter().filter(|r| {
         r.subject == RuleSubject::Actor
             && set.contains(&r.condition)
@@ -219,7 +254,7 @@ pub fn effective_fields(
     c: &CharacterDto,
 ) -> Result<CharacterFields, RejectReason> {
     let Some(rules) = state.rules() else {
-        return Ok(CharacterFields::new(state, Some(&c.sheet_json)));
+        return Ok(CharacterFields::for_character(state, c));
     };
     let raw: serde_json::Value = serde_json::from_str(&c.sheet_json).map_err(|_| invalid())?;
     let mut sheet = sheet_schema::apply_defaults(&rules.sheet_schema, &raw);
@@ -248,7 +283,10 @@ pub fn effective_fields(
     if computed.values().any(|n| !is_js_safe(*n)) {
         return Err(invalid());
     }
-    Ok(CharacterFields { sheet, computed })
+    let mut fields = CharacterFields::for_character(state, c);
+    fields.sheet = sheet;
+    fields.computed = computed;
+    Ok(fields)
 }
 
 /// Labels of active actor rules, suitable for explaining effective values in the sheet.
@@ -256,8 +294,8 @@ pub fn active_modifier_labels(state: &GameState, c: &CharacterDto) -> Vec<Label>
     let Some(rules) = state.rules() else {
         return Vec::new();
     };
-    let set = conditions(state, c);
-    let fields = CharacterFields::new(state, Some(&c.sheet_json));
+    let set = active_conditions(state, c);
+    let fields = CharacterFields::for_character(state, c);
     let context = RuleContext {
         actor: &fields,
         target: None,
@@ -265,18 +303,25 @@ pub fn active_modifier_labels(state: &GameState, c: &CharacterDto) -> Vec<Label>
         target_conditions: None,
         distance: None,
     };
-    rules
-        .mechanics
-        .condition_rules
-        .iter()
-        .filter(|r| {
-            r.subject == RuleSubject::Actor
-                && set.contains(&r.condition)
-                && feature_enabled(state, r.feature.as_deref())
-                && holds(&context, &r.when)
-        })
-        .map(|r| r.label.clone())
-        .collect()
+    let mut labels: Vec<Label> = active_items(state, c)
+        .into_iter()
+        .filter(|item| !item.effects.is_empty() || !item.grants.is_empty())
+        .map(|item| Label::Text(item.name.clone()))
+        .collect();
+    labels.extend(
+        rules
+            .mechanics
+            .condition_rules
+            .iter()
+            .filter(|r| {
+                r.subject == RuleSubject::Actor
+                    && set.contains(&r.condition)
+                    && feature_enabled(state, r.feature.as_deref())
+                    && holds(&context, &r.when)
+            })
+            .map(|r| r.label.clone()),
+    );
+    labels
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -291,12 +336,12 @@ pub(crate) fn roll_mode(state: &GameState, input: RollContext<'_>) -> (bool, boo
     let Some(rules) = state.rules() else {
         return (false, false);
     };
-    let actor_set = conditions(state, input.actor);
-    let target_set = input.target.map(|c| conditions(state, c));
-    let actor = CharacterFields::new(state, Some(&input.actor.sheet_json));
+    let actor_set = active_conditions(state, input.actor);
+    let target_set = input.target.map(|c| active_conditions(state, c));
+    let actor = CharacterFields::for_character(state, input.actor);
     let target = input
         .target
-        .map(|c| CharacterFields::new(state, Some(&c.sheet_json)));
+        .map(|c| CharacterFields::for_character(state, c));
     let context = RuleContext {
         actor: &actor,
         target: target.as_ref(),

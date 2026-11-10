@@ -152,8 +152,10 @@ fn item_instances_have_independent_state_and_owner_permissions() {
         Role::Gm,
         Intent::CreateItem {
             id: template,
+            item_kind: ItemKind::Item,
             name: "Wand".into(),
-            type_id: "equipment".into(),
+            type_id: Some("equipment".into()),
+            description: String::new(),
             sheet_json: Some(r#"{"charges":3}"#.into()),
             visible_to_players: false,
         },
@@ -179,8 +181,13 @@ fn item_instances_have_independent_state_and_owner_permissions() {
         Intent::UpdateItem {
             id: a,
             name: None,
+            description: None,
             sheet_json: Some(r#"{"charges":2,"state":"used"}"#.into()),
             visible_to_players: None,
+            state: None,
+            effects: None,
+            grants: None,
+            values: None,
         },
         Some(Version(1)),
     )
@@ -210,8 +217,13 @@ fn item_instances_have_independent_state_and_owner_permissions() {
             Intent::UpdateItem {
                 id: a,
                 name: Some("Other".into()),
+                description: None,
                 sheet_json: None,
-                visible_to_players: None
+                visible_to_players: None,
+                state: None,
+                effects: None,
+                grants: None,
+                values: None,
             },
             Some(Version(3))
         )
@@ -552,12 +564,18 @@ fn deleting_a_character_detaches_owned_items_atomically() {
         id,
         ItemDto {
             id,
+            kind: ItemKind::Item,
             name: "Owned wand".into(),
-            type_id: "equipment".into(),
+            type_id: Some("equipment".into()),
             is_template: false,
             template: None,
             owner: Some(cid(0)),
             visible_to_players: true,
+            description: String::new(),
+            state: None,
+            effects: Vec::new(),
+            grants: Vec::new(),
+            values: Vec::new(),
             sheet_json: "{}".into(),
             version: Version(i64::MAX),
         },
@@ -780,4 +798,65 @@ fn sheet_action_collections_reject_unknown_rules_invalid_fields_and_unbounded_li
         }
         assert!(check_plugin(&p).is_err(), "invalid collection case {case}");
     }
+}
+
+// --- A3.3: pending saves across deletion and restart (ADR-0052) ---
+
+#[test]
+fn deleting_a_target_cancels_the_save_group_without_damaging_anyone() {
+    let mut s = world();
+    fire(&mut s);
+    assert_eq!(s.plugin_runtime.saves.len(), 1);
+    let version = s.characters[&cid(1)].version;
+    run(
+        &mut s,
+        Role::Gm,
+        Intent::DeleteCharacter { id: cid(1) },
+        Some(version),
+    )
+    .unwrap();
+    assert!(s.plugin_runtime.saves.is_empty());
+    assert_eq!(
+        hp(&s, 0),
+        100,
+        "nobody took damage from the cancelled spell"
+    );
+}
+
+#[test]
+fn a_save_group_survives_a_restart_and_applies_damage_once() {
+    let mut s = world();
+    fire(&mut s);
+    let json = serde_json::to_string(&s.to_snapshot(Seq(7))).unwrap();
+    let mut restored: dnd_game_core::GameState = serde_json::from_str(&json)
+        .map(dnd_game_core::GameState::from_snapshot)
+        .unwrap();
+    assert_eq!(restored.plugin_runtime.saves.len(), 1);
+    let id = restored.plugin_runtime.saves[0].id;
+    for (role, target) in [(Role::Player, tid(0)), (Role::Gm, tid(1))] {
+        run(
+            &mut restored,
+            role,
+            Intent::ResolveActionSave { group: id, target },
+            None,
+        )
+        .unwrap();
+    }
+    assert!(restored.plugin_runtime.saves.is_empty());
+    assert_eq!(hp(&restored, 0), 95);
+    assert_eq!(hp(&restored, 1), 95);
+    // A third answer, after the group is gone, changes nothing.
+    assert!(
+        run(
+            &mut restored,
+            Role::Player,
+            Intent::ResolveActionSave {
+                group: id,
+                target: tid(0),
+            },
+            None
+        )
+        .is_err()
+    );
+    assert_eq!(hp(&restored, 0), 95);
 }

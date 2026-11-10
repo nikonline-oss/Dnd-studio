@@ -13,7 +13,8 @@ export interface TabRef {
     | 'audio'
     | 'plugin'
     | 'gm_panel'
-    | 'items';
+    | 'items'
+    | 'skills';
   id: string;
 }
 
@@ -172,6 +173,7 @@ export const useSelection = create<SelectionState>()((set) => {
       open({ kind: 'plugin', id });
     },
     openCompendium: (key) => {
+      // `plugin/book` or `plugin/book/entry`: a link may point at one entry.
       open({ kind: 'compendium', id: key });
     },
     activate: (tab) => {

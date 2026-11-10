@@ -1,4 +1,4 @@
-import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   columnLetter,
@@ -15,6 +15,7 @@ import {
   setCell,
 } from './table';
 import type { JournalTable } from '@/shared/ipc/client';
+import { Markdown } from '@/shared/ui/Markdown';
 
 interface Cell {
   row: number;
@@ -32,6 +33,14 @@ interface Props {
   table: JournalTable;
   editable: boolean;
   onChange: (table: JournalTable) => void;
+  /** A value to put into the selected cell (a link picked in the editor); cleared via `onInserted`. */
+  insertIntoActive?: string | null;
+  onInserted?: () => void;
+}
+
+/** Cell text that should render as inline Markdown: a link, bold, italics or a code span. */
+function hasMarkup(value: string): boolean {
+  return value.includes('](') || value.includes('**') || value.includes('`');
 }
 
 /**
@@ -40,7 +49,7 @@ interface Props {
  * clears, and a block copied from Excel pastes in at the selection. Column names are edited in the
  * header; its right edge resizes the column. Cells are stored as typed (formulas come later).
  */
-export function TableGrid({ table, editable, onChange }: Props) {
+export function TableGrid({ table, editable, onChange, insertIntoActive, onInserted }: Props) {
   const { t } = useTranslation();
   const [active, setActive] = useState<Cell>({ row: 0, col: 0 });
   /** The text being typed into the active cell; `null` while not editing. */
@@ -68,6 +77,15 @@ export function TableGrid({ table, editable, onChange }: Props) {
   const focusGrid = () => {
     grid.current?.focus();
   };
+
+  // A link picked in the editor lands in the cell the table is on, not in the first one.
+  useEffect(() => {
+    if (!insertIntoActive) return;
+    onChange(setCell(table, active.row, active.col, insertIntoActive));
+    onInserted?.();
+    // `table` and `active` are read on purpose only when a value arrives.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [insertIntoActive]);
 
   const commit = (dRow: number, dCol: number) => {
     const value = editingRef.current;
@@ -292,6 +310,10 @@ export function TableGrid({ table, editable, onChange }: Props) {
                             commit(0, 0);
                           }}
                         />
+                      ) : hasMarkup(value) ? (
+                        <span className="table-cell-markdown">
+                          <Markdown source={value} />
+                        </span>
                       ) : (
                         value
                       )}

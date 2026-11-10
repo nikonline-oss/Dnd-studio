@@ -1949,6 +1949,7 @@ fn turn_budgets_refresh_before_periodic_resource_penalties() {
             resource: Some("action".into()),
             dice: Some("1".into()),
             heal: false,
+            reveal: Vec::new(),
             duration: EffectDuration::Turns { remaining: 2 },
             version: Version::INITIAL,
         },
@@ -2584,4 +2585,106 @@ fn script_can_wait_for_manual_roll_then_for_spell_reaction_in_the_same_run() {
     let events = answer_cast(&mut s, false, 73).unwrap();
     assert!(s.plugin_runtime.trigger_runs.is_empty());
     assert_eq!(events.iter().filter(|e| matches!(e, Event::ChatMessagePosted { message } if matches!(&message.system, Some(SystemMessage::Narration { text }) if text == "Mixed finished"))).count(), 1, "{events:#?}");
+}
+
+// --- A3.3: the lifecycle survives deletions and rules changes (ADR-0052) ---
+
+fn delete_character(s: &mut GameState, id: CharacterId) {
+    let version = s.characters[&id].version;
+    run(s, Role::Gm, Intent::DeleteCharacter { id }, Some(version)).unwrap();
+}
+
+fn delete_token(s: &mut GameState, id: TokenId) {
+    let version = s.tokens[&id].version;
+    run(s, Role::Gm, Intent::DeleteToken { id }, Some(version)).unwrap();
+}
+
+#[test]
+fn deleting_the_caster_cancels_the_pending_chain_without_damage() {
+    let mut s = interruption_world("1");
+    cast_fire(&mut s).unwrap();
+    assert_eq!(s.plugin_runtime.action_stacks.len(), 1);
+    delete_character(&mut s, cid(0));
+    assert!(s.plugin_runtime.action_stacks.is_empty());
+    assert!(s.plugin_runtime.saves.is_empty());
+    assert_eq!(hp(&s, 1), 100, "a cancelled action deals no damage");
+    assert_eq!(
+        s.tokens[&tid(0)].character_id,
+        None,
+        "the token stays on the map, detached"
+    );
+    // Nothing is reserved and the map is free: the other side may act at once.
+    run(
+        &mut s,
+        Role::Gm,
+        Intent::ExecutePluginAction {
+            source: tid(1),
+            action: "fireball".into(),
+            target: None,
+            x: 1120,
+            y: 1120,
+        },
+        None,
+    )
+    .expect("a cancelled chain does not block the next action");
+}
+
+#[test]
+fn deleting_the_moving_token_stops_the_pending_movement_and_stale_answers() {
+    let mut s = world();
+    leave(&mut s);
+    let pending = s.plugin_runtime.movements[0].id;
+    delete_token(&mut s, tid(1));
+    assert!(s.plugin_runtime.movements.is_empty());
+    assert_eq!(hp(&s, 0), 100);
+    assert_eq!(hp(&s, 1), 100, "the provoked attack never happened");
+    // The offer is gone with its token: a late answer is a stale intent, not a second hit.
+    assert!(
+        run(
+            &mut s,
+            Role::Player,
+            Intent::ResolvePluginReaction {
+                movement: pending,
+                source: tid(0),
+                accept: true,
+            },
+            None
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn switching_the_system_plugin_cancels_pending_actions_without_charging_slots() {
+    let mut s = interruption_world("1");
+    cast_fire(&mut s).unwrap();
+    let dir =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../plugins/system-generic-d6");
+    let plugin = dnd_plugin::read_package(
+        &dnd_plugin::pack_directory(&dir).unwrap(),
+        Default::default(),
+    )
+    .unwrap()
+    .to_dto();
+    run(
+        &mut s,
+        Role::Gm,
+        Intent::InstallPlugin {
+            plugin: Box::new(plugin),
+        },
+        None,
+    )
+    .unwrap();
+    run(
+        &mut s,
+        Role::Gm,
+        Intent::SetSystemPlugin {
+            id: Some("generic-d6".into()),
+        },
+        None,
+    )
+    .unwrap();
+    assert!(s.plugin_runtime.action_stacks.is_empty());
+    assert_eq!(slots3(&s, 0), 2, "the deferred slot was never spent");
+    assert_eq!(hp(&s, 1), 100);
 }

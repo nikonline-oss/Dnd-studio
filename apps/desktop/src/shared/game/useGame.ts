@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { applyBatch } from './evolve';
 import { playSound, stopSound, syncLoopingSounds } from './soundPlayback';
@@ -17,7 +17,24 @@ export const queryKeys = {
   campaign: ['campaign'] as const,
   snapshot: ['snapshot'] as const,
   journalEntry: (id: string) => ['journal', id] as const,
+  /** Derived sheet values; keyed by character, sheet and the campaign state they were read in. */
+  sheetView: ['sheetView'] as const,
 };
+
+/**
+ * Drops caches a new snapshot no longer entitles us to (ADR-0049). A replace happens on connect,
+ * reconnect and whenever visibility changed, including an owner change or a hidden character.
+ * Sheet views are always recomputed from the snapshot, so they are cleared wholesale; journal
+ * texts are removed for entries that left the index — the server would answer `null` anyway.
+ */
+function forgetUnreachable(queryClient: QueryClient, snapshot: Snapshot) {
+  queryClient.removeQueries({ queryKey: queryKeys.sheetView });
+  const entries = new Set(snapshot.journal.map((entry) => entry.id));
+  queryClient.removeQueries({
+    queryKey: ['journal'],
+    predicate: (query) => typeof query.queryKey[1] === 'string' && !entries.has(query.queryKey[1]),
+  });
+}
 
 /** The open campaign, or `null`. */
 export function useCampaign() {
@@ -62,6 +79,7 @@ export function useGameEventsSync() {
     const unlistenSnapshot = events.gameSnapshotReplaced.listen(({ payload }) => {
       syncLoopingSounds(payload.sounds ?? []);
       queryClient.setQueryData(queryKeys.snapshot, payload);
+      forgetUnreachable(queryClient, payload);
       void queryClient.invalidateQueries({ queryKey: ['journal'] });
       void queryClient.invalidateQueries({ queryKey: ['compendia'] });
       void queryClient.invalidateQueries({ queryKey: ['compendium'] });

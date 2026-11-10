@@ -283,6 +283,7 @@ pub async fn register_map(
             Intent::CreateMap {
                 id: map_id,
                 name,
+                description: String::new(),
                 background_asset_id: Some(asset_id),
                 width: i64::from(imported.width),
                 height: i64::from(imported.height),

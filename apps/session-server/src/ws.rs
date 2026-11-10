@@ -49,6 +49,7 @@ pub async fn upgrade(
                 session,
                 participant,
                 socket,
+                sent_seq: None,
             }
             .run()
             .await;
@@ -64,6 +65,9 @@ struct Connection {
     session: SessionHandle,
     participant: ParticipantRow,
     socket: WebSocket,
+    /// Sequence number of the last batch or snapshot this connection was sent (ADR-0053): the
+    /// base a delta is replayed from after a lag or a resync request.
+    sent_seq: Option<Seq>,
 }
 
 /// Why a connection ends (sent as the close frame).
@@ -118,8 +122,8 @@ impl Connection {
                     batch = events.recv() => {
                         let sent = match batch {
                             Ok(batch) => self.send_batch(&batch).await,
-                            // Missed batches: start over from a snapshot.
-                            Err(RecvError::Lagged(_)) => self.send_snapshot().await,
+                            // Missed batches: replay what fits the delta window, else a snapshot.
+                            Err(RecvError::Lagged(_)) => self.resync().await,
                             Err(RecvError::Closed) => {
                                 break 'conn Some(Close(close_code::AWAY, self.session.end_reason()));
                             }
@@ -218,8 +222,13 @@ impl Connection {
                 .send(ServerMessage::Pong, None)
                 .await
                 .map_err(|()| None),
-            // Stage 2b answers every resync with a snapshot; deltas come with stage 4.
-            ClientMessage::Resync { .. } => self.send_snapshot().await.map_err(|()| None),
+            // A resync replays what the recipient missed from the event log (ADR-0053); a
+            // snapshot is sent only when history is gone or access changed in between.
+            ClientMessage::Resync { last_seq } => {
+                // Zero means "I have nothing": only a snapshot can help there.
+                let from = (last_seq.0 > 0).then_some(last_seq);
+                self.send_delta(from).await.map_err(|()| None)
+            }
             ClientMessage::GetJournalEntry { id } => {
                 let entry = self.session.journal_entry(id, role).await.map_err(gone)?;
                 self.send(
@@ -233,6 +242,32 @@ impl Connection {
                 .map_err(|()| None)
             }
         }
+    }
+
+    /// Replays the events since `from` for this recipient, or sends a snapshot when the history
+    /// is gone or access changed (ADR-0053).
+    async fn send_delta(&mut self, from: Option<Seq>) -> Result<(), ()> {
+        let Some(from) = from else {
+            return self.send_snapshot().await;
+        };
+        match self
+            .session
+            .delta(from, self.participant.role, Some(self.participant.user_id))
+            .await
+            .map_err(|_| ())?
+        {
+            Some(batch) => {
+                let seq = batch.last_seq();
+                self.send(ServerMessage::Events(batch), Some(seq)).await
+            }
+            None => self.send_snapshot().await,
+        }
+    }
+
+    /// A lagged broadcast receiver asks for everything it missed.
+    async fn resync(&mut self) -> Result<(), ()> {
+        let from = self.sent_seq;
+        self.send_delta(from).await
     }
 
     async fn send_snapshot(&mut self) -> Result<(), ()> {
@@ -256,7 +291,7 @@ impl Connection {
         match &batch.players {
             ForPlayers::Batch(players) => {
                 let seq = players.last_seq();
-                let personal = personal_requests(
+                let personal = personal_events(
                     players,
                     batch,
                     self.participant.role,
@@ -269,6 +304,9 @@ impl Connection {
     }
 
     async fn send(&mut self, body: ServerMessage, seq: Option<Seq>) -> Result<(), ()> {
+        if let Some(seq) = seq {
+            self.sent_seq = Some(seq);
+        }
         let mut envelope = Envelope::new(MessageId::new_v7(), now_ms(), body);
         envelope.seq = seq;
         envelope.session_id = Some(self.session.id);
@@ -280,7 +318,7 @@ impl Connection {
     }
 }
 
-fn personal_requests(
+pub(crate) fn personal_events(
     public: &dnd_protocol::EventBatch,
     batch: &crate::session::Broadcast,
     role: dnd_protocol::Role,
@@ -288,23 +326,32 @@ fn personal_requests(
 ) -> dnd_protocol::EventBatch {
     let mut personal = public.clone();
     for (event, full) in personal.events.iter_mut().zip(&batch.full.events) {
-        if let dnd_protocol::Event::RollRequested { request }
-        | dnd_protocol::Event::RollRequestUpdated { request } = full
-        {
-            *event = if role == dnd_protocol::Role::Player
-                && batch.request_owners.get(&request.id) == Some(&Some(user))
+        match full {
+            dnd_protocol::Event::RollRequested { request }
+            | dnd_protocol::Event::RollRequestUpdated { request } => {
+                *event = if role == dnd_protocol::Role::Player
+                    && batch.request_owners.get(&request.id) == Some(&Some(user))
+                {
+                    full.clone()
+                } else {
+                    dnd_protocol::Event::Redacted
+                };
+            }
+            // The shared batch carries public sheets (ADR-0049); the owner gets the full one.
+            dnd_protocol::Event::CharacterCreated { character }
+            | dnd_protocol::Event::CharacterUpdated { character }
+                if character.owner == Some(user) =>
             {
-                full.clone()
-            } else {
-                dnd_protocol::Event::Redacted
-            };
+                *event = full.clone();
+            }
+            _ => {}
         }
     }
     personal
 }
 
 #[cfg(test)]
-mod private_roll_tests {
+mod personal_event_tests {
     #![allow(clippy::unwrap_used)]
     use super::*;
     use dnd_protocol::*;
@@ -333,11 +380,11 @@ mod private_roll_tests {
             request_owners: std::collections::BTreeMap::from([(request.id, Some(owner))]),
         };
         assert_eq!(
-            personal_requests(&public, &broadcast, Role::Player, owner),
+            personal_events(&public, &broadcast, Role::Player, owner),
             full
         );
         for (role, user) in [(Role::Player, UserId::new_v7()), (Role::Spectator, owner)] {
-            let seen = personal_requests(&public, &broadcast, role, user);
+            let seen = personal_events(&public, &broadcast, role, user);
             assert_eq!(seen.seq, Seq(23));
             assert_eq!(seen.events, vec![Event::Redacted]);
             assert!(
@@ -346,5 +393,44 @@ mod private_roll_tests {
                     .contains("Secret trap")
             );
         }
+    }
+
+    #[test]
+    fn a_hidden_draft_reaches_its_owner_with_the_full_sheet() {
+        let owner = UserId::new_v7();
+        let character = CharacterDto {
+            id: CharacterId::new_v7(),
+            kind: CharacterKind::Pc,
+            name: "Draft".into(),
+            owner: Some(owner),
+            status: CharacterStatus::Draft,
+            sheet_json: r#"{"notes":"secret"}"#.into(),
+            conditions: Vec::new(),
+            version: Version::INITIAL,
+        };
+        let full = EventBatch {
+            seq: Seq(24),
+            caused_by: None,
+            events: vec![Event::CharacterCreated {
+                character: character.clone(),
+            }],
+        };
+        let public = EventBatch {
+            events: vec![Event::Redacted],
+            ..full.clone()
+        };
+        let broadcast = crate::session::Broadcast {
+            full: full.clone(),
+            players: ForPlayers::Batch(public.clone()),
+            request_owners: std::collections::BTreeMap::new(),
+        };
+        assert_eq!(
+            personal_events(&public, &broadcast, Role::Player, owner),
+            full
+        );
+        assert_eq!(
+            personal_events(&public, &broadcast, Role::Player, UserId::new_v7()),
+            public
+        );
     }
 }

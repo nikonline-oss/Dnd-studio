@@ -50,6 +50,14 @@ export function SystemSheet({
   const stacks = useSnapshotSelect((s) => s.plugin_runtime?.action_stacks);
   const combats = useSnapshotSelect((s) => s.combats);
   const data = useMemo(() => parseSheet(character.sheet_json), [character.sheet_json]);
+  // Active items change effective fields (ADR-0062); their versions make the key move.
+  const itemKey = useSnapshotSelect((s) =>
+    (s.items ?? [])
+      .filter((item) => item.owner === character.id)
+      .map((item) => `${item.id}:${String(item.version)}`)
+      .sort()
+      .join('|'),
+  );
   const view = useQuery({
     queryKey: [
       'sheetView',
@@ -59,6 +67,7 @@ export function SystemSheet({
       rules,
       flags,
       effects,
+      itemKey,
       stacks,
       combats,
     ],
@@ -73,6 +82,10 @@ export function SystemSheet({
   for (const [name, value] of Object.entries(view.data?.computed ?? {})) {
     if (typeof value === 'number') computed[name] = value;
   }
+  // Identity follows the numbers, not every refetch: the sheet re-renders fields only when an
+  // adjustment really changed (ADR-0062).
+  const adjustedKey = JSON.stringify(view.data?.adjusted ?? {});
+  const adjusted = useMemo(() => JSON.parse(adjustedKey) as Record<string, number>, [adjustedKey]);
 
   return (
     <>
@@ -102,6 +115,7 @@ export function SystemSheet({
         schema={rules.sheet_schema as JsonSchema}
         data={data}
         computed={computed}
+        adjusted={adjusted}
         rolls={rules.rolls}
         resources={resources}
         renderAction={(collection, path, change) => (

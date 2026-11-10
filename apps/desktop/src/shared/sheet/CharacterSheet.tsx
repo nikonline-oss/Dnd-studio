@@ -44,6 +44,11 @@ export interface CharacterSheetProps {
   data: SheetData;
   /** Formula fields, already evaluated by the core. */
   computed: Record<string, number>;
+  /**
+   * Integer fields after adjustments from conditions and active items (ADR-0062), by dotted path.
+   * The stored sheet is untouched: these numbers are what the rules use.
+   */
+  adjusted?: Record<string, number>;
   rolls: SheetRoll[];
   resources: SheetResource[];
   /** `false` shows values without inputs; roll buttons still work. */
@@ -70,6 +75,7 @@ interface Actions {
 interface Values {
   data: SheetData;
   computed: Record<string, number>;
+  adjusted: Record<string, number>;
   rolls: SheetRoll[];
   resources: SheetResource[];
   renderAction?: CharacterSheetProps['renderAction'];
@@ -78,7 +84,18 @@ interface Values {
 // Two contexts: fields subscribe only to the stable one, so new computed values (which arrive after
 // every edit) re-render the few nodes that show them, not every input.
 const ActionsContext = createContext<Actions | null>(null);
-const ValuesContext = createContext<Values>({ data: {}, computed: {}, rolls: [], resources: [] });
+const ValuesContext = createContext<Values>({
+  data: {},
+  computed: {},
+  adjusted: {},
+  rolls: [],
+  resources: [],
+});
+/**
+ * Adjusted integers live in their own context: a field subscribes to it alone, so the sheet's
+ * data changing on every keystroke does not re-render every field on the page.
+ */
+const AdjustedContext = createContext<Record<string, number>>({});
 
 function useActions(): Actions {
   const actions = useContext(ActionsContext);
@@ -92,6 +109,7 @@ export function CharacterSheet({
   schema,
   data,
   computed,
+  adjusted = {},
   rolls,
   resources,
   canEdit,
@@ -121,11 +139,13 @@ export function CharacterSheet({
   const roots = Array.isArray(layout) ? layout : [layout];
   return (
     <ActionsContext value={{ lang, t, canEdit, schema, emit, roll }}>
-      <ValuesContext value={{ data, computed, rolls, resources, renderAction }}>
-        <div className={canEdit ? 'sheet' : 'sheet sheet-readonly'}>
-          <Nodes nodes={roots} scope={data} base={[]} />
-        </div>
-      </ValuesContext>
+      <AdjustedContext value={adjusted}>
+        <ValuesContext value={{ data, computed, adjusted, rolls, resources, renderAction }}>
+          <div className={canEdit ? 'sheet' : 'sheet sheet-readonly'}>
+            <Nodes nodes={roots} scope={data} base={[]} />
+          </div>
+        </ValuesContext>
+      </AdjustedContext>
     </ActionsContext>
   );
 }
@@ -279,9 +299,25 @@ interface FieldProps {
 /** Re-renders only when its own value changes, so typing in one field leaves the rest alone. */
 const Field = memo(function Field({ node, value, path }: FieldProps) {
   const { lang, t, canEdit, schema, emit } = useActions();
+  const adjusted = useContext(AdjustedContext);
   const fieldSchema = schemaAt(schema, path);
   const widget = widgetFor(node.widget, fieldSchema, value);
   const label = resolveLabel(node.label, lang) || fieldSchema?.title || path;
+  // The rules use the adjusted number even when the stored one differs (ADR-0062). Show both:
+  // the input keeps the stored value, the badge says what the table actually rolls with.
+  const effective =
+    typeof value === 'number' && typeof adjusted[path] === 'number' && adjusted[path] !== value
+      ? adjusted[path]
+      : null;
+  const delta =
+    effective === null ? null : (
+      <span
+        className="sheet-field-effective"
+        title={t('sheet.effectiveHint', { stored: value, effective })}
+      >
+        → {effective}
+      </span>
+    );
 
   if (!canEdit) {
     let shown: string;
@@ -292,7 +328,10 @@ const Field = memo(function Field({ node, value, path }: FieldProps) {
     return (
       <div className={`sheet-field sheet-field-${widget}`}>
         <span className="sheet-field-label">{label}</span>
-        <span className="sheet-field-value">{shown}</span>
+        <span className="sheet-field-value">
+          {shown}
+          {delta}
+        </span>
       </div>
     );
   }
@@ -345,6 +384,7 @@ const Field = memo(function Field({ node, value, path }: FieldProps) {
           widget={widget}
           label={label}
           value={value}
+          effective={effective}
           schema={fieldSchema}
           onCommit={(next) => {
             emit(segments, next);
@@ -359,12 +399,15 @@ function TextualField({
   widget,
   label,
   value,
+  effective,
   schema,
   onCommit,
 }: {
   widget: 'number' | 'text' | 'textarea';
   label: string;
   value: unknown;
+  /** The adjusted value when it differs from the stored one (ADR-0062). */
+  effective?: number | null;
   schema: JsonSchema | undefined;
   onCommit: (value: string | number) => void;
 }) {
@@ -373,6 +416,15 @@ function TextualField({
   const inputId = useId();
   const [draft, setDraft] = useState<string | null>(null);
   const current = typeof value === 'string' || typeof value === 'number' ? String(value) : '';
+  const delta =
+    typeof effective === 'number' ? (
+      <span
+        className="sheet-field-effective"
+        title={t('sheet.effectiveHint', { stored: current, effective })}
+      >
+        → {effective}
+      </span>
+    ) : null;
 
   /** −/+ next to a number: the stored value (or 0) moved by one, clamped by the schema. */
   const step = (delta: number) => {
@@ -446,9 +498,13 @@ function TextualField({
           >
             +
           </button>
+          {delta}
         </span>
       ) : (
-        <input {...common} type="text" maxLength={schema?.maxLength} />
+        <span className="sheet-textual">
+          <input {...common} type="text" maxLength={schema?.maxLength} />
+          {delta}
+        </span>
       )}
     </div>
   );
@@ -559,12 +615,12 @@ function RollButton({ rollId, label }: { rollId: string; label: Label | undefine
 }
 
 function Resource({ id }: { id: string }) {
-  const { lang, t } = useActions();
+  const { lang } = useActions();
   const { resources } = useContext(ValuesContext);
   const resource = resources.find((r) => r.id === id);
-  if (resource === undefined) {
-    return <div className="sheet-unsupported">{t('sheet.missing', { id })}</div>;
-  }
+  // Absent means the recipient cannot read it (ADR-0049): a hidden resource leaves no bar at all,
+  // rather than an empty one that would still show its place in the sheet.
+  if (resource === undefined) return null;
   const label = resolveLabel(resource.label, lang);
   return (
     <div className="sheet-resource">

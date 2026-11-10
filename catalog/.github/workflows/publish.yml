@@ -1,0 +1,57 @@
+name: Publish plugin catalog
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-catalog
+  cancel-in-progress: false
+
+env:
+  CATALOG_BASE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Toolchain
+        run: rustup show active-toolchain || rustup toolchain install
+      - name: Build the CLI
+        run: cargo build --release -p dnd-plugin-tool
+      - name: Pack and validate every submission
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          for dir in plugins/*/*/; do
+            [ -f "$dir/manifest.json" ] || continue
+            name=$(basename "$(dirname "$dir")")-$(basename "$dir")
+            ./target/release/plugin-tool validate "$dir"
+            ./target/release/plugin-tool pack "$dir" -o "dist/$name.dndplugin"
+          done
+      - name: Sign the index
+        env:
+          CATALOG_SIGNING_KEY: ${{ secrets.CATALOG_SIGNING_KEY }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$CATALOG_SIGNING_KEY" | base64 -d > /tmp/catalog.pkcs8
+          chmod 600 /tmp/catalog.pkcs8
+          ./target/release/plugin-tool index \
+            --key /tmp/catalog.pkcs8 \
+            --base-url "$CATALOG_BASE_URL" \
+            --out dist/index.json \
+            dist/*.dndplugin
+          rm -f /tmp/catalog.pkcs8
+      # Packages and the signed index are published together: an index that lists a package the
+      # site does not serve would be a broken catalog, not a partial one.
+      - name: Publish the index and the packages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          publish_branch: gh-pages

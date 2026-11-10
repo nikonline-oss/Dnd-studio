@@ -107,6 +107,7 @@ impl Intent {
             | Self::InstantiateItem { .. }
             | Self::UpdateItem { .. }
             | Self::TransferItem { .. }
+            | Self::DuplicateItem { .. }
             | Self::DeleteItem { .. } => Vec::new(),
             Self::AdvanceGameTime { seconds } => vec![("seconds", *seconds)],
             Self::UpdateCampaignMeta { .. }
@@ -209,6 +210,7 @@ impl Intent {
     pub fn created_id(&self) -> Option<Uuid> {
         match self {
             Self::CreateItem { id, .. } | Self::InstantiateItem { id, .. } => Some(id.0),
+            Self::DuplicateItem { new_id, .. } => Some(new_id.0),
             Self::CreateMap { id, .. } => Some(id.0),
             Self::CreateToken { id, .. } => Some(id.0),
             Self::CreateCharacter { id, .. } => Some(id.0),

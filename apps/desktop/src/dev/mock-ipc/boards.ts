@@ -263,6 +263,7 @@ export function boardEvents(snapshot: Snapshot, intent: Intent): Event[] | null 
 /** A sample board: an investigation with a hidden secret. */
 export function sampleBoard(
   id: (n: number) => string,
+  map?: { id: string; name: string },
 ): Pick<Snapshot, 'boards' | 'board_nodes' | 'board_edges' | 'zones' | 'triggers'> {
   const board = id(70);
   const node = (
@@ -287,6 +288,22 @@ export function sampleBoard(
       { id: board, name: 'Investigation', sort_order: 0, visible_to_players: true, version: 1 },
     ],
     board_nodes: [
+      // The map card, so a browser mock can open a map and its inspector (ADR-0061 QA).
+      ...(map
+        ? [
+            {
+              id: id(76),
+              board_id: board,
+              content: { type: 'link', target: { kind: 'map', id: map.id } },
+              x: 40 * 16,
+              y: 400 * 16,
+              width: 220 * 16,
+              height: 110 * 16,
+              visibility: 'players',
+              version: 1,
+            } satisfies BoardNodeDto,
+          ]
+        : []),
       node(71, '**The missing mayor**\n\nLast seen at the old chapel.', 40, 40, 'players'),
       node(72, '**Cult of the Drowned**\n\nMeets under the crypt.', 360, 40, 'players'),
       node(73, '**Secret passage**\n\nBehind the altar, opened by a hidden lever.', 200, 240, 'gm'),

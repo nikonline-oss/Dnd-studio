@@ -52,8 +52,16 @@ pub enum Intent {
     },
     CreateItem {
         id: crate::ItemId,
+        /// An object or a skill; missing in old intents: an item. Named `item_kind` because the
+        /// intent itself is tagged by `kind`.
+        #[serde(default)]
+        item_kind: crate::ItemKind,
         name: String,
-        type_id: String,
+        /// Plugin item type; `None` creates a free-form item (ADR-0062).
+        #[serde(default)]
+        type_id: Option<String>,
+        #[serde(default)]
+        description: String,
         sheet_json: Option<String>,
         visible_to_players: bool,
     },
@@ -65,8 +73,26 @@ pub enum Intent {
     UpdateItem {
         id: crate::ItemId,
         name: Option<String>,
+        #[serde(default)]
+        description: Option<String>,
         sheet_json: Option<String>,
         visible_to_players: Option<bool>,
+        /// Campaign state id; `Some("")` clears it back to the campaign default (ADR-0062).
+        #[serde(default)]
+        state: Option<String>,
+        /// Replaces the whole list; `Some(vec![])` removes every adjustment.
+        #[serde(default)]
+        effects: Option<Vec<crate::ItemEffect>>,
+        #[serde(default)]
+        grants: Option<Vec<String>>,
+        /// Replaces the whole list; `Some(vec![])` removes every custom value.
+        #[serde(default)]
+        values: Option<Vec<crate::ItemValue>>,
+    },
+    /// Copies an item under a new id: the GM's "duplicate" (ADR-0062).
+    DuplicateItem {
+        id: crate::ItemId,
+        new_id: crate::ItemId,
     },
     TransferItem {
         id: crate::ItemId,
@@ -83,11 +109,24 @@ pub enum Intent {
     UpdateCampaignMeta {
         name: Option<String>,
         description: Option<String>,
+        /// Replaces the campaign's token inspector policy (ADR-0061).
+        #[serde(default)]
+        token_inspector: Option<crate::model::TokenInspectorPolicy>,
+        /// Replaces the campaign's item states; an empty list restores the built-in ones
+        /// (ADR-0062).
+        #[serde(default)]
+        item_states: Option<Vec<crate::ItemStateDef>>,
+        /// Replaces what players may read of characters and tokens (ADR-0063).
+        #[serde(default)]
+        visibility: Option<crate::VisibilityPolicy>,
     },
 
     CreateMap {
         id: MapId,
         name: String,
+        /// Free text for the inspector; may be empty.
+        #[serde(default)]
+        description: String,
         background_asset_id: Option<AssetId>,
         /// Logical size (ADR-0016), `1..=MAX_MAP_SIZE`; fixed for the life of the map.
         #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
@@ -100,6 +139,7 @@ pub enum Intent {
     UpdateMap {
         id: MapId,
         name: Option<String>,
+        description: Option<String>,
         grid: Option<Grid>,
         visible_to_players: Option<bool>,
     },
@@ -186,6 +226,10 @@ pub enum Intent {
         layer: Option<TokenLayer>,
         visible: Option<bool>,
         disposition: Option<TokenDisposition>,
+        /// Replaces the token's inspector override (ADR-0061). An empty policy — no reveal and no
+        /// conceal — clears the override, so the token follows the campaign again.
+        #[serde(default)]
+        inspector: Option<crate::model::TokenInspectorPolicy>,
     },
     /// Last-write-wins: no version check, does not bump the token version (ADR-0003).
     MoveToken {
@@ -620,6 +664,7 @@ impl Intent {
             Self::InstantiateItem { .. } => "instantiate_item",
             Self::UpdateItem { .. } => "update_item",
             Self::TransferItem { .. } => "transfer_item",
+            Self::DuplicateItem { .. } => "duplicate_item",
             Self::DeleteItem { .. } => "delete_item",
             Self::UpdateCampaignMeta { .. } => "update_campaign_meta",
             Self::AdvanceGameTime { .. } => "advance_game_time",
@@ -734,6 +779,7 @@ impl Intent {
             | Self::CreateLibraryFolder { .. }
             | Self::CreateItem { .. }
             | Self::InstantiateItem { .. }
+            | Self::DuplicateItem { .. }
             | Self::CreatePlaylist { .. } => VersionPolicy::Create,
             // Plugins are configuration the GM owns: the last choice wins.
             Self::MoveToken { .. }

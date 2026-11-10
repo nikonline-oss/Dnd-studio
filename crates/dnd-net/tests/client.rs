@@ -9,7 +9,7 @@ use std::time::Duration;
 use dnd_db::{
     ARCHIVE_FORMAT, ArchiveManifest, CampaignDb, CampaignEngine, LocalUser, write_archive,
 };
-use dnd_game_core::{Actor, IntentWindow};
+use dnd_game_core::{Actor, IntentWindow, SplitMix64};
 use dnd_net::{
     ConnectOptions, Connection, HttpClient, Incoming, NetError, Status, normalize_base,
     parse_invite,
@@ -62,9 +62,10 @@ async fn archive(dir: &Path) -> PathBuf {
     let db = CampaignDb::create(&folder.join("campaign.sqlite"), "Lost Mine", &gm, 0)
         .await
         .unwrap();
-    let mut engine = CampaignEngine::load(db, IntentWindow::DEFAULT, 1, 0)
-        .await
-        .unwrap();
+    let mut engine =
+        CampaignEngine::load(db, IntentWindow::DEFAULT, Box::new(SplitMix64::new(1)), 0)
+            .await
+            .unwrap();
     let asset = AssetDto {
         id: AssetId(v7(0x40)),
         usage: AssetUsage::Map,
@@ -98,6 +99,7 @@ async fn archive(dir: &Path) -> PathBuf {
         Intent::CreateMap {
             id: MapId(v7(0x10)),
             name: "Cave".into(),
+            description: String::new(),
             background_asset_id: Some(asset.id),
             width: 100,
             height: 100,
@@ -333,8 +335,28 @@ async fn a_connection_syncs_and_answers_intents() {
         None
     );
 
+    // A resync continues from what the client has (ADR-0053): the answer is a delta — here an
+    // empty one, because the connection already applied everything — or a snapshot when the
+    // history is gone. Both must arrive.
+    let before = mira_view.seq;
     mira_conn.resync();
-    next(&mut mira_rx, snapshot).await;
+    let answer = next(&mut mira_rx, |item| match item {
+        Incoming::Events(batch) if batch.last_seq() >= before => Some(Incoming::Events(batch)),
+        item @ Incoming::Snapshot(_) => Some(item),
+        _ => None,
+    })
+    .await;
+    match answer {
+        Incoming::Events(batch) => {
+            assert_eq!(
+                batch.seq,
+                before.next(),
+                "the delta starts where the client stopped"
+            );
+        }
+        Incoming::Snapshot(snapshot) => assert!(snapshot.seq >= before),
+        other => panic!("unexpected resync answer: {other:?}"),
+    }
     drop(gm_conn);
     server.stop().await.unwrap();
 }
@@ -369,6 +391,7 @@ async fn a_lost_connection_comes_back_and_sends_the_waiting_chat() {
             Intent::UpdateMap {
                 id: MapId(v7(0x10)),
                 name: Some("Renamed".into()),
+                description: None,
                 grid: None,
                 visible_to_players: None,
             },

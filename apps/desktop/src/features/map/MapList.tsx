@@ -27,7 +27,6 @@ export function MapList() {
   const maps = useSnapshotSelect((s) => s.maps) ?? [];
   const { data: campaign } = useCampaign();
   const isGm = campaign?.role === 'gm' || campaign?.role === 'co_gm';
-  // Images are imported into the local campaign; uploading them to a session comes with stage 4.
   const remote = useRemote();
   const showToast = useToast((s) => s.show);
 
@@ -149,6 +148,7 @@ export function MapList() {
                                     kind: 'update_map',
                                     id: map.id,
                                     name,
+                                    description: null,
                                     grid: null,
                                     visible_to_players: null,
                                   },
@@ -169,6 +169,7 @@ export function MapList() {
                                   kind: 'update_map',
                                   id: map.id,
                                   name: null,
+                                  description: null,
                                   grid: null,
                                   visible_to_players: !map.visible_to_players,
                                 },
@@ -210,6 +211,7 @@ export function MapList() {
                           kind: 'update_map',
                           id: map.id,
                           name,
+                          description: null,
                           grid: null,
                           visible_to_players: null,
                         },
@@ -240,6 +242,7 @@ export function MapList() {
                             kind: 'update_map',
                             id: map.id,
                             name: null,
+                            description: null,
                             grid: null,
                             visible_to_players: e.target.checked,
                           },

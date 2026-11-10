@@ -1,0 +1,325 @@
+/* Split from app/styles.css (workboard: «стили»). Order matters: index.css imports these in cascade order. */
+
+/* ---------- Boards (ADR-0024) ---------- */
+
+.board-view {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  margin: calc(-1 * var(--space-2));
+}
+
+.board-toolbar,
+.board-selection {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.board-toolbar select {
+  max-width: 180px;
+}
+
+.board-selection {
+  position: absolute;
+  top: 44px;
+  left: 50%;
+  z-index: 2;
+  transform: translateX(-50%);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+
+.board-canvas {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  background-color: var(--color-bg);
+  background-image: radial-gradient(var(--color-border) 1px, transparent 1px);
+  background-size: 24px 24px;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.board-canvas.connecting,
+.board-canvas.connecting .board-card {
+  cursor: crosshair;
+}
+
+.board-world {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+}
+
+.board-edges {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  overflow: visible;
+}
+
+.board-edge {
+  cursor: pointer;
+}
+
+.board-edge-hit {
+  stroke: transparent;
+  stroke-width: 12;
+}
+
+.board-edge-line {
+  stroke: var(--color-text-muted);
+  stroke-width: 2;
+}
+
+.board-edge[data-hidden='true'] .board-edge-line {
+  stroke-dasharray: 6 4;
+  opacity: 0.6;
+}
+
+.board-edge[data-selected='true'] .board-edge-line {
+  stroke: var(--color-accent);
+}
+
+.board-arrow {
+  fill: var(--color-text-muted);
+}
+
+.board-edge-label {
+  fill: var(--color-text);
+  font-size: 12px;
+  text-anchor: middle;
+  paint-order: stroke;
+  stroke: var(--color-bg);
+  stroke-width: 4px;
+}
+
+.board-card {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: var(--space-2);
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  cursor: grab;
+}
+
+.board-card[data-hidden='true'] {
+  border-style: dashed;
+  opacity: 0.75;
+}
+
+.board-card[data-selected='true'] {
+  border-color: var(--color-accent);
+  outline: 1px solid var(--color-accent);
+}
+
+.board-card-note {
+  overflow: auto;
+}
+
+.board-card-link,
+.board-card-image {
+  padding: 0;
+}
+
+/* GM roles grab cards by this strip (links and pictures are clickable all over). */
+.board-card-handle {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  height: 14px;
+  margin: calc(-1 * var(--space-2)) calc(-1 * var(--space-2)) var(--space-1);
+  color: var(--color-text-muted);
+  background: var(--color-surface-alt);
+  border-bottom: 1px solid var(--color-border);
+  cursor: grab;
+}
+
+.board-card-link .board-card-handle,
+.board-card-image .board-card-handle {
+  margin: 0;
+}
+
+.board-card-badge {
+  position: absolute;
+  top: 0;
+  right: 4px;
+  color: var(--color-text-muted);
+}
+
+.board-link {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-end;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+
+/* The whole map, letterboxed: a map link is for recognising the map at a glance. */
+.board-link-picture {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  object-fit: contain;
+  background: var(--color-bg);
+  pointer-events: none;
+}
+
+/* GM roles resize cards by this corner. */
+.board-card-resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 14px;
+  height: 14px;
+  cursor: nwse-resize;
+  background: linear-gradient(135deg, transparent 50%, var(--color-border-strong) 50%);
+  border-bottom-right-radius: var(--radius);
+}
+
+.board-link-caption {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: var(--space-1) var(--space-2);
+}
+
+.board-image {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+
+.board-note-editor {
+  flex: 1;
+  width: 100%;
+  resize: none;
+  font: inherit;
+}
+
+.board-empty,
+.board-hint {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.board-empty {
+  top: 45%;
+}
+
+.board-hint {
+  bottom: var(--space-3);
+  padding: var(--space-1) var(--space-2);
+  background: var(--color-surface);
+  border-radius: var(--radius);
+}
+
+.zone-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.zone-list [aria-current='true'] {
+  background: var(--color-accent-soft);
+  border-radius: var(--radius);
+}
+
+/* Zone edit mode on the map (ADR-0024). */
+.map-edit-hint,
+.map-combat-hint {
+  position: absolute;
+  top: var(--space-2);
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: min(520px, calc(100% - 2 * var(--space-3)));
+  margin: 0;
+  padding: var(--space-1) var(--space-3);
+  background: color-mix(in srgb, var(--color-surface-raised) 88%, transparent);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  font-size: 12px;
+  text-align: center;
+  pointer-events: none;
+}
+
+.map-combat-hint {
+  top: calc(var(--space-2) + 42px);
+  border-color: color-mix(in srgb, #43e2c5 52%, var(--color-border));
+}
+
+.zone-rename {
+  position: absolute;
+  min-width: 160px;
+  font-weight: 600;
+  box-shadow: var(--shadow-md);
+}
+
+/* Conditions of a character (ADR-0024). */
+.conditions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.condition-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.condition-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 2px 0 var(--space-2);
+  background: var(--color-danger-soft);
+  border: 1px solid var(--color-danger);
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.condition-chip button {
+  min-height: 0;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  background: none;
+  border: 0;
+  box-shadow: none;
+}
+
+.give-item input {
+  flex: 1;
+  min-width: 0;
+}

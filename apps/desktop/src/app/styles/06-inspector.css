@@ -1,0 +1,198 @@
+/* Split from app/styles.css (workboard: «стили»). Order matters: index.css imports these in cascade order. */
+
+/* ---------- Inspector ---------- */
+
+.inspector-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: 0 var(--space-3);
+}
+
+.inspector-empty {
+  padding: var(--space-3);
+}
+
+.token-effects {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.token-effect {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.token-effect-label {
+  font-weight: 600;
+}
+
+.token-effect .muted {
+  margin-left: auto;
+}
+
+.inspector-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.map-preview {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.map-preview figcaption {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.map-preview figcaption strong {
+  font-family: var(--font-display);
+  font-size: 16px;
+}
+
+.map-preview figcaption span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.thumbnail {
+  display: block;
+  width: 100%;
+  max-height: 180px;
+  object-fit: cover;
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-alt);
+}
+
+.thumbnail.placeholder {
+  display: grid;
+  place-items: center;
+  height: 96px;
+  color: var(--color-text-muted);
+  background:
+    repeating-linear-gradient(0deg, transparent 0 15px, var(--color-border) 15px 16px),
+    repeating-linear-gradient(90deg, transparent 0 15px, var(--color-border) 15px 16px),
+    var(--color-surface-alt);
+}
+
+.properties {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px var(--space-3);
+  margin: 0;
+}
+
+.properties dt {
+  color: var(--color-text-muted);
+}
+
+.properties dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.grid-form {
+  display: grid;
+  /* A native select sets a wide intrinsic minimum; the label column must not collapse to a
+     one-character sliver in a narrow inspector. */
+  grid-template-columns: minmax(88px, max-content) minmax(0, 1fr);
+  min-width: 0;
+  gap: var(--space-2) var(--space-3);
+  align-items: center;
+}
+
+.grid-form > * {
+  min-width: 0;
+}
+
+.grid-form label {
+  color: var(--color-text-muted);
+  overflow-wrap: normal;
+}
+
+.grid-form input,
+.grid-form select {
+  width: 100%;
+  min-width: 0;
+}
+
+.grid-form button {
+  grid-column: 1 / -1;
+}
+
+.grid-form button[type='submit']:not(:disabled) {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-accent-contrast);
+  font-weight: 600;
+}
+
+.side-panel > .nav-section:last-child,
+.side-panel > .muted {
+  padding: 0 var(--space-3);
+}
+
+.map-description-text {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.description-form {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.description-form label {
+  color: var(--color-text-muted);
+}
+
+.description-form textarea {
+  width: 100%;
+  min-width: 0;
+  resize: vertical;
+  font: inherit;
+}
+
+.description-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.description-actions .muted {
+  font-size: 0.85em;
+}
+
+.description-actions button[type='submit']:not(:disabled) {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-accent-contrast);
+  font-weight: 600;
+}

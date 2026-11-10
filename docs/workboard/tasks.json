@@ -1,0 +1,1046 @@
+{
+  "version": 1,
+  "tasks": [
+    {
+      "id": "t-9d699f44",
+      "title": "ссылка",
+      "description": "Ссылки: журнал ссылается на запись компендиума [текст](compendium:плагин/книга/запись) — открывает книгу с выбранной записью; ячейки таблиц показывают Markdown-ссылки, а ссылка из диалога попадает в выбранную ячейку.",
+      "column": "verify",
+      "priority": "normal",
+      "kind": "task",
+      "files": [
+        "apps/desktop/src/features/journal/LinkPickerDialog.tsx"
+      ],
+      "checks": [
+        {
+          "label": "Ссылка compendium: в тексте",
+          "state": "pass",
+          "note": "Markdown рендерит кнопку, открывает книгу с entry; sanitizer разрешает схему"
+        },
+        {
+          "label": "Ссылки в таблицах",
+          "state": "pass",
+          "note": "TableGrid рисует ячейку как Markdown при наличии разметки; insertIntoActive кладёт ссылку в активную ячейку"
+        },
+        {
+          "label": "Выбор цели",
+          "state": "pass",
+          "note": "LinkPickerDialog: элементы кампании и записи компендиума"
+        }
+      ],
+      "createdAt": "2026-11-10T00:25:01.300Z",
+      "updatedAt": "2026-11-10T00:26:47.176Z"
+    },
+    {
+      "id": "t-cf2e57ef",
+      "title": "библиотека убираеться",
+      "description": "Библиотека стала единым журналом-проводником: папки, записи журнала (текст и таблица), картинки, музыка и плейлисты в одном дереве, папки перед файлами, общий путь перетаскивания. Импорт/экспорт журнала остались в меню File.",
+      "column": "verify",
+      "priority": "normal",
+      "kind": "task",
+      "files": [
+        "apps/desktop/src/features/library/UnifiedLibrary.tsx",
+        "apps/desktop/src/features/library/tree.ts",
+        "apps/desktop/src/app/LibraryPanel.tsx"
+      ],
+      "checks": [
+        {
+          "label": "Один проводник вместо трёх секций",
+          "state": "pass",
+          "note": "app/LibraryPanel → UnifiedLibrary: папки, записи журнала (текст/таблица), картинки, звуки, плейлисты в одном дереве; секций и ресайзеров нет"
+        },
+        {
+          "label": "Все прежние команды сохранены",
+          "state": "pass",
+          "note": "создание/переименование/удаление/перенос для журнала, импорт и папки для медиа, плейлисты; перетаскивание с запретом на себя и на чужое пространство"
+        },
+        {
+          "label": "Права и раскладка",
+          "state": "pass",
+          "note": "игрок видит только журнал (как раньше); 1280×800 и 1024×700: дерево, раскрытие папки, открытие записи вкладкой — без ошибок консоли"
+        },
+        {
+          "label": "Тесты",
+          "state": "pass",
+          "note": "tree 9, UnifiedLibrary 11+4+31, LibraryPanel 4; полный vitest 87 файлов / 567 тестов"
+        },
+        {
+          "label": "Ревью независимым агентом: клавиши Enter/Space внутри строки, ошибки импорта, цели создания, корневое «Открыть»",
+          "state": "pass",
+          "note": "исправлено: onKeyDown больше не перехватывает клавиши вложенных контролов (тест), импорт/экспорт журнала показывает тост об ошибке, создание очищает поиск, цель новой записи учитывает открытую вкладку, в контекстном меню корня вернулись «Открыть папку картинок/музыки»; полный CI зелёный (569 тестов)"
+        }
+      ],
+      "createdAt": "2026-11-10T00:19:34.485Z",
+      "updatedAt": "2026-11-10T07:58:04.889Z"
+    },
+    {
+      "id": "t-77788dd3",
+      "title": "навыки",
+      "description": "Навыки — те же сущности, что предметы (ItemKind::Skill): общие эффекты, состояния, свои значения, дублирование и перенос; отдельная вкладка «Навыки» с фильтром по владельцу.",
+      "column": "verify",
+      "priority": "normal",
+      "kind": "task",
+      "files": [],
+      "checks": [
+        {
+          "label": "Модель: ItemKind + item_kind в create_item",
+          "state": "pass",
+          "note": "dnd-protocol item.rs/intent.rs; старые данные читаются как item"
+        },
+        {
+          "label": "Вкладка «Навыки»",
+          "state": "pass",
+          "note": "SideView skills, ItemsView kind=skill, 19 vitest"
+        },
+        {
+          "label": "Живая проверка в браузере",
+          "state": "pass",
+          "note": "mock: Fire bolt в списке навыков, создание навыка уходит с item_kind=skill"
+        }
+      ],
+      "createdAt": "2026-11-10T00:15:50.059Z",
+      "updatedAt": "2026-11-10T00:18:06.362Z"
+    },
+    {
+      "id": "t-56217eb8",
+      "title": "панель задач",
+      "description": "Панель предметов: карточка без полей ввода, все изменения в модалках; свои значения для плагинов; лишние элементы убраны, минималистично.",
+      "column": "verify",
+      "priority": "normal",
+      "kind": "task",
+      "files": [],
+      "checks": [
+        {
+          "label": "Карточка только читает",
+          "state": "pass",
+          "note": "ItemsView: свойства чипами + кнопки; тест «card without form fields»"
+        },
+        {
+          "label": "Модалки",
+          "state": "pass",
+          "note": "CreateItemDialog, EditItemDialog (имя/описание/состояние), ItemEffectsDialog, ItemOwnerDialog"
+        },
+        {
+          "label": "Свои значения для плагинов",
+          "state": "pass",
+          "note": "values + @item.<ключ> в выражениях"
+        }
+      ],
+      "createdAt": "2026-11-10T00:09:58.249Z",
+      "updatedAt": "2026-11-10T00:14:50.619Z"
+    },
+    {
+      "id": "t-4648a3ce",
+      "title": "стили",
+      "description": "Полосу вкладок зафиксировал в одну строку: длинное имя сокращается многоточием, много вкладок прокручиваются по горизонтали.",
+      "column": "verify",
+      "priority": "normal",
+      "kind": "task",
+      "files": [],
+      "checks": [
+        {
+          "label": "CSS вкладок",
+          "state": "pass",
+          "note": "04-shell.css: flex-wrap nowrap, overflow-x auto, max-width 260, ellipsis"
+        },
+        {
+          "label": "Замеры в браузере",
+          "state": "pass",
+          "note": "1280×800: body/панели не растут ни на одной вкладке (GM, items, library)"
+        }
+      ],
+      "createdAt": "2026-11-10T00:07:25.450Z",
+      "updatedAt": "2026-11-10T00:08:00.880Z"
+    },
+    {
+      "id": "t-7ee9dc81",
+      "title": "компедиумы",
+      "description": "Компендиум: из записи создаются предмет и навык (модалка с именем и текстом) и персонаж — только когда у записи есть character_template. Случайная модалка создания персонажа на каждой записи убрана.",
+      "column": "verify",
+      "priority": "normal",
+      "kind": "task",
+      "files": [
+        "apps/desktop/src/features/compendium/CompendiumCreate.tsx"
+      ],
+      "checks": [
+        {
+          "label": "Создание предмета и навыка из записи",
+          "state": "pass",
+          "note": "CompendiumCreate: кнопки + модалка → create_item с описанием из текста"
+        },
+        {
+          "label": "Форма персонажа только для шаблона",
+          "state": "pass",
+          "note": "CompendiumCharacter возвращает null без character_template; тест characterTemplate обновлён"
+        },
+        {
+          "label": "Полный CI",
+          "state": "pass",
+          "note": "tools/ci/local-ci.sh: 557 vitest, clippy, bindings — зелёный"
+        }
+      ],
+      "createdAt": "2026-11-10T00:05:45.357Z",
+      "updatedAt": "2026-11-10T00:07:10.661Z"
+    },
+    {
+      "id": "t-6abf7f37",
+      "title": "Самопроверка интерфейса",
+      "description": "Прогон всех вкладок и живых сценариев в браузере (mock), 2026-11-09.",
+      "column": "verify",
+      "priority": "normal",
+      "kind": "task",
+      "files": [],
+      "checks": [
+        {
+          "label": "Все вкладки GM и игрока: без ошибок консоли и переполнений",
+          "state": "pass",
+          "note": "Characters/Library/Boards/Plugins/Catalog/Compendia/Items + нижние вкладки + меню; 1280x800 и 1024x700; console error 0"
+        },
+        {
+          "label": "Предмет - лист: значок эффективного значения исчезает при поломке",
+          "state": "pass",
+          "note": "кольцо +1: AC 15-16; состояние broken: значка нет"
+        },
+        {
+          "label": "Исправлено: мок игнорировал встроенные состояния предметов",
+          "state": "pass",
+          "note": "сломанный предмет продолжал давать бонус в mock; теперь мок знает встроенный набор"
+        },
+        {
+          "label": "Исправлено: подпись фильтра дублировала «Владелец»",
+          "state": "pass",
+          "note": "группа фильтров теперь «Фильтр по владельцу»"
+        }
+      ],
+      "createdAt": "2026-11-09T23:51:09.934Z",
+      "updatedAt": "2026-11-09T23:51:14.033Z"
+    },
+    {
+      "id": "t-a1dc2104",
+      "title": "лист: показывать эффективное значение поля",
+      "description": "SheetView получил `adjusted`: целые поля после прибавок от состояний и активных предметов. Лист показывает сохранённое значение и значок «→ 16» с подсказкой «Правила используют 16; в листе записано 15»; ввод по-прежнему правит сохранённое число. Работает и в режиме только чтения, и на предпросмотре компендиума. См. docs/adr/0062-items-inventory.md.",
+      "column": "done",
+      "priority": "normal",
+      "kind": "task",
+      "files": [
+        "apps/desktop/src-tauri/src/plugins.rs",
+        "apps/desktop/src/shared/sheet/CharacterSheet.tsx",
+        "apps/desktop/src/features/characters/SystemSheet.tsx"
+      ],
+      "checks": [
+        {
+          "label": "Сервер отдаёт эффективные значения",
+          "state": "pass",
+          "note": "SheetView.adjusted; тест a_full_view_reports_adjusted_integer_fields"
+        },
+        {
+          "label": "Лист показывает значок рядом с полем",
+          "state": "pass",
+          "note": "CharacterSheet + 3 vitest; браузер: AC 15 → 16 у Миры с кольцом"
+        }
+      ],
+      "createdAt": "2026-11-09T20:10:21.812Z",
+      "updatedAt": "2026-11-10T00:05:32.269Z"
+    },
+    {
+      "id": "t-a9eeabe6",
+      "title": "инспектор у игрока",
+      "description": "Инспектор игрока: одна панель по выбору — персонаж, токен или карта с описанием; вкладок нет. 5 vitest. ADR-0061.",
+      "column": "verify",
+      "priority": "normal",
+      "kind": "task",
+      "files": [],
+      "checks": [
+        {
+          "label": "Инспектор игрока: вкладки «Персонаж»/«Выбор»",
+          "state": "pass",
+          "note": "apps/desktop/src/app/PlayerInspector.tsx; карта с описанием и выбранный токен доступны игроку; 4 vitest + браузер 1280/1024"
+        },
+        {
+          "label": "личная проверка",
+          "state": "pass",
+          "note": "Вкладки убраны: панель игрока показывает то, что выбрано — персонажа, токен или карту с токенами (app/PlayerInspector). 5 vitest."
+        }
+      ],
+      "createdAt": "2026-11-09T16:59:32.917Z",
+      "updatedAt": "2026-11-10T01:11:59.799Z"
+    },
+    {
+      "id": "t-bab8c9bb",
+      "title": "карта: что игрок видит у выбранного токена",
+      "description": "Инспектор токена для игрока: какие поля он видит, настраивается ГМ, заклинаниями и триггерами.\n\nADR-0061: docs/adr/0061-token-inspector-fields.md — реализован целиком.\nПолитика кампании + переопределение токена + временные раскрытия эффектами (`apply_effect.reveal`, `turn_reveal` действия листа). Хранение: миграция 0028 и JSON DTO эффектов. Клиент: строки по view, панель мастера с подсказкой об активных раскрытиях. Проверено на живом сервере, включая переживание перезапуска.\n\nПроверено в браузере (mock=player): карта из доски открывается, вкладка «Выбор» показывает описание; узкая панель 270 px больше не сжимает форму токена и настройку в столбец из букв.",
+      "column": "done",
+      "priority": "normal",
+      "kind": "task",
+      "files": [
+        "docs/adr/0061-token-inspector-fields.md",
+        "crates/dnd-protocol/src/model.rs",
+        "crates/dnd-game-core/src/visibility.rs",
+        "crates/dnd-db/migrations/campaign/0028_token_inspector.sql",
+        "apps/desktop/src/features/tokens/TokenInspectorPolicy.tsx"
+      ],
+      "checks": [
+        {
+          "label": "Модель, ядро и хранение политики",
+          "state": "pass",
+          "note": "TokenField/Policy/View; apply+visibility; миграция 0028; token_inspector.rs и queries.rs"
+        },
+        {
+          "label": "Клиент: строки по view и панель мастера",
+          "state": "pass",
+          "note": "TokenInspector + TokenInspectorPolicy, 17 vitest"
+        },
+        {
+          "label": "Живая проверка: политика и переопределение меняют строки игрока",
+          "state": "pass",
+          "note": "WS: base [name,size,character,conditions] → политика [name,size] → переопределение [size] → очистка [name,size]"
+        },
+        {
+          "label": "Эффекты: временное раскрытие поля",
+          "state": "pass",
+          "note": "тумблер: эффект открыл position поверх conceal ([name,size,position]), снятие вернуло [name,size]; переживает docker restart"
+        },
+        {
+          "label": "Игрок открывает карту и токен в инспекторе",
+          "state": "pass",
+          "note": "вкладки «Персонаж»/«Выбор» в app/PlayerInspector; в браузере 1280×800 и 1024×700 описание карты видно игроку, строки видимости нет, переполнений нет"
+        }
+      ],
+      "createdAt": "2026-11-09T15:36:35.409Z",
+      "updatedAt": "2026-11-09T19:04:34.940Z"
+    },
+    {
+      "id": "t-949f5587",
+      "title": "исправление стилей",
+      "description": "Нужно перепроверить стили на случай чтобы они отображались правильно вне зависимости от длины текста, ведь у нас несколько языков\n\nСделано: длинные переводы переносятся внутри кнопок и строк, unbroken слова рвутся (overflow-wrap), панели действий и тулбары переносятся, min-width: 0 у flex-детей. Проверено в Chromium на образцах RU/EN в панели 300px — переполнений нет.",
+      "column": "done",
+      "priority": "normal",
+      "kind": "bug",
+      "files": [],
+      "checks": [
+        {
+          "label": "Playwright: длинные RU/EN подписи",
+          "state": "pass",
+          "note": "0 переполнений в панели 300px"
+        },
+        {
+          "label": "Vitest: правила переноса",
+          "state": "pass",
+          "note": "base/button/toolbar зафиксированы тестом"
+        }
+      ],
+      "createdAt": "2026-11-09T14:15:44.107Z",
+      "updatedAt": "2026-11-09T19:04:36.909Z"
+    },
+    {
+      "id": "t-12f2f579",
+      "title": "стили",
+      "description": "нужно перейти на какойто сборщик стилей и разбросать стили с одного файла на разные, облегчит поиск, читабельность и уменьшить потребление токенов\n\nСделано: styles.css (4278 строк) разбит на 26 модулей в apps/desktop/src/app/styles/ с index.css в порядке каскада. Проверка: tests читают папку, падают на осиротевшем модуле, нарушенном порядке и неразрешимом @import.",
+      "column": "done",
+      "priority": "normal",
+      "kind": "task",
+      "files": [],
+      "checks": [
+        {
+          "label": "Vitest src/app/styles.test.ts",
+          "state": "pass",
+          "note": "7 проверок: модули, порядок, @import, правила переноса"
+        },
+        {
+          "label": "pnpm build",
+          "state": "pass",
+          "note": "сборка фронтенда после разделения"
+        }
+      ],
+      "createdAt": "2026-11-09T14:11:23.187Z",
+      "updatedAt": "2026-11-09T19:04:39.626Z"
+    },
+    {
+      "id": "t-2a891fe6",
+      "title": "модалки",
+      "description": "сделай для разных задач нормальные модальные окна, создание персонажа компедиума и тд, какие сам подумай\n\nСделано: Dialog получил размеры sm/md/lg, закреплённый footer, блокировку прокрутки страницы и ловушку Tab; закрытие блокируется во время запроса. Создание персонажа из навигатора и удаление персонажа переведены на модалки с формой и footer.",
+      "column": "done",
+      "priority": "normal",
+      "kind": "task",
+      "files": [],
+      "checks": [
+        {
+          "label": "Vitest Dialog.test.tsx",
+          "state": "pass",
+          "note": "5: фокус, Tab-ловушка, Escape, блокировка закрытия, footer"
+        },
+        {
+          "label": "Vitest полный фронтенд",
+          "state": "pass",
+          "note": "515 тестов, включая обновлённые сценарии создания"
+        }
+      ],
+      "createdAt": "2026-11-09T14:05:43.961Z",
+      "updatedAt": "2026-11-09T19:04:41.224Z"
+    },
+    {
+      "id": "t-ceae8f0e",
+      "title": "карта",
+      "description": "игроку при нажатии на карту в инспекторе показываются общие данные карты: описание, фон, размер, сетка, версия.\n\nВторая половина требования (что игрок видит у выбранного токена и как это настраивают ГМ, заклинания и триггеры) вынесена в t-bab8c9bb.",
+      "column": "done",
+      "priority": "normal",
+      "kind": "task",
+      "files": [],
+      "checks": [
+        {
+          "label": "Описание карты видно игроку в инспекторе",
+          "state": "pass",
+          "note": "MapDescription: игрок читает текст; MapPreview — фон и название"
+        },
+        {
+          "label": "ГМ редактирует описание",
+          "state": "pass",
+          "note": "textarea + UpdateMap с версией; пустая строка очищает; граница 20000 как MAX_DESCRIPTION_LEN"
+        }
+      ],
+      "createdAt": "2026-11-09T14:02:51.458Z",
+      "updatedAt": "2026-11-09T19:04:44.106Z"
+    },
+    {
+      "id": "t-4274e54f",
+      "title": "в компедиумах исправь интерфейс быстрого создания предмета или персонажа",
+      "description": "сделать чтобы в компедиуме при быстром создании открывалась отдельная модалка \n\nСделано: быстрое создание в компендии открывается отдельной модалкой (имя, предпросмотр листа, затем размещение токена). Запись компендия не меняется, создание предмета появится вместе с новой схемой предметов.",
+      "column": "done",
+      "priority": "normal",
+      "kind": "task",
+      "files": [],
+      "checks": [
+        {
+          "label": "Vitest characterTemplate.test.tsx",
+          "state": "pass",
+          "note": "12 тестов через модалку: предпросмотр, имя, размещение токена, отказ"
+        }
+      ],
+      "createdAt": "2026-11-09T14:01:36.871Z",
+      "updatedAt": "2026-11-09T16:58:26.726Z"
+    },
+    {
+      "id": "t-a873d105",
+      "title": "новая схема предметов",
+      "description": "Инвентарь кампании по ADR-0062 (docs/adr/0062-items-inventory.md) — реализован целиком.\n\nСвободные предметы без плагина и шаблона; описание; настраиваемые состояния (встроенные + свой набор кампании, редактор в панели GM); эффекты — прибавки к полям листа с показом «→ 16» в самом листе; состояния-проклятья через grants; дублирование и перенос между персонажами; вкладка «Предметы» — инвентарь с фильтром по владельцу. Игрок переключает состояние своего предмета, но не его эффекты. Карточка только показывает; правка — в модалках. Свои числовые значения читаются правилами как @item.ключ; навыки — те же сущности с kind=skill и своей вкладкой.\nОсталось вне этой карточки: перенос предметов перетаскиванием (сейчас — выбор владельца в карточке).",
+      "column": "verify",
+      "priority": "normal",
+      "kind": "task",
+      "files": [
+        "docs/adr/0062-items-inventory.md",
+        "crates/dnd-protocol/src/item.rs",
+        "crates/dnd-game-core/src/items.rs",
+        "crates/dnd-game-core/src/modifiers.rs",
+        "apps/desktop/src/shared/items/ItemsView.tsx"
+      ],
+      "checks": [
+        {
+          "label": "Модель и ядро: свободный предмет, состояния, эффекты, grants",
+          "state": "pass",
+          "note": "dnd-protocol item.rs, items.rs, modifiers.rs; 10 тестов tests/items.rs"
+        },
+        {
+          "label": "Хранение: предметы и состояния кампании переживают перезапуск",
+          "state": "pass",
+          "note": "items.dto JSON; campaign_meta key campaign.item_states; queries.rs::item_states_and_effects_are_projected_and_loaded"
+        },
+        {
+          "label": "Права: игрок меняет состояние своего предмета, но не эффекты",
+          "state": "pass",
+          "note": "permissions.rs + tests/items.rs и живая проверка (accepted/forbidden)"
+        },
+        {
+          "label": "Клиент: инвентарь, дублирование, редактор эффектов",
+          "state": "pass",
+          "note": "ItemsView + 8 vitest; браузер 1280×800 и 1024×700 без переполнений"
+        },
+        {
+          "label": "Редактор набора состояний кампании в UI",
+          "state": "pass",
+          "note": "ItemStatesEditor в панели GM: код/название/работает, добавить, убрать, вернуть встроенные; 9 vitest + браузер 1280/1024"
+        },
+        {
+          "label": "личная проверка",
+          "state": "pass",
+          "note": "Карточка без полей ввода: имя/описание/состояние, эффекты, владелец и создание — в модалках (ItemDialogs). Добавлены свои значения @item.<ключ>, навыки (kind=skill), вкладка «Навыки». 19 vitest."
+        },
+        {
+          "label": "Свои значения @item.<ключ> читаются правилами",
+          "state": "pass",
+          "note": "CharacterFields::for_character складывает values активных предметов; 10 тестов items.rs"
+        },
+        {
+          "label": "Навыки как сущности и вкладка «Навыки»",
+          "state": "pass",
+          "note": "ItemKind::Skill, inента create_item.item_kind, экран с фильтром по виду"
+        },
+        {
+          "label": "Поля ввода убраны из карточки полностью",
+          "state": "pass",
+          "note": "карточка = свойства чипами + кнопки; правка имени/описания/состояния, эффекты, владелец, данные плагина и создание — в модалках; проверено на типизированном предмете: input/select в карточке = 0"
+        }
+      ],
+      "createdAt": "2026-11-09T13:56:03.590Z",
+      "updatedAt": "2026-11-10T01:12:01.837Z"
+    },
+    {
+      "id": "a11",
+      "title": "A1.1 — приватность персонажей и публичные поля листа",
+      "column": "done",
+      "kind": "task",
+      "priority": "high",
+      "description": "Игрок и зритель получают только публичные поля листа; владелец и GM — полный. Черновики и скрытые NPC не попадают чужим.",
+      "files": [
+        "docs/adr/0049-character-visibility.md",
+        "crates/dnd-game-core/src/visibility.rs",
+        "crates/dnd-protocol/src/sheet_schema.rs"
+      ],
+      "checks": [
+        {
+          "label": "cargo test -p dnd-game-core --test visibility",
+          "state": "pass",
+          "note": "15/15, включая смену владельца и скрытого NPC"
+        },
+        {
+          "label": "cargo test -p dnd-protocol sheet_schema",
+          "state": "pass",
+          "note": "6/6"
+        },
+        {
+          "label": "Живой сервер: ключи листа у игрока",
+          "state": "pass",
+          "note": "abilities, ac, saves, skills, ... — без hp, notes, equipment"
+        }
+      ]
+    },
+    {
+      "id": "a12",
+      "title": "A1.2 — политика на всех путях выдачи и очистка кэша",
+      "description": "RulesView и доступность действий только для своих персонажей; клиент очищает кэш листов и выпавшие тексты журнала при замене снапшота.",
+      "column": "done",
+      "priority": "high",
+      "kind": "task",
+      "files": [
+        "crates/dnd-game-core/src/visibility.rs",
+        "apps/desktop/src/shared/game/useGame.ts"
+      ],
+      "checks": [
+        {
+          "label": "dnd-game-core visibility",
+          "state": "pass",
+          "note": "доступность действий только владельцу, зрителю — ничего"
+        },
+        {
+          "label": "Vitest useGameEventsSync",
+          "state": "pass",
+          "note": "кэш листов и журнала очищается"
+        }
+      ],
+      "createdAt": "2026-11-09T16:58:15.425Z",
+      "updatedAt": "2026-11-09T16:58:15.425Z"
+    },
+    {
+      "id": "a2",
+      "title": "A2.1/A2.2 — непредсказуемая случайность и семантика повтора",
+      "column": "done",
+      "kind": "task",
+      "priority": "high",
+      "description": "OsRng из системного CSPRNG, seed не выводится из SessionId; повтор intent'а не потребляет случайность, неудачная запись не оставляет следов.",
+      "files": [
+        "docs/adr/0050-randomness.md",
+        "crates/dnd-db/src/rng.rs",
+        "crates/dnd-db/src/engine.rs"
+      ],
+      "checks": [
+        {
+          "label": "dnd-db --test engine",
+          "state": "pass",
+          "note": "повтор броска совпадает с контрольным движком; отказ записи без следов"
+        }
+      ]
+    },
+    {
+      "id": "a3",
+      "title": "A3.1–A3.3 — стадии исполнения и ограниченная очередь",
+      "column": "done",
+      "kind": "task",
+      "priority": "high",
+      "description": "Стадии, порядок внутренних событий, отмена, предел раундов; ручные повторы cleanup/resume заменены очередью; приёмка жизненного цикла.",
+      "files": [
+        "docs/adr/0052-execution-stages.md",
+        "crates/dnd-game-core/src/apply.rs"
+      ],
+      "checks": [
+        {
+          "label": "cargo test -p dnd-game-core",
+          "state": "pass",
+          "note": "включая execution 4/4 и прежние plugin_mechanics 77"
+        },
+        {
+          "label": "Удаление источника, цели и движущегося токена",
+          "state": "pass",
+          "note": "ожидания снимаются без урона и зависшего резерва"
+        }
+      ]
+    },
+    {
+      "id": "a4",
+      "title": "A4.1/A4.2 — профиль стоимости и персональные дельты",
+      "column": "done",
+      "kind": "task",
+      "priority": "high",
+      "description": "Базовый замер и бюджеты; Resync(last_seq) восстанавливает дельту из журнала, снапшот — только при смене доступа или слишком большом разрыве.",
+      "files": [
+        "docs/perf-baseline.md",
+        "docs/adr/0053-personal-deltas.md",
+        "tools/perf-harness/src/main.rs"
+      ],
+      "checks": [
+        {
+          "label": "cargo run --release -p dnd-perf-harness",
+          "state": "pass",
+          "note": "large p95: move 1.26 мс, лист 1.34 мс, бросок 1.28 мс"
+        },
+        {
+          "label": "dnd-session-server resync_*",
+          "state": "pass",
+          "note": "дельта 4 КиБ против 173 КиБ снапшота на 10 событиях"
+        }
+      ]
+    },
+    {
+      "id": "a6",
+      "title": "A6.1/A6.2 — версия runtime и границы моделей",
+      "column": "done",
+      "kind": "task",
+      "priority": "normal",
+      "description": "Версионированный plugin_runtime, отказ для будущей версии; адаптер хранения персонажей, Viewer/personal_snapshot, SheetAuthority.",
+      "files": [
+        "docs/adr/0051-runtime-version.md",
+        "docs/adr/0054-model-boundaries.md",
+        "crates/dnd-db/src/character_store.rs"
+      ],
+      "checks": [
+        {
+          "label": "dnd-db --test runtime_store",
+          "state": "pass",
+          "note": "legacy открывается, будущая версия отвергается"
+        },
+        {
+          "label": "dnd-desktop catalog/plugins unit",
+          "state": "pass",
+          "note": "Partial без модификаторов, Full с ними"
+        }
+      ]
+    },
+    {
+      "id": "a7",
+      "title": "A7 — автомат офлайн-синхронизации",
+      "column": "done",
+      "kind": "task",
+      "priority": "high",
+      "description": "Offline/Reconnecting/Replaying/Conflict/Synced; классификация команд: Queued, Live, Refused. Бросок офлайн получает понятный отказ.",
+      "files": [
+        "docs/adr/0055-offline-sync-machine.md",
+        "apps/desktop/src-tauri/src/sync.rs"
+      ],
+      "checks": [
+        {
+          "label": "dnd-desktop --lib sync",
+          "state": "pass",
+          "note": "5 тестов переходов и классификации"
+        },
+        {
+          "label": "dnd-desktop --test remote",
+          "state": "pass",
+          "note": "повтор принятой правки не даёт дубля"
+        }
+      ]
+    },
+    {
+      "id": "a8",
+      "title": "A8 — реальные таймеры без команд",
+      "column": "done",
+      "kind": "task",
+      "priority": "high",
+      "description": "Ядро отдаёт ближайший срок и чистую функцию снятия; сервер и локальная игра просыпаются по сроку, повторный сигнал безопасен.",
+      "files": [
+        "docs/adr/0056-real-time-timers.md",
+        "apps/desktop/src-tauri/src/timers.rs"
+      ],
+      "checks": [
+        {
+          "label": "dnd-db --test engine",
+          "state": "pass",
+          "note": "просроченный эффект снимается после перезапуска без команды"
+        }
+      ]
+    },
+    {
+      "id": "r1",
+      "title": "R1.1–R1.3 — Safe Mode, восстановление реплики, перетаскивание плагина",
+      "column": "done",
+      "kind": "task",
+      "priority": "normal",
+      "description": "Безопасный режим без правил с баннером и предложением после сбоев; прерывание замены реплики восстанавливается; .dndplugin ставится перетаскиванием.",
+      "files": [
+        "docs/adr/0057-safe-mode.md",
+        "docs/adr/0058-plugin-drop-install.md"
+      ],
+      "checks": [
+        {
+          "label": "dnd-desktop --test local_server",
+          "state": "pass",
+          "note": "safe_mode и an_interrupted_replacement"
+        },
+        {
+          "label": "Vitest plugins drop",
+          "state": "pass",
+          "note": "плагин устанавливается, посторонний файл игнорируется"
+        }
+      ]
+    },
+    {
+      "id": "r2",
+      "title": "R2.1–R2.3 — self-hosting: инструкция, TLS-профиль, публикация",
+      "column": "done",
+      "kind": "task",
+      "priority": "normal",
+      "description": "Полная инструкция, профиль Caddy, workflow публикации образа в GHCR, запуск готового образа.",
+      "files": [
+        "docs/self-hosting.md",
+        "docker-compose.yml",
+        "Caddyfile",
+        ".github/workflows/publish-server.yml"
+      ],
+      "checks": [
+        {
+          "label": "docker build + run + health",
+          "state": "pass",
+          "note": "образ собрался, /api/health отвечает снаружи"
+        },
+        {
+          "label": "Загрузка кампании и вход игрока/мастера",
+          "state": "pass",
+          "note": "201 и 200 на живом сервере"
+        },
+        {
+          "label": "docker restart",
+          "state": "pass",
+          "note": "сессия осталась active"
+        },
+        {
+          "label": "Публикация в GHCR и профиль Caddy с доменом",
+          "state": "pending",
+          "note": "нужны registry и домен"
+        }
+      ]
+    },
+    {
+      "id": "r3",
+      "title": "R3.1–R3.4 — каталог: CLI, подписи, клиент, экран",
+      "column": "done",
+      "kind": "task",
+      "priority": "normal",
+      "description": "plugin-tool validate/pack/keygen/sign/index, проверка ed25519, загрузка каталога с кэшем, экран каталога с установкой.",
+      "files": [
+        "docs/adr/0060-signed-plugin-index.md",
+        "crates/dnd-plugin/src/catalog.rs",
+        "apps/desktop/src/features/catalog/CatalogView.tsx"
+      ],
+      "checks": [
+        {
+          "label": "dnd-plugin + plugin-tool + dnd-net catalog",
+          "state": "pass",
+          "note": "подпись, подмена, отзыв, кэш"
+        },
+        {
+          "label": "Vitest CatalogView",
+          "state": "pass",
+          "note": "6 тестов, включая отозванное без кнопки"
+        }
+      ]
+    },
+    {
+      "id": "deploy",
+      "title": "Развёртывание: сервер в Docker и Windows-сборка",
+      "description": "Сервер сессий в контейнере с демо-кампанией, раздача установщика и переносимого exe, живая проверка клиентским кодом.",
+      "column": "done",
+      "priority": "high",
+      "kind": "task",
+      "files": [
+        "/root/dnd-deploy/README.md (вне репозитория)",
+        "docs/self-hosting.md"
+      ],
+      "checks": [
+        {
+          "label": "Сервер и раздача доступны снаружи",
+          "state": "pass",
+          "note": "8080 health, 8081 страница и файлы"
+        },
+        {
+          "label": "Клиент dnd-net: снапшот, чат, приватность листа",
+          "state": "pass",
+          "note": "полный цикл на живом сервере"
+        },
+        {
+          "label": "Запуск exe на Windows",
+          "state": "pass",
+          "note": "запустился"
+        },
+        {
+          "label": "Клиент и сервер пересобраны после описания карты",
+          "state": "pass",
+          "note": "образ dnd-session-server:local пересобран, контейнер пересоздан на томе dnd-data; Windows exe и установщик обновлены в download"
+        },
+        {
+          "label": "Сервер и клиент пересобраны после этапа 2 ADR-0061",
+          "state": "pass",
+          "note": "эффект с reveal открывает position поверх conceal; docker restart сохраняет; exe/установщик обновлены, суммы на странице 8081"
+        },
+        {
+          "label": "Windows-клиент пересобран после вкладок игрока",
+          "state": "pass",
+          "note": "portable 45 МБ, установщик 14 МБ; суммы и страница 8081 обновлены"
+        },
+        {
+          "label": "Клиент и сервер пересобраны после предметов",
+          "state": "pass",
+          "note": "portable 47 МБ / установщик 14 МБ; страница 8081 и контрольные суммы обновлены; демо-сессия пересоздана после истечения старой"
+        },
+        {
+          "label": "Windows-клиент пересобран после эффективных значений",
+          "state": "pass",
+          "note": "portable 47 МБ, установщик 14 МБ; страница 8081 и суммы обновлены"
+        },
+        {
+          "label": "Windows-клиент пересобран после редактора состояний",
+          "state": "pass",
+          "note": "portable 47 МБ, установщик 14 МБ; суммы и страница 8081 обновлены"
+        },
+        {
+          "label": "Windows-клиент пересобран после перетаскивания предметов",
+          "state": "pass",
+          "note": "portable 47 МБ, установщик 14 МБ; суммы и страница обновлены"
+        },
+        {
+          "label": "Коммиты и инструкция по доске",
+          "state": "pass",
+          "note": "4 коммита в plagin_standart: docs+доска, ядро, клиент, деплой/инструменты; push заблокирован отсутствием учётных данных GitHub"
+        }
+      ],
+      "createdAt": "2026-11-09T13:45:40.766Z",
+      "updatedAt": "2026-11-10T09:02:21.433Z"
+    },
+    {
+      "id": "win-smoke",
+      "title": "Windows: установка и подключение к демо-сессии",
+      "description": "Установить DndStudio_0.0.1_x64-setup.exe, войти по приглашению и коду, увидеть карту, токен, журнал, отправить чат.",
+      "column": "done",
+      "priority": "high",
+      "kind": "question",
+      "files": [
+        "docs/windows-manual-checklist.md"
+      ],
+      "checks": [
+        {
+          "label": "Установка без ошибок (SmartScreen — ожидаемо)",
+          "state": "pass",
+          "note": "установка успешна"
+        },
+        {
+          "label": "Подключение по приглашению и коду",
+          "state": "pass",
+          "note": "подключено"
+        },
+        {
+          "label": "Карта, токен, журнал на экране",
+          "state": "pass",
+          "note": "карта видна, токен виден, двигать не могу, журнал виден, изменять не могу"
+        },
+        {
+          "label": "Чат доходит",
+          "state": "pass",
+          "note": "чат виден, писать могу"
+        }
+      ],
+      "createdAt": "2026-11-09T13:45:18.524Z",
+      "updatedAt": "2026-11-09T14:17:30.655Z"
+    },
+    {
+      "id": "win-ui",
+      "title": "Windows: интерфейс на живых данных",
+      "description": "Лист персонажа с публичным подмножеством полей не выглядит сломанным; второй клиент видит движение и чат; реконнект восстанавливает состояние.",
+      "column": "doing",
+      "priority": "high",
+      "kind": "question",
+      "files": [
+        "docs/adr/0049-character-visibility.md"
+      ],
+      "checks": [
+        {
+          "label": "Лист игрока: публичные поля на месте, приватных нет",
+          "state": "pass",
+          "note": "Исправлено: публичный лист больше не получает умолчаний скрытых полей (public_schema + public_sheet_values), полоса здоровья без данных не рисуется; ГМ настраивает поля листа, имя и иконку (ADR-0063), 6 тестов + панель в GM."
+        },
+        {
+          "label": "Два клиента: движение, чат, бросок",
+          "state": "pass",
+          "note": "рабоатет"
+        },
+        {
+          "label": "Отключение сети на 15 секунд → авто-реконнект",
+          "state": "pass",
+          "note": "работает"
+        },
+        {
+          "label": "Офлайн-правка мастера уезжает после восстановления",
+          "state": "pass",
+          "note": "нормально работает "
+        },
+        {
+          "label": "Бросок офлайн получает отказ, а не результат",
+          "state": "pass",
+          "note": ""
+        }
+      ],
+      "createdAt": "2026-11-09T13:51:08.165Z",
+      "updatedAt": "2026-11-09T22:25:41.442Z"
+    },
+    {
+      "id": "r24",
+      "title": "R2.4 — TLS, GHCR и восстановление сервера",
+      "description": "Профиль Caddy с настоящим доменом, публикация образа, восстановление из копии тома в новый том.",
+      "column": "verify",
+      "priority": "low",
+      "kind": "task",
+      "files": [
+        "docs/self-hosting.md",
+        ".github/workflows/publish-server.yml"
+      ],
+      "checks": [
+        {
+          "label": "Caddy выдаёт сертификат, WSS работает",
+          "state": "pending",
+          "note": "нужен домен"
+        },
+        {
+          "label": "Образ публикуется и запускается из GHCR",
+          "state": "pending",
+          "note": "нужен registry-доступ"
+        },
+        {
+          "label": "Копия тома восстанавливается в новый том",
+          "state": "pending",
+          "note": ""
+        }
+      ],
+      "createdAt": "2026-11-09T13:54:37.936Z",
+      "updatedAt": "2026-11-09T13:54:37.936Z"
+    },
+    {
+      "id": "r35",
+      "title": "R3.5 — репозиторий каталога и секрет ключа",
+      "description": "Создать внешний репозиторий по шаблону catalog/, положить CATALOG_SIGNING_KEY, опубликовать первый индекс.",
+      "column": "verify",
+      "priority": "low",
+      "kind": "task",
+      "files": [
+        "catalog/README.md",
+        "catalog/.github/workflows/publish.yml"
+      ],
+      "checks": [
+        {
+          "label": "Workflow собирает и подписывает индекс",
+          "state": "pending",
+          "note": "нужен репозиторий и секрет"
+        },
+        {
+          "label": "Клиент устанавливает пакет из настоящего каталога",
+          "state": "pending",
+          "note": "потом"
+        }
+      ],
+      "createdAt": "2026-11-09T13:53:32.232Z",
+      "updatedAt": "2026-11-09T13:54:28.978Z"
+    },
+    {
+      "id": "r41",
+      "title": "R4.1 — ключ подписи автообновлений",
+      "description": "Создать minisign-ключ, вписать публичный в tauri.release.conf.json, приватный — в секрет CI. Пока bash tools/ci/check-release.sh --strict падает намеренно.",
+      "column": "done",
+      "priority": "normal",
+      "kind": "task",
+      "files": [
+        "docs/releasing.md",
+        "tools/ci/check-release.sh"
+      ],
+      "checks": [
+        {
+          "label": "bash tools/ci/check-release.sh",
+          "state": "pass",
+          "note": "1 пункт отсутствует — ключ"
+        },
+        {
+          "label": "--strict проходит после настройки ключа",
+          "state": "pass",
+          "note": "работает"
+        }
+      ],
+      "createdAt": "2026-11-09T13:55:01.832Z",
+      "updatedAt": "2026-11-09T14:17:35.544Z"
+    },
+    {
+      "id": "intake",
+      "title": "Разбор багов и замечаний от владельца",
+      "column": "doing",
+      "kind": "task",
+      "priority": "high",
+      "description": "Принимать список багов и отсутствующих вещей, заводить карточки, исправлять срезами с проверкой.",
+      "files": [],
+      "checks": [
+        {
+          "label": "Первая партия замечаний получена",
+          "state": "pending",
+          "note": ""
+        }
+      ]
+    },
+    {
+      "id": "a5",
+      "title": "A5 — типизированные операции действий (P1 перед R6)",
+      "column": "backlog",
+      "kind": "task",
+      "priority": "low",
+      "description": "Заменить комбинации флагов PluginAction минимальным набором типизированных операций, адаптер старых пакетов.",
+      "files": [
+        "docs/roadmap.md"
+      ],
+      "checks": []
+    },
+    {
+      "id": "a62",
+      "title": "A6.2 остаток — доменные типы для остальных сущностей",
+      "column": "backlog",
+      "kind": "task",
+      "priority": "low",
+      "description": "Развести доменные типы и типы провода; перенести карты, токены, журнал, доски на адаптеры.",
+      "files": [
+        "docs/adr/0054-model-boundaries.md"
+      ],
+      "checks": []
+    },
+    {
+      "id": "r5",
+      "title": "R5 — удобство игры и оставшийся P1",
+      "column": "backlog",
+      "kind": "task",
+      "priority": "low",
+      "description": "Сохранение UI-состояния, хоткеи и палитра, приватное общение, быстрый NPC, контентные инструменты, расширенные кости.",
+      "files": [
+        "docs/roadmap.md"
+      ],
+      "checks": []
+    }
+  ]
+}

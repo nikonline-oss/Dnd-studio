@@ -4,18 +4,21 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicI64, AtomicUsize, Ordering};
+use std::time::Duration;
 
+use anyhow::Context as _;
 use dnd_db::{
-    ARCHIVE_FORMAT, ArchiveManifest, CampaignDb, CampaignEngine, LocalUser, write_archive,
+    ARCHIVE_FORMAT, ArchiveManifest, CampaignDb, CampaignEngine, LocalUser, StoredEvent,
+    write_archive,
 };
 use dnd_game_core::{
-    Actor, ForPlayers, IntentWindow, PlayersSee, filter_for_players, join, may_change_visibility,
-    sees_everything, snapshot_for,
+    Actor, ForPlayers, GameState, IntentWindow, PlayersSee, evolve, filter_for_players, join,
+    may_change_visibility, sees_everything, snapshot_for,
 };
 use dnd_protocol::{
-    AssetUsage, ChatMessageDto, ChatMessageId, EventBatch, Intent, IntentEnvelope, IntentOutcome,
-    JournalEntryDto, JournalEntryId, JournalVisibility, RejectReason, Role, SessionId, Snapshot,
-    UserDto, UserId,
+    AssetUsage, ChatMessageDto, ChatMessageId, Event, EventBatch, Intent, IntentEnvelope,
+    IntentOutcome, JournalEntryDto, JournalEntryId, JournalVisibility, RejectReason, Role, Seq,
+    SessionId, Snapshot, UserDto, UserId,
 };
 use tokio::sync::{broadcast, mpsc, oneshot, watch};
 
@@ -25,6 +28,18 @@ use crate::now_ms;
 pub const SESSION_CLOSED: &str = "session_closed";
 /// Close reason: the server is going down; clients reconnect.
 pub const SERVER_RESTART: &str = "server_restart";
+
+/// How far back a reconnect may be served from the event log instead of a snapshot (ADR-0053).
+/// The checkpoint that makes this cheap is refreshed only once the window has grown past this
+/// many events, so a clone is paid once per window rather than once per command.
+pub const DELTA_WINDOW: i64 = 4096;
+
+/// How often the session looks for a new real-time deadline when none is scheduled (ADR-0056).
+pub const DEADLINE_POLL: Duration = Duration::from_secs(1);
+
+/// Beyond this the replayed delta is larger than the snapshot it replaces (measured, see
+/// `docs/perf-baseline.md`), so the recipient gets the snapshot instead (ADR-0053).
+pub const MAX_DELTA_BYTES: usize = 128 * 1024;
 
 /// A committed batch for everyone: GM roles take `full`, the others `players`.
 #[derive(Debug)]
@@ -48,6 +63,14 @@ enum Command {
         role: Role,
         user: Option<UserId>,
         reply: oneshot::Sender<Snapshot>,
+    },
+    /// Events after `from`, filtered for one recipient (ADR-0053). `None` means the history is
+    /// unavailable or the recipient's access changed: send a snapshot instead.
+    Delta {
+        from: Seq,
+        role: Role,
+        user: Option<UserId>,
+        reply: oneshot::Sender<Option<EventBatch>>,
     },
     JournalEntry {
         id: JournalEntryId,
@@ -118,8 +141,9 @@ impl SessionHandle {
                 return Err(e.into());
             }
         };
-        let seed = u64::from_le_bytes(id.0.as_bytes()[8..16].try_into().unwrap_or_default());
-        let engine = CampaignEngine::load(db, IntentWindow::DEFAULT, seed, now_ms()).await?;
+        let rng = dnd_db::OsRng::new().context("the OS random source is unavailable")?;
+        let engine =
+            CampaignEngine::load(db, IntentWindow::DEFAULT, Box::new(rng), now_ms()).await?;
         let name = engine.state().campaign.name.clone();
         let assets = campaign
             .parent()
@@ -207,6 +231,22 @@ impl SessionHandle {
         self.ask(|reply| Command::Snapshot {
             role,
             user: Some(user),
+            reply,
+        })
+        .await
+    }
+
+    /// What the recipient missed since `from`, or `None` when a snapshot is required (ADR-0053).
+    pub async fn delta(
+        &self,
+        from: Seq,
+        role: Role,
+        user: Option<UserId>,
+    ) -> Result<Option<EventBatch>, SessionGone> {
+        self.ask(|reply| Command::Delta {
+            from,
+            role,
+            user,
             reply,
         })
         .await
@@ -336,7 +376,31 @@ async fn run(
     last_activity: Arc<AtomicI64>,
     assets: PathBuf,
 ) -> &'static str {
-    while let Some(command) = rx.recv().await {
+    // A state old enough to replay a reconnect from (ADR-0053); refreshed only once the delta
+    // window has expired, so its clone is amortized over thousands of commands.
+    let mut checkpoint: Option<(Seq, GameState)> =
+        Some((engine.last_seq(), engine.state().clone()));
+    loop {
+        // Wake up for the nearest real-time effect deadline (ADR-0056); with nothing scheduled
+        // poll once a second so a newly created effect is noticed promptly.
+        let wait = match engine.next_deadline() {
+            Some(deadline) => {
+                let remaining = deadline.saturating_sub(now_ms()).max(0);
+                Duration::from_millis(u64::try_from(remaining).unwrap_or(u64::MAX))
+                    .min(DEADLINE_POLL)
+            }
+            None => DEADLINE_POLL,
+        };
+        let sleep = tokio::time::sleep(wait);
+        tokio::pin!(sleep);
+        let command = tokio::select! {
+            command = rx.recv() => command,
+            () = &mut sleep => {
+                expire_and_broadcast(&mut engine, &events, &mut checkpoint).await;
+                continue;
+            }
+        };
+        let Some(command) = command else { break };
         match command {
             Command::Submit {
                 envelope,
@@ -369,6 +433,7 @@ async fn run(
                 let result = engine
                     .submit_with_precondition(&envelope, &actor, now_ms(), precondition)
                     .await;
+                refresh_checkpoint(&engine, &mut checkpoint);
                 let outcome = match result {
                     Ok((outcome, Some(batch))) => {
                         let players = match &before {
@@ -426,6 +491,15 @@ async fn run(
                 };
                 let _ = reply.send(snapshot);
             }
+            Command::Delta {
+                from,
+                role,
+                user,
+                reply,
+            } => {
+                let delta = delta(&engine, checkpoint.as_ref(), from, role, user).await;
+                let _ = reply.send(delta);
+            }
             Command::JournalEntry { id, role, reply } => {
                 let entry = engine.journal_entry(&id).filter(|e| {
                     sees_everything(role) || e.visibility == JournalVisibility::Players
@@ -456,6 +530,7 @@ async fn run(
                     Ok(joined) => match engine.commit_events(joined, Some(user.id), now_ms()).await
                     {
                         Ok(batch) => {
+                            refresh_checkpoint(&engine, &mut checkpoint);
                             let players =
                                 filter_for_players(engine.state(), engine.state(), &batch);
                             let _ = events.send(Arc::new(Broadcast {
@@ -620,4 +695,324 @@ async fn export(engine: &CampaignEngine, assets: &Path, out: &Path) -> anyhow::R
 #[must_use]
 pub fn actor(user_id: UserId, role: Role) -> Actor {
     Actor { user_id, role }
+}
+
+/// Runs the engine's internal expiry command and broadcasts the committed batch (ADR-0056).
+/// The pre-state is cloned only when something is actually due.
+async fn expire_and_broadcast(
+    engine: &mut CampaignEngine,
+    events: &broadcast::Sender<Arc<Broadcast>>,
+    checkpoint: &mut Option<(Seq, GameState)>,
+) {
+    let now = now_ms();
+    if engine.next_deadline().is_none_or(|deadline| deadline > now) {
+        return;
+    }
+    let before = engine.state().clone();
+    match engine.expire_due(now).await {
+        Ok(Some(batch)) => {
+            refresh_checkpoint(engine, checkpoint);
+            let players = filter_for_players(&before, engine.state(), &batch);
+            // Expiry removes effects some players can see; a fresh view would also be correct,
+            // but a filtered batch keeps the numbering and costs one event.
+            let _ = events.send(Arc::new(Broadcast {
+                full: batch,
+                players,
+                request_owners: Default::default(),
+            }));
+        }
+        Ok(None) => {}
+        Err(error) => tracing::warn!(%error, "real-time effect expiry failed"),
+    }
+}
+
+/// Keeps the replay base within the delta window (ADR-0053): cloning once per window beats
+/// cloning once per command, and the delta itself is bounded by the same window.
+fn refresh_checkpoint(engine: &CampaignEngine, checkpoint: &mut Option<(Seq, GameState)>) {
+    let now = engine.last_seq();
+    let stale = checkpoint
+        .as_ref()
+        .is_none_or(|(seq, _)| now.0.saturating_sub(seq.0) > DELTA_WINDOW);
+    if stale {
+        *checkpoint = Some((now, engine.state().clone()));
+    }
+}
+
+/// What one recipient missed since `from`, built from the event log and the replay checkpoint
+/// (ADR-0053). `None` means the caller must send a snapshot: the history is too old, the
+/// checkpoint is behind the request, or the recipient's access changed in between.
+async fn delta(
+    engine: &CampaignEngine,
+    checkpoint: Option<&(Seq, GameState)>,
+    from: Seq,
+    role: Role,
+    user: Option<UserId>,
+) -> Option<EventBatch> {
+    let now = engine.last_seq();
+    if from > now {
+        return None;
+    }
+    let start = from.next();
+    if start > now {
+        return Some(EventBatch {
+            seq: start,
+            caused_by: None,
+            events: Vec::new(),
+        });
+    }
+    let (base_seq, base) = checkpoint?;
+    if from < *base_seq || now.0.saturating_sub(from.0) > DELTA_WINDOW {
+        return None;
+    }
+    let stored = engine.db().events_between(*base_seq, now).await.ok()?;
+    let mut state = base.clone();
+    for stored_event in stored.iter().filter(|event| event.seq <= from) {
+        evolve(&mut state, &stored_event.event);
+    }
+    let mut out: Vec<Event> = Vec::new();
+    for batch in group_batches(
+        stored
+            .into_iter()
+            .filter(|event| event.seq > from)
+            .collect::<Vec<_>>(),
+    ) {
+        let before = state;
+        let mut after = before.clone();
+        dnd_game_core::evolve_all(&mut after, &batch.events);
+        if sees_everything(role) {
+            out.extend(batch.events.iter().cloned());
+        } else {
+            match filter_for_players(&before, &after, &batch) {
+                ForPlayers::Batch(filtered) => {
+                    let owner = user?;
+                    let request_owners = batch
+                        .events
+                        .iter()
+                        .filter_map(|event| match event {
+                            Event::RollRequested { request }
+                            | Event::RollRequestUpdated { request } => Some((
+                                request.id,
+                                after
+                                    .characters
+                                    .get(&request.character)
+                                    .and_then(|c| c.owner),
+                            )),
+                            _ => None,
+                        })
+                        .collect();
+                    let broadcast = Broadcast {
+                        full: batch.clone(),
+                        players: ForPlayers::Batch(filtered.clone()),
+                        request_owners,
+                    };
+                    let personal = crate::ws::personal_events(&filtered, &broadcast, role, owner);
+                    out.extend(personal.events);
+                }
+                // Access changed in between: patches cannot express it, the client needs a view.
+                ForPlayers::Resnapshot => return None,
+            }
+        }
+        state = after;
+    }
+    let batch = EventBatch {
+        seq: start,
+        caused_by: None,
+        events: out,
+    };
+    // Replaying is only worth it while it is smaller than the view it replaces.
+    let size = serde_json::to_vec(&batch).map(|bytes| bytes.len()).ok()?;
+    (size <= MAX_DELTA_BYTES).then_some(batch)
+}
+
+/// Stored events as the batches they were committed in. The boundary comes from `batch_seq`
+/// (ADR-0053); a row written before that column existed is its own batch, which can only make the
+/// replay more conservative — never reveal what was hidden.
+fn group_batches(events: Vec<StoredEvent>) -> Vec<EventBatch> {
+    let mut batches: Vec<EventBatch> = Vec::new();
+    for stored in events {
+        let starts_new = match batches.last() {
+            None => true,
+            Some(batch) => match stored.batch {
+                Some(batch_seq) => batch_seq != batch.seq,
+                None => true,
+            },
+        };
+        if starts_new {
+            batches.push(EventBatch {
+                seq: stored.batch.unwrap_or(stored.seq),
+                caused_by: None,
+                events: vec![stored.event],
+            });
+        } else if let Some(batch) = batches.last_mut() {
+            batch.events.push(stored.event);
+        }
+    }
+    batches
+}
+
+#[cfg(test)]
+mod delta_tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use super::*;
+
+    fn event(n: i64) -> Event {
+        Event::ChatMessagePosted {
+            message: ChatMessageDto {
+                id: ChatMessageId::new_v7(),
+                kind: dnd_protocol::ChatKind::Text,
+                sender: None,
+                sender_name: "GM".into(),
+                body: format!("{n}"),
+                roll: None,
+                system: None,
+                visibility: dnd_protocol::ChatVisibility::All,
+                at_ms: None,
+                related_characters: Vec::new(),
+            },
+        }
+    }
+
+    #[test]
+    fn batches_follow_the_stored_boundary_not_just_consecutive_seq() {
+        let batches = group_batches(vec![
+            StoredEvent {
+                seq: Seq(5),
+                batch: Some(Seq(5)),
+                event: event(5),
+            },
+            StoredEvent {
+                seq: Seq(6),
+                batch: Some(Seq(5)),
+                event: event(6),
+            },
+            // A separate commit: consecutive numbers, another batch.
+            StoredEvent {
+                seq: Seq(7),
+                batch: Some(Seq(7)),
+                event: event(7),
+            },
+        ]);
+        assert_eq!(batches.len(), 2);
+        assert_eq!(batches[0].seq, Seq(5));
+        assert_eq!(batches[0].events.len(), 2);
+        assert_eq!(batches[1].seq, Seq(7));
+    }
+
+    #[test]
+    fn rows_without_a_recorded_boundary_are_their_own_batches() {
+        let batches = group_batches(vec![
+            StoredEvent {
+                seq: Seq(5),
+                batch: None,
+                event: event(5),
+            },
+            StoredEvent {
+                seq: Seq(6),
+                batch: None,
+                event: event(6),
+            },
+        ]);
+        assert_eq!(
+            batches.len(),
+            2,
+            "a guess could hide or reveal the wrong thing"
+        );
+        assert_eq!(batches[0].seq, Seq(5));
+        assert_eq!(batches[1].seq, Seq(6));
+    }
+}
+
+#[cfg(test)]
+mod expiry_tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use super::*;
+    use dnd_db::LocalUser;
+    use dnd_game_core::SplitMix64;
+    use dnd_protocol::{EffectDuration, EffectId, TokenEffectDto, TokenId, UserId, Version};
+
+    fn effect(until_ts: i64) -> TokenEffectDto {
+        TokenEffectDto {
+            id: EffectId::new_v7(),
+            token: TokenId::new_v7(),
+            label: "Bless".into(),
+            condition: None,
+            resource: None,
+            dice: None,
+            heal: false,
+            reveal: Vec::new(),
+            duration: EffectDuration::RealTime { until_ts },
+            version: Version::INITIAL,
+        }
+    }
+
+    /// The session adapter turns a due deadline into a committed, broadcast batch (ADR-0056).
+    #[tokio::test]
+    async fn a_due_deadline_is_committed_and_broadcast_without_a_command() {
+        let dir = tempfile::tempdir().unwrap();
+        let gm = LocalUser {
+            id: UserId::new_v7(),
+            name: "GM".into(),
+            role: Role::Gm,
+        };
+        let db = CampaignDb::create(&dir.path().join("campaign.sqlite"), "Timers", &gm, 0)
+            .await
+            .unwrap();
+        let mut engine =
+            CampaignEngine::load(db, IntentWindow::DEFAULT, Box::new(SplitMix64::new(1)), 0)
+                .await
+                .unwrap();
+        let now = now_ms();
+        // One effect far in the future, one already overdue.
+        engine
+            .commit_events(
+                vec![Event::TokenEffectApplied {
+                    effect: effect(now + 60_000),
+                }],
+                Some(gm.id),
+                0,
+            )
+            .await
+            .unwrap();
+        let (tx, mut rx) = broadcast::channel(4);
+        let mut checkpoint = Some((engine.last_seq(), engine.state().clone()));
+
+        // Nothing is due yet: no write, no broadcast.
+        expire_and_broadcast(&mut engine, &tx, &mut checkpoint).await;
+        assert!(rx.try_recv().is_err());
+        assert_eq!(engine.state().effects.len(), 1);
+
+        engine
+            .commit_events(
+                vec![Event::TokenEffectApplied {
+                    effect: effect(now - 1),
+                }],
+                Some(gm.id),
+                0,
+            )
+            .await
+            .unwrap();
+        let before = engine.last_seq();
+        expire_and_broadcast(&mut engine, &tx, &mut checkpoint).await;
+        let broadcast = rx.try_recv().expect("the expiry is broadcast");
+        assert_eq!(broadcast.full.seq, before.next());
+        assert!(
+            broadcast
+                .full
+                .events
+                .iter()
+                .any(|event| matches!(event, Event::TokenEffectRemoved { expired: true, .. }))
+        );
+        assert_eq!(
+            engine.state().effects.len(),
+            1,
+            "only the overdue effect is gone"
+        );
+
+        // A repeated signal produces nothing.
+        expire_and_broadcast(&mut engine, &tx, &mut checkpoint).await;
+        assert!(rx.try_recv().is_err());
+        engine.close().await.unwrap();
+    }
 }

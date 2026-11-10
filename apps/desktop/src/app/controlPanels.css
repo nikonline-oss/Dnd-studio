@@ -20,6 +20,8 @@
 }
 .control-section {
   display: grid;
+  /* One column that may shrink; the implicit `auto` column would take max-content width. */
+  grid-template-columns: minmax(0, 1fr);
   align-content: start;
   gap: 16px;
   min-width: 0;
@@ -36,7 +38,16 @@
 }
 .control-field {
   display: grid;
+  /* One implicit column, free to shrink: an input's intrinsic width must not widen the pane. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 6px;
+  min-width: 0;
+}
+
+.control-field > input,
+.control-field > select,
+.control-field > textarea {
+  width: 100%;
   min-width: 0;
 }
 .control-checkbox {

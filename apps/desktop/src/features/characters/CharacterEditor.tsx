@@ -114,7 +114,7 @@ function Editor({ character, inTab }: { character: CharacterDto; inTab: boolean 
               }}
             />
           ) : (
-            character.name
+            character.name || t('characters.hiddenName')
           )}
         </dd>
         <dt>{t('characters.kind')}</dt>

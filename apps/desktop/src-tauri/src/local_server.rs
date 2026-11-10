@@ -44,12 +44,6 @@ pub fn now_ms() -> i64 {
         .map_or(0, |d| i64::try_from(d.as_millis()).unwrap_or(i64::MAX))
 }
 
-fn seed() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |d| d.as_nanos() as u64)
-}
-
 /// Makes a folder name out of a campaign name: no path separators, reserved characters or
 /// trailing dots/spaces (Windows), at most 64 characters.
 #[must_use]
@@ -80,6 +74,8 @@ pub struct LocalServer {
     folder: PathBuf,
     /// The local user: every intent of this app is theirs.
     actor: Actor,
+    /// Opened without its rules (ADR-0057); cleared in memory, never on disk.
+    safe_mode: bool,
 }
 
 impl From<EngineError> for IpcError {
@@ -120,6 +116,15 @@ impl LocalServer {
     /// and a fresh backup when the newest one is older than [`BACKUP_MAX_AGE`].
     pub async fn open(folder: &Path) -> Result<Self, IpcError> {
         Self::open_with(folder, IntentWindow::DEFAULT).await
+    }
+
+    /// Opens the campaign for recovery without activating its plugins, triggers or saved rules
+    /// process (ADR-0057). Nothing is deleted: a normal reopen restores all of it.
+    pub async fn open_safe(folder: &Path) -> Result<Self, IpcError> {
+        let mut server = Self::open(folder).await?;
+        server.engine.enter_safe_mode();
+        server.safe_mode = true;
+        Ok(server)
     }
 
     /// [`open`](Self::open) with a custom idempotency window (ADR-0015).
@@ -195,7 +200,9 @@ impl LocalServer {
                 return Err(e.into());
             }
         };
-        let mut engine = CampaignEngine::load(db, window, seed(), now_ms()).await?;
+        let rng = dnd_db::OsRng::new()
+            .map_err(|_| IpcError::internal("no_entropy", "the OS random source is unavailable"))?;
+        let mut engine = CampaignEngine::load(db, window, Box::new(rng), now_ms()).await?;
         let actor = Actor {
             user_id: user.id,
             role: user.role,
@@ -208,6 +215,7 @@ impl LocalServer {
             engine,
             folder,
             actor,
+            safe_mode: false,
         })
     }
 
@@ -418,4 +426,34 @@ fn backup_is_stale(campaign_file: &Path) -> bool {
         .ok()
         .and_then(|t| t.elapsed().ok())
         .is_none_or(|age| age > BACKUP_MAX_AGE)
+}
+
+impl LocalServer {
+    /// Removes real-time effects whose deadline has passed (ADR-0056) and returns the batch to
+    /// broadcast. Nothing is due most of the time; the write happens before the caller tells anyone.
+    pub async fn expire_due(&mut self) -> Result<Option<EventBatch>, IpcError> {
+        Ok(self.engine.expire_due(now_ms()).await?)
+    }
+
+    /// The next instant a real-time effect must be removed (ADR-0056).
+    #[must_use]
+    pub fn next_deadline(&self) -> Option<i64> {
+        self.engine.next_deadline()
+    }
+
+    /// Whether the campaign was opened without its rules (ADR-0057).
+    #[must_use]
+    pub fn safe_mode(&self) -> bool {
+        self.safe_mode
+    }
+
+    /// Whether this file is the GM's replica of a hosted session. Real-time expiry then belongs to
+    /// the server, not to this copy (ADR-0056).
+    pub async fn is_replica(&self) -> bool {
+        self.engine
+            .db()
+            .remote_binding()
+            .await
+            .is_ok_and(|binding| binding.is_some())
+    }
 }

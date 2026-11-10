@@ -110,4 +110,45 @@ describe('compendium synchronization', () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['compendia'] });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['compendium'] });
   });
+
+  it('drops sheet and journal caches that a new snapshot no longer allows', async () => {
+    mockIPC(() => null, { shouldMockEvents: true });
+    const client = new QueryClient();
+    client.setQueryData(queryKeys.snapshot, snapshot);
+    renderHook(
+      () => {
+        useGameEventsSync();
+      },
+      {
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={client}>{children}</QueryClientProvider>
+        ),
+      },
+    );
+    const kept = {
+      id: 'kept',
+      folder_id: null,
+      title: 'Shared',
+      sort_order: 0,
+      visibility: 'players' as const,
+      players_can_edit: false,
+      author: null,
+      version: 1,
+    };
+    client.setQueryData([...queryKeys.sheetView, 'gone'], { computed: { hp: 3 } });
+    client.setQueryData([...queryKeys.sheetView, 'kept'], { computed: { hp: 3 } });
+    client.setQueryData(['journal', 'gone'], { markdown: 'GM only' });
+    client.setQueryData(['journal', 'kept'], { markdown: 'shared text' });
+
+    await act(async () => {
+      await events.gameSnapshotReplaced.emit({ ...snapshot, seq: 1, journal: [kept] });
+    });
+
+    // Sheet views are recomputed from the snapshot, so every cached one is dropped.
+    expect(client.getQueryData([...queryKeys.sheetView, 'gone'])).toBeUndefined();
+    expect(client.getQueryData([...queryKeys.sheetView, 'kept'])).toBeUndefined();
+    // A journal text that left the snapshot index is removed, not just invalidated.
+    expect(client.getQueryData(['journal', 'gone'])).toBeUndefined();
+    expect(client.getQueryData(['journal', 'kept'])).toEqual({ markdown: 'shared text' });
+  });
 });

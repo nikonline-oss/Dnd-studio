@@ -236,6 +236,14 @@ pub(crate) fn cleanup(
     at: i64,
     rng: &mut dyn GameRng,
 ) -> Vec<Event> {
+    // Nothing to resolve and nothing declared in this batch: skip the state clone (ADR-0053).
+    if state.plugin_runtime.saves.is_empty()
+        && !events.iter().any(
+            |event| matches!(event, Event::PluginRuntimeUpdated { runtime } if !runtime.saves.is_empty()),
+        )
+    {
+        return Vec::new();
+    }
     let mut work = state.clone();
     for e in events {
         crate::evolve(&mut work, e);

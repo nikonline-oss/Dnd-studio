@@ -1,0 +1,185 @@
+/* Split from app/styles.css (workboard: «стили»). Order matters: index.css imports these in cascade order. */
+
+/* ---------- Dialogs (session hosting and joining) ---------- */
+
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+  background: color-mix(in srgb, #000 45%, transparent);
+}
+
+.dialog {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(520px, 100%);
+  max-height: calc(100vh - 2 * var(--space-4));
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+
+.dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-3) var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.dialog-header h2 {
+  font-size: 16px;
+}
+
+.dialog-sm {
+  width: min(400px, 100%);
+}
+
+.dialog-lg {
+  width: min(860px, 100%);
+}
+
+.dialog-body {
+  display: grid;
+  gap: var(--space-4);
+  min-height: 0;
+  padding: var(--space-4);
+  overflow: auto;
+}
+
+/* Actions stay in place while the body scrolls: a long form must not push "Save" out of reach. */
+.dialog-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+
+.dialog-footer .dialog-hint {
+  margin-right: auto;
+  align-self: center;
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+/* A form written directly in the body (not wrapped in .dialog-form) gets the same layout:
+   a label above a control that fills the width. */
+.dialog-body > label {
+  display: grid;
+  gap: 6px;
+  font-weight: 500;
+}
+
+.dialog-body > label > input,
+.dialog-body > label > select,
+.dialog-body > label > textarea {
+  width: 100%;
+  min-height: 34px;
+}
+
+.dialog-body > label > textarea {
+  min-height: 90px;
+  resize: vertical;
+}
+
+.dialog-form {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.dialog-form label {
+  display: grid;
+  gap: 6px;
+  font-weight: 500;
+}
+
+.dialog-form input,
+.dialog-form button {
+  min-height: 34px;
+}
+
+.secret-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.access-code {
+  font-family: var(--font-mono);
+  font-size: 20px;
+  letter-spacing: 0.08em;
+}
+
+.invite-link {
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.saved-sessions h3 {
+  margin: 0 0 var(--space-2);
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.saved-sessions ul {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.saved-session {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.saved-session-name {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+
+.saved-session-name .muted {
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A small choice group inside a form: radios in a row, with room to wrap when labels are long. */
+.dialog-choice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.dialog-choice legend {
+  padding: 0 4px;
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.dialog-choice label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 400;
+}

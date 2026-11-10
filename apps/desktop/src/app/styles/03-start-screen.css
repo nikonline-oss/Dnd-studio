@@ -1,0 +1,85 @@
+/* Split from app/styles.css (workboard: «стили»). Order matters: index.css imports these in cascade order. */
+
+/* ---------- Start screen ---------- */
+
+.campaign-screen {
+  display: grid;
+  place-items: center;
+  min-height: 100%;
+  padding: var(--space-4);
+  background:
+    radial-gradient(ellipse at 50% 0%, var(--color-accent-soft), transparent 60%), var(--color-bg);
+}
+
+.campaign-card {
+  display: grid;
+  gap: var(--space-4);
+  width: min(420px, 100%);
+  padding: 28px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+
+.campaign-hero {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  text-align: center;
+}
+
+.hero-mark {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+.campaign-hero h1 {
+  font-family: var(--font-display);
+  font-size: 28px;
+  letter-spacing: 0.01em;
+}
+
+.campaign-form {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.campaign-form label {
+  display: grid;
+  gap: 6px;
+  font-weight: 500;
+}
+
+.campaign-form input {
+  min-height: 34px;
+}
+
+.campaign-form button {
+  min-height: 34px;
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.divider::before,
+.divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--color-border);
+}
+
+.campaign-card > button {
+  min-height: 34px;
+}

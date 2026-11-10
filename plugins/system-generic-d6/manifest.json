@@ -5,7 +5,7 @@
     "ru": "Универсальная система 2d6",
     "en": "Generic 2d6 system"
   },
-  "version": "0.1.0",
+  "version": "0.2.0",
   "kind": "system",
   "authors": ["DndStudio contributors"],
   "license": "MIT OR Apache-2.0",

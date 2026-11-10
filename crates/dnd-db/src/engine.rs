@@ -7,7 +7,8 @@
 use std::collections::VecDeque;
 
 use dnd_game_core::{
-    Actor, GameState, IntentWindow, Recall, RecentIntents, SplitMix64, apply, evolve_all,
+    Actor, ExecutionTrace, GameRng, GameState, IntentWindow, Recall, RecentIntents, apply_traced,
+    evolve_all,
 };
 use dnd_protocol::{
     CHAT_SNAPSHOT_LEN, ChatMessageDto, ChatMessageId, Event, EventBatch, IntentEnvelope,
@@ -29,16 +30,25 @@ pub enum EngineError {
 }
 
 /// An open campaign file and its authoritative state.
-#[derive(Debug)]
 pub struct CampaignEngine {
     db: CampaignDb,
     state: GameState,
     next_seq: Seq,
-    rng: SplitMix64,
+    /// Working randomness (ADR-0050): the OS CSPRNG in play, a seeded generator in tests.
+    rng: Box<dyn GameRng + Send + Sync>,
     /// Outcomes of recent intents by `intent_id` (ADR-0015).
     recent: RecentIntents<IntentOutcome>,
     /// The last `CHAT_SNAPSHOT_LEN` chat messages for snapshots (older ones are paged from the DB).
     chat: VecDeque<ChatMessageDto>,
+}
+
+impl std::fmt::Debug for CampaignEngine {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CampaignEngine")
+            .field("next_seq", &self.next_seq)
+            .field("chat", &self.chat.len())
+            .finish_non_exhaustive()
+    }
 }
 
 impl CampaignEngine {
@@ -48,7 +58,7 @@ impl CampaignEngine {
     pub async fn load(
         db: CampaignDb,
         window: IntentWindow,
-        seed: u64,
+        rng: Box<dyn GameRng + Send + Sync>,
         now_ms: i64,
     ) -> Result<Self, DbError> {
         match Self::read(&db, window, now_ms).await {
@@ -56,7 +66,7 @@ impl CampaignEngine {
                 db,
                 state,
                 next_seq: last_seq.next(),
-                rng: SplitMix64::new(seed),
+                rng,
                 recent,
                 chat: chat.into(),
             }),
@@ -97,6 +107,19 @@ impl CampaignEngine {
         recent.prune(now_ms);
         let chat = db.chat_history(None, CHAT_SNAPSHOT_LEN).await?;
         Ok((state, last_seq, recent, chat))
+    }
+
+    /// Opens the campaign without its rules (ADR-0057): plugins, triggers and the saved rules
+    /// process are dropped *in memory only*. The file is untouched, so a normal reopen restores
+    /// them; edits made in this mode are ordinary events and stay.
+    ///
+    /// Intended for recovery: a broken plugin cannot be uninstalled or a sheet fixed if opening
+    /// the campaign executes the same rules again.
+    pub fn enter_safe_mode(&mut self) {
+        self.state.plugins.clear();
+        self.state.system_plugin = None;
+        self.state.triggers.clear();
+        self.state.plugin_runtime = Default::default();
     }
 
     #[must_use]
@@ -242,21 +265,23 @@ impl CampaignEngine {
             ts_ms: now_ms,
             ..envelope.clone()
         };
-        let events =
-            match precondition.and_then(|()| apply(&self.state, &stamped, actor, &mut self.rng)) {
-                Ok(events) => events,
-                Err(reason) => {
-                    tracing::debug!(
-                        intent = envelope.intent.kind(),
-                        code = reason.code(),
-                        "intent rejected"
-                    );
-                    let outcome = IntentOutcome::Rejected { reason };
-                    self.recent
-                        .insert(envelope.intent_id, Some(hash), outcome.clone(), now_ms);
-                    return Ok((outcome, None));
-                }
-            };
+        let (events, trace) = match precondition
+            .and_then(|()| apply_traced(&self.state, &stamped, actor, &mut *self.rng))
+        {
+            Ok(result) => result,
+            Err(reason) => {
+                tracing::debug!(
+                    intent = envelope.intent.kind(),
+                    code = reason.code(),
+                    "intent rejected"
+                );
+                let outcome = IntentOutcome::Rejected { reason };
+                self.recent
+                    .insert(envelope.intent_id, Some(hash), outcome.clone(), now_ms);
+                return Ok((outcome, None));
+            }
+        };
+        log_trace(envelope.intent.kind(), &trace);
         let batch = EventBatch {
             seq: self.next_seq,
             caused_by: Some(envelope.intent_id),
@@ -308,8 +333,11 @@ impl CampaignEngine {
                 };
                 preview.expected_version = Some(version);
             }
-            let events = match apply(&self.state, &preview, actor, &mut self.rng) {
-                Ok(events) => events,
+            let events = match apply_traced(&self.state, &preview, actor, &mut *self.rng) {
+                Ok((events, trace)) => {
+                    log_trace(preview.intent.kind(), &trace);
+                    events
+                }
                 Err(reason) => {
                     tracing::warn!(
                         intent = preview.intent.kind(),
@@ -335,6 +363,26 @@ impl CampaignEngine {
             .await?;
         }
         Ok(())
+    }
+
+    /// Removes real-time effects whose deadline has passed (ADR-0056): the internal command of the
+    /// shared pipeline that adapters schedule. Writes before returning the batch, so the change is
+    /// durable before anyone is told; `None` means nothing was due.
+    ///
+    /// Safe to call repeatedly and concurrently with user intents: an effect that is already gone
+    /// produces no event, and a command that runs first simply leaves this call nothing to do.
+    pub async fn expire_due(&mut self, now_ms: i64) -> Result<Option<EventBatch>, EngineError> {
+        let events = dnd_game_core::expire_due_effects(self.state(), now_ms);
+        if events.is_empty() {
+            return Ok(None);
+        }
+        self.commit_events(events, None, now_ms).await.map(Some)
+    }
+
+    /// The next instant a real-time effect must be removed (ADR-0056).
+    #[must_use]
+    pub fn next_deadline(&self) -> Option<i64> {
+        dnd_game_core::next_real_deadline(self.state())
     }
 
     /// Commits events that no intent caused (the server's own, e.g. a participant joining) the
@@ -404,5 +452,20 @@ impl CampaignEngine {
     /// Checkpoints and closes the database.
     pub async fn close(self) -> Result<(), DbError> {
         self.db.close().await
+    }
+}
+
+/// Reports an execution that had to cancel waiting states (ADR-0052). Hitting the limit is a
+/// rule bug, not a user error: the batch is still committed, but the event is worth investigating.
+fn log_trace(intent: &'static str, trace: &ExecutionTrace) {
+    if trace.limit_reached {
+        tracing::warn!(
+            intent,
+            rounds = trace.rounds,
+            stages = ?trace.stages,
+            "resolution limit reached; waiting states were cancelled"
+        );
+    } else {
+        tracing::trace!(intent, rounds = trace.rounds, stages = ?trace.stages, "intent resolved");
     }
 }

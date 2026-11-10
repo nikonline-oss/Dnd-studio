@@ -69,6 +69,9 @@ pub enum PluginError {
     /// A campaign has exactly one system plugin (ADR-0005).
     #[error("plugin {id} is a rule system, but the campaign already uses {existing}")]
     MultipleSystems { id: String, existing: String },
+    /// A package or index signature does not verify (ADR-0060).
+    #[error("signature check failed: {reason}")]
+    SignatureInvalid { reason: String },
     /// A bug in this crate (e.g. an embedded meta-schema that does not compile).
     #[error("internal error: {reason}")]
     Internal { reason: String },
@@ -97,6 +100,7 @@ impl PluginError {
             Self::DependencyInactive { .. } => "dependency_inactive",
             Self::DuplicatePlugin { .. } => "duplicate_plugin",
             Self::MultipleSystems { .. } => "multiple_systems",
+            Self::SignatureInvalid { .. } => "signature_invalid",
             Self::Internal { .. } => "internal",
         }
     }

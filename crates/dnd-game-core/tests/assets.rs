@@ -180,6 +180,7 @@ fn map_backgrounds_must_be_map_images() {
     let create = |n: u128, background: Option<AssetId>| Intent::CreateMap {
         id: pooled_map_id(n),
         name: "Crypt".into(),
+        description: String::new(),
         background_asset_id: background,
         width: 3000,
         height: 2048,

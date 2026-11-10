@@ -39,10 +39,16 @@ export function PluginsView() {
   const submit = useSubmitIntent();
   const installBundled = useMutation({ mutationFn: ipc.pluginInstallBundled });
   const installFile = useMutation({ mutationFn: ipc.pluginInstallFile });
+  const installBytes = useMutation({
+    mutationFn: ({ name, bytes }: { name: string; bytes: number[] }) =>
+      ipc.pluginInstallBytes(name, bytes),
+  });
   const notInstalled = (bundled.data ?? []).filter(
     (b) => !plugins.some((p) => p.id === b.id && p.version === b.version),
   );
-  const busy = submit.isPending || installBundled.isPending || installFile.isPending;
+  const busy =
+    submit.isPending || installBundled.isPending || installFile.isPending || installBytes.isPending;
+  const [dropping, setDropping] = useState(false);
   const [menu, setMenu] = useState<{
     x: number;
     y: number;
@@ -203,6 +209,28 @@ export function PluginsView() {
       onContextMenu={(e) => {
         openMenu(e, null);
       }}
+      onDragOver={(e) => {
+        // Files dropped from outside arrive as HTML File objects (dragDropEnabled is off).
+        if (!canManage || !e.dataTransfer.types.includes('Files')) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+        setDropping(true);
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropping(false);
+      }}
+      onDrop={(e) => {
+        setDropping(false);
+        if (!canManage) return;
+        e.preventDefault();
+        const file = Array.from(e.dataTransfer.files).find((f) =>
+          f.name.toLowerCase().endsWith('.dndplugin'),
+        );
+        if (!file) return;
+        void file.arrayBuffer().then((buffer) => {
+          installBytes.mutate({ name: file.name, bytes: Array.from(new Uint8Array(buffer)) });
+        });
+      }}
     >
       <NavSection
         icon="puzzle"
@@ -221,7 +249,11 @@ export function PluginsView() {
           )
         }
       >
-        {plugins.length === 0 && <p className="nav-empty">{t('plugins.empty')}</p>}
+        {dropping && <p className="nav-empty">{t('plugins.dropHint')}</p>}
+        {(installBytes.error || installFile.error) && (
+          <ErrorText error={installBytes.error ?? installFile.error} />
+        )}
+        {plugins.length === 0 && !dropping && <p className="nav-empty">{t('plugins.empty')}</p>}
         <ul className="plugin-list" aria-label={t('plugins.title')}>
           {plugins.map(row)}
         </ul>

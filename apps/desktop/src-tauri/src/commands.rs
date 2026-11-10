@@ -31,14 +31,19 @@ pub struct AppState {
     pub(crate) dirs: std::sync::OnceLock<Dirs>,
     /// Folder whose open failed as corrupted; the only target `campaign_restore_backup` accepts.
     pub(crate) last_corrupt: Mutex<Option<PathBuf>>,
+    /// Consecutive runs that ended without a clean shutdown (ADR-0057).
+    pub(crate) unclean_launches: std::sync::atomic::AtomicU32,
     pub(crate) logs: LogBuffer,
 }
 
 /// Folders of the app.
 #[derive(Debug)]
 pub struct Dirs {
+    pub data: PathBuf,
     pub book: PathBuf,
     pub asset_cache: PathBuf,
+    /// Verified catalog packages (ADR-0060, roadmap R3.4).
+    pub catalog_cache: PathBuf,
 }
 
 impl AppState {
@@ -50,6 +55,7 @@ impl AppState {
             secrets: Arc::new(OsKeychain),
             dirs: std::sync::OnceLock::new(),
             last_corrupt: Mutex::default(),
+            unclean_launches: std::sync::atomic::AtomicU32::new(0),
             logs,
         }
     }
@@ -73,13 +79,19 @@ pub struct RemoteStatusChanged(pub RemoteStatus);
 #[derive(Clone, Debug, Serialize, specta::Type)]
 pub struct AppInfo {
     pub version: String,
+    /// The app failed to shut down cleanly several times in a row (ADR-0057).
+    pub safe_mode_suggested: bool,
 }
 
 #[tauri::command]
 #[specta::specta]
-pub fn app_info() -> AppInfo {
+pub fn app_info(state: State<'_, AppState>) -> AppInfo {
     AppInfo {
         version: env!("CARGO_PKG_VERSION").to_owned(),
+        safe_mode_suggested: state
+            .unclean_launches
+            .load(std::sync::atomic::Ordering::Relaxed)
+            >= crate::launch::CRASH_HINT,
     }
 }
 
@@ -135,6 +147,47 @@ pub async fn campaign_open<R: Runtime>(
             Err(e)
         }
     }
+}
+
+/// Opens a campaign without activating its plugins, triggers or saved rules process (ADR-0057).
+/// Nothing is deleted: the file is untouched and a normal open restores everything.
+#[tauri::command]
+#[specta::specta]
+pub async fn campaign_open_safe<R: Runtime>(
+    app: AppHandle<R>,
+    state: State<'_, AppState>,
+) -> Result<Option<CampaignInfo>, IpcError> {
+    let Some(folder) = pick_folder(&app).await else {
+        return Ok(None);
+    };
+    let server = LocalServer::open_safe(&folder).await?;
+    replace_open(&state, server).await.map(Some)
+}
+
+/// Reopens the current campaign in Safe Mode. The open campaign is closed and opened again from
+/// the same folder; any unsaved edit is already on disk (write-through), so nothing is lost.
+#[tauri::command]
+#[specta::specta]
+pub async fn campaign_reopen_safe(state: State<'_, AppState>) -> Result<CampaignInfo, IpcError> {
+    let folder = {
+        let guard = state.server.lock().await;
+        let server = guard.as_ref().ok_or_else(IpcError::no_campaign)?;
+        PathBuf::from(server.info().path)
+    };
+    let server = LocalServer::open_safe(&folder).await?;
+    replace_open(&state, server).await
+}
+
+/// Whether the open campaign runs without its rules (ADR-0057).
+#[tauri::command]
+#[specta::specta]
+pub async fn campaign_safe_mode(state: State<'_, AppState>) -> Result<bool, IpcError> {
+    Ok(state
+        .server
+        .lock()
+        .await
+        .as_ref()
+        .is_some_and(LocalServer::safe_mode))
 }
 
 /// Replaces the corrupted campaign file (from the last failed open) with its newest backup and
@@ -284,7 +337,7 @@ pub async fn chat_history(
         .await
 }
 
-/// Text of one journal entry. Visibility filtering per recipient arrives with the server (stage 4);
+/// Text of one journal entry, filtered for the recipient by the authority;
 /// locally the GM sees everything.
 #[tauri::command]
 #[specta::specta]
@@ -346,13 +399,32 @@ pub async fn submit_intent<R: Runtime>(
     let remote = state.remote.lock().await.clone();
     if let Some(remote) = remote {
         if remote.info().hosted && matches!(remote.status(), RemoteStatus::Reconnecting { .. }) {
-            let mut guard = state.server.lock().await;
-            if let Some(local) = guard.as_mut() {
-                let (outcome, _) = local.submit_offline(&envelope).await?;
-                GameSnapshotReplaced(local.snapshot())
-                    .emit(&app)
-                    .map_err(|e| IpcError::internal("emit_failed", e.to_string()))?;
-                return Ok(outcome);
+            // Only the GM's own copy may run ahead of the session, and only for edits the GM
+            // decides alone (ADR-0055). Everything else either belongs to the transport's short
+            // queue or is refused with a reason.
+            match crate::sync::classify(&envelope.intent) {
+                crate::sync::OfflineClass::Queued => {
+                    let mut guard = state.server.lock().await;
+                    if let Some(local) = guard.as_mut() {
+                        let (outcome, _) = local.submit_offline(&envelope).await?;
+                        GameSnapshotReplaced(local.snapshot())
+                            .emit(&app)
+                            .map_err(|e| IpcError::internal("emit_failed", e.to_string()))?;
+                        return Ok(outcome);
+                    }
+                }
+                crate::sync::OfflineClass::Live => {
+                    // Chat and token movement go through the transport, which holds them for a
+                    // few minutes; the authority's order is preserved, nothing is pre-executed.
+                }
+                crate::sync::OfflineClass::Refused(reason) => {
+                    return Err(IpcError::user(
+                        "offline_unsupported",
+                        format!(
+                            "this action cannot be done while the session is unreachable: {reason}"
+                        ),
+                    ));
+                }
             }
         }
         // The batch comes back from the server like everyone else's.
@@ -801,9 +873,15 @@ pub fn init_dirs<R: Runtime>(app: &AppHandle<R>, state: &AppState) -> Result<(),
         .path()
         .app_cache_dir()
         .map_err(|e| IpcError::internal("no_cache_dir", e.to_string()))?;
+    state.unclean_launches.store(
+        crate::launch::begin(&data),
+        std::sync::atomic::Ordering::Relaxed,
+    );
     let _ = state.dirs.set(Dirs {
+        data: data.clone(),
         book: data.join("remote_sessions.json"),
         asset_cache: cache.join("remote-assets"),
+        catalog_cache: cache.join("catalog"),
     });
     Ok(())
 }
@@ -828,6 +906,25 @@ pub async fn plugin_install_bundled<R: Runtime>(
     let package = crate::bundled::package(&id)
         .ok_or_else(|| IpcError::user("not_found", format!("no bundled plugin {id}")))?;
     install_package(&app, &state, package.to_vec()).await
+}
+
+/// Installs a `.dndplugin` the window received as a dropped file (ADR-0058). The same path as the
+/// file dialog: validation, hash and dependency checks happen in one place.
+#[tauri::command]
+#[specta::specta]
+pub async fn plugin_install_bytes<R: Runtime>(
+    app: AppHandle<R>,
+    state: State<'_, AppState>,
+    name: String,
+    bytes: Vec<u8>,
+) -> Result<IntentOutcome, IpcError> {
+    if !name.to_lowercase().ends_with(".dndplugin") {
+        return Err(IpcError::user(
+            "unexpected_file",
+            "a plugin must be a .dndplugin file",
+        ));
+    }
+    install_package(&app, &state, bytes).await
 }
 
 /// Asks for a `.dndplugin` file and installs it into the open campaign. `None` if cancelled.
@@ -856,6 +953,17 @@ pub async fn plugin_install_file<R: Runtime>(
     }
     let bytes = std::fs::read(&path)?;
     install_package(&app, &state, bytes).await.map(Some)
+}
+
+/// Installs a package that came from the catalog (already verified by the caller) through the same
+/// path as the file dialog: the loader re-checks it, dependencies are resolved, a hosted campaign
+/// uploads it, and the UI receives the usual snapshot events.
+pub(crate) async fn install_catalog_package<R: Runtime>(
+    app: &AppHandle<R>,
+    state: &AppState,
+    bytes: Vec<u8>,
+) -> Result<IntentOutcome, IpcError> {
+    install_package(app, state, bytes).await
 }
 
 async fn install_package<R: Runtime>(
@@ -932,14 +1040,21 @@ pub async fn sheet_view(
             && matches!(remote.status(), RemoteStatus::Reconnecting { .. })
             && let Some(local) = state.server.lock().await.as_ref()
         {
+            // The local replica is the campaign's own file: authoritative for this machine.
             return Ok(crate::plugins::sheet_view_for_character(
                 local.state(),
                 &sheet_json,
                 character_id,
+                crate::plugins::SheetAuthority::Full,
             ));
         }
+        // A remote view is filtered by role and person (ADR-0049); it must not be used to derive
+        // values the authority would compute from hidden data (ADR-0054).
+        let authority = remote.sheet_authority(character_id);
         return Ok(remote
-            .with_state(|s| crate::plugins::sheet_view_for_character(s, &sheet_json, character_id))
+            .with_state(|s| {
+                crate::plugins::sheet_view_for_character(s, &sheet_json, character_id, authority)
+            })
             .flatten());
     }
     let guard = state.server.lock().await;
@@ -948,5 +1063,6 @@ pub async fn sheet_view(
         server.state(),
         &sheet_json,
         character_id,
+        crate::plugins::SheetAuthority::Full,
     ))
 }

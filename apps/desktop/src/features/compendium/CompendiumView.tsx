@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { entryMarkdown } from './entryMarkdown';
 import { CompendiumCharacter } from './CompendiumCharacter';
+import { CompendiumCreate } from './CompendiumCreate';
 import { useCampaign, usePluginRevision, useSubmitIntent } from '@/shared/game/useGame';
 import { labelText } from '@/shared/i18n/label';
 import { commands, unwrap } from '@/shared/ipc/client';
@@ -21,10 +22,11 @@ const PAGE = 200;
 export function CompendiumView({ compendiumKey }: { compendiumKey: string }) {
   const { t, i18n } = useTranslation();
   const lang = i18n.resolvedLanguage ?? i18n.language;
-  const [pluginId = '', compendiumId = ''] = compendiumKey.split('/');
+  const [pluginId = '', compendiumId = '', linkedId = ''] = compendiumKey.split('/');
   const [query, setQuery] = useState('');
   const [limit, setLimit] = useState(PAGE);
-  const [chosenId, setChosenId] = useState<string | null>(null);
+  // A link from a journal entry names the entry itself: open the book with it chosen.
+  const [chosenId, setChosenId] = useState<string | null>(linkedId || null);
   const { data: campaign } = useCampaign();
   const revision = usePluginRevision();
   const isGm = campaign?.role === 'gm' || campaign?.role === 'co_gm';
@@ -98,6 +100,11 @@ export function CompendiumView({ compendiumKey }: { compendiumKey: string }) {
                 entry={chosen}
               />
             )}
+            <CompendiumCreate
+              key={`create:${compendiumKey}/${revision}/${chosen.id}`}
+              entry={chosen}
+              text={entryMarkdown(chosen, lang)}
+            />
             {isGm && (
               <button
                 type="button"

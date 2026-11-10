@@ -27,6 +27,32 @@ pub(crate) fn apply(
     }
 }
 
+/// The earliest moment at which a real-time effect should be removed (ADR-0056).
+///
+/// The core has no clock: adapters schedule a wake-up at this instant and then call
+/// [`expire_due_effects`]. `None` means nothing is waiting on real time.
+#[must_use]
+pub fn next_real_deadline(state: &GameState) -> Option<i64> {
+    state
+        .effects
+        .values()
+        .filter_map(|effect| match effect.duration {
+            EffectDuration::RealTime { until_ts } => Some(until_ts),
+            _ => None,
+        })
+        .min()
+}
+
+/// Events for real-time effects whose deadline has passed by `now_ms` (ADR-0056).
+///
+/// Safe to call at any time and any number of times: an effect already gone produces nothing, so
+/// a repeated signal or a racing command cannot remove it twice. A deadline exactly at `now_ms`
+/// counts as passed.
+#[must_use]
+pub fn expire_due_effects(state: &GameState, now_ms: i64) -> Vec<Event> {
+    expire_by_clock(state, now_ms)
+}
+
 /// Real-time effects whose deadline passed by `ts_ms`; run before every intent, so a quiet
 /// table simply notices the expiry at the next action.
 pub(crate) fn expire_by_clock(state: &GameState, ts_ms: i64) -> Vec<Event> {

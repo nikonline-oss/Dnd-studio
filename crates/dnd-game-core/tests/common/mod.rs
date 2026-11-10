@@ -65,6 +65,7 @@ pub fn map(n: u128, visible_to_players: bool) -> MapDto {
     MapDto {
         id: pooled_map_id(n),
         name: format!("Map {n}"),
+        description: String::new(),
         background_asset_id: None,
         width: 4000,
         height: 3000,
@@ -88,6 +89,7 @@ pub fn token(n: u128, map_n: u128, character: Option<u128>, layer: TokenLayer) -
         layer,
         disposition: TokenDisposition::Neutral,
         visible: true,
+        inspector: None,
         version: Version::INITIAL,
     }
 }

@@ -5,6 +5,7 @@
 mod common;
 
 use common::*;
+use dnd_game_core::{GameState, MAX_DESCRIPTION_LEN};
 use dnd_protocol::arbitrary::{pooled_character_id, pooled_map_id, pooled_token_id};
 use dnd_protocol::*;
 
@@ -12,6 +13,7 @@ fn rename_map(name: &str) -> Intent {
     Intent::UpdateMap {
         id: pooled_map_id(0),
         name: Some(name.into()),
+        description: None,
         grid: None,
         visible_to_players: None,
     }
@@ -97,6 +99,7 @@ fn move_token_is_last_write_wins_and_keeps_version() {
             layer: None,
             visible: Some(false),
             disposition: None,
+            inspector: None,
         },
         Some(Version::INITIAL),
     )
@@ -164,6 +167,7 @@ fn validation() {
             Intent::UpdateMap {
                 id: pooled_map_id(0),
                 name: None,
+                description: None,
                 grid: Some(Grid {
                     cell_size: 0.0,
                     ..Grid::default()
@@ -176,6 +180,7 @@ fn validation() {
             Intent::UpdateMap {
                 id: pooled_map_id(0),
                 name: None,
+                description: None,
                 grid: None,
                 visible_to_players: None,
             },
@@ -206,6 +211,7 @@ fn validation() {
                 layer: None,
                 visible: None,
                 disposition: None,
+                inspector: None,
             },
             "scale",
         ),
@@ -223,6 +229,7 @@ fn grid_cell_size_is_bounded() {
     let set_cell = |cell_size: f64| Intent::UpdateMap {
         id: pooled_map_id(0),
         name: None,
+        description: None,
         grid: Some(Grid {
             kind: GridKind::HexFlat,
             cell_size,
@@ -263,6 +270,7 @@ fn rotation_is_normalized_and_names_trimmed() {
             layer: None,
             visible: None,
             disposition: None,
+            inspector: None,
         },
         Some(Version(1)),
     )
@@ -392,6 +400,7 @@ fn stale_player_move_after_owner_change_is_rejected() {
         Intent::UpdateMap {
             id: pooled_map_id(0),
             name: None,
+            description: None,
             grid: None,
             visible_to_players: Some(false),
         },
@@ -412,6 +421,7 @@ fn created_ids_must_not_collide_with_any_entity_kind() {
     let create_map = |id: dnd_protocol::Uuid| Intent::CreateMap {
         id: MapId(id),
         name: "M".into(),
+        description: String::new(),
         background_asset_id: None,
         width: 4000,
         height: 3000,
@@ -521,6 +531,7 @@ fn map_size_is_bounded() {
     let create = |width: i64, height: i64| Intent::CreateMap {
         id: pooled_map_id(2),
         name: "M".into(),
+        description: String::new(),
         background_asset_id: None,
         width,
         height,
@@ -588,6 +599,7 @@ fn token_disposition_defaults_to_neutral_and_updates_like_other_fields() {
             layer: None,
             visible: None,
             disposition: Some(TokenDisposition::Ally),
+            inspector: None,
         },
         Some(Version::INITIAL),
     )
@@ -610,9 +622,100 @@ fn token_disposition_defaults_to_neutral_and_updates_like_other_fields() {
                 layer: None,
                 visible: None,
                 disposition: None,
+                inspector: None,
             },
             Some(version),
         ),
         Err(RejectReason::invalid("intent"))
     );
+}
+
+fn create_map_with_description(description: &str) -> Intent {
+    Intent::CreateMap {
+        id: pooled_map_id(5),
+        name: "Crypt".into(),
+        description: description.into(),
+        background_asset_id: None,
+        width: 4000,
+        height: 3000,
+        grid: Grid::default(),
+        visible_to_players: true,
+    }
+}
+
+#[test]
+fn create_map_stores_a_trimmed_description() {
+    let mut state = GameState::new("Test campaign");
+    run(
+        &mut state,
+        Role::Gm,
+        create_map_with_description("  Old bones and wet stone.  "),
+        None,
+    )
+    .unwrap();
+    assert_eq!(
+        state.maps[&pooled_map_id(5)].description,
+        "Old bones and wet stone."
+    );
+}
+
+#[test]
+fn update_map_replaces_the_description() {
+    let mut state = table_state();
+    let version = state.maps[&pooled_map_id(0)].version;
+    run(
+        &mut state,
+        Role::Gm,
+        Intent::UpdateMap {
+            id: pooled_map_id(0),
+            name: None,
+            description: Some("The party is here.".into()),
+            grid: None,
+            visible_to_players: None,
+        },
+        Some(version),
+    )
+    .unwrap();
+    assert_eq!(
+        state.maps[&pooled_map_id(0)].description,
+        "The party is here."
+    );
+    // Clearing the text is a change too, not a no-op.
+    let version = state.maps[&pooled_map_id(0)].version;
+    run(
+        &mut state,
+        Role::Gm,
+        Intent::UpdateMap {
+            id: pooled_map_id(0),
+            name: None,
+            description: Some(String::new()),
+            grid: None,
+            visible_to_players: None,
+        },
+        Some(version),
+    )
+    .unwrap();
+    assert_eq!(state.maps[&pooled_map_id(0)].description, "");
+}
+
+#[test]
+fn map_description_is_bounded() {
+    let mut state = GameState::new("Test campaign");
+    let too_long = "x".repeat(MAX_DESCRIPTION_LEN + 1);
+    assert_eq!(
+        run(
+            &mut state,
+            Role::Gm,
+            create_map_with_description(&too_long),
+            None
+        ),
+        Err(RejectReason::invalid("description"))
+    );
+    run(
+        &mut state,
+        Role::Gm,
+        create_map_with_description(&"x".repeat(MAX_DESCRIPTION_LEN)),
+        None,
+    )
+    .unwrap();
 }

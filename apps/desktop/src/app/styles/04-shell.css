@@ -1,0 +1,353 @@
+/* Split from app/styles.css (workboard: «стили»). Order matters: index.css imports these in cascade order. */
+
+/* ---------- Shell ---------- */
+
+.app-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.app-root > .app-shell {
+  flex: 1;
+  min-height: 0;
+}
+
+.app-shell {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  height: 100%;
+}
+
+.menubar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: var(--bar-height);
+  padding: 0 var(--space-2);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.brand {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+.menus {
+  display: flex;
+  gap: 2px;
+}
+
+.menu {
+  position: relative;
+}
+
+.menu > button {
+  min-height: 26px;
+  padding: 0 var(--space-2);
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.menu > button:hover:not(:disabled),
+.menu > button[aria-expanded='true'] {
+  background: var(--color-hover);
+  border-color: transparent;
+}
+
+.menu-list {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 220px;
+  margin: 0;
+  padding: var(--space-1);
+  list-style: none;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+
+.menu-list button {
+  display: flex;
+  justify-content: flex-start;
+  width: 100%;
+  gap: var(--space-2);
+  min-height: 28px;
+  text-align: left;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.menu-list button:hover:not(:disabled) {
+  background: var(--color-accent-soft);
+  border-color: transparent;
+}
+
+.menu-list [role='separator'] {
+  height: 1px;
+  margin: var(--space-1) var(--space-2);
+  background: var(--color-border);
+}
+
+.menu-check {
+  width: 1em;
+  color: var(--color-accent);
+}
+
+.breadcrumbs {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 0 var(--space-2);
+  padding: 0 0 0 var(--space-3);
+  list-style: none;
+  border-left: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  min-width: 0;
+}
+
+.breadcrumbs li {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.breadcrumbs li + li::before {
+  content: '/';
+  margin-right: var(--space-2);
+  opacity: 0.5;
+}
+
+.breadcrumbs li:last-child {
+  color: var(--color-text);
+  font-weight: 500;
+}
+
+.workbench {
+  min-height: 0;
+  background: var(--color-bg);
+}
+
+.side-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  background: var(--color-surface);
+  overflow: auto;
+}
+
+.center-panel,
+.bottom-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--color-bg);
+  overflow: hidden;
+}
+
+.separator {
+  flex: 0 0 1px;
+  background: var(--color-border);
+  transition: background-color 0.15s;
+}
+
+.separator[data-separator='hover'],
+.separator[data-separator='active'] {
+  background: var(--color-accent);
+}
+
+.panel-title {
+  padding: var(--space-1) var(--space-3) 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+/* Tabs: underline style */
+.tabs {
+  display: flex;
+  /* One row, always: a long name must shorten inside its tab, not make the strip two lines tall
+     (the "tab too tall" report). Many tabs scroll sideways instead. */
+  flex: none;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: 2px;
+  min-height: 32px;
+  padding: 0 var(--space-2);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+
+.tabs [role='tab'] {
+  position: relative;
+  flex: 0 0 auto;
+  max-width: 260px;
+  min-height: 32px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  padding: 0 var(--space-3);
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--color-text-muted);
+}
+
+.tabs [role='tab']:hover:not(:disabled) {
+  background: transparent;
+  color: var(--color-text);
+}
+
+.tabs [role='tab'][aria-selected='true'] {
+  color: var(--color-text);
+  font-weight: 500;
+}
+
+.tabs [role='tab'][aria-selected='true']::after {
+  content: '';
+  position: absolute;
+  left: var(--space-2);
+  right: var(--space-2);
+  bottom: -1px;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--color-accent);
+}
+
+.tabs [role='tab'][aria-selected='true'] .icon {
+  color: var(--color-accent);
+}
+
+/* Center tabs are divs (they hold a close button); give them the button look. */
+.tabs {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  max-width: 220px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.tab-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tab.closable {
+  padding-right: var(--space-1);
+}
+
+.tabs .tab-close {
+  min-width: 20px;
+  min-height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--color-text-muted);
+  opacity: 0;
+}
+
+.tab:hover .tab-close,
+.tab[aria-selected='true'] .tab-close,
+.tab:focus-visible .tab-close {
+  opacity: 1;
+}
+
+.tabs .tab-close:hover:not(:disabled) {
+  background: var(--color-hover);
+  color: var(--color-text);
+}
+
+.tabs .tab-close .icon {
+  color: inherit;
+}
+
+.tab-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--space-2);
+}
+
+.bottom-panel > .chat-panel,
+.bottom-panel > .log-panel {
+  flex: 1;
+  padding: var(--space-2) var(--space-3);
+}
+
+.statusbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  height: 24px;
+  padding: 0 var(--space-3);
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.status-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-success);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-success) 20%, transparent);
+}
+
+.status-dot[data-state='connecting'],
+.status-dot[data-state='reconnecting'] {
+  background: var(--color-warning, #d4a017);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-warning, #d4a017) 20%, transparent);
+}
+
+.status-dot[data-state='closed'] {
+  background: var(--color-danger);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-danger) 20%, transparent);
+}
+
+.status-item.role {
+  padding: 0 var(--space-2);
+  border-radius: 999px;
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.statusbar .spacer {
+  flex: 1;
+}
