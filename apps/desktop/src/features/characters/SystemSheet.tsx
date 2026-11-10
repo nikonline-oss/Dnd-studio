@@ -29,10 +29,12 @@ function parseSheet(sheet: string): SheetData {
  * (`sheet_view`); edits and roll buttons become intents.
  */
 export function SystemSheet({
+  compact = false,
   character,
   rules,
   canEdit,
 }: {
+  compact?: boolean;
   character: CharacterDto;
   rules: SystemRulesDto;
   canEdit: boolean;
@@ -106,6 +108,7 @@ export function SystemSheet({
         <ItemsView owner={character.id} />
       </details>
       <CharacterSheet
+        compact={compact}
         // Checked by the plugin loader and again by the core when the plugin was installed.
         layout={
           (character.kind === 'npc'

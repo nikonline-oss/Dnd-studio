@@ -24,7 +24,11 @@ async fn an_oversized_signature_is_rejected_before_decoding() {
         hits: BTreeMap::new(),
     });
     let base = serve(files, TcpListener::bind("127.0.0.1:0").await.unwrap()).await;
-    let error = CatalogClient::new(&base, vec![0; 32]).unwrap().fetch().await.unwrap_err();
+    let error = CatalogClient::new(&base, vec![0; 32])
+        .unwrap()
+        .fetch()
+        .await
+        .unwrap_err();
     assert_eq!(error.code(), "download_too_large");
 }
 
@@ -35,17 +39,29 @@ async fn a_chunked_index_cannot_bypass_the_download_limit() {
     tokio::spawn(async move {
         let (mut socket, _) = listener.accept().await.unwrap();
         let mut request = [0; 4096];
-        socket.read(&mut request).await.unwrap();
-        socket.write_all(b"HTTP/1.1 200 OK\r\ntransfer-encoding: chunked\r\nconnection: close\r\n\r\n").await.unwrap();
+        assert!(socket.read(&mut request).await.unwrap() > 0);
+        socket
+            .write_all(
+                b"HTTP/1.1 200 OK\r\ntransfer-encoding: chunked\r\nconnection: close\r\n\r\n",
+            )
+            .await
+            .unwrap();
         let chunk = vec![b' '; 64 * 1024];
         for _ in 0..257 {
             if socket.write_all(b"10000\r\n").await.is_err()
                 || socket.write_all(&chunk).await.is_err()
-                || socket.write_all(b"\r\n").await.is_err() { return; }
+                || socket.write_all(b"\r\n").await.is_err()
+            {
+                return;
+            }
         }
         let _ = socket.write_all(b"0\r\n\r\n").await;
     });
-    let error = CatalogClient::new(&base, vec![0; 32]).unwrap().fetch().await.unwrap_err();
+    let error = CatalogClient::new(&base, vec![0; 32])
+        .unwrap()
+        .fetch()
+        .await
+        .unwrap_err();
     assert_eq!(error.code(), "download_too_large");
 }
 

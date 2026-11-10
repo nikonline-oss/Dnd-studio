@@ -120,7 +120,15 @@ export function CatalogView() {
           }}
         />
       )}
-      {catalog.error && <ErrorText error={catalog.error} />}
+      {catalog.error && (
+        <ErrorText
+          error={catalog.error}
+          onRetry={() => {
+            void catalog.refetch();
+          }}
+          retrying={catalog.isFetching}
+        />
+      )}
       {install.error && <ErrorText error={install.error} />}
       {configured && catalog.isSuccess && rows.length === 0 && (
         <p className="nav-empty">{t('catalog.empty')}</p>

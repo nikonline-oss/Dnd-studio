@@ -154,8 +154,19 @@ beforeEach(() => {
 });
 
 const sent = () => state.mutate.mock.calls[0]?.[0] as { intent: Record<string, unknown> };
+const command = (label: string) => {
+  fireEvent.click(screen.getByRole('button', { name: 'items.commands' }));
+  fireEvent.click(screen.getByRole('menuitem', { name: label }));
+};
 
 describe('ItemsView', () => {
+  it('keeps secondary commands in one menu and supports a row context menu', () => {
+    render(<ItemsView />);
+    expect(screen.queryByRole('button', { name: 'items.duplicate' })).not.toBeInTheDocument();
+    fireEvent.contextMenu(screen.getByRole('button', { name: /Wand of sparks/ }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'items.duplicate' }));
+    expect(sent().intent).toMatchObject({ kind: 'duplicate_item', id: wand.id });
+  });
   it('lists only entries of its own kind', () => {
     render(<ItemsView />);
     const list = screen.getByRole('navigation', { name: 'items.library' });
@@ -213,7 +224,7 @@ describe('ItemsView', () => {
 
   it('adds effects, custom values and granted conditions in the effects dialog', () => {
     render(<ItemsView />);
-    fireEvent.click(screen.getByRole('button', { name: 'items.effects' }));
+    command('items.effects');
     fireEvent.change(screen.getByLabelText('items.effectPath'), { target: { value: 'level' } });
     fireEvent.change(screen.getByLabelText('items.effectAdd'), { target: { value: '2' } });
     fireEvent.click(screen.getAllByRole('button', { name: 'common.add' })[0] as HTMLElement);
@@ -240,7 +251,7 @@ describe('ItemsView', () => {
 
   it('hands the entry over from the owner dialog', () => {
     render(<ItemsView />);
-    fireEvent.click(screen.getByRole('button', { name: 'items.give' }));
+    command('items.give');
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'c2' } });
     fireEvent.click(screen.getByRole('button', { name: 'common.save' }));
     expect(sent().intent).toEqual({ kind: 'transfer_item', id: 'i1', owner: 'c2' });
@@ -248,7 +259,7 @@ describe('ItemsView', () => {
 
   it('duplicates the entry under a fresh id', () => {
     render(<ItemsView />);
-    fireEvent.click(screen.getByRole('button', { name: 'items.duplicate' }));
+    command('items.duplicate');
     expect(sent().intent).toMatchObject({ kind: 'duplicate_item', id: 'i1' });
   });
 
@@ -270,9 +281,20 @@ describe('ItemsView', () => {
   it('a player gets no GM actions but may edit their own entry', () => {
     state.role = 'player';
     render(<ItemsView />);
+    expect(screen.queryByRole('button', { name: 'items.newItem' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'items.effects' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'items.duplicate' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'common.edit' })).toBeInTheDocument();
+  });
+
+  it('asks before deleting an item from the command menu', () => {
+    render(<ItemsView />);
+    command('items.delete');
+    expect(state.mutate).not.toHaveBeenCalled();
+    fireEvent.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: 'common.confirmDelete:Save' }),
+    );
+    expect(sent().intent).toMatchObject({ kind: 'delete_item', id: ring.id });
   });
 
   it("keeps a typed entry's plugin sheet behind a dialog, not in the card", () => {
@@ -284,7 +306,7 @@ describe('ItemsView', () => {
     expect(within(card).queryByRole('combobox')).not.toBeInTheDocument();
     // The plugin sheet is not drawn in the card at all; it lives in the dialog.
     expect(within(card).queryByText('plugin sheet')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'items.data' }));
+    command('items.data');
     const dialog = screen.getByRole('dialog');
     expect(within(dialog).getByText('plugin sheet')).toBeInTheDocument();
   });

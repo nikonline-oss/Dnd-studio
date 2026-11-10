@@ -244,7 +244,8 @@ describe.each<Library>(['images', 'audio'])('%s library drag cleanup', (library)
 describe('audio playlists in the unified tree', () => {
   it('creates a playlist from the toolbar', async () => {
     renderLibrary();
-    await userEvent.click(screen.getByRole('button', { name: 'New playlist' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'New playlist' }));
     await userEvent.type(
       screen.getByRole('textbox', { name: 'New playlist' }),
       'Boss themes{Enter}',
@@ -276,10 +277,12 @@ describe('audio playlists in the unified tree', () => {
   it('imports audio, creates a folder of its kind and broadcasts looping playback', async () => {
     state.assets = [asset('sound', 'audio', { original_name: 'Cavern.mp3' })];
     renderLibrary();
-    await userEvent.click(screen.getByRole('button', { name: 'Import audio' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Import' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Import audio' }));
     expect(state.calls).toContain('asset_import_audio');
     await userEvent.click(screen.getByRole('treeitem', { name: 'Cavern.mp3' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Create folder' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'New audio folder' }));
     await userEvent.type(screen.getByRole('textbox', { name: 'Folder name' }), 'Ambience{Enter}');
     expect(mutate).toHaveBeenCalledWith({
       intent: {
@@ -362,7 +365,8 @@ describe('pictures in the unified tree', () => {
   it('imports pictures while connected to an online session', async () => {
     state.remote = { status: { state: 'online' }, hosted: false };
     renderLibrary();
-    await userEvent.click(screen.getByRole('button', { name: 'Import pictures…' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Import' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Import pictures…' }));
     expect(state.calls).toContain('asset_import_images');
   });
 

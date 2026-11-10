@@ -151,7 +151,7 @@ function Editor({ character, inTab }: { character: CharacterDto; inTab: boolean 
       {rules ? (
         <>
           <Conditions character={character} rules={rules} canEdit={canEdit} />
-          <SystemSheet character={character} rules={rules} canEdit={canEdit} />
+          <SystemSheet compact={!inTab} character={character} rules={rules} canEdit={canEdit} />
           {isGm && rules.inventory && <GiveItem character={character} />}
           {isGm && (
             <details className="raw-sheet">

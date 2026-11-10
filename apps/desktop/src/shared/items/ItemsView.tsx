@@ -12,6 +12,9 @@ import {
   ItemOwnerDialog,
   ItemSheetDialog,
 } from './ItemDialogs';
+import { IconButton } from '@/shared/ui/IconButton';
+import { useListCommands } from '@/shared/ui/useListCommands';
+import type { MenuItem } from '@/shared/ui/Menu';
 import { ErrorText } from '@/shared/ui/ErrorText';
 
 /** Drag payload of an inventory row: the item id. */
@@ -29,6 +32,7 @@ export function ItemsView({ owner, kind = 'item' }: { owner?: string; kind?: Ite
   const { data: snapshot } = useSnapshot();
   const { data: campaign } = useCampaign();
   const submit = useSubmitIntent();
+  const commands = useListCommands();
   const [selected, setSelected] = useState('');
   const [filter, setFilter] = useState(owner ?? 'all');
   const [dialog, setDialog] = useState<DialogKind | null>(null);
@@ -64,19 +68,93 @@ export function ItemsView({ owner, kind = 'item' }: { owner?: string; kind?: Ite
     });
   };
 
+  const commandItems = (entry: ItemDto): MenuItem[] => {
+    const owner = snapshot?.characters.find((c) => c.id === entry.owner);
+    const editable =
+      gm ||
+      (campaign?.role === 'player' && !entry.is_template && owner?.owner === campaign.user_id);
+    const open = (next: DialogKind) => {
+      setSelected(entry.id);
+      setDialog(next);
+    };
+    const items: MenuItem[] = editable
+      ? [
+          {
+            label: t('common.edit'),
+            onSelect: () => {
+              open('edit');
+            },
+          },
+        ]
+      : [];
+    if (!gm) return items;
+    if (defs.some((d) => d.id === entry.type_id))
+      items.push({
+        label: t('items.data'),
+        onSelect: () => {
+          open('data');
+        },
+      });
+    items.push({
+      label: t('items.effects'),
+      onSelect: () => {
+        open('effects');
+      },
+    });
+    if (!entry.is_template)
+      items.push({
+        label: t('items.give'),
+        onSelect: () => {
+          open('owner');
+        },
+      });
+    items.push(
+      {
+        label: t('items.duplicate'),
+        disabled: submit.isPending,
+        onSelect: () => {
+          const id = uuidv7();
+          submit.mutate(
+            { intent: { kind: 'duplicate_item', id: entry.id, new_id: id } },
+            {
+              onSuccess: () => {
+                setSelected(id);
+              },
+            },
+          );
+        },
+      },
+      {
+        label: t('items.delete'),
+        disabled: submit.isPending,
+        onSelect: () => {
+          commands.confirm(t('items.delete'), () => {
+            submit.mutate({
+              intent: { kind: 'delete_item', id: entry.id },
+              expectedVersion: entry.version,
+            });
+          });
+        },
+      },
+    );
+    return items;
+  };
+
   return (
     <section className="items-view">
       <header className="control-page-header">
         <h2>{kind === 'skill' ? t('items.skillsTitle') : t('items.title')}</h2>
-        <button
-          type="button"
-          className="btn-primary"
-          onClick={() => {
-            setDialog('create');
-          }}
-        >
-          {t(kind === 'skill' ? 'items.newSkill' : 'items.newItem')}
-        </button>
+        {gm && (
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => {
+              setDialog('create');
+            }}
+          >
+            {t(kind === 'skill' ? 'items.newSkill' : 'items.newItem')}
+          </button>
+        )}
       </header>
       {!owner && (
         <div className="items-filters" role="group" aria-label={t('items.filterByOwner')}>
@@ -129,6 +207,9 @@ export function ItemsView({ owner, kind = 'item' }: { owner?: string; kind?: Ite
             <button
               key={entry.id}
               aria-pressed={item?.id === entry.id}
+              onContextMenu={(e) => {
+                commands.context(e, commandItems(entry));
+              }}
               // Handing an entry over is the GM's move: players do not transfer entries.
               draggable={!entry.is_template && gm}
               onDragStart={(e) => {
@@ -155,6 +236,9 @@ export function ItemsView({ owner, kind = 'item' }: { owner?: string; kind?: Ite
             key={item.id}
             className="items-detail control-section"
             aria-label={t('items.details')}
+            onContextMenu={(e) => {
+              commands.context(e, commandItems(item));
+            }}
           >
             <div className="items-detail-head">
               <h3>{item.name}</h3>
@@ -213,72 +297,20 @@ export function ItemsView({ owner, kind = 'item' }: { owner?: string; kind?: Ite
                 </button>
               )}
               {gm && (
-                <>
-                  {def && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setDialog('data');
-                      }}
-                    >
-                      {t('items.data')}
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDialog('effects');
-                    }}
-                  >
-                    {t('items.effects')}
-                  </button>
-                  {!item.is_template && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setDialog('owner');
-                      }}
-                    >
-                      {t('items.give')}
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    disabled={submit.isPending}
-                    onClick={() => {
-                      const id = uuidv7();
-                      submit.mutate(
-                        { intent: { kind: 'duplicate_item', id: item.id, new_id: id } },
-                        {
-                          onSuccess: () => {
-                            setSelected(id);
-                          },
-                        },
-                      );
-                    }}
-                  >
-                    {t('items.duplicate')}
-                  </button>
-                  <button
-                    type="button"
-                    className="danger"
-                    disabled={submit.isPending}
-                    onClick={() => {
-                      submit.mutate({
-                        intent: { kind: 'delete_item', id: item.id },
-                        expectedVersion: item.version,
-                      });
-                    }}
-                  >
-                    {t('items.delete')}
-                  </button>
-                </>
+                <IconButton
+                  icon="more"
+                  label={t('items.commands')}
+                  onClick={(e) => {
+                    commands.context(e, commandItems(item));
+                  }}
+                />
               )}
             </div>
             {!def && kind === 'item' && <p className="muted">{t('items.freeItem')}</p>}
           </section>
         )}
       </div>
+      {commands.ui}
       <ErrorText error={submit.error} />
       {dialog === 'create' && (
         <CreateItemDialog

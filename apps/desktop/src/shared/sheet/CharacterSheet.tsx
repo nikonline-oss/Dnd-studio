@@ -38,6 +38,8 @@ import {
 } from './model';
 
 export interface CharacterSheetProps {
+  /** Compact section picker for the inspector; full sheets retain their tab strip. */
+  compact?: boolean;
   /** The system plugin's layout: one root node or several. */
   layout: SheetNode | SheetNode[];
   schema?: JsonSchema | undefined;
@@ -64,6 +66,7 @@ export interface CharacterSheetProps {
 }
 
 interface Actions {
+  compact: boolean;
   lang: string;
   t: TFunction;
   canEdit: boolean;
@@ -105,6 +108,7 @@ function useActions(): Actions {
 
 /** A declarative character sheet (CLAUDE.md §8): renders a plugin layout over the sheet data. */
 export function CharacterSheet({
+  compact = false,
   layout,
   schema,
   data,
@@ -138,7 +142,7 @@ export function CharacterSheet({
 
   const roots = Array.isArray(layout) ? layout : [layout];
   return (
-    <ActionsContext value={{ lang, t, canEdit, schema, emit, roll }}>
+    <ActionsContext value={{ lang, t, canEdit, schema, emit, roll, compact }}>
       <AdjustedContext value={adjusted}>
         <ValuesContext value={{ data, computed, adjusted, rolls, resources, renderAction }}>
           <div className={canEdit ? 'sheet' : 'sheet sheet-readonly'}>
@@ -232,7 +236,7 @@ function Unsupported({ type }: { type: unknown }) {
 }
 
 function Tabs({ node, scope, base }: ScopeProps & { node: TabsNode }) {
-  const { lang } = useActions();
+  const { lang, t, compact } = useActions();
   const id = useId();
   const [selected, setSelected] = useState(0);
   const tabs = Array.isArray(node.tabs) ? node.tabs : [];
@@ -258,29 +262,48 @@ function Tabs({ node, scope, base }: ScopeProps & { node: TabsNode }) {
 
   return (
     <div className="sheet-tabs">
-      <div role="tablist" className="sheet-tablist" ref={listRef} onKeyDown={onKeyDown}>
-        {tabs.map((tab, i) => (
-          <button
-            key={i}
-            type="button"
-            role="tab"
-            id={`${id}-tab-${i}`}
-            aria-selected={i === active}
-            aria-controls={`${id}-panel`}
-            tabIndex={i === active ? 0 : -1}
-            onClick={() => {
-              setSelected(i);
+      {compact ? (
+        <label className="sheet-section-picker">
+          <span>{t('sheet.section')}</span>
+          <select
+            value={active}
+            onChange={(e) => {
+              setSelected(Number(e.target.value));
             }}
           >
-            {resolveLabel(tab.label, lang)}
-          </button>
-        ))}
-      </div>
+            {tabs.map((tab, i) => (
+              <option key={i} value={i}>
+                {resolveLabel(tab.label, lang)}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : (
+        <div role="tablist" className="sheet-tablist" ref={listRef} onKeyDown={onKeyDown}>
+          {tabs.map((tab, i) => (
+            <button
+              key={i}
+              type="button"
+              role="tab"
+              id={`${id}-tab-${i}`}
+              aria-selected={i === active}
+              aria-controls={`${id}-panel`}
+              tabIndex={i === active ? 0 : -1}
+              onClick={() => {
+                setSelected(i);
+              }}
+            >
+              {resolveLabel(tab.label, lang)}
+            </button>
+          ))}
+        </div>
+      )}
       {/* Only the open tab is mounted: a big sheet costs only what is on screen. */}
       <div
         role="tabpanel"
         id={`${id}-panel`}
-        aria-labelledby={`${id}-tab-${active}`}
+        aria-labelledby={compact ? undefined : `${id}-tab-${active}`}
+        aria-label={compact ? resolveLabel(current.label, lang) : undefined}
         className="sheet-tabpanel"
       >
         <Nodes key={active} nodes={current.children} scope={scope} base={base} />

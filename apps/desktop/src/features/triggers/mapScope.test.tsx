@@ -99,11 +99,24 @@ describe('Map-scoped trigger editor', () => {
   it('explains a disabled trigger and does not send an intent', async () => {
     const { client, sent } = setup();
     await screen.findByRole('form', { name: 'Alarm' });
-    act(() => client.setQueryData<Snapshot>(['snapshot'], (s) => s && ({
-      ...s, triggers: s.triggers.map(t => ({...t, definition:{...t.definition, enabled:false}})),
-    })));
-    expect(screen.getByRole('button', { name: 'Run' })).toBeDisabled();
-    expect(screen.getByText('Enable the trigger before running.')).toBeInTheDocument();
+    await act(() =>
+      client.setQueryData<Snapshot>(
+        ['snapshot'],
+        (s) =>
+          s && {
+            ...s,
+            triggers: s.triggers.map((t) => ({
+              ...t,
+              version: t.version + 1,
+              definition: { ...t.definition, enabled: false },
+            })),
+          },
+      ),
+    );
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Run' })).toBeDisabled();
+      expect(screen.getByText('Enable the trigger before running.')).toBeInTheDocument();
+    });
     expect(sent).toEqual([]);
   });
   it('saves selected maps using the trigger version and explains automatic board links', async () => {

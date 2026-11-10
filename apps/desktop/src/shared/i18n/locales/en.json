@@ -168,7 +168,8 @@
     "pending_conflicts": "Resolve offline edit conflicts before stopping the session.",
     "campaign_on_server": "This campaign is already linked to a session. Connect to that session to sync.",
     "replica_mismatch": "The local copy does not match this session or its GM. Open the original campaign.",
-    "import_context_changed": "The campaign or connection changed during import. Try importing again."
+    "import_context_changed": "The campaign or connection changed during import. Try importing again.",
+    "download_too_large": "Download stopped: the file exceeds the size limit."
   },
   "menu": {
     "label": "Main menu",
@@ -573,7 +574,8 @@
     "decrease": "Decrease {{label}}",
     "increase": "Increase {{label}}",
     "openTab": "Open the sheet in a tab",
-    "effectiveHint": "Rules use {{effective}}; the sheet stores {{stored}}"
+    "effectiveHint": "Rules use {{effective}}; the sheet stores {{stored}}",
+    "section": "Sheet section"
   },
   "plugins": {
     "title": "Plugins",
@@ -831,7 +833,8 @@
     "valueAmount": "Value",
     "removeValue": "Remove value",
     "data": "Data",
-    "dataTitle": "Data of “{{name}}”"
+    "dataTitle": "Data of “{{name}}”",
+    "commands": "Item commands"
   },
   "picker": {
     "title": "Pick an element",
@@ -1023,7 +1026,17 @@
     "zoneNameHint": "Matches this exact zone name on each selected map (case-sensitive, ignoring surrounding spaces).",
     "zoneRequired": "Select a zone name.",
     "pluginAwaitHint": "Following steps wait for reactions. Branch with @action.completed == 1 or @action.countered == 1.",
-    "waitingRolls": "{{name}}: waiting for {{pending}} of {{count}} rolls"
+    "waitingRolls": "{{name}}: waiting for {{pending}} of {{count}} rolls",
+    "runBlocked": {
+      "busy": "Wait for the current operation to finish.",
+      "unsaved": "Save changes before running.",
+      "disabled": "Enable the trigger before running.",
+      "map_missing": "The bound map is unavailable. Select an existing map.",
+      "token_missing": "The selected token was removed. Select another token.",
+      "wrong_map": "The selected token is on a different map.",
+      "token_not_allowed": "This token is not allowed to run the trigger.",
+      "spent": "The trigger has already fired on the selected map or on every bound map."
+    }
   },
   "images": {
     "title": "Pictures",
@@ -1053,7 +1066,7 @@
     "moveAssetRoot": "Move to library root",
     "tree": "Campaign library",
     "folders": "Library folders",
-    "root": "Root",
+    "root": "Library",
     "addFolder": "Create folder",
     "addPictureFolder": "New picture folder",
     "addAudioFolder": "New audio folder",
@@ -1064,7 +1077,10 @@
     "confirmDeleteFolderDetails": "Subfolders removed: {{folders}}.",
     "moveAsset": "Folder for “{{name}}”",
     "empty": "This library is empty.",
-    "renameAsset": "Rename file"
+    "renameAsset": "Rename file",
+    "create": "Create",
+    "import": "Import",
+    "location": "Current folder"
   },
   "compendia": {
     "createCharacter": "Create character",
@@ -1271,5 +1287,14 @@
     "name": "Character name",
     "icon": "Token icon",
     "noSystem": "Without a system plugin there is nothing to configure."
+  },
+  "errorUi": {
+    "retry": "Retry",
+    "details": "Details",
+    "code": "Error code",
+    "network": "Check your connection and server availability, then retry.",
+    "address": "Check the server or catalog address.",
+    "signature": "Do not install this package. Refresh the index from a trusted source and check the public key.",
+    "size": "Check the download source or select a smaller file."
   }
 }

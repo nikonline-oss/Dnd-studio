@@ -264,6 +264,11 @@ export function UnifiedLibrary() {
   const [moveFolder, setMoveFolder] = useState('');
   const [query, setQuery] = useState('');
   const [menu, setMenu] = useState<{ x: number; y: number; item: Item | null } | null>(null);
+  const [toolbarMenu, setToolbarMenu] = useState<{
+    x: number;
+    y: number;
+    kind: 'create' | 'import';
+  } | null>(null);
   const [playError, setPlayError] = useState<unknown>(null);
   const [hoverPreview, setHoverPreview] = useState<{
     asset: AssetDto;
@@ -1690,6 +1695,38 @@ export function UnifiedLibrary() {
   const activeDescendant = activeRow ? `${treeId}-${rowKey(activeRow)}` : undefined;
   const details = confirm ? confirmDetails(confirm) : null;
 
+  const locationNames =
+    current?.kind === 'libraryFolder' || current?.kind === 'asset' || current?.kind === 'playlist'
+      ? model
+          .libraryPath(libraryTarget.parent)
+          .map((id) => model.libraryFolders.get(id)?.name ?? '')
+      : model.journalPath(journalTarget).map((id) => model.journalFolders.get(id)?.name ?? '');
+  const location = [t('library.root'), ...locationNames.filter(Boolean)].join(' / ');
+  const newItems: (MenuItem | 'separator')[] = [
+    ...createItems(journalTarget),
+    {
+      label: t('library.addPictureFolder'),
+      disabled: busy,
+      onSelect: () => {
+        startLibraryFolder(
+          'images',
+          libraryTarget.library === 'images' ? libraryTarget.parent : null,
+        );
+      },
+    },
+    {
+      label: t('library.addAudioFolder'),
+      disabled: busy,
+      onSelect: () => {
+        startLibraryFolder(
+          'audio',
+          libraryTarget.library === 'audio' ? libraryTarget.parent : null,
+        );
+      },
+    },
+    { label: t('playlists.new'), disabled: busy || pending !== null, onSelect: startPlaylist },
+  ];
+
   return (
     <section className="library-explorer" aria-label={t('library.tree')}>
       <div className="library-explorer-toolbar">
@@ -1703,68 +1740,35 @@ export function UnifiedLibrary() {
           }}
         />
         {isGm && (
-          <>
-            <IconButton
-              icon="filePlus"
-              label={t('journal.add')}
-              onClick={() => {
-                startCreate('entry', journalTarget);
-              }}
-              disabled={busy}
-            />
-            <IconButton
-              icon="table"
-              label={t('journal.addTable')}
-              onClick={() => {
-                startCreate('table', journalTarget);
-              }}
-              disabled={busy}
-            />
-            <IconButton
-              icon="folderPlus"
-              label={t('journal.addFolder')}
-              onClick={() => {
-                startCreate('journalFolder', journalTarget);
-              }}
-              disabled={busy}
-            />
-            <IconButton
-              icon="folderPlus"
-              label={t('library.addFolder')}
-              onClick={() => {
-                startLibraryFolder(libraryTarget.library, libraryTarget.parent);
-              }}
-              disabled={busy}
-            />
-            <IconButton
-              icon="playlist"
-              label={t('playlists.new')}
-              onClick={startPlaylist}
-              disabled={busy || pending !== null}
-            />
-          </>
+          <button
+            type="button"
+            aria-haspopup="menu"
+            aria-expanded={toolbarMenu?.kind === 'create'}
+            onClick={(e) => {
+              const box = e.currentTarget.getBoundingClientRect();
+              setToolbarMenu({ kind: 'create', x: box.left, y: box.bottom });
+            }}
+          >
+            {t('library.create')}
+          </button>
         )}
         {canImport && (
-          <>
-            <IconButton
-              icon="image"
-              label={t('images.import')}
-              onClick={() => {
-                importImages.mutate();
-              }}
-              disabled={importing}
-            />
-            <IconButton
-              icon="music"
-              label={t('audio.import')}
-              onClick={() => {
-                importAudio.mutate();
-              }}
-              disabled={importing}
-            />
-          </>
+          <button
+            type="button"
+            aria-haspopup="menu"
+            aria-expanded={toolbarMenu?.kind === 'import'}
+            onClick={(e) => {
+              const box = e.currentTarget.getBoundingClientRect();
+              setToolbarMenu({ kind: 'import', x: box.left, y: box.bottom });
+            }}
+          >
+            {t('library.import')}
+          </button>
         )}
         <IconButton icon="collapse" label={t('journal.collapseAll')} onClick={collapseAll} />
+      </div>
+      <div className="library-location" aria-label={t('library.location')} title={location}>
+        {location}
       </div>
       <div
         className="library-tree-root"
@@ -1810,6 +1814,36 @@ export function UnifiedLibrary() {
           items={menuItems(menu.item)}
           onClose={() => {
             setMenu(null);
+          }}
+        />
+      )}
+      {toolbarMenu && (
+        <ContextMenu
+          x={toolbarMenu.x}
+          y={toolbarMenu.y}
+          label={t(toolbarMenu.kind === 'create' ? 'library.create' : 'library.import')}
+          items={
+            toolbarMenu.kind === 'create'
+              ? newItems
+              : [
+                  {
+                    label: t('images.import'),
+                    disabled: importing,
+                    onSelect: () => {
+                      importImages.mutate();
+                    },
+                  },
+                  {
+                    label: t('audio.import'),
+                    disabled: importing,
+                    onSelect: () => {
+                      importAudio.mutate();
+                    },
+                  },
+                ]
+          }
+          onClose={() => {
+            setToolbarMenu(null);
           }}
         />
       )}

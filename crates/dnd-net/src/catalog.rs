@@ -145,7 +145,15 @@ async fn read_cache(path: &Path, limit: u64) -> Option<Vec<u8>> {
     (bytes.len() as u64 <= limit).then_some(bytes)
 }
 
+/// Cache file for one package: `<id>-<version>-<sha256 prefix>.dndplugin`.
+#[must_use]
+pub fn cached_path(entry: &CatalogEntry, cache_dir: &Path) -> PathBuf {
+    let prefix: String = entry.sha256.chars().take(16).collect();
+    cache_dir.join(format!("{}-{}-{prefix}.dndplugin", entry.id, entry.version))
+}
+
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     #[tokio::test]
@@ -156,11 +164,4 @@ mod tests {
         assert_eq!(read_cache(&path, 4).await, Some(b"1234".to_vec()));
         assert_eq!(read_cache(&path, 3).await, None);
     }
-}
-
-/// Cache file for one package: `<id>-<version>-<sha256 prefix>.dndplugin`.
-#[must_use]
-pub fn cached_path(entry: &CatalogEntry, cache_dir: &Path) -> PathBuf {
-    let prefix: String = entry.sha256.chars().take(16).collect();
-    cache_dir.join(format!("{}-{}-{prefix}.dndplugin", entry.id, entry.version))
 }

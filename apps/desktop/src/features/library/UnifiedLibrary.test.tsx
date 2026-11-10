@@ -91,6 +91,10 @@ function setup(role: Role = 'gm') {
 
 const row = (name: string) => screen.getByRole('treeitem', { name });
 const tree = () => screen.getByRole('tree');
+const create = async (name: string) => {
+  await userEvent.click(await screen.findByRole('button', { name: 'Create' }));
+  await userEvent.click(screen.getByRole('menuitem', { name }));
+};
 
 beforeEach(() => {
   sent = [];
@@ -117,7 +121,7 @@ describe('UnifiedLibrary journal commands', () => {
   it('creates a folder inside the selected folder', async () => {
     setup();
     await userEvent.click(await screen.findByRole('treeitem', { name: 'Lore' }));
-    await userEvent.click(screen.getByRole('button', { name: 'New folder' }));
+    await create('New folder');
     await userEvent.type(screen.getByLabelText('Folder name'), 'Places{Enter}');
     await waitFor(() => {
       expect(sent).toHaveLength(1);
@@ -133,12 +137,12 @@ describe('UnifiedLibrary journal commands', () => {
     setup();
     await userEvent.click(await screen.findByRole('treeitem', { name: 'Lore' }));
     await userEvent.click(row('Crypt'));
-    await userEvent.click(screen.getByRole('button', { name: 'New entry' }));
+    await create('New entry');
     await userEvent.type(screen.getByLabelText('Entry title'), 'Draft{Escape}');
     expect(screen.queryByLabelText('Entry title')).not.toBeInTheDocument();
     expect(sent).toHaveLength(0);
 
-    await userEvent.click(screen.getByRole('button', { name: 'New entry' }));
+    await create('New entry');
     await userEvent.type(screen.getByLabelText('Entry title'), 'Ghosts{Enter}');
     await waitFor(() => {
       expect(sent).toHaveLength(1);
@@ -328,10 +332,10 @@ describe('UnifiedLibrary journal commands', () => {
   it('clears the search when a create starts, so the new row is visible', async () => {
     setup();
     // The campaign (and with it the GM toolbar) arrives asynchronously.
-    const newFolder = await screen.findByRole('button', { name: 'New folder' });
+    await screen.findByRole('button', { name: 'Create' });
     const search = screen.getByRole('searchbox');
     fireEvent.change(search, { target: { value: 'zzz-nothing' } });
-    fireEvent.click(newFolder);
+    await create('New folder');
     expect(search).toHaveValue('');
     // The pending row appears right away instead of a silently ignored click.
     expect(screen.getByLabelText('Folder name')).toBeInTheDocument();

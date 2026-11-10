@@ -2,7 +2,7 @@ import './TriggerEditor.css';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { incompleteSteps } from './validation';
-import { canFireTrigger, triggerMaps } from '@/shared/game/triggerScope';
+import { triggerRunBlock, triggerMaps } from '@/shared/game/triggerScope';
 import { IntentRejected } from '@/shared/ipc/client';
 import { useSelection } from '@/shared/state/selection';
 import { assetUrl } from '@/shared/ipc/client';
@@ -111,12 +111,15 @@ function Form({ trigger, rules }: { trigger: TriggerDto; rules: SystemRulesDto |
     maps.some((m) => m.id === id),
   );
   const selectedToken = snapshot?.tokens.find((tok) => tok.id === fireToken);
-  const canRun =
-    canFireTrigger(trigger, fireMaps, selectedToken?.map_id) &&
-    (!fireToken || !!selectedToken) &&
-    (!fireToken ||
-      trigger.definition.tokens.length === 0 ||
-      trigger.definition.tokens.includes(fireToken));
+  const runBlock = triggerRunBlock({
+    trigger,
+    maps: fireMaps,
+    tokenId: fireToken,
+    token: selectedToken,
+    dirty,
+    busy,
+  });
+  const canRun = runBlock === null;
   const serverField =
     submit.error instanceof IntentRejected && submit.error.reason.code === 'invalid'
       ? submit.error.reason.field
@@ -173,7 +176,7 @@ function Form({ trigger, rules }: { trigger: TriggerDto; rules: SystemRulesDto |
             />
             {t('triggers.oncePerMap', { defaultValue: 'Once per map' })}
           </label>
-          {!canRun && <span className="badge">{t('triggers.fired')}</span>}
+          {runBlock === 'spent' && <span className="badge">{t('triggers.fired')}</span>}
         </header>
 
         <fieldset className="trigger-section">
@@ -488,6 +491,11 @@ function Form({ trigger, rules }: { trigger: TriggerDto; rules: SystemRulesDto |
           </p>
         )}
         <footer className="trigger-footer">
+          {runBlock && trigger.definition.event.type === 'manual' && (
+            <p id={`trigger-run-${trigger.id}`} className="trigger-run-status muted" role="status">
+              {t(`triggers.runBlocked.${runBlock}`)}
+            </p>
+          )}
           <button
             type="submit"
             className="btn-primary"
@@ -518,6 +526,7 @@ function Form({ trigger, rules }: { trigger: TriggerDto; rules: SystemRulesDto |
               <button
                 type="button"
                 disabled={dirty || !canRun || busy}
+                aria-describedby={runBlock ? `trigger-run-${trigger.id}` : undefined}
                 onClick={() => {
                   fire.mutate({
                     intent: { kind: 'fire_trigger', id: trigger.id, token: fireToken },

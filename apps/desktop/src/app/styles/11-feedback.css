@@ -2,6 +2,20 @@
 
 /* ---------- Feedback ---------- */
 
+.error-notice {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.error-notice button {
+  justify-self: start;
+}
+.error-notice summary {
+  cursor: pointer;
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
 .error-fallback {
   padding: var(--space-3);
   border: 1px solid var(--color-danger);
