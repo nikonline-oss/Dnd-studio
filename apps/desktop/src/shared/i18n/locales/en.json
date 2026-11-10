@@ -528,7 +528,9 @@
     "images": "Pictures",
     "audio": "Music and sounds",
     "compendia": "Compendia",
-    "items": "Items"
+    "items": "Items",
+    "skills": "Skills",
+    "catalog": "Catalog"
   },
   "session": {
     "host": "Invite players…",

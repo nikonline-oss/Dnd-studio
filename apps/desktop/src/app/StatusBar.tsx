@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { useRemote } from '@/shared/game/useRemote';
+import { useSnapshotSelect } from '@/shared/game/useGame';
 import { commands, type CampaignInfo, type RemoteStatus } from '@/shared/ipc/client';
 import { Icon } from '@/shared/ui/Icon';
 
@@ -10,6 +11,7 @@ export function StatusBar({ campaign }: { campaign: CampaignInfo }) {
   const { t } = useTranslation();
   const { data: info } = useQuery({ queryKey: ['appInfo'], queryFn: commands.appInfo });
   const remote = useRemote();
+  const pluginCount = useSnapshotSelect((snapshot) => snapshot.plugins.length) ?? 0;
 
   return (
     <footer className="statusbar" aria-label={t('status.label')}>
@@ -28,7 +30,7 @@ export function StatusBar({ campaign }: { campaign: CampaignInfo }) {
           {t('status.serverLocal')}
         </span>
       )}
-      <span className="status-item">{t('status.plugins', { count: 0 })}</span>
+      <span className="status-item">{t('status.plugins', { count: pluginCount })}</span>
       <span className="spacer" />
       <span className="status-item role" data-role={campaign.role}>
         {t(`roles.${campaign.role}`)}

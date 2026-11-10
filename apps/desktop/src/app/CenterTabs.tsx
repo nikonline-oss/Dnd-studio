@@ -105,9 +105,9 @@ export function CenterTabs() {
   return (
     <div role="tablist" className="tabs">
       {gm && !tabs.some((tab) => tab.kind === 'gm_panel') && (
-        <button type="button" onClick={openGmPanel}>
+        <button type="button" className="tab tab-launcher" onClick={openGmPanel}>
           <Icon name="grid" />
-          {t('gm.title')}
+          <span className="tab-title">{t('gm.title')}</span>
         </button>
       )}
       {defaultMapTab && (

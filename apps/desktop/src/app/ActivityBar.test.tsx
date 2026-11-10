@@ -8,13 +8,20 @@ describe('ActivityBar names', () => {
     await i18n.changeLanguage(language);
     render(
       <ActivityBar
-        views={[{ id: 'skills', icon: 'book' }, { id: 'catalog', icon: 'book' }]}
+        views={[
+          { id: 'skills', icon: 'book' },
+          { id: 'catalog', icon: 'book' },
+        ]}
         active={null}
         onSelect={() => undefined}
       />,
     );
-    expect(screen.getByRole('button', { name: language === 'ru' ? 'Навыки' : 'Skills' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: language === 'ru' ? 'Каталог' : 'Catalog' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: language === 'ru' ? 'Навыки' : 'Skills' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: language === 'ru' ? 'Каталог' : 'Catalog' }),
+    ).toBeInTheDocument();
     await i18n.changeLanguage('en');
   });
 });
