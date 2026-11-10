@@ -75,6 +75,7 @@ jobs:
       - run: pnpm format:check
       - run: pnpm lint
       - run: pnpm typecheck
+      - run: node --test tools/workboard/review.test.mjs
       - run: pnpm test
       - name: production build
         run: pnpm --filter @dndstudio/desktop exec vite build

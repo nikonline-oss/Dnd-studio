@@ -4,18 +4,21 @@
 .items-view {
   container-type: inline-size;
   min-width: 0;
-  padding: 20px;
+  padding: 12px;
   line-height: 1.5;
   overflow-wrap: anywhere;
 }
 .control-page-header {
-  display: grid;
-  gap: 6px;
-  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
 }
 .control-page-header h2,
 .gm-dashboard-header h1 {
-  font-size: 20px;
+  font-size: 16px;
   line-height: 1.3;
 }
 .control-section {
@@ -23,15 +26,15 @@
   /* One column that may shrink; the implicit `auto` column would take max-content width. */
   grid-template-columns: minmax(0, 1fr);
   align-content: start;
-  gap: 16px;
+  gap: 12px;
   min-width: 0;
-  padding: 18px;
+  padding: 12px;
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius);
   background: var(--color-surface);
 }
 .control-section + .control-section {
-  margin-top: 20px;
+  margin-top: 12px;
 }
 .control-section h3 {
   font-size: 15px;
@@ -100,9 +103,9 @@
 }
 .gm-card {
   min-width: 0;
-  padding: 18px;
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
+  padding: 12px;
+  border-radius: var(--radius);
+  background: transparent;
 }
 .gm-card > summary {
   padding-bottom: 2px;
@@ -267,24 +270,26 @@
   display: grid;
   grid-template-columns: minmax(150px, 0.75fr) minmax(0, 2fr);
   align-items: start;
-  gap: 18px;
+  gap: 12px;
 }
 .items-list {
   display: grid;
-  gap: 8px;
+  gap: 2px;
   margin: 0;
 }
 .items-list button {
   display: grid;
   justify-content: stretch;
   gap: 4px;
-  padding: 12px;
+  padding: 8px;
+  background: transparent;
+  border-color: transparent;
   text-align: start;
   min-width: 0;
 }
 .items-list button[aria-pressed='true'] {
-  border-color: var(--color-accent);
   background: var(--color-accent-soft);
+  color: var(--color-text);
 }
 .items-list span {
   font-size: 12px;
@@ -346,6 +351,13 @@
   }
 }
 @container (max-width: 340px) {
+  .items-detail .properties {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+  .items-detail .properties dd {
+    margin-bottom: 6px;
+  }
   .items-create {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -355,7 +367,7 @@
   }
   .control-page-header h2,
   .gm-dashboard-header h1 {
-    font-size: 18px;
+    font-size: 16px;
   }
 }
 .sheet-list-row {

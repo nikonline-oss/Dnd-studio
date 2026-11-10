@@ -1,15 +1,11 @@
 .audio-card.audio-card {
   box-sizing: border-box;
   color: var(--color-text);
-  background: linear-gradient(
-    145deg,
-    color-mix(in srgb, var(--color-accent) 8%, var(--color-surface)),
-    var(--color-surface)
-  );
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: 14px;
-  padding: 18px;
-  gap: 14px;
+  border-radius: var(--radius-lg);
+  padding: 12px;
+  gap: 10px;
   min-width: 0;
 }
 .audio-card .audio-heading {

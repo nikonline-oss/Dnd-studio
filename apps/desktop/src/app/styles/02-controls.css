@@ -12,7 +12,7 @@ button {
   background: var(--color-surface-raised);
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
   cursor: pointer;
   /* A translated label may be twice as long as the one the layout was drawn for: wrap it rather
      than let it push the row wider than its panel. Icon-only buttons are unaffected. */

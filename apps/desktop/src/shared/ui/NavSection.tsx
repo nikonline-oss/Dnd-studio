@@ -17,7 +17,9 @@ export function NavSection({ icon, title, count, actions, children }: NavSection
     <section className="nav-section list-panel" aria-labelledby={titleId}>
       <header className="nav-header">
         <Icon name={icon} className="nav-icon" />
-        <h2 id={titleId}>{title}</h2>
+        <h2 id={titleId} title={title}>
+          {title}
+        </h2>
         {count !== undefined && count > 0 && <span className="nav-count">{count}</span>}
         <span className="nav-actions">{actions}</span>
       </header>

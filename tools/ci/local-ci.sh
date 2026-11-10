@@ -26,6 +26,7 @@ if [ -f pnpm-lock.yaml ]; then
   pnpm format:check
   pnpm -r --if-present lint
   pnpm -r --if-present typecheck
+  node --test tools/workboard/review.test.mjs
   pnpm -r --if-present test
 fi
 echo "local CI: OK"

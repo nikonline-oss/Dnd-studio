@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { mockIPC } from '@tauri-apps/api/mocks';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AppShell } from './AppShell';
@@ -64,6 +64,19 @@ afterEach(() => {
 });
 
 describe('AppShell', () => {
+  it('starts a different navigator section at its top', async () => {
+    useSettings.setState({ sideView: 'boards' });
+    renderShell('gm');
+    const panel = screen.getByRole('heading', { name: 'Boards' }).closest('.side-panel');
+    expect(panel).not.toBeNull();
+    if (!(panel instanceof HTMLElement)) throw new Error('missing side panel');
+    panel.scrollTop = 300;
+    await userEvent.click(screen.getByRole('button', { name: 'Characters' }));
+    expect(useSettings.getState().sideView).toBe('characters');
+    await waitFor(() => {
+      expect(panel.scrollTop).toBe(0);
+    });
+  });
   it('restores old trigger navigation to Boards without exposing a trigger activity', () => {
     useSettings.setState({ sideView: 'triggers' });
     renderShell('gm');

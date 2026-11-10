@@ -143,10 +143,23 @@
 
 .trigger-run {
   display: flex;
-  flex: 1;
+  flex: 1 1 280px;
+  flex-wrap: wrap;
+  min-width: 0;
   align-items: center;
   justify-content: flex-end;
   gap: var(--space-2);
+}
+
+.trigger-run > .element-field {
+  flex: 1 1 200px;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.trigger-run button {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .trigger-maps-mode {

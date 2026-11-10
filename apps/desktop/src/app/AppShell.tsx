@@ -2,7 +2,7 @@ import { useActionAim } from '@/shared/state/actionAim';
 import { ItemsView } from '@/shared/items/ItemsView';
 import { ActionSaves } from '@/shared/game/ActionSaves';
 import { useMutation } from '@tanstack/react-query';
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Group, Panel, Separator, useDefaultLayout, usePanelRef } from 'react-resizable-panels';
 import { ActivityBar } from './ActivityBar';
@@ -154,6 +154,12 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
   const updateSettings = useSettings((s) => s.update);
   const sideView = views.includes(storedView) ? storedView : (views[0] ?? 'boards');
   const sidePanel = usePanelRef();
+  const sideElement = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    // Panel exposes its sizing wrapper; its inner .side-panel owns the scrollbar.
+    const content = sideElement.current?.querySelector('.side-panel');
+    if (content) content.scrollTop = 0;
+  }, [sideView]);
   const [sideCollapsed, setSideCollapsed] = useState(!isGm);
   const pendingApproval = useSnapshotSelect(
     (s) => s.characters.filter((c) => c.status === 'pending_approval').length,
@@ -294,6 +300,7 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
           <Panel
             id="left"
             panelRef={sidePanel}
+            elementRef={sideElement}
             defaultSize={isGm ? '20' : '0'}
             minSize="12"
             collapsible

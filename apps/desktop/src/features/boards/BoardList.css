@@ -13,17 +13,17 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  min-height: 40px;
+  min-height: 32px;
   padding: 3px 6px;
   border: 1px solid transparent;
-  border-radius: 7px;
+  border-radius: var(--radius);
 }
 .boards-navigator .board-nav-row:hover {
   background: color-mix(in srgb, currentColor 6%, transparent);
 }
 .boards-navigator .board-nav-row[aria-current='true'] {
-  background: color-mix(in srgb, var(--accent, #b99b65) 14%, transparent);
-  border-color: color-mix(in srgb, var(--accent, #b99b65) 40%, transparent);
+  background: var(--color-accent-soft);
+  border-color: transparent;
 }
 .boards-navigator .board-nav-content {
   display: flex;
@@ -70,7 +70,11 @@
 }
 .boards-navigator .board-nav-more {
   font-size: 20px;
-  opacity: 0.6;
+  opacity: 0;
+}
+.boards-navigator .board-nav-row:hover .board-nav-more,
+.boards-navigator .board-nav-row:focus-within .board-nav-more {
+  opacity: 1;
 }
 .boards-navigator button:hover,
 .boards-navigator button:focus-visible {

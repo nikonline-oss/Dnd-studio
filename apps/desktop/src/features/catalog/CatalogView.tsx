@@ -7,6 +7,7 @@ import { ipc, type CatalogEntryView } from '@/shared/ipc/client';
 import { useSettings } from '@/shared/settings/settings';
 import { ErrorText } from '@/shared/ui/ErrorText';
 import { NavSection } from '@/shared/ui/NavSection';
+import { IconButton } from '@/shared/ui/IconButton';
 import './catalog.css';
 
 /**
@@ -72,15 +73,14 @@ export function CatalogView() {
       title={t('catalog.title')}
       count={rows.length}
       actions={
-        <button
-          type="button"
+        <IconButton
+          icon="refresh"
+          label={t('context.refresh')}
           disabled={!configured || catalog.isFetching}
           onClick={() => {
             void catalog.refetch();
           }}
-        >
-          {t('context.refresh')}
-        </button>
+        />
       }
     >
       {!configured && (

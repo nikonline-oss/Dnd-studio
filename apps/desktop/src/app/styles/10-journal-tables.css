@@ -124,7 +124,7 @@ input.table-column-name {
 .journal-header h2,
 .journal-header input {
   font-family: var(--font-display);
-  font-size: 20px;
+  font-size: 16px;
 }
 
 .sheet-label {
