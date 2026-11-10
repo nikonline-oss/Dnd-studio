@@ -3,15 +3,19 @@
 mod assets;
 mod autosave;
 pub mod bundled;
+pub mod catalog;
 mod commands;
 pub mod compendia;
 mod error;
 mod import_target;
 mod journal_files;
+mod launch;
 mod local_server;
 pub mod logging;
 pub mod plugins;
 pub mod remote;
+pub mod sync;
+mod timers;
 mod updater;
 
 pub use commands::{AppInfo, AppState, GameEventsEmitted};
@@ -48,6 +52,9 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::app_info,
             commands::campaign_create::<tauri::Wry>,
             commands::campaign_open::<tauri::Wry>,
+            commands::campaign_open_safe::<tauri::Wry>,
+            commands::campaign_reopen_safe,
+            commands::campaign_safe_mode,
             commands::campaign_restore_backup,
             commands::campaign_export::<tauri::Wry>,
             commands::campaign_import::<tauri::Wry>,
@@ -79,6 +86,9 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             compendia::compendium_entries,
             commands::plugin_install_bundled::<tauri::Wry>,
             commands::plugin_install_file::<tauri::Wry>,
+            commands::plugin_install_bytes::<tauri::Wry>,
+            catalog::catalog_fetch,
+            catalog::catalog_install::<tauri::Wry>,
             commands::sheet_view,
             commands::logs_recent,
             commands::log_frontend,
@@ -146,6 +156,10 @@ pub fn run() -> Result<(), tauri::Error> {
             let state = AppState::new(logs);
             commands::init_dirs(app.handle(), &state)?;
             tauri::async_runtime::spawn(autosave::run(state.server.clone()));
+            tauri::async_runtime::spawn(timers::run(
+                state.server.clone(),
+                app.handle().clone(),
+            ));
             app.manage(state);
 
             app.manage(updater::PendingUpdate::default());
@@ -190,6 +204,9 @@ async fn shutdown(app: &tauri::AppHandle) {
         Ok(Ok(())) => tracing::info!("shut down cleanly"),
         Ok(Err(e)) => tracing::error!(error = %e, "failed to save on exit"),
         Err(_) => tracing::error!("saving on exit timed out"),
+    }
+    if let Some(dirs) = app.state::<commands::AppState>().dirs.get() {
+        crate::launch::mark_clean(&dirs.data);
     }
     if let Ok(mut guard) = app.state::<LogGuard>().0.lock() {
         guard.take();

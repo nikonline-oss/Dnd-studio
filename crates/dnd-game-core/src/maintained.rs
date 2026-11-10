@@ -68,7 +68,7 @@ fn kept(state: &GameState, owner: &CharacterDto, policy: &MaintainedRule) -> boo
         .rules()
         .map(|r| r.conditions.iter().map(|c| c.id.clone()).collect())
         .unwrap_or_default();
-    let conditions = crate::modifiers::conditions(state, owner);
+    let conditions = crate::modifiers::active_conditions(state, owner);
     holds(
         &policy.keep_condition,
         &Scope {
@@ -209,6 +209,7 @@ pub(crate) fn start(
             resource: None,
             dice: None,
             heal: false,
+            reveal: Vec::new(),
             duration,
             version: Version::INITIAL,
         };
@@ -275,7 +276,7 @@ pub(crate) fn on_damage(
             .rules()
             .map(|r| r.conditions.iter().map(|c| c.id.clone()).collect())
             .unwrap_or_default();
-        let conditions = crate::modifiers::conditions(&work, &owner);
+        let conditions = crate::modifiers::active_conditions(&work, &owner);
         let mut context = Scope {
             fields: &fields,
             conditions: &conditions,

@@ -20,6 +20,7 @@ fn create_map(id: MapId) -> IntentEnvelope {
         Intent::CreateMap {
             id,
             name: "Cave".into(),
+            description: String::new(),
             background_asset_id: None,
             width: 4000,
             height: 3000,
@@ -246,6 +247,7 @@ async fn intents_persist_across_reopen() {
             Intent::UpdateMap {
                 id: map_id,
                 name: Some("Stale".into()),
+                description: None,
                 grid: None,
                 visible_to_players: None,
             },
@@ -487,6 +489,7 @@ async fn repeated_intent_returns_original_outcome() {
         Intent::UpdateMap {
             id: map_id,
             name: Some("Too early".into()),
+            description: None,
             grid: None,
             visible_to_players: None,
         },
@@ -566,6 +569,7 @@ async fn reused_intent_id_with_other_payload_is_rejected() {
         Intent::UpdateMap {
             id: map_id,
             name: Some("First".into()),
+            description: None,
             grid: None,
             visible_to_players: None,
         },
@@ -968,4 +972,162 @@ async fn an_offline_plugin_is_kept_with_the_durable_install_intent() {
         1
     );
     reopened.close().await.unwrap();
+}
+
+/// ADR-0057: Safe Mode opens the same file without running its rules, changes nothing on disk and
+/// lets a normal open bring the plugins and triggers back.
+#[tokio::test]
+async fn safe_mode_opens_without_rules_and_leaves_the_file_untouched() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut server = LocalServer::create(dir.path(), "Recovery").await.unwrap();
+    let package = dnd_desktop_lib::bundled::package("srd5").unwrap();
+    dnd_desktop_lib::plugins::install(&mut server, package)
+        .await
+        .unwrap();
+    server
+        .submit(&envelope(
+            Intent::SetSystemPlugin {
+                id: Some("srd5".into()),
+            },
+            None,
+        ))
+        .await
+        .unwrap();
+    let map = MapId::new_v7();
+    server
+        .submit(&envelope(
+            Intent::CreateMap {
+                id: map,
+                name: "Hall".into(),
+                description: String::new(),
+                background_asset_id: None,
+                width: 1000,
+                height: 1000,
+                grid: Grid::default(),
+                visible_to_players: true,
+            },
+            None,
+        ))
+        .await
+        .unwrap();
+    let seq = server.snapshot().seq;
+    let folder = server.folder().to_owned();
+    server.close().await.unwrap();
+
+    let mut safe = LocalServer::open_safe(&folder).await.unwrap();
+    assert!(safe.safe_mode());
+    assert!(safe.state().plugins.is_empty(), "rules are not active");
+    assert_eq!(safe.state().system_plugin, None);
+    assert_eq!(safe.state().maps[&map].name, "Hall", "data is intact");
+    assert_eq!(safe.snapshot().seq, seq, "nothing was written on open");
+
+    // Editing in Safe Mode is an ordinary event and stays.
+    let note = CharacterId::new_v7();
+    let (outcome, _) = safe
+        .submit(&envelope(
+            Intent::CreateCharacter {
+                id: note,
+                character_kind: CharacterKind::Pc,
+                name: "Untitled".into(),
+                owner: None,
+                sheet_json: "{}".into(),
+            },
+            None,
+        ))
+        .await
+        .unwrap();
+    assert!(matches!(outcome, IntentOutcome::Accepted { .. }));
+    safe.close().await.unwrap();
+
+    let reopened = LocalServer::open(&folder).await.unwrap();
+    assert!(!reopened.safe_mode());
+    assert_eq!(
+        reopened.state().system_plugin.as_deref(),
+        Some("srd5"),
+        "a normal open restores the rules"
+    );
+    assert!(reopened.state().plugins.contains_key("srd5"));
+    assert!(reopened.state().characters.contains_key(&note));
+    assert_eq!(reopened.state().maps[&map].name, "Hall");
+    reopened.close().await.unwrap();
+}
+
+/// An interrupted replica replacement leaves the previous file behind (ADR-0053). Reopening must
+/// restore it, with the queue, the rules process and item instances intact — a crash in the middle
+/// of a sync must not cost the GM their campaign (roadmap R1.2).
+#[tokio::test]
+async fn an_interrupted_replacement_falls_back_to_the_previous_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut server = LocalServer::create(dir.path(), "Crash").await.unwrap();
+    let package = dnd_desktop_lib::bundled::package("srd5").unwrap();
+    dnd_desktop_lib::plugins::install(&mut server, package)
+        .await
+        .unwrap();
+    server
+        .submit(&envelope(
+            Intent::SetSystemPlugin {
+                id: Some("srd5".into()),
+            },
+            None,
+        ))
+        .await
+        .unwrap();
+    let item = ItemId::new_v7();
+    let (outcome, _) = server
+        .submit(&envelope(
+            Intent::CreateItem {
+                id: item,
+                item_kind: ItemKind::Item,
+                name: "Rope".into(),
+                type_id: Some("equipment".into()),
+                description: String::new(),
+                sheet_json: Some(r#"{"charges":3}"#.into()),
+                visible_to_players: true,
+            },
+            None,
+        ))
+        .await
+        .unwrap();
+    assert!(matches!(outcome, IntentOutcome::Accepted { .. }));
+    let pending = IntentEnvelope {
+        intent_id: IntentId::new_v7(),
+        expected_version: None,
+        ts_ms: 0,
+        intent: Intent::UpdateCampaignMeta {
+            name: Some("Crash after edit".into()),
+            description: None,
+            token_inspector: None,
+            item_states: None,
+            visibility: None,
+        },
+    };
+    server.db().enqueue_pending_op(&pending, 0).await.unwrap();
+    let seq = server.snapshot().seq;
+    let folder = server.folder().to_owned();
+    server.close().await.unwrap();
+
+    // The new file is half-written and takes the main name; the previous one stays as `.sync-old`.
+    let main = folder.join("campaign.sqlite");
+    let previous = folder.join("campaign.sqlite.sync-old");
+    std::fs::rename(&main, &previous).unwrap();
+    std::fs::write(&main, b"not a sqlite file").unwrap();
+
+    let recovered = LocalServer::open(&folder).await.unwrap();
+    // Opening projects the saved offline edit, so the sequence may advance by that one event;
+    // what matters is that it did not fall back to an empty campaign.
+    assert!(
+        recovered.snapshot().seq.0 >= seq.0,
+        "the previous file is back"
+    );
+    assert!(recovered.state().items.contains_key(&item));
+    let sheet: serde_json::Value =
+        serde_json::from_str(&recovered.state().items[&item].sheet_json).unwrap();
+    assert_eq!(
+        sheet["charges"], 3,
+        "item instances and their charges survive the recovery"
+    );
+    let queued = recovered.db().pending_ops().await.unwrap();
+    assert_eq!(queued.len(), 1, "the offline queue survives the recovery");
+    assert_eq!(queued[0].envelope.intent_id, pending.intent_id);
+    recovered.close().await.unwrap();
 }

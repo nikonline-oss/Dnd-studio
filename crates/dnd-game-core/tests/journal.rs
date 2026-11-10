@@ -322,6 +322,7 @@ fn delete_removes_the_entry_and_its_id_cannot_collide() {
             Intent::CreateMap {
                 id: MapId(entry_id(1).0),
                 name: "M".into(),
+                description: String::new(),
                 background_asset_id: None,
                 width: 10,
                 height: 10,

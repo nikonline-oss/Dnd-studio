@@ -27,6 +27,7 @@ fn sample_token() -> TokenDto {
         layer: TokenLayer::Tokens,
         disposition: TokenDisposition::Neutral,
         visible: true,
+        inspector: None,
         version: Version::INITIAL,
     }
 }
@@ -41,6 +42,7 @@ fn client_messages_json() {
             intent: Intent::UpdateMap {
                 id: MapId(Uuid::from_u128(10)),
                 name: Some("Crypt".into()),
+                description: None,
                 grid: None,
                 visible_to_players: Some(true),
             },

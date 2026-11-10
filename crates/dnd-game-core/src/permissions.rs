@@ -42,9 +42,14 @@ pub fn authorize(actor: &Actor, intent: &Intent, state: &GameState) -> Result<()
             {
                 Ok(())
             }
+            // A player edits their own item — the name, the notes, the state (activating a wand) —
+            // but not what it does: effects and grants are the GM's configuration (ADR-0062).
             Intent::UpdateItem {
                 id,
                 visible_to_players: None,
+                effects: None,
+                grants: None,
+                values: None,
                 ..
             } if state
                 .items

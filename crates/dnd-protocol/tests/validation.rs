@@ -67,6 +67,7 @@ fn created_entity_ids_must_be_v7() {
         intent: Intent::CreateMap {
             id: MapId(id),
             name: "M".into(),
+            description: String::new(),
             background_asset_id: None,
             width: 100,
             height: 100,

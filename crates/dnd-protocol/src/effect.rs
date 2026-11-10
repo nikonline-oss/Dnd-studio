@@ -50,6 +50,10 @@ pub struct TokenEffectDto {
     pub dice: Option<String>,
     /// `true`: the recurring change heals instead of damaging.
     pub heal: bool,
+    /// Inspector rows this effect opens while it lasts (ADR-0061). A temporary reveal beats the
+    /// campaign policy and the token override, so an expired effect takes its rows with it.
+    #[serde(default)]
+    pub reveal: Vec<crate::model::TokenField>,
     pub duration: EffectDuration,
     pub version: Version,
 }

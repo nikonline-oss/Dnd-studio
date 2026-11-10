@@ -6,13 +6,14 @@ mod common;
 
 use common::*;
 use dnd_game_core::{
-    ForPlayers, GameState, SplitMix64, apply, evolve_all, filter_for_players, join, players_state,
-    snapshot_for,
+    ForPlayers, GameState, SplitMix64, Viewer, apply, evolve_all, filter_for_players, join,
+    personal_snapshot, players_state, snapshot_for, snapshot_for_user,
 };
-use dnd_protocol::arbitrary::{self, pooled_map_id, pooled_token_id, v7};
+use dnd_protocol::arbitrary::{self, pooled_character_id, pooled_map_id, pooled_token_id, v7};
 use dnd_protocol::*;
 use proptest::prelude::*;
 use proptest::sample::select;
+use serde_json::json;
 
 fn entry(
     n: u128,
@@ -115,6 +116,287 @@ fn players_see_shared_things_only() {
     folders.sort();
     assert_eq!(folders, ["Folder 0", "Folder 1"]);
     assert_eq!(view.characters.len(), world().characters.len());
+    // Without a system schema nothing is public (ADR-0049).
+    assert!(view.characters.values().all(|c| c.sheet_json == "{}"));
+}
+
+/// `world()` with a test system: `name` is public, `notes` and `hp` are private.
+fn with_public_schema(mut state: GameState) -> GameState {
+    let rules = SystemRulesDto {
+        mechanics: PluginMechanics::default(),
+        features: Vec::new(),
+        sheet_schema: json!({
+            "type": "object",
+            "properties": {
+                "name": { "type": "string", "visible_to_players": true },
+                "notes": { "type": "string" },
+                "hp": { "type": "integer" }
+            }
+        }),
+        sheet_layout: json!({ "type": "section", "children": [] }),
+        creature_sheet_layout: None,
+        computed: std::collections::BTreeMap::new(),
+        initiative: "1d20".into(),
+        resources: Vec::new(),
+        health_thresholds: vec![75, 25, 0],
+        rolls: Vec::new(),
+        conditions: Vec::new(),
+        inventory: None,
+    };
+    let plugin = PluginDto {
+        feature_settings: std::collections::BTreeMap::new(),
+        id: "test-system".into(),
+        version: "0.1.0".into(),
+        kind: PluginKind::System,
+        name: Label::Text("Test".into()),
+        license: "MIT".into(),
+        attribution: None,
+        archive_sha256: "0".repeat(64),
+        system: Some(rules),
+        theme: None,
+        trigger_templates: Vec::new(),
+    };
+    state.system_plugin = Some(plugin.id.clone());
+    state.plugins.insert(plugin.id.clone(), plugin);
+    for character in state.characters.values_mut() {
+        let name = character.name.clone();
+        character.sheet_json = json!({
+            "name": name,
+            "notes": "secret",
+            "hp": 7
+        })
+        .to_string();
+    }
+    state
+}
+
+fn sheet(snapshot: &Snapshot, id: CharacterId) -> serde_json::Value {
+    let character = snapshot
+        .characters
+        .iter()
+        .find(|c| c.id == id)
+        .expect("the character is in the snapshot");
+    serde_json::from_str(&character.sheet_json).expect("the sheet is JSON")
+}
+
+fn character(
+    id: CharacterId,
+    kind: CharacterKind,
+    owner: Option<UserId>,
+    status: CharacterStatus,
+) -> CharacterDto {
+    CharacterDto {
+        id,
+        kind,
+        name: format!("Character {}", id.0),
+        owner,
+        status,
+        sheet_json: json!({ "name": "seen", "notes": "secret", "hp": 7 }).to_string(),
+        conditions: Vec::new(),
+        version: Version::INITIAL,
+    }
+}
+
+#[test]
+fn owners_and_gm_get_full_sheets_others_only_public_fields() {
+    let state = with_public_schema(world());
+    let hero = pooled_character_id(0);
+    let mine = snapshot_for_user(Role::Player, PLAYER, &state, Seq(1), []);
+    let other = snapshot_for_user(Role::Player, OTHER_PLAYER, &state, Seq(1), []);
+    let spectator = snapshot_for_user(Role::Spectator, SPECTATOR, &state, Seq(1), []);
+    let gm = snapshot_for_user(Role::Gm, GM, &state, Seq(1), []);
+
+    let full = json!({ "name": "Hero 0", "notes": "secret", "hp": 7 });
+    let public = json!({ "name": "Hero 0" });
+    assert_eq!(sheet(&mine, hero), full);
+    assert_eq!(sheet(&other, hero), public);
+    assert_eq!(sheet(&spectator, hero), public);
+    assert_eq!(sheet(&gm, hero), full);
+}
+
+#[test]
+fn hidden_npcs_and_unapproved_pcs_stay_hidden_until_linked() {
+    let mut state = with_public_schema(world());
+    let npc = pooled_character_id(5);
+    let draft = pooled_character_id(6);
+    state.characters.insert(
+        npc,
+        character(npc, CharacterKind::Npc, None, CharacterStatus::Active),
+    );
+    state.characters.insert(
+        draft,
+        character(
+            draft,
+            CharacterKind::Pc,
+            Some(PLAYER),
+            CharacterStatus::Draft,
+        ),
+    );
+
+    let other = snapshot_for_user(Role::Player, OTHER_PLAYER, &state, Seq(1), []);
+    assert!(!other.characters.iter().any(|c| c.id == npc));
+    assert!(!other.characters.iter().any(|c| c.id == draft));
+    assert!(
+        !other
+            .rules_view
+            .characters
+            .iter()
+            .any(|c| c.character == npc)
+    );
+
+    let owner = snapshot_for_user(Role::Player, PLAYER, &state, Seq(1), []);
+    assert_eq!(
+        sheet(&owner, draft),
+        json!({ "name": "seen", "notes": "secret", "hp": 7 })
+    );
+    assert!(!owner.characters.iter().any(|c| c.id == npc));
+
+    let gm = snapshot_for_user(Role::Gm, GM, &state, Seq(1), []);
+    assert!(gm.characters.iter().any(|c| c.id == npc));
+    assert!(gm.characters.iter().any(|c| c.id == draft));
+    assert!(gm.rules_view.characters.iter().any(|c| c.character == npc));
+
+    // A visible token reveals its NPC, and the reference stays usable.
+    let visible = token(6, 0, Some(5), TokenLayer::Tokens);
+    state.tokens.insert(visible.id, visible);
+    let other = snapshot_for_user(Role::Player, OTHER_PLAYER, &state, Seq(1), []);
+    assert_eq!(sheet(&other, npc), json!({ "name": "seen" }));
+    assert!(other.tokens.iter().any(|t| t.character_id == Some(npc)));
+    assert!(
+        other
+            .rules_view
+            .characters
+            .iter()
+            .any(|c| c.character == npc)
+    );
+}
+
+#[test]
+fn public_character_events_carry_only_public_fields() {
+    let state = with_public_schema(world());
+    let mut updated = state.characters[&pooled_character_id(0)].clone();
+    updated.sheet_json = json!({ "name": "Mira", "notes": "secret", "hp": 9 }).to_string();
+    updated.version = Version(2);
+    let ForPlayers::Batch(filtered) =
+        filter(&state, vec![Event::CharacterUpdated { character: updated }])
+    else {
+        panic!("expected a batch");
+    };
+    let Event::CharacterUpdated { character } = &filtered.events[0] else {
+        panic!("expected the character event");
+    };
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&character.sheet_json).expect("JSON"),
+        json!({ "name": "Mira" })
+    );
+}
+
+#[test]
+fn a_new_owner_gets_the_full_sheet_and_the_previous_one_only_public_fields() {
+    let mut state = with_public_schema(world());
+    let hero = pooled_character_id(0);
+    state
+        .characters
+        .get_mut(&hero)
+        .expect("the hero exists")
+        .owner = Some(OTHER_PLAYER);
+
+    let previous = snapshot_for_user(Role::Player, PLAYER, &state, Seq(1), []);
+    let next = snapshot_for_user(Role::Player, OTHER_PLAYER, &state, Seq(1), []);
+    assert_eq!(sheet(&previous, hero), json!({ "name": "Hero 0" }));
+    assert_eq!(
+        sheet(&next, hero),
+        json!({ "name": "Hero 0", "notes": "secret", "hp": 7 })
+    );
+}
+
+/// ADR-0054: a viewer is one value, and the two public entry points are shorthands for it.
+#[test]
+fn a_viewer_states_who_receives_the_view() {
+    let state = with_public_schema(world());
+    let hero = pooled_character_id(0);
+    // The role-level view knows no person: the owner gets the same public sheet as everyone.
+    let role_level = snapshot_for(Role::Player, &state, Seq(1), []);
+    assert_eq!(sheet(&role_level, hero), json!({ "name": "Hero 0" }));
+    assert!(role_level.plugin_runtime.saves.is_empty());
+    // The person-level view adds owner-specific data, and equals the named shorthand.
+    let mine = personal_snapshot(&state, Viewer::player(PLAYER), Seq(1), []);
+    assert_eq!(
+        mine,
+        snapshot_for_user(Role::Player, PLAYER, &state, Seq(1), [])
+    );
+    assert_eq!(
+        sheet(&mine, hero),
+        json!({ "name": "Hero 0", "notes": "secret", "hp": 7 })
+    );
+    // A GM role sees everything whichever constructor is used.
+    assert_eq!(
+        personal_snapshot(&state, Viewer::gm(), Seq(1), []),
+        snapshot_for_user(Role::Gm, GM, &state, Seq(1), [])
+    );
+    assert_eq!(
+        personal_snapshot(&state, Viewer::co_gm(), Seq(1), []),
+        personal_snapshot(&state, Viewer::gm(), Seq(1), [])
+    );
+}
+
+#[test]
+fn a_viewer_owns_only_its_own_character() {
+    let state = with_public_schema(world());
+    let hero = state.characters[&pooled_character_id(0)].clone();
+    assert!(Viewer::player(PLAYER).owns(&hero));
+    assert!(!Viewer::player(OTHER_PLAYER).owns(&hero));
+    assert!(!Viewer::spectator(PLAYER).owns(&hero));
+    assert!(Viewer::gm().owns(&hero));
+}
+
+#[test]
+fn action_availability_is_private_to_the_owner() {
+    let state = with_public_schema(world());
+    let mine = snapshot_for_user(Role::Player, PLAYER, &state, Seq(1), []);
+    let other = snapshot_for_user(Role::Player, OTHER_PLAYER, &state, Seq(1), []);
+    let spectator = snapshot_for_user(Role::Spectator, SPECTATOR, &state, Seq(1), []);
+    let gm = snapshot_for_user(Role::Gm, GM, &state, Seq(1), []);
+
+    // Token 0 belongs to PLAYER, token 1 to OTHER_PLAYER, both on the visible map.
+    let tokens = |s: &Snapshot| {
+        s.rules_view
+            .tokens
+            .iter()
+            .map(|t| t.token)
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(tokens(&mine), [pooled_token_id(0)]);
+    assert_eq!(tokens(&other), [pooled_token_id(1)]);
+    assert!(spectator.rules_view.tokens.is_empty());
+    assert!(gm.rules_view.tokens.len() >= 2);
+}
+
+#[test]
+fn handing_a_character_to_another_player_requires_a_snapshot() {
+    let state = with_public_schema(world());
+    let mut updated = state.characters[&pooled_character_id(0)].clone();
+    updated.owner = Some(OTHER_PLAYER);
+    updated.version = Version(2);
+    assert_eq!(
+        filter(&state, vec![Event::CharacterUpdated { character: updated }]),
+        ForPlayers::Resnapshot
+    );
+}
+
+#[test]
+fn deleting_a_hidden_character_is_delivered_without_its_data() {
+    let mut state = world();
+    let npc = pooled_character_id(5);
+    state.characters.insert(
+        npc,
+        character(npc, CharacterKind::Npc, None, CharacterStatus::Active),
+    );
+    let ForPlayers::Batch(filtered) = filter(&state, vec![Event::CharacterDeleted { id: npc }])
+    else {
+        panic!("expected a batch");
+    };
+    assert_eq!(filtered.events, vec![Event::CharacterDeleted { id: npc }]);
 }
 
 #[test]

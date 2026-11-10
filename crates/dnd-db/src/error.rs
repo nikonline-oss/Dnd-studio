@@ -13,6 +13,12 @@ pub enum DbError {
     /// The file was migrated by a newer version of the application.
     #[error("campaign was saved by a newer version of DndStudio; update the application")]
     SchemaTooNew,
+    /// The saved rules process comes from a newer build (ADR-0051).
+    #[error(
+        "campaign holds a rules process of version {version}, this build reads up to {supported}; \
+         update the application"
+    )]
+    RuntimeTooNew { version: u32, supported: u32 },
     #[error("file already exists: {0}")]
     AlreadyExists(PathBuf),
     #[error("file not found: {0}")]

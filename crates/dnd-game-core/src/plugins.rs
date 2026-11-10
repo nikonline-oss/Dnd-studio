@@ -351,6 +351,9 @@ impl Context for SheetContext<'_> {
 pub struct CharacterFields {
     pub(crate) sheet: Value,
     pub(crate) computed: BTreeMap<String, i64>,
+    /// Custom values of the character's active items, summed by key (ADR-0062). A plugin reads
+    /// them as `@item.<key>`.
+    pub(crate) items: BTreeMap<String, i64>,
 }
 
 impl CharacterFields {
@@ -369,7 +372,30 @@ impl CharacterFields {
                 .unwrap_or_default(),
             None => BTreeMap::new(),
         };
-        Self { sheet, computed }
+        Self {
+            sheet,
+            computed,
+            items: BTreeMap::new(),
+        }
+    }
+
+    /// The fields of one character: its sheet, its computed values and the custom values of the
+    /// items and skills that work right now (ADR-0062).
+    #[must_use]
+    pub fn for_character(state: &GameState, character: &dnd_protocol::CharacterDto) -> Self {
+        let mut fields = Self::new(state, Some(&character.sheet_json));
+        for item in crate::modifiers::active_items(state, character) {
+            for value in &item.values {
+                *fields.items.entry(value.key.clone()).or_default() += value.value;
+            }
+        }
+        fields
+    }
+
+    /// Custom values from active items, by key.
+    #[must_use]
+    pub fn items(&self) -> &BTreeMap<String, i64> {
+        &self.items
     }
 
     /// The computed fields (for the sheet view).
@@ -377,10 +403,20 @@ impl CharacterFields {
     pub fn computed(&self) -> &BTreeMap<String, i64> {
         &self.computed
     }
+
+    /// The sheet as it is after adjustments (ADR-0062), for showing effective values next to the
+    /// stored ones. Integer leaves only; the shape is the stored sheet's.
+    #[must_use]
+    pub fn adjusted_sheet(&self) -> &Value {
+        &self.sheet
+    }
 }
 
 impl FieldLookup for CharacterFields {
     fn lookup(&self, path: &str) -> Result<i64, DiceLookupError> {
+        if let Some(key) = path.strip_prefix("item.") {
+            return self.items.get(key).copied().ok_or(DiceLookupError::Unknown);
+        }
         if let Some(value) = self.computed.get(path) {
             return Ok(*value);
         }
@@ -417,7 +453,24 @@ pub struct SheetValues {
 pub fn sheet_values(state: &GameState, sheet_json: &str) -> Option<SheetValues> {
     let rules = state.rules()?;
     let data: Value = serde_json::from_str(sheet_json).unwrap_or(Value::Object(Map::new()));
-    let sheet = sheet_schema::apply_defaults(&rules.sheet_schema, &data);
+    sheet_values_with(state, &rules.sheet_schema, &data)
+}
+
+/// [`sheet_values`] for a recipient who sees only the public part of the sheet (ADR-0049): the
+/// schema is pruned and the data filtered first, so hidden fields get no defaults and no derived
+/// numbers are invented from them.
+#[must_use]
+pub fn public_sheet_values(state: &GameState, sheet_json: &str) -> Option<SheetValues> {
+    let rules = state.rules()?;
+    let schema = sheet_schema::public_schema(&rules.sheet_schema);
+    let raw: Value = serde_json::from_str(sheet_json).unwrap_or(Value::Object(Map::new()));
+    let data = sheet_schema::public_data(&schema, &raw);
+    sheet_values_with(state, &schema, &data)
+}
+
+fn sheet_values_with(state: &GameState, schema: &Value, data: &Value) -> Option<SheetValues> {
+    let rules = state.rules()?;
+    let sheet = sheet_schema::apply_defaults(schema, data);
     let context = SheetContext(&sheet);
     let computed = Computed::resolve(&rules.computed, &context).ok();
     let mut values = SheetValues::default();

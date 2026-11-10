@@ -541,8 +541,8 @@ pub(crate) fn execute_body(
     if !crate::spatial::permits(state, &action, source, (x, y)) {
         return Err(invalid());
     }
-    let visible = crate::players_state(state);
-    if actor.role == Role::Player && target_id.is_some_and(|id| !visible.tokens.contains_key(&id)) {
+    let visible = crate::PlayersSee::of(state);
+    if actor.role == Role::Player && target_id.is_some_and(|id| !visible.tokens.contains(&id)) {
         return Err(RejectReason::Forbidden);
     }
     let source_char = character(state, source)?.clone();
@@ -585,7 +585,7 @@ pub(crate) fn execute_body(
     if matches!(phase, ExecutionPhase::Prepare) {
         let released = crate::maintained::release_for_action(&work, source, &action)?;
         emit(&mut work, &mut events, released);
-        if !visible.tokens.contains_key(&source.id) {
+        if !visible.tokens.contains(&source.id) {
             for event in &mut events {
                 if let Event::ChatMessagePosted { message } = event {
                     message.visibility = ChatVisibility::Gm;
@@ -765,7 +765,7 @@ pub(crate) fn execute_body(
             continue;
         }
         let mut change = apply_damage(&work, &c, &action, amount, at_ms, rng)?;
-        if !visible.tokens.contains_key(&token.id) || !visible.tokens.contains_key(&source.id) {
+        if !visible.tokens.contains(&token.id) || !visible.tokens.contains(&source.id) {
             for event in &mut change {
                 if let Event::ChatMessagePosted { message } = event {
                     message.visibility = ChatVisibility::Gm;
@@ -796,6 +796,7 @@ pub(crate) fn execute_body(
             resource: None,
             dice: None,
             heal: false,
+            reveal: action.turn_reveal.clone(),
             duration: EffectDuration::TurnEnd {
                 combat,
                 turn,
@@ -825,7 +826,7 @@ pub(crate) fn execute_body(
     if work.plugin_runtime.visuals.len() > 20 {
         work.plugin_runtime.visuals.remove(0);
     }
-    if !visible.tokens.contains_key(&source.id) {
+    if !visible.tokens.contains(&source.id) {
         for event in &mut events {
             if let Event::ChatMessagePosted { message } = event {
                 message.visibility = ChatVisibility::Gm;

@@ -3,6 +3,7 @@
   "properties": {
     "concept": {
       "type": "string",
+      "visible_to_players": true,
       "maxLength": 200,
       "default": "",
       "title": {
@@ -12,6 +13,7 @@
     },
     "attributes": {
       "type": "object",
+      "visible_to_players": true,
       "title": {
         "ru": "Атрибуты",
         "en": "Attributes"
@@ -62,6 +64,7 @@
     },
     "edges": {
       "type": "array",
+      "visible_to_players": true,
       "title": {
         "ru": "Умения",
         "en": "Edges"
@@ -69,6 +72,7 @@
       "maxItems": 20,
       "items": {
         "type": "object",
+        "visible_to_players": true,
         "properties": {
           "name": {
             "type": "string",

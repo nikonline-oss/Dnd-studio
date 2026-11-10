@@ -21,6 +21,7 @@ fn map(n: u128, name: &str, version: i64) -> MapDto {
     MapDto {
         id: MapId(v7(0x100 + n)),
         name: name.into(),
+        description: String::new(),
         background_asset_id: None,
         width: 1200,
         height: 800,
@@ -49,6 +50,7 @@ fn token(n: u128, map_n: u128, version: i64) -> TokenDto {
         layer: TokenLayer::Gm,
         disposition: TokenDisposition::Enemy,
         visible: false,
+        inspector: None,
         version: Version(version),
     }
 }
@@ -82,6 +84,9 @@ async fn every_event_kind_is_projected() {
         game_clock: Default::default(),
         name: "Renamed".into(),
         description: "Desc".into(),
+        token_inspector: dnd_protocol::TokenInspectorPolicy::base(),
+        item_states: Vec::new(),
+        visibility: Default::default(),
         version: Version(2),
     };
     db.project(&[
@@ -375,6 +380,7 @@ async fn offline_intents_are_ordered_and_conflicts_can_be_rebased_or_discarded()
         intent: Intent::UpdateMap {
             id: MapId(v7(0xA11)),
             name: Some("Misty cave".into()),
+            description: None,
             grid: None,
             visible_to_players: None,
         },
@@ -386,6 +392,7 @@ async fn offline_intents_are_ordered_and_conflicts_can_be_rebased_or_discarded()
         intent: Intent::CreateMap {
             id: MapId(v7(0xA13)),
             name: "Hidden room".into(),
+            description: String::new(),
             background_asset_id: None,
             width: 800,
             height: 600,
@@ -522,7 +529,7 @@ fn query_inventory_matches_adr_0008() {
         .map(|s| s.matches("sqlx::query").count())
         .sum();
     assert_eq!(
-        count, 98,
+        count, 102,
         "runtime queries changed: add a real-SQLite test and update the table in docs/adr/0008-db-conventions.md"
     );
 }
@@ -2029,6 +2036,7 @@ async fn effects_are_projected_loaded_and_removed() {
         resource: Some("hp".into()),
         dice: Some("3".into()),
         heal: false,
+        reveal: Vec::new(),
         duration: EffectDuration::Turns { remaining: 3 },
         version: Version(1),
     };
@@ -2243,12 +2251,18 @@ async fn item_instances_survive_reload_updates_and_deletion() {
     let db = new_campaign(&dir).await;
     let mut item = ItemDto {
         id: ItemId(v7(0x2210)),
+        kind: ItemKind::Item,
         name: "Wand".into(),
-        type_id: "equipment".into(),
+        type_id: Some("equipment".into()),
         is_template: false,
         template: Some(ItemId(v7(0x2211))),
         owner: None,
         visible_to_players: false,
+        description: String::new(),
+        state: None,
+        effects: Vec::new(),
+        grants: Vec::new(),
+        values: Vec::new(),
         sheet_json: r#"{"charges":3,"state":"ready"}"#.into(),
         version: Version(1),
     };
@@ -2278,4 +2292,229 @@ async fn item_instances_survive_reload_updates_and_deletion() {
     .await
     .unwrap();
     assert!(db.load_state().await.unwrap().0.items.is_empty());
+}
+
+/// ADR-0061: the campaign policy lives in `campaign_meta` (absent at its base value) and a token
+/// override lives in `tokens.inspector`; both survive a reload and both clear back to the default.
+#[tokio::test]
+async fn token_inspector_policy_is_projected_and_loaded() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = new_campaign(&dir).await;
+    let policy = TokenInspectorPolicy {
+        reveal: vec![TokenField::Effects, TokenField::Name],
+        conceal: vec![TokenField::Name],
+    };
+    let campaign = CampaignMeta {
+        game_clock: Default::default(),
+        name: "Queries".into(),
+        description: String::new(),
+        token_inspector: policy.clone(),
+        item_states: Vec::new(),
+        visibility: Default::default(),
+        version: Version(2),
+    };
+    let mut tok = token(1, 0, 1);
+    tok.visible = true;
+    tok.inspector = Some(TokenInspectorPolicy {
+        reveal: vec![TokenField::Position],
+        conceal: vec![TokenField::Size],
+    });
+    let stored = map(0, "Crypt", 1);
+    db.project(&[record(
+        1,
+        Some(0xA),
+        vec![
+            Event::MapCreated {
+                map: stored.clone(),
+            },
+            Event::TokenCreated { token: tok.clone() },
+            Event::CampaignMetaUpdated {
+                campaign: campaign.clone(),
+            },
+        ],
+    )])
+    .await
+    .unwrap();
+
+    let (state, _) = db.load_state().await.unwrap();
+    assert_eq!(state.campaign.token_inspector, policy);
+    assert_eq!(
+        state.tokens[&tok.id].inspector,
+        Some(TokenInspectorPolicy {
+            reveal: vec![TokenField::Position],
+            conceal: vec![TokenField::Size],
+        })
+    );
+
+    // The base policy is stored as the absence of the key, and a token follows the campaign again.
+    let mut base = campaign.clone();
+    base.token_inspector = TokenInspectorPolicy::base();
+    base.version = Version(3);
+    let mut cleared = tok.clone();
+    cleared.inspector = None;
+    cleared.version = Version(2);
+    db.project(&[record(
+        4,
+        Some(0xB),
+        vec![
+            Event::CampaignMetaUpdated { campaign: base },
+            Event::TokenUpdated {
+                token: cleared.clone(),
+            },
+        ],
+    )])
+    .await
+    .unwrap();
+    let key: Option<String> = sqlx::query_scalar("SELECT value FROM campaign_meta WHERE key = ?")
+        .bind("campaign.token_inspector")
+        .fetch_optional(db.pool())
+        .await
+        .unwrap();
+    assert!(key.is_none(), "the base policy adds no key");
+    let (state, _) = db.load_state().await.unwrap();
+    assert!(state.campaign.token_inspector.is_base());
+    assert!(state.tokens[&tok.id].inspector.is_none());
+}
+
+/// ADR-0062: item states, effects and grants live in the item DTO; campaign item states live in
+/// `campaign_meta` (the key is absent while the built-in set is in use). Both survive a reload.
+#[tokio::test]
+async fn item_states_and_effects_are_projected_and_loaded() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = new_campaign(&dir).await;
+    let custom = vec![dnd_protocol::ItemStateDef {
+        id: "sealed".into(),
+        label: Label::Text("Sealed".into()),
+        active: true,
+    }];
+    let campaign = CampaignMeta {
+        game_clock: Default::default(),
+        name: "Queries".into(),
+        description: String::new(),
+        token_inspector: dnd_protocol::TokenInspectorPolicy::base(),
+        item_states: custom.clone(),
+        visibility: Default::default(),
+        version: Version(2),
+    };
+    let item = ItemDto {
+        id: ItemId(v7(0x2210)),
+        kind: ItemKind::Item,
+        name: "Ring".into(),
+        type_id: None,
+        is_template: false,
+        template: None,
+        owner: None,
+        visible_to_players: false,
+        description: "A chipped ring.".into(),
+        state: Some("sealed".into()),
+        effects: vec![ItemEffect {
+            path: "ac".into(),
+            add: 2,
+            minimum: Some(0),
+            maximum: Some(50),
+        }],
+        grants: vec!["poisoned".into()],
+        values: Vec::new(),
+        sheet_json: "{}".into(),
+        version: Version(1),
+    };
+    db.project(&[record(
+        1,
+        Some(0xC),
+        vec![
+            Event::CampaignMetaUpdated {
+                campaign: campaign.clone(),
+            },
+            Event::ItemCreated { item: item.clone() },
+        ],
+    )])
+    .await
+    .unwrap();
+
+    let (state, _) = db.load_state().await.unwrap();
+    assert_eq!(state.campaign.item_states, custom);
+    assert_eq!(state.items[&item.id], item);
+
+    // Back to the built-in states: the key goes away and old items keep their own fields.
+    let mut base = campaign;
+    base.item_states = Vec::new();
+    base.version = Version(3);
+    db.project(&[record(
+        4,
+        Some(0xD),
+        vec![Event::CampaignMetaUpdated { campaign: base }],
+    )])
+    .await
+    .unwrap();
+    let key: Option<String> = sqlx::query_scalar("SELECT value FROM campaign_meta WHERE key = ?")
+        .bind("campaign.item_states")
+        .fetch_optional(db.pool())
+        .await
+        .unwrap();
+    assert!(key.is_none(), "the built-in set adds no key");
+    let (state, _) = db.load_state().await.unwrap();
+    assert!(state.campaign.item_states.is_empty());
+    assert_eq!(state.campaign.item_states(), ItemStateDef::builtin());
+    assert_eq!(state.items[&item.id].state, Some("sealed".into()));
+}
+
+/// ADR-0063: the GM's visibility switches live in `campaign_meta` (the key is absent while they
+/// match the system defaults) and survive a reload.
+#[tokio::test]
+async fn visibility_policy_is_projected_and_loaded() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = new_campaign(&dir).await;
+    let policy = VisibilityPolicy {
+        sheet: vec![FieldVisibility {
+            path: "hp".into(),
+            visible: true,
+        }],
+        name: Some(false),
+        icon: Some(true),
+    };
+    let campaign = CampaignMeta {
+        game_clock: Default::default(),
+        name: "Queries".into(),
+        description: String::new(),
+        token_inspector: dnd_protocol::TokenInspectorPolicy::base(),
+        item_states: Vec::new(),
+        visibility: policy.clone(),
+        version: Version(2),
+    };
+    db.project(&[record(
+        1,
+        Some(0xE),
+        vec![Event::CampaignMetaUpdated { campaign }],
+    )])
+    .await
+    .unwrap();
+    let (state, _) = db.load_state().await.unwrap();
+    assert_eq!(state.campaign.visibility, policy);
+
+    // Back to the defaults: the key goes away.
+    let mut base = CampaignMeta {
+        game_clock: Default::default(),
+        name: "Queries".into(),
+        description: String::new(),
+        token_inspector: dnd_protocol::TokenInspectorPolicy::base(),
+        item_states: Vec::new(),
+        visibility: VisibilityPolicy::default(),
+        version: Version(3),
+    };
+    base.version = Version(4);
+    db.project(&[record(
+        4,
+        Some(0xF),
+        vec![Event::CampaignMetaUpdated { campaign: base }],
+    )])
+    .await
+    .unwrap();
+    let key: Option<String> = sqlx::query_scalar("SELECT value FROM campaign_meta WHERE key = ?")
+        .bind("campaign.visibility")
+        .fetch_optional(db.pool())
+        .await
+        .unwrap();
+    assert!(key.is_none(), "defaults add no key");
+    let (state, _) = db.load_state().await.unwrap();
+    assert_eq!(state.campaign.visibility, VisibilityPolicy::default());
 }

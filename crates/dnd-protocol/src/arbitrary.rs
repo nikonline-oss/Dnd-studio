@@ -14,13 +14,14 @@ use crate::effect::{EffectDuration, TokenEffectDto};
 use crate::event::{Event, EventBatch};
 use crate::ids::{
     AssetId, BoardEdgeId, BoardId, BoardNodeId, CharacterId, CombatId, CombatantId, EffectId,
-    FogOpId, IntentId, JournalFolderId, MapId, Role, Seq, TokenId, TriggerId, UserId, Version,
-    ZoneId,
+    FogOpId, IntentId, ItemId, JournalFolderId, MapId, Role, Seq, TokenId, TriggerId, UserId,
+    Version, ZoneId,
 };
 use crate::intent::{Intent, IntentEnvelope};
 use crate::model::{
     CampaignMeta, CharacterKind, CombatDto, CombatantDto, FogOp, FogOpKind, FogShape, Grid,
-    GridKind, JournalFolderDto, MapDto, TokenDisposition, TokenDto, TokenLayer, UserDto,
+    GridKind, JournalFolderDto, MapDto, TokenDisposition, TokenDto, TokenField,
+    TokenInspectorPolicy, TokenLayer, UserDto,
 };
 use crate::trigger::{
     EffectDurationDef, RevealTarget, SpawnPlacement, TriggerAction, TriggerDef, TriggerDto,
@@ -34,6 +35,8 @@ pub const MAP_POOL: u128 = 3;
 pub const TOKEN_POOL: u128 = 6;
 /// Number of distinct character ids produced by [`character_id`].
 pub const CHARACTER_POOL: u128 = 2;
+/// Number of distinct item ids produced by [`item_id`].
+pub const ITEM_POOL: u128 = 4;
 
 /// A deterministic, valid UUIDv7 for test fixtures (the timestamp field carries `n`).
 #[must_use]
@@ -269,6 +272,7 @@ pub fn trigger_def() -> impl Strategy<Value = TriggerDef> {
                 resource: None,
                 dice: None,
                 heal: false,
+                reveal: Vec::new(),
                 duration,
             },
         }),
@@ -510,46 +514,83 @@ pub fn token_effect_dto() -> impl Strategy<Value = TokenEffectDto> {
             resource: None,
             dice: None,
             heal: false,
+            reveal: Vec::new(),
             duration,
             version,
         })
 }
 
+pub fn item_id() -> impl Strategy<Value = ItemId> {
+    (0..ITEM_POOL).prop_map(|n| ItemId(v7(0x30_0000 + n)))
+}
+
+pub fn token_field() -> impl Strategy<Value = TokenField> {
+    select(TokenField::ALL.to_vec())
+}
+
+pub fn token_inspector_policy() -> impl Strategy<Value = TokenInspectorPolicy> {
+    (
+        proptest::collection::vec(token_field(), 0..=3),
+        proptest::collection::vec(token_field(), 0..=3),
+    )
+        .prop_map(|(reveal, conceal)| TokenInspectorPolicy { reveal, conceal })
+}
+
 pub fn intent() -> impl Strategy<Value = Intent> {
     prop_oneof![
-        (proptest::option::of(name()), proptest::option::of(name()))
-            .prop_map(|(name, description)| Intent::UpdateCampaignMeta { name, description }),
+        (
+            proptest::option::of(name()),
+            proptest::option::of(name()),
+            proptest::option::of(token_inspector_policy())
+        )
+            .prop_map(
+                |(name, description, token_inspector)| Intent::UpdateCampaignMeta {
+                    name,
+                    description,
+                    token_inspector,
+                    item_states: None,
+                    visibility: None,
+                }
+            ),
         (
             map_id(),
+            name(),
             name(),
             grid(),
             any::<bool>(),
             map_size(),
             map_size()
         )
-            .prop_map(|(id, name, grid, visible_to_players, width, height)| {
-                Intent::CreateMap {
-                    id,
-                    name,
-                    background_asset_id: None,
-                    width,
-                    height,
-                    grid,
-                    visible_to_players,
-                }
-            }),
+            .prop_map(
+                |(id, name, description, grid, visible_to_players, width, height)| {
+                    Intent::CreateMap {
+                        id,
+                        name,
+                        description,
+                        background_asset_id: None,
+                        width,
+                        height,
+                        grid,
+                        visible_to_players,
+                    }
+                },
+            ),
         (
             map_id(),
+            proptest::option::of(name()),
             proptest::option::of(name()),
             proptest::option::of(grid()),
             proptest::option::of(any::<bool>())
         )
-            .prop_map(|(id, name, grid, visible_to_players)| Intent::UpdateMap {
-                id,
-                name,
-                grid,
-                visible_to_players,
-            }),
+            .prop_map(|(id, name, description, grid, visible_to_players)| {
+                Intent::UpdateMap {
+                    id,
+                    name,
+                    description,
+                    grid,
+                    visible_to_players,
+                }
+            },),
         map_id().prop_map(|id| Intent::DeleteMap { id }),
         (map_id(), fog_op()).prop_map(|(map_id, op)| Intent::ApplyFog { map_id, op }),
         (map_id(), any::<bool>())
@@ -753,19 +794,39 @@ pub fn intent() -> impl Strategy<Value = Intent> {
             proptest::option::of(0.1f64..10.0),
             proptest::option::of(layer()),
             proptest::option::of(any::<bool>()),
-            proptest::option::of(disposition())
+            proptest::option::of(disposition()),
+            proptest::option::of(token_inspector_policy())
         )
-            .prop_map(|(id, name, rotation, scale, layer, visible, disposition)| {
-                Intent::UpdateToken {
-                    id,
-                    name,
-                    rotation,
-                    scale,
-                    layer,
-                    visible,
-                    disposition,
-                }
+            .prop_map(
+                |(id, name, rotation, scale, layer, visible, disposition, inspector)| {
+                    Intent::UpdateToken {
+                        id,
+                        name,
+                        rotation,
+                        scale,
+                        layer,
+                        visible,
+                        disposition,
+                        inspector,
+                    }
+                },
+            ),
+        (
+            item_id(),
+            name(),
+            proptest::option::of(name()),
+            proptest::option::of(name())
+        )
+            .prop_map(|(id, name, type_id, description)| Intent::CreateItem {
+                id,
+                item_kind: crate::ItemKind::Item,
+                name,
+                type_id,
+                description: description.unwrap_or_default(),
+                sheet_json: None,
+                visible_to_players: false,
             }),
+        (item_id(), item_id()).prop_map(|(id, new_id)| Intent::DuplicateItem { id, new_id }),
         (token_id(), position(), position()).prop_map(|(id, x, y)| Intent::MoveToken { id, x, y }),
         token_id().prop_map(|id| Intent::DeleteToken { id }),
         (
@@ -814,6 +875,7 @@ pub fn map_dto() -> impl Strategy<Value = MapDto> {
     (
         map_id(),
         name(),
+        name(),
         grid(),
         any::<bool>(),
         version(),
@@ -821,9 +883,10 @@ pub fn map_dto() -> impl Strategy<Value = MapDto> {
         map_size(),
     )
         .prop_map(
-            |(id, name, grid, visible_to_players, version, width, height)| MapDto {
+            |(id, name, description, grid, visible_to_players, version, width, height)| MapDto {
                 id,
                 name,
+                description,
                 background_asset_id: None,
                 width,
                 height,
@@ -871,6 +934,7 @@ pub fn token_dto() -> impl Strategy<Value = TokenDto> {
                     layer,
                     disposition,
                     visible,
+                    inspector: None,
                     version,
                 }
             },
@@ -885,6 +949,9 @@ pub fn event() -> impl Strategy<Value = Event> {
                     game_clock: Default::default(),
                     name,
                     description,
+                    token_inspector: TokenInspectorPolicy::base(),
+                    item_states: Vec::new(),
+                    visibility: Default::default(),
                     version,
                 },
             }

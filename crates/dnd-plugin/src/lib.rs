@@ -6,6 +6,7 @@
 //! game core with `dnd-expr`/`dnd-dice` when the plugin's rules are applied, not here.
 //! Signatures (catalog, ed25519) come in stage 5; until then every local package is unsigned.
 
+pub mod catalog;
 mod compat;
 mod dto;
 mod error;
@@ -14,6 +15,7 @@ mod model;
 mod pack;
 mod package;
 mod sheet;
+pub mod signature;
 
 pub use compat::{
     Deactivated, Resolution, check_app_compat, check_dependency_versions, check_install, resolve,

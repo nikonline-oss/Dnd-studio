@@ -19,6 +19,7 @@ expression: messages
         "kind": "update_map",
         "id": "00000000-0000-0000-0000-00000000000a",
         "name": "Crypt",
+        "description": null,
         "grid": null,
         "visible_to_players": true
       }

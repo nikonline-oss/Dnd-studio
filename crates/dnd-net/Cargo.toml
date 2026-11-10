@@ -10,6 +10,7 @@ publish.workspace = true
 
 [dependencies]
 dnd-protocol.workspace = true
+dnd-plugin.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
@@ -23,6 +24,9 @@ futures-util.workspace = true
 rustls.workspace = true
 
 [dev-dependencies]
+ring.workspace = true
+semver.workspace = true
+dnd-plugin.workspace = true
 dnd-session-server = { path = "../../apps/session-server" }
 dnd-db.workspace = true
 dnd-game-core.workspace = true

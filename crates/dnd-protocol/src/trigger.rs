@@ -185,6 +185,9 @@ pub enum TriggerAction {
         resource: Option<String>,
         dice: Option<String>,
         heal: bool,
+        /// Inspector rows the effect opens while it lasts (ADR-0061).
+        #[serde(default)]
+        reveal: Vec<crate::model::TokenField>,
         duration: EffectDurationDef,
     },
 }

@@ -535,6 +535,9 @@ pub struct RemoteSession {
     view: Arc<StdMutex<Option<View>>>,
     status: Arc<StdMutex<RemoteStatus>>,
     view_changed: Arc<tokio::sync::Notify>,
+    /// What the GM's copy is doing relative to the session (ADR-0055). Only transitions here; the
+    /// durable queue on disk is the truth it describes.
+    sync: Arc<StdMutex<crate::sync::SyncMachine>>,
 }
 
 impl RemoteSession {
@@ -562,6 +565,8 @@ impl RemoteSession {
         let status = Arc::new(StdMutex::new(RemoteStatus::Connecting));
         let view_changed = Arc::new(tokio::sync::Notify::new());
         let changed = Arc::clone(&view_changed);
+        let sync: Arc<StdMutex<crate::sync::SyncMachine>> = Arc::default();
+        let sync_w = Arc::clone(&sync);
         let (view_w, status_w, conn) = (view.clone(), status.clone(), Arc::downgrade(&connection));
         tokio::spawn(async move {
             while let Some(incoming) = rx.recv().await {
@@ -593,6 +598,17 @@ impl RemoteSession {
                         if let Ok(mut status) = status_w.lock() {
                             *status = s.clone();
                         }
+                        if let Ok(mut machine) = sync_w.lock() {
+                            match &s {
+                                RemoteStatus::Reconnecting { attempt, .. } => {
+                                    machine.lost(*attempt);
+                                }
+                                RemoteStatus::Closed { .. } => machine.closed(),
+                                // Connecting and Online are intermediate here: replay decides
+                                // between Replaying and Synced once the queue length is known.
+                                RemoteStatus::Connecting | RemoteStatus::Online => {}
+                            }
+                        }
                         changed.notify_waiters();
                         on_event(RemoteEvent::Status(s));
                     }
@@ -609,7 +625,23 @@ impl RemoteSession {
             view,
             status,
             view_changed,
+            sync,
         })
+    }
+
+    /// Applies one transition without holding the lock across an await.
+    fn set_sync(&self, transition: impl FnOnce(&mut crate::sync::SyncMachine)) {
+        if let Ok(mut machine) = self.sync.lock() {
+            transition(&mut machine);
+        }
+    }
+
+    /// The synchronization phase of the GM's copy (ADR-0055).
+    #[must_use]
+    pub fn sync_phase(&self) -> crate::sync::SyncPhase {
+        self.sync
+            .lock()
+            .map_or(crate::sync::SyncPhase::Offline, |machine| machine.phase())
     }
 
     /// The session as the UI's "campaign". `path` is unique per server and session (the UI keys
@@ -634,6 +666,31 @@ impl RemoteSession {
             hosted: self.entry.hosted,
             status: self.status(),
         }
+    }
+
+    /// Whether this client may treat the character's sheet as fully known (ADR-0054): GM roles
+    /// always, a player for their own character, a spectator for none.
+    #[must_use]
+    pub fn sheet_authority(
+        &self,
+        character: Option<dnd_protocol::CharacterId>,
+    ) -> crate::plugins::SheetAuthority {
+        use dnd_protocol::Role;
+        if matches!(self.role, Role::Gm | Role::CoGm) {
+            return crate::plugins::SheetAuthority::Full;
+        }
+        if self.role != Role::Player {
+            return crate::plugins::SheetAuthority::Partial;
+        }
+        self.with_state(|state| {
+            character
+                .and_then(|id| state.characters.get(&id))
+                .is_some_and(|c| c.owner == Some(self.user_id))
+        })
+        .filter(|own| *own)
+        .map_or(crate::plugins::SheetAuthority::Partial, |_| {
+            crate::plugins::SheetAuthority::Full
+        })
     }
 
     #[must_use]
@@ -690,8 +747,12 @@ impl RemoteSession {
             &format!("{}/{}", self.entry.server, self.entry.session_id),
         )
         .await?;
-        for operation in db.pending_ops().await? {
+        let pending = db.pending_ops().await?;
+        self.set_sync(|machine| machine.connected(pending.len()));
+        for operation in pending {
             if operation.status == "conflict" {
+                let waiting = db.pending_ops().await?.len();
+                self.set_sync(|machine| machine.conflict(waiting));
                 break;
             }
             let assets = db
@@ -730,10 +791,15 @@ impl RemoteSession {
                     db.mark_pending_conflict(operation.id, &reason).await?;
                     // Later operations can depend on this edit. Keep their original order
                     // until the GM resolves the rejected operation.
+                    let waiting = db.pending_ops().await?.len();
+                    self.set_sync(|machine| machine.conflict(waiting));
                     break;
                 }
             }
         }
+        // The queue may still hold a conflicted edit; the phase then stays Conflict.
+        let waiting = db.pending_ops().await?.len();
+        self.set_sync(|machine| machine.resolved(waiting));
         Ok(())
     }
 
@@ -988,6 +1054,7 @@ impl RemoteSession {
                 intent: dnd_protocol::Intent::CreateMap {
                     id: map_id,
                     name,
+                    description: String::new(),
                     background_asset_id: Some(asset_id),
                     width: i64::from(image.width),
                     height: i64::from(image.height),

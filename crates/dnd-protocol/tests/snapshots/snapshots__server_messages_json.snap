@@ -30,6 +30,7 @@ expression: messages
             "layer": "tokens",
             "disposition": "neutral",
             "visible": true,
+            "inspector": null,
             "version": 1
           }
         },

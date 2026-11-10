@@ -22,6 +22,7 @@ mod rules_view;
 mod saves;
 mod sheet_actions;
 pub use economy::view as turn_economy_view;
+pub use effects::{expire_due_effects, next_real_deadline};
 pub use rules_view::view as rules_view;
 mod evolve;
 mod fog;
@@ -31,7 +32,7 @@ mod library;
 mod maintained;
 mod mechanics;
 mod modifiers;
-pub use modifiers::{active_modifier_labels, effective_fields};
+pub use modifiers::{active_conditions, active_modifier_labels, effective_fields};
 mod permissions;
 mod playlists;
 mod plugins;
@@ -46,19 +47,23 @@ mod visibility;
 mod zone_union;
 mod zones;
 
-pub use apply::{MAX_DESCRIPTION_LEN, MAX_NAME_LEN, RuleError, apply, current_version};
+pub use apply::{
+    ExecutionTrace, MAX_DESCRIPTION_LEN, MAX_NAME_LEN, MAX_RESOLUTION_ROUNDS, RuleError,
+    StageTrace, apply, apply_traced, current_version,
+};
 pub use combat::{initiative_expression, turn_order, turn_order_cmp};
 pub use evolve::{evolve, evolve_all};
 pub use permissions::{Actor, authorize};
 pub use plugins::{
     CharacterFields, SheetContext, SheetValues, check_plugin, default_sheet, inventory_names,
-    sheet_values,
+    public_sheet_values, sheet_values,
 };
 pub use recent::{IntentWindow, Recall, RecentIntents};
 pub use rng::{GameRng, SplitMix64};
 pub use state::GameState;
 pub use users::join;
 pub use visibility::{
-    ForPlayers, PlayersSee, chat_visible_to_players, filter_for_players, journal_pictures,
-    may_change_visibility, players_state, sees_everything, snapshot_for, snapshot_for_user,
+    ForPlayers, PlayersSee, Viewer, chat_visible_to_players, filter_for_players, journal_pictures,
+    may_change_visibility, personal_snapshot, players_state, public_character, public_token,
+    sees_everything, snapshot_for, snapshot_for_user, token_fields,
 };

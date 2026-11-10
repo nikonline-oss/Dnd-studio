@@ -2,10 +2,12 @@
 //!
 //! See `README.md` for scope and dependency boundaries.
 
+mod catalog;
 mod connection;
 mod error;
 mod http;
 
+pub use catalog::{CatalogClient, cached_path};
 pub use connection::{ConnectOptions, Connection, Incoming, Status};
 pub use error::NetError;
 pub use http::{CreatedSession, HttpClient, Joined, SessionInfo, normalize_base, parse_invite};

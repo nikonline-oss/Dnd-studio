@@ -10,7 +10,8 @@ use std::time::{Duration, Instant};
 
 use dnd_protocol::{
     ClientMessage, Envelope, EventBatch, Intent, IntentEnvelope, IntentId, IntentOutcome,
-    JournalEntryDto, JournalEntryId, MessageId, RejectReason, ServerMessage, SessionId, Snapshot,
+    JournalEntryDto, JournalEntryId, MessageId, RejectReason, Seq, ServerMessage, SessionId,
+    Snapshot,
 };
 use futures_util::{SinkExt, StreamExt};
 use tokio::sync::{mpsc, oneshot, watch};
@@ -112,6 +113,7 @@ impl Connection {
             status: status_tx,
             rx,
             queue: VecDeque::new(),
+            last_seq: Seq(0),
         };
         tokio::spawn(worker.run());
         Ok(Self { tx, status })
@@ -208,6 +210,9 @@ struct Worker {
     rx: mpsc::UnboundedReceiver<Request>,
     /// Intents waiting for the connection.
     queue: VecDeque<Queued>,
+    /// Sequence number of the last snapshot or batch received (ADR-0053): a resync asks for what
+    /// was missed from here instead of a whole snapshot.
+    last_seq: Seq,
 }
 
 impl Worker {
@@ -363,6 +368,7 @@ impl Worker {
                     };
                     match envelope.body {
                         ServerMessage::Snapshot(snapshot) => {
+                            self.last_seq = snapshot.seq;
                             let _ = self.incoming.send(Incoming::Snapshot(snapshot));
                             // The first snapshot after (re)connecting: now the queue may go.
                             if !flushed {
@@ -376,6 +382,7 @@ impl Worker {
                             }
                         }
                         ServerMessage::Events(batch) => {
+                            self.last_seq = batch.last_seq();
                             let _ = self.incoming.send(Incoming::Events(batch));
                         }
                         ServerMessage::Accepted(a) => {
@@ -406,7 +413,7 @@ impl Worker {
                         break Ended::ByClient;
                     }
                     Some(Request::Resync) => {
-                        let last_seq = dnd_protocol::Seq(0);
+                        let last_seq = self.last_seq;
                         if self.send(&mut socket, ClientMessage::Resync { last_seq }).await.is_err() {
                             break Ended::Lost;
                         }
