@@ -1,5 +1,6 @@
 // Workboard UI: a kanban board over docs/workboard/tasks.json plus a read-only view of the
 // repository's docs and the working tree. No framework: the tool must stay dependency-free.
+import { reviewSummary } from './review.js';
 
 const params = new URLSearchParams(location.search);
 const TOKEN = params.get('token') ?? '';
@@ -233,6 +234,17 @@ function matches(task) {
 function renderBoard() {
   const board = el('board');
   board.innerHTML = '';
+  const reviewed = state.tasks.filter((task) => task.column === 'verify').map(reviewSummary);
+  el('review-overview').innerHTML = `<strong>Приёмка</strong>${[
+    ['pass', 'Можно принять'],
+    ['fail', 'Есть ошибки'],
+    ['pending', 'Нужна проверка'],
+  ]
+    .map(
+      ([kind, label]) =>
+        `<span class="review-verdict" data-state="${kind}">${label}: ${reviewed.filter((result) => result.state === kind).length}</span>`,
+    )
+    .join('')}<span class="muted">Обновляется автоматически</span>`;
   for (const id of COLUMN_ORDER) {
     const column = state.columns.find((c) => c.id === id);
     if (!column) continue;
@@ -262,6 +274,15 @@ function renderBoard() {
       const checks = card.querySelector('.checks');
       checks.textContent = summary.text;
       checks.dataset.state = summary.state;
+      if (task.column === 'verify') {
+        const verdict = reviewSummary(task);
+        const badge = document.createElement('span');
+        badge.className = 'review-verdict';
+        badge.dataset.state = verdict.state;
+        badge.textContent = verdict.label;
+        card.querySelector('.card-head').prepend(badge);
+        card.dataset.review = verdict.state;
+      }
       card.querySelector('.files').textContent = plural(
         task.files.length,
         'файл',
@@ -606,6 +627,7 @@ function switchView(view) {
     .querySelectorAll('.tab')
     .forEach((tab) => tab.classList.toggle('active', tab.dataset.view === view));
   el('board').classList.toggle('hidden', view !== 'board');
+  el('review-overview').classList.toggle('hidden', view !== 'board');
   el('files').classList.toggle('hidden', view !== 'files');
   el('changes').classList.toggle('hidden', view !== 'changes');
   if (view === 'files' && !el('tree').childElementCount) void loadTree();
@@ -642,6 +664,25 @@ async function start() {
   } catch {
     el('branch').textContent = '';
   }
+  // Refresh the board after CLI updates without replacing an open drawer's unsaved edits.
+  let refreshing = false;
+  setInterval(async () => {
+    if (document.hidden || refreshing || document.querySelector('.card:active')) return;
+    refreshing = true;
+    try {
+      const data = await api('/api/tasks');
+      if (JSON.stringify(data.tasks) !== JSON.stringify(state.tasks)) {
+        state.tasks = data.tasks;
+        state.columns = data.columns;
+        renderBoard();
+      }
+    } catch {
+      // Preserve the last successful view during a transient connection failure.
+      el('branch').textContent = 'Не удалось обновить · повтор через 5 с';
+    } finally {
+      refreshing = false;
+    }
+  }, 5000);
 }
 
 void start();

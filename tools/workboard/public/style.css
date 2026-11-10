@@ -148,6 +148,38 @@ textarea:focus {
 
 /* ---------- board ---------- */
 
+.review-overview {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.review-overview > .muted {
+  margin-left: auto;
+  font-size: 12px;
+}
+.review-verdict {
+  font-size: 11px;
+  font-weight: 600;
+}
+.review-verdict[data-state='pass'] {
+  color: var(--ok);
+}
+.review-verdict[data-state='fail'] {
+  color: var(--bad);
+}
+.review-verdict[data-state='pending'] {
+  color: var(--warn);
+}
+.card[data-column='verify'][data-review='fail'] {
+  border-left-color: var(--bad);
+}
+.card[data-column='verify'][data-review='pass'] {
+  border-left-color: var(--ok);
+}
+
 .board {
   flex: 1;
   display: grid;
