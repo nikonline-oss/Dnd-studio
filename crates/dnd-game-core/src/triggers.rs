@@ -818,9 +818,10 @@ fn perform(
             resource,
             dice,
             heal,
+            reveal,
             duration,
         } => apply_effect(
-            work, label, condition, resource, dice, *heal, *duration, firing, ts_ms, rng,
+            work, label, condition, resource, dice, *heal, reveal, *duration, firing, ts_ms, rng,
         ),
         TriggerAction::PlaySting { asset, volume } => work
             .assets
@@ -992,6 +993,7 @@ fn spawn_tokens(
                 layer: TokenLayer::Tokens,
                 disposition: dnd_protocol::TokenDisposition::Neutral,
                 visible: true,
+                inspector: None,
                 version: Version::INITIAL,
             },
         });
@@ -1080,6 +1082,7 @@ fn apply_effect(
     resource: &Option<String>,
     dice: &Option<String>,
     heal: bool,
+    reveal: &[dnd_protocol::TokenField],
     duration: dnd_protocol::EffectDurationDef,
     firing: &Firing,
     ts_ms: i64,
@@ -1117,6 +1120,7 @@ fn apply_effect(
             resource: resource.clone(),
             dice: dice.clone(),
             heal,
+            reveal: reveal.to_vec(),
             duration,
             version: Version::INITIAL,
         },
@@ -1608,7 +1612,7 @@ impl<'a> Scope<'a> {
     ) -> Self {
         Self {
             conditions: character
-                .map(|c| crate::modifiers::conditions(state, c))
+                .map(|c| crate::modifiers::active_conditions(state, c))
                 .unwrap_or_default(),
             known_conditions: state
                 .rules()
@@ -1811,10 +1815,14 @@ fn valid_action(state: &GameState, action: &mut TriggerAction) -> Result<(), Rej
             condition,
             resource,
             dice,
+            reveal,
             duration,
             ..
         } => {
             *label = label.trim().to_owned();
+            // A reveal list is a set of known rows, no duplicates (ADR-0061).
+            reveal.sort_unstable();
+            reveal.dedup();
             let span_ok = match duration {
                 dnd_protocol::EffectDurationDef::Rounds { rounds }
                 | dnd_protocol::EffectDurationDef::Turns { turns: rounds } => {

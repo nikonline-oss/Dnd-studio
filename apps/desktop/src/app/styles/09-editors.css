@@ -1,0 +1,37 @@
+/* Split from app/styles.css (workboard: «стили»). Order matters: index.css imports these in cascade order. */
+
+/* ---------- Editors (characters, journal) ---------- */
+
+.character-editor,
+.journal-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-height: 0;
+}
+
+.character-editor {
+  padding: 0 var(--space-3);
+}
+
+/* A sheet in a center tab: room for the layout's columns, but not stretched across a wide screen. */
+.character-editor-tab {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: var(--space-3);
+}
+
+.character-editor-tab .properties {
+  grid-template-columns: max-content minmax(0, 320px);
+}
+
+.character-open-tab {
+  align-self: flex-start;
+}
+
+.journal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}

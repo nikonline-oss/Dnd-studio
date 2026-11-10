@@ -27,6 +27,10 @@ pub enum NetError {
     /// The connection is over for good (session stopped, access revoked, client outdated).
     #[error("the session connection is closed: {0}")]
     Closed(String),
+    /// A catalog index or package failed validation or a signature check. The plugin error's
+    /// stable code is kept so the UI can explain what was wrong (ADR-0060).
+    #[error("plugin catalog {code}: {message}")]
+    Plugin { code: String, message: String },
 }
 
 impl NetError {
@@ -42,6 +46,16 @@ impl NetError {
             Self::ConnectionLost => "connection_lost",
             Self::Timeout => "timeout",
             Self::Closed(reason) => reason,
+            Self::Plugin { code, .. } => code,
+        }
+    }
+}
+
+impl From<dnd_plugin::PluginError> for NetError {
+    fn from(error: dnd_plugin::PluginError) -> Self {
+        Self::Plugin {
+            code: error.code().to_owned(),
+            message: error.to_string(),
         }
     }
 }

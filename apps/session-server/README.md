@@ -6,6 +6,9 @@ Self-hosted сервер сессий: axum + `dnd-game-core` + SQLite (CLAUDE.m
 
 ## Запуск
 
+Полная инструкция (TLS, бэкап, обновление): [docs/self-hosting.md](../../docs/self-hosting.md).
+Краткая версия — ниже.
+
 Docker (из корня репозитория):
 
 ```bash

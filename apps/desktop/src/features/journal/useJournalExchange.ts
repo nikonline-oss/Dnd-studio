@@ -4,6 +4,7 @@ import { planExport, planImport } from './exchange';
 import { useSnapshotSelect, useSubmitIntent } from '@/shared/game/useGame';
 import { commands, unwrap } from '@/shared/ipc/client';
 import { uuidv7 } from '@/shared/ipc/uuid';
+import { errorCode } from '@/shared/ipc/client';
 import { useToast } from '@/shared/ui/Toast';
 
 /**
@@ -18,7 +19,14 @@ export function useJournalExchange() {
   const metas = useSnapshotSelect((s) => s.journal) ?? [];
   const submit = useSubmitIntent();
 
+  // Import and export run from the File menu, where nobody renders an error line: a failed import
+  // used to be silent. Every failure is a toast, so a half-applied import is at least visible.
+  const failed = (error: unknown) => {
+    showToast(t(`errors.${errorCode(error)}`, { defaultValue: t('errors.unknown') }), 'error');
+  };
+
   const importMutation = useMutation({
+    onError: failed,
     mutationFn: async () => {
       const imported = await unwrap(commands.journalImportRead());
       if (!imported) return;
@@ -37,6 +45,7 @@ export function useJournalExchange() {
   });
 
   const exportMutation = useMutation({
+    onError: failed,
     mutationFn: async () => {
       // Texts are not in the snapshot: each entry is fetched (ADR-0018).
       const entries = await Promise.all(metas.map((m) => unwrap(commands.journalEntry(m.id))));

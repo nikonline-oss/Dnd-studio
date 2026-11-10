@@ -59,10 +59,11 @@ pub use message::{Acceptance, ClientMessage, Envelope, Rejection, ServerMessage}
 pub use model::{
     AssetDto, AssetTileDto, AssetUsage, CHAT_SNAPSHOT_LEN, CampaignMeta, CharacterDto,
     CharacterKind, CharacterStatus, ChatKind, ChatMessageDto, ChatVisibility, CombatDto,
-    CombatantDto, DiceRollDto, DiceTermDto, DieDto, FogDto, FogOp, FogOpKind, FogShape, GameClock,
-    Grid, GridKind, JournalEntryDto, JournalEntryMeta, JournalFolderDto, JournalVisibility,
-    MAX_CHAT_LEN, MAX_CONDITIONS, MAX_JOURNAL_BYTES, MAX_SHEET_BYTES, MapDto, RollStatisticsDto,
-    SystemMessage, TokenDisposition, TokenDto, TokenLayer, UserDto,
+    CombatantDto, DiceRollDto, DiceTermDto, DieDto, FieldVisibility, FogDto, FogOp, FogOpKind,
+    FogShape, GameClock, Grid, GridKind, JournalEntryDto, JournalEntryMeta, JournalFolderDto,
+    JournalVisibility, MAX_CHAT_LEN, MAX_CONDITIONS, MAX_JOURNAL_BYTES, MAX_SHEET_BYTES, MapDto,
+    RollStatisticsDto, SystemMessage, TokenDisposition, TokenDto, TokenField, TokenInspectorPolicy,
+    TokenInspectorView, TokenLayer, UserDto, VisibilityPolicy,
 };
 pub use model::{
     JournalEntryKind, JournalTable, MAX_CELL_LEN, MAX_COLUMN_WIDTH, MAX_TABLE_COLUMNS,
@@ -100,7 +101,7 @@ pub use zone::{
 
 /// Protocol version. Peers with a different version are refused with
 /// [`RejectReason::ProtocolMismatch`].
-pub const PROTOCOL_VERSION: u32 = 20;
+pub const PROTOCOL_VERSION: u32 = 21;
 
 /// Registers every protocol type that is exported to TypeScript.
 #[cfg(feature = "specta")]

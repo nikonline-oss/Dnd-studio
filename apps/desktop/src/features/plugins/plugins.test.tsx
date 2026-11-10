@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { mockIPC } from '@tauri-apps/api/mocks';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { PluginsView } from './PluginsView';
@@ -73,6 +73,7 @@ function setup(
       case 'plugin_bundled':
         return BUNDLED;
       case 'plugin_install_bundled':
+      case 'plugin_install_bytes':
         return installResult;
       case 'submit_intent':
         sent.push((args as { envelope: IntentEnvelope }).envelope);
@@ -81,12 +82,12 @@ function setup(
         throw new Error(`unexpected command ${cmd}`);
     }
   });
-  render(
+  const view = render(
     <QueryClientProvider client={new QueryClient()}>
       <PluginsView />
     </QueryClientProvider>,
   );
-  return { sent, calls };
+  return { sent, calls, container: view.container };
 }
 
 describe('PluginsView', () => {
@@ -174,5 +175,35 @@ describe('PluginsView', () => {
     await screen.findByText('SRD 5.2');
     expect(screen.queryByRole('button', { name: 'Install from file…' })).not.toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Bundled' })).not.toBeInTheDocument();
+  });
+});
+
+describe('plugin drop', () => {
+  it('installs a dropped .dndplugin through the same path as the file dialog', async () => {
+    const { calls, container } = setup();
+    // Wait for the campaign and the plugin list: until then the view is not allowed to manage.
+    await screen.findByText('SRD 5.2');
+    const file = new File([new Uint8Array([80, 75, 3, 4])], 'pack.dndplugin');
+    const target = container.firstElementChild as HTMLElement;
+    fireEvent.drop(target, {
+      dataTransfer: { types: ['Files'], files: [file], dropEffect: 'copy' },
+    });
+    await waitFor(() => {
+      expect(calls.some((call) => call.cmd === 'plugin_install_bytes')).toBe(true);
+    });
+    const call = calls.find((entry) => entry.cmd === 'plugin_install_bytes');
+    expect(call?.args).toMatchObject({ name: 'pack.dndplugin' });
+  });
+
+  it('ignores a dropped file that is not a plugin', async () => {
+    const { calls, container } = setup();
+    await screen.findByText('SRD 5.2');
+    const file = new File([new Uint8Array([1, 2, 3])], 'notes.txt');
+    const target = container.firstElementChild as HTMLElement;
+    fireEvent.drop(target, {
+      dataTransfer: { types: ['Files'], files: [file], dropEffect: 'copy' },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(calls.some((call) => call.cmd === 'plugin_install_bytes')).toBe(false);
   });
 });

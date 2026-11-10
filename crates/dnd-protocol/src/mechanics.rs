@@ -90,6 +90,9 @@ pub struct PluginAction {
     /// Self-applied condition lasting until the current turn ends. Requires one's own active turn.
     #[serde(default)]
     pub turn_condition: Option<String>,
+    /// Inspector rows the turn condition opens while it lasts (ADR-0061).
+    #[serde(default)]
+    pub turn_reveal: Vec<crate::model::TokenField>,
     pub id: String,
     pub label: Label,
     pub feature: Option<String>,

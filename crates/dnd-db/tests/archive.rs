@@ -47,6 +47,7 @@ async fn campaign(dir: &Path) -> CampaignDb {
                 map: MapDto {
                     id: MapId(v7(0x10)),
                     name: "Cave".into(),
+                    description: String::new(),
                     background_asset_id: None,
                     width: 100,
                     height: 100,

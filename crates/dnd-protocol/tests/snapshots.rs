@@ -27,6 +27,7 @@ fn sample_token() -> TokenDto {
         layer: TokenLayer::Tokens,
         disposition: TokenDisposition::Neutral,
         visible: true,
+        inspector: None,
         version: Version::INITIAL,
     }
 }
@@ -41,6 +42,7 @@ fn client_messages_json() {
             intent: Intent::UpdateMap {
                 id: MapId(Uuid::from_u128(10)),
                 name: Some("Crypt".into()),
+                description: None,
                 grid: None,
                 visible_to_players: Some(true),
             },
@@ -153,7 +155,7 @@ fn shared_playback_wire_contract_and_legacy_defaults() {
     }))
     .unwrap();
     assert_eq!((legacy.position_ms, legacy.paused), (0, false));
-    assert_eq!(PROTOCOL_VERSION, 20);
+    assert_eq!(PROTOCOL_VERSION, 21);
     let mut old = envelope(ClientMessage::Ping);
     old.v = 7;
     assert!(old.check_version().is_err());

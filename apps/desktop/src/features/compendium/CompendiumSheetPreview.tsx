@@ -34,6 +34,10 @@ export function CompendiumSheetPreview({
   for (const [name, value] of Object.entries(view.data?.computed ?? {})) {
     if (typeof value === 'number') computed[name] = value;
   }
+  const adjusted: Record<string, number> = {};
+  for (const [name, value] of Object.entries(view.data?.adjusted ?? {})) {
+    if (typeof value === 'number') adjusted[name] = value;
+  }
   return (
     <details className="compendium-character-preview" open>
       <summary>{t('compendia.sheetPreview', { defaultValue: 'Character sheet preview' })}</summary>
@@ -50,6 +54,7 @@ export function CompendiumSheetPreview({
           schema={rules.sheet_schema as JsonSchema}
           data={data}
           computed={computed}
+          adjusted={adjusted}
           resources={resources}
           rolls={rules.rolls}
           canEdit={false}

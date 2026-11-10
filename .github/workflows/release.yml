@@ -56,15 +56,16 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
 
-      # Releases ship the updater (ADR-0013): refuse to build unsigned or with placeholder config.
-      - name: Check updater configuration
+      # Releases ship the updater (ADR-0013): refuse to build unsigned, with placeholder config,
+      # without a changelog section or with mismatched versions (roadmap R4.1/R4.4).
+      - name: Check release readiness
         shell: bash
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: |
-          if grep -qE "REPLACE_WITH|OWNER/REPO" apps/desktop/src-tauri/tauri.release.conf.json \
-             || [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
-            echo "::error::Updater signing is not configured, see docs/releasing.md"
+          bash tools/ci/check-release.sh --strict
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "::error::TAURI_SIGNING_PRIVATE_KEY is not set, see docs/releasing.md"
             exit 1
           fi
 

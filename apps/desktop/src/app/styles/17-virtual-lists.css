@@ -1,0 +1,23 @@
+/* Split from app/styles.css (workboard: «стили»). Order matters: index.css imports these in cascade order. */
+
+/* ---------- Virtual lists ---------- */
+
+.virtual-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.virtual-list > .nav-list {
+  box-sizing: border-box;
+}
+
+.virtual-list .nav-row {
+  height: var(--row-h);
+  min-height: 0;
+}
+
+.virtual-list.bounded {
+  flex: none;
+  max-height: 320px;
+}

@@ -5,6 +5,7 @@ import { IntentRejected, type JournalEntryDto, type JournalTable } from '@/share
 import { useSelection } from '@/shared/state/selection';
 import { CodeEditor, type CodeEditorHandle } from '@/shared/ui/CodeEditor';
 import { ElementPicker } from '@/shared/ui/ElementPicker';
+import { LinkPickerDialog } from './LinkPickerDialog';
 import { ErrorText } from '@/shared/ui/ErrorText';
 import { InlineEdit } from '@/shared/ui/InlineEdit';
 import { linkMarkdown, Markdown } from '@/shared/ui/Markdown';
@@ -34,6 +35,8 @@ function Editor({ entry }: { entry: JournalEntryDto }) {
   const closeTab = useSelection((s) => s.closeTab);
   /** Local text (or table) not yet confirmed by the core; `null` = showing the stored one. */
   const [draft, setDraft] = useState<Content | null>(null);
+  const [pendingLink, setPendingLink] = useState<string | null>(null);
+  const [pickingCompendium, setPickingCompendium] = useState(false);
   const [conflict, setConflict] = useState(false);
   const [preview, setPreview] = useState(false);
   /** Which picker is open: a picture or a link to insert at the cursor. */
@@ -135,6 +138,16 @@ function Editor({ entry }: { entry: JournalEntryDto }) {
           )}
         </h2>
         <div className="inline">
+          {canEditText && !preview && (
+            <button
+              type="button"
+              onClick={() => {
+                setPickingCompendium(true);
+              }}
+            >
+              {t('journal.insertCompendiumLink')}
+            </button>
+          )}
           {canEditText && !preview && typeof content === 'string' && (
             <>
               <button
@@ -179,6 +192,18 @@ function Editor({ entry }: { entry: JournalEntryDto }) {
             // Typed in at the cursor: saved with the text after the usual debounce.
             const alt = name.replace(/\.[a-z0-9]+$/i, '').replace(/[[\]]/g, '');
             editor.current?.insert(`![${alt}](asset:${id})`);
+          }}
+        />
+      )}
+      {pickingCompendium && (
+        <LinkPickerDialog
+          initialTab="compendium"
+          onClose={() => {
+            setPickingCompendium(false);
+          }}
+          onPick={(markdown) => {
+            if (typeof content === 'string') editor.current?.insert(markdown);
+            else setPendingLink(markdown);
           }}
         />
       )}
@@ -267,7 +292,15 @@ function Editor({ entry }: { entry: JournalEntryDto }) {
       )}
 
       {typeof content !== 'string' ? (
-        <TableGrid table={content} editable={canEditText} onChange={setDraft} />
+        <TableGrid
+          table={content}
+          editable={canEditText}
+          onChange={setDraft}
+          insertIntoActive={pendingLink}
+          onInserted={() => {
+            setPendingLink(null);
+          }}
+        />
       ) : preview || !canEditText ? (
         <Markdown source={text} />
       ) : (

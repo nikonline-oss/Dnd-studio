@@ -94,6 +94,7 @@ fn marker(duration: EffectDurationDef) -> TriggerAction {
         resource: None,
         dice: None,
         heal: false,
+        reveal: Vec::new(),
         duration,
     }
 }
@@ -106,6 +107,7 @@ fn poison(turns: u8) -> TriggerAction {
         resource: Some("hp".into()),
         dice: Some("3".into()),
         heal: false,
+        reveal: Vec::new(),
         duration: EffectDurationDef::Turns { turns },
     }
 }
@@ -273,6 +275,7 @@ fn effect_definitions_are_checked() {
             resource: resource.map(str::to_owned),
             dice: dice.map(str::to_owned),
             heal: false,
+            reveal: Vec::new(),
             duration,
         }
     };
@@ -726,6 +729,9 @@ fn wall_timestamp_and_metadata_edit_do_not_consume_fictional_duration() {
         Intent::UpdateCampaignMeta {
             name: Some("Renamed".into()),
             description: None,
+            token_inspector: None,
+            item_states: None,
+            visibility: None,
         },
         Some(s.campaign.version),
     );
@@ -736,4 +742,77 @@ fn wall_timestamp_and_metadata_edit_do_not_consume_fictional_duration() {
     assert_eq!(s.effects.len(), 1);
     assert_eq!(s.campaign.name, "Renamed");
     assert_eq!(players_state(&s).campaign.game_clock.seconds, 10);
+}
+
+// --- A8: scheduled real-time expiry (ADR-0056) ---
+
+/// A state with one real-time effect due at `until_ts`.
+fn state_with_deadline(until_ts: i64) -> GameState {
+    let mut state = table_state();
+    let id = EffectId::new_v7();
+    state.effects.insert(
+        id,
+        TokenEffectDto {
+            id,
+            token: pooled_token_id(0),
+            label: "Bless".into(),
+            condition: None,
+            resource: None,
+            dice: None,
+            heal: false,
+            reveal: Vec::new(),
+            duration: EffectDuration::RealTime { until_ts },
+            version: Version::INITIAL,
+        },
+    );
+    state
+}
+
+#[test]
+fn the_next_deadline_is_the_earliest_real_moment() {
+    assert_eq!(dnd_game_core::next_real_deadline(&table_state()), None);
+    let mut state = state_with_deadline(5_000);
+    assert_eq!(dnd_game_core::next_real_deadline(&state), Some(5_000));
+    let second = EffectId::new_v7();
+    state.effects.insert(
+        second,
+        TokenEffectDto {
+            id: second,
+            token: pooled_token_id(1),
+            label: "Shield".into(),
+            condition: None,
+            resource: None,
+            dice: None,
+            heal: false,
+            reveal: Vec::new(),
+            duration: EffectDuration::RealTime { until_ts: 3_000 },
+            version: Version::INITIAL,
+        },
+    );
+    assert_eq!(dnd_game_core::next_real_deadline(&state), Some(3_000));
+}
+
+#[test]
+fn the_deadline_boundary_is_exact() {
+    let state = state_with_deadline(5_000);
+    assert!(dnd_game_core::expire_due_effects(&state, 4_999).is_empty());
+    let due = dnd_game_core::expire_due_effects(&state, 5_000);
+    assert_eq!(due.len(), 1);
+    assert!(matches!(
+        due[0],
+        Event::TokenEffectRemoved { expired: true, .. }
+    ));
+}
+
+#[test]
+fn a_repeated_signal_removes_nothing_and_a_backwards_clock_keeps_the_effect() {
+    let mut state = state_with_deadline(5_000);
+    let due = dnd_game_core::expire_due_effects(&state, 5_000);
+    evolve_all(&mut state, &due);
+    assert!(state.effects.is_empty());
+    // The timer fires again (a second adapter, a retry): nothing left to remove.
+    assert!(dnd_game_core::expire_due_effects(&state, 6_000).is_empty());
+    // A clock that moved backwards does not expire a future effect.
+    let state = state_with_deadline(9_000);
+    assert!(dnd_game_core::expire_due_effects(&state, 1_000).is_empty());
 }

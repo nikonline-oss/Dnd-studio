@@ -30,6 +30,10 @@ pub struct Snapshot {
     pub campaign: CampaignMeta,
     pub maps: Vec<MapDto>,
     pub tokens: Vec<TokenDto>,
+    /// Which inspector rows each visible token shows this recipient (ADR-0061). Built per
+    /// recipient from the campaign policy, the token override and active effects.
+    #[serde(default)]
+    pub token_inspector: Vec<crate::model::TokenInspectorView>,
     pub characters: Vec<CharacterDto>,
     pub users: Vec<UserDto>,
     /// Journal index; texts are fetched per entry.

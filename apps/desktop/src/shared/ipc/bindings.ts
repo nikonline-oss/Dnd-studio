@@ -32,6 +32,24 @@ export const commands = {
 	role: Role,
 } | null, IpcError>(__TAURI_INVOKE("campaign_open")),
 	/**
+	 *  Opens a campaign without activating its plugins, triggers or saved rules process (ADR-0057).
+	 *  Nothing is deleted: the file is untouched and a normal open restores everything.
+	 */
+	campaignOpenSafe: () => typedError<{
+	name: string,
+	/**  The campaign folder. */
+	path: string,
+	user_id: UserId,
+	role: Role,
+} | null, IpcError>(__TAURI_INVOKE("campaign_open_safe")),
+	/**
+	 *  Reopens the current campaign in Safe Mode. The open campaign is closed and opened again from
+	 *  the same folder; any unsaved edit is already on disk (write-through), so nothing is lost.
+	 */
+	campaignReopenSafe: () => typedError<CampaignInfo, IpcError>(__TAURI_INVOKE("campaign_reopen_safe")),
+	/**  Whether the open campaign runs without its rules (ADR-0057). */
+	campaignSafeMode: () => typedError<boolean, IpcError>(__TAURI_INVOKE("campaign_safe_mode")),
+	/**
 	 *  Replaces the corrupted campaign file (from the last failed open) with its newest backup and
 	 *  opens it. The damaged file is kept as `campaign.sqlite.corrupt`.
 	 */
@@ -67,7 +85,7 @@ export const commands = {
 } | null, IpcError>(__TAURI_INVOKE("campaign_current")),
 	getSnapshot: () => typedError<Snapshot, IpcError>(__TAURI_INVOKE("get_snapshot")),
 	/**
-	 *  Text of one journal entry. Visibility filtering per recipient arrives with the server (stage 4);
+	 *  Text of one journal entry, filtered for the recipient by the authority;
 	 *  locally the GM sees everything.
 	 */
 	journalEntry: (id: JournalEntryId) => typedError<JournalEntryDto, IpcError>(__TAURI_INVOKE("journal_entry", { id })),
@@ -152,6 +170,18 @@ export const commands = {
 /**  Sequence number of the last event produced. */
 seq: Seq } | { status: "rejected"; reason: RejectReason } | null, IpcError>(__TAURI_INVOKE("plugin_install_file")),
 	/**
+	 *  Installs a `.dndplugin` the window received as a dropped file (ADR-0058). The same path as the
+	 *  file dialog: validation, hash and dependency checks happen in one place.
+	 */
+	pluginInstallBytes: (name: string, bytes: number[]) => typedError<IntentOutcome, IpcError>(__TAURI_INVOKE("plugin_install_bytes", { name, bytes })),
+	/**
+	 *  Downloads and verifies the catalog index. `base_url` and `public_key` come from the app's
+	 *  settings; an unset pair is reported as such rather than silently ignored.
+	 */
+	catalogFetch: (baseUrl: string, publicKey: string) => typedError<CatalogView, IpcError>(__TAURI_INVOKE("catalog_fetch", { baseUrl, publicKey })),
+	/**  Installs or updates one catalog entry into the open campaign (local or hosted). */
+	catalogInstall: (baseUrl: string, publicKey: string, id: string, version: string) => typedError<IntentOutcome, IpcError>(__TAURI_INVOKE("catalog_install", { baseUrl, publicKey, id, version })),
+	/**
 	 *  What a sheet shows besides its data (computed fields, resources) under the campaign's system;
 	 *  `None` without one. Evaluated by the core's rules, locally or on the session's state.
 	 */
@@ -160,6 +190,11 @@ seq: Seq } | { status: "rejected"; reason: RejectReason } | null, IpcError>(__TA
 	modifiers?: Label[],
 	computed: { [key in string]: number | null },
 	resources: ResourceValue[],
+	/**
+	 *  Integer fields after adjustments from conditions and items (ADR-0062), by dotted path.
+	 *  A field missing here keeps its stored value.
+	 */
+	adjusted?: { [key in string]: number | null },
 } | null, IpcError>(__TAURI_INVOKE("sheet_view", { sheetJson, characterId })),
 	/**  Recent log records for the log panel (live ones arrive as [`LogRecord`] events). */
 	logsRecent: () => __TAURI_INVOKE<LogRecord[]>("logs_recent"),
@@ -246,6 +281,8 @@ export type ActionVisual = {
 /**  Static application information for the status bar. */
 export type AppInfo = {
 	version: string,
+	/**  The app failed to shut down cleanly several times in a row (ADR-0057). */
+	safe_mode_suggested: boolean,
 };
 
 /**
@@ -434,7 +471,38 @@ export type CampaignMeta = {
 	game_clock?: GameClock,
 	name: string,
 	description: string,
+	/**  Which token fields players see in the inspector by default (ADR-0061). */
+	token_inspector?: TokenInspectorPolicy,
+	/**  States an item may be in (ADR-0062). Empty means the built-in set. */
+	item_states?: ItemStateDef[],
+	/**  What players may read of other people's characters and tokens (ADR-0063). */
+	visibility?: VisibilityPolicy,
 	version: Version,
+};
+
+/**  One row of the catalog as the UI sees it. */
+export type CatalogEntryView = {
+	id: string,
+	version: string,
+	kind: string,
+	license: string,
+	app_compat: string,
+	sha256: string,
+	/**  New installations and updates are refused; an installed copy keeps running. */
+	revoked: boolean,
+	/**  The version installed in the open campaign, if any. */
+	installed_version: string | null,
+	/**  This build satisfies `app_compat`. */
+	compatible: boolean,
+	/**  A newer compatible version than the installed one, or the first install. */
+	can_install: boolean,
+	dependencies: string[],
+};
+
+export type CatalogView = {
+	key_id: string,
+	generated_at: string,
+	plugins: CatalogEntryView[],
 };
 
 /**
@@ -496,7 +564,7 @@ export type ChatMessageId = string;
 
 /**  Who may see a chat message. */
 export type ChatVisibility = "all" | 
-/**  Hidden GM rolls: GM and Co-GM only (filtering per recipient — stage 4). */
+/**  Hidden GM rolls: GM and Co-GM only; filtered for each recipient by the server. */
 "gm";
 
 /**  A combat on a map (ADR-0020): the turn order of its combatants. At most one per map. */
@@ -748,6 +816,13 @@ export type EventBatch = {
 	events: Event[],
 };
 
+/**  One sheet field's visibility, overriding the system schema's `visible_to_players`. */
+export type FieldVisibility = {
+	/**  Dotted sheet path, e.g. `hp.current`; a deeper path wins over a shallower one. */
+	path: string,
+	visible: boolean,
+};
+
 /**
  *  Fog of war of one map: covered or clear at first, then the operations in order. A map
  *  without fog has none (same as `covered: false` with no operations).
@@ -834,11 +909,37 @@ export type Intent =
 /**  GM / Co-GM: present one image to the table, last-write-wins. */
 { kind: "show_image"; asset_id: AssetId } | 
 /**  GM / Co-GM: close this presentation for everyone, checked against the active show. */
-{ kind: "hide_image"; id: IntentId } | { kind: "resolve_action_save"; group: IntentId; target: TokenId } | { kind: "cancel_action_saves"; group: IntentId } | { kind: "advance_calendar_time"; amount: number; unit: CalendarUnit } | { kind: "create_item"; id: ItemId; name: string; type_id: string; sheet_json: string | null; visible_to_players: boolean } | { kind: "instantiate_item"; id: ItemId; template: ItemId; owner: CharacterId | null } | { kind: "update_item"; id: ItemId; name: string | null; sheet_json: string | null; visible_to_players: boolean | null } | { kind: "transfer_item"; id: ItemId; owner: CharacterId | null } | { kind: "delete_item"; id: ItemId } | 
+{ kind: "hide_image"; id: IntentId } | { kind: "resolve_action_save"; group: IntentId; target: TokenId } | { kind: "cancel_action_saves"; group: IntentId } | { kind: "advance_calendar_time"; amount: number; unit: CalendarUnit } | { kind: "create_item"; id: ItemId; 
+/**
+ *  An object or a skill; missing in old intents: an item. Named `item_kind` because the
+ *  intent itself is tagged by `kind`.
+ */
+item_kind?: ItemKind; name: string; 
+/**  Plugin item type; `None` creates a free-form item (ADR-0062). */
+type_id?: string | null; description?: string; sheet_json: string | null; visible_to_players: boolean } | { kind: "instantiate_item"; id: ItemId; template: ItemId; owner: CharacterId | null } | { kind: "update_item"; id: ItemId; name: string | null; description?: string | null; sheet_json: string | null; visible_to_players: boolean | null; 
+/**  Campaign state id; `Some("")` clears it back to the campaign default (ADR-0062). */
+state?: string | null; 
+/**  Replaces the whole list; `Some(vec![])` removes every adjustment. */
+effects?: ItemEffect[] | null; grants?: string[] | null; 
+/**  Replaces the whole list; `Some(vec![])` removes every custom value. */
+values?: ItemValue[] | null } | 
+/**  Copies an item under a new id: the GM's "duplicate" (ADR-0062). */
+{ kind: "duplicate_item"; id: ItemId; new_id: ItemId } | { kind: "transfer_item"; id: ItemId; owner: CharacterId | null } | { kind: "delete_item"; id: ItemId } | 
 /**  GM/Co-GM: advance fictional time by 1..=604800 seconds, checked clock version. */
-{ kind: "advance_game_time"; seconds: number } | { kind: "update_campaign_meta"; name: string | null; description: string | null } | { kind: "create_map"; id: MapId; name: string; background_asset_id: AssetId | null; 
+{ kind: "advance_game_time"; seconds: number } | { kind: "update_campaign_meta"; name: string | null; description: string | null; 
+/**  Replaces the campaign's token inspector policy (ADR-0061). */
+token_inspector?: TokenInspectorPolicy | null; 
+/**
+ *  Replaces the campaign's item states; an empty list restores the built-in ones
+ *  (ADR-0062).
+ */
+item_states?: ItemStateDef[] | null; 
+/**  Replaces what players may read of characters and tokens (ADR-0063). */
+visibility?: VisibilityPolicy | null } | { kind: "create_map"; id: MapId; name: string; 
+/**  Free text for the inspector; may be empty. */
+description?: string; background_asset_id: AssetId | null; 
 /**  Logical size (ADR-0016), `1..=MAX_MAP_SIZE`; fixed for the life of the map. */
-width: number; height: number; grid: Grid; visible_to_players: boolean } | { kind: "update_map"; id: MapId; name: string | null; grid: Grid | null; visible_to_players: boolean | null } | { kind: "delete_map"; id: MapId } | 
+width: number; height: number; grid: Grid; visible_to_players: boolean } | { kind: "update_map"; id: MapId; name: string | null; description: string | null; grid: Grid | null; visible_to_players: boolean | null } | { kind: "delete_map"; id: MapId } | 
 /**
  *  GM / Co-GM. Appends a reveal/hide operation to the map's fog (ADR-0019). The shape must
  *  lie on the map; `op.id` is a new UUIDv7. Does not change the map version.
@@ -867,7 +968,12 @@ width: number; height: number; grid: Grid; visible_to_players: boolean } | { kin
 /**  GM / Co-GM. Removes the combat with its combatants. */
 { kind: "end_combat"; id: CombatId } | { kind: "create_token"; id: TokenId; map_id: MapId; character_id: CharacterId | null; asset_id: AssetId | null; name: string; x: number; y: number; rotation: number; scale: number; layer: TokenLayer; visible: boolean; 
 /**  Whose side the token is on; absent in stored offline ops: neutral. */
-disposition?: TokenDisposition } | { kind: "update_token"; id: TokenId; name: string | null; rotation: number | null; scale: number | null; layer: TokenLayer | null; visible: boolean | null; disposition: TokenDisposition | null } | 
+disposition?: TokenDisposition } | { kind: "update_token"; id: TokenId; name: string | null; rotation: number | null; scale: number | null; layer: TokenLayer | null; visible: boolean | null; disposition: TokenDisposition | null; 
+/**
+ *  Replaces the token's inspector override (ADR-0061). An empty policy — no reveal and no
+ *  conceal — clears the override, so the token follows the campaign again.
+ */
+inspector?: TokenInspectorPolicy | null } | 
 /**  Last-write-wins: no version check, does not bump the token version (ADR-0003). */
 { kind: "move_token"; id: TokenId; x: number; y: number } | { kind: "delete_token"; id: TokenId } | 
 /**
@@ -1083,23 +1189,79 @@ export type IpcErrorKind =
 
 export type ItemDto = {
 	id: ItemId,
+	/**  An object or a skill (ADR-0062); missing in old data: an item. */
+	kind?: ItemKind,
 	name: string,
-	type_id: string,
+	/**  Plugin item type; `None` for a free-form item with no plugin schema (ADR-0062). */
+	type_id?: string | null,
 	is_template: boolean,
 	template: ItemId | null,
 	owner: CharacterId | null,
 	visible_to_players: boolean,
+	/**  Free text the table reads next to the name. */
+	description?: string,
+	/**  Campaign state id; `None` means the campaign's default state. */
+	state?: string | null,
+	/**  Numeric adjustments while the item sits in an active state. */
+	effects?: ItemEffect[],
+	/**  Conditions the owner has while the item is active (a curse, a blessing). */
+	grants?: string[],
+	/**  Custom integers the rules read as `@item.<key>` while the item works. */
+	values?: ItemValue[],
+	/**  Plugin-provided data; `{}` for a free-form item. */
 	sheet_json: string,
 	version: Version,
 };
 
+/**
+ *  One numeric adjustment an active item gives its owner (ADR-0062): the same shape and
+ *  semantics as a condition's `Parameter` modifier, so the two add up the same way.
+ */
+export type ItemEffect = {
+	/**  Sheet field path, e.g. `ac` or `abilities.str`. */
+	path: string,
+	add: number,
+	minimum: number | null,
+	maximum: number | null,
+};
+
 export type ItemId = string;
+
+/**  What an inventory entry is (ADR-0062): an object, or a skill the same machinery carries. */
+export type ItemKind = 
+/**  A thing: a ring, a potion, a scroll. */
+"item" | 
+/**
+ *  A skill, spell or talent: no weight, no state of being broken, but the same effects,
+ *  grants, custom values and duplication.
+ */
+"skill";
+
+/**
+ *  A state an item may be in (broken, fragment, activated, ...). Only states with `active` let the
+ *  item's effects and grants reach its owner.
+ */
+export type ItemStateDef = {
+	id: string,
+	label: Label,
+	active?: boolean,
+};
 
 export type ItemTypeDef = {
 	id: string,
 	label: Label,
 	sheet_schema: unknown,
 	sheet_layout: unknown,
+};
+
+/**
+ *  A named integer an item carries for the rules to read (ADR-0062): `item.<key>` in expressions
+ *  sums it over the character's active items.
+ */
+export type ItemValue = {
+	/**  Plain key: `fire_damage`, `armor_bonus`. */
+	key: string,
+	value: number,
 };
 
 /**  A journal entry with its Markdown text. */
@@ -1271,6 +1433,11 @@ export type MaintainedRule = {
 export type MapDto = {
 	id: MapId,
 	name: string,
+	/**
+	 *  Free text the whole table reads in the inspector (the mission, the mood, what is here).
+	 *  Maps created before the field existed have an empty one.
+	 */
+	description?: string,
 	background_asset_id: AssetId | null,
 	/**  Logical width (ADR-0016); fixed at creation. The background image is stretched onto it. */
 	width: number,
@@ -1408,6 +1575,8 @@ export type PluginAction = {
 	target_self?: boolean,
 	/**  Self-applied condition lasting until the current turn ends. Requires one's own active turn. */
 	turn_condition?: string | null,
+	/**  Inspector rows the turn condition opens while it lasts (ADR-0061). */
+	turn_reveal?: TokenField[],
 	id: string,
 	label: Label,
 	feature: string | null,
@@ -1773,6 +1942,11 @@ export type SheetView = {
 	modifiers?: Label[],
 	computed: { [key in string]: number | null },
 	resources: ResourceValue[],
+	/**
+	 *  Integer fields after adjustments from conditions and items (ADR-0062), by dotted path.
+	 *  A field missing here keeps its stored value.
+	 */
+	adjusted?: { [key in string]: number | null },
 };
 
 /**  The visible state as of event `seq`. */
@@ -1786,6 +1960,11 @@ export type Snapshot = {
 	campaign: CampaignMeta,
 	maps: MapDto[],
 	tokens: TokenDto[],
+	/**
+	 *  Which inspector rows each visible token shows this recipient (ADR-0061). Built per
+	 *  recipient from the campaign policy, the token override and active effects.
+	 */
+	token_inspector?: TokenInspectorView[],
 	characters: CharacterDto[],
 	users: UserDto[],
 	/**  Journal index; texts are fetched per entry. */
@@ -1957,6 +2136,11 @@ export type TokenDto = {
 	/**  Whose side the token is on; missing in legacy data: neutral. */
 	disposition?: TokenDisposition,
 	visible: boolean,
+	/**
+	 *  Per-token override of the campaign's inspector policy (ADR-0061); `None` follows the
+	 *  campaign. Never sent to players: they receive the resolved field list instead.
+	 */
+	inspector?: TokenInspectorPolicy | null,
 	version: Version,
 };
 
@@ -1973,12 +2157,47 @@ export type TokenEffectDto = {
 	dice: string | null,
 	/**  `true`: the recurring change heals instead of damaging. */
 	heal: boolean,
+	/**
+	 *  Inspector rows this effect opens while it lasts (ADR-0061). A temporary reveal beats the
+	 *  campaign policy and the token override, so an expired effect takes its rows with it.
+	 */
+	reveal?: TokenField[],
 	duration: EffectDuration,
 	version: Version,
 };
 
+/**
+ *  A row of the token inspector (ADR-0061). Closed list: a client that does not know a value
+ *  ignores it, so adding a field needs no protocol bump beyond the one that introduced it.
+ */
+export type TokenField = "name" | "size" | "disposition" | "character" | "conditions" | "effects" | "position";
+
 /**  A token placed on a map. */
 export type TokenId = string;
+
+/**
+ *  Which token fields an inspector shows (ADR-0061). `conceal` beats `reveal`; a temporary
+ *  reveal carried by an active effect beats both.
+ */
+export type TokenInspectorPolicy = {
+	/**  Fields opened on top of the base policy. */
+	reveal?: TokenField[],
+	/**  Fields closed even though the base policy or `reveal` opens them. */
+	conceal?: TokenField[],
+};
+
+/**
+ *  Fields of one visible token as one recipient may see them (ADR-0061).
+ * 
+ *  This is a presentation policy, not a confidentiality boundary: values that the map itself
+ *  needs (name, size, position) still travel in [`TokenDto`]. Hiding a field hides the inspector
+ *  row; it does not make a modified client forget the value.
+ */
+export type TokenInspectorView = {
+	token: TokenId,
+	/**  Fields to draw, in inspector order and without duplicates. */
+	fields: TokenField[],
+};
 
 /**  Rendering layer of a token. */
 export type TokenLayer = 
@@ -2030,7 +2249,9 @@ target?: ResourceTarget; attack?: AttackCheck | null; manual?: boolean } | { typ
 /**  A condition id of the system to show, if any. */
 condition: string | null; 
 /**  A resource changed by `dice` at the start of each of the token's turns, if any. */
-resource: string | null; dice: string | null; heal: boolean; duration: EffectDurationDef };
+resource: string | null; dice: string | null; heal: boolean; 
+/**  Inspector rows the effect opens while it lasts (ADR-0061). */
+reveal?: TokenField[]; duration: EffectDurationDef };
 
 /**  What the GM edits: everything of a trigger but its id, state and version. */
 export type TriggerDef = {
@@ -2157,6 +2378,16 @@ export type UserId = string;
  *  Exported to TypeScript as `number`: versions never approach 2^53 (ADR-0007).
  */
 export type Version = number;
+
+/**
+ *  The GM's switches over what players read (ADR-0063): sheet fields, the character's name and the
+ *  token's picture. Absent (`None`) means the system's own default.
+ */
+export type VisibilityPolicy = {
+	sheet?: FieldVisibility[],
+	name?: boolean | null,
+	icon?: boolean | null,
+};
 
 /**  A named zone on a map. */
 export type ZoneDto = {

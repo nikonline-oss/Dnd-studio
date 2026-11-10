@@ -44,7 +44,14 @@ export function GridForm({ map }: { map: MapDto }) {
         e.preventDefault();
         if (!valid) return;
         submit.mutate({
-          intent: { kind: 'update_map', id: map.id, name: null, grid, visible_to_players: null },
+          intent: {
+            kind: 'update_map',
+            id: map.id,
+            name: null,
+            description: null,
+            grid,
+            visible_to_players: null,
+          },
           expectedVersion: map.version,
         });
       }}

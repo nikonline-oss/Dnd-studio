@@ -57,6 +57,8 @@ impl From<DbError> for IpcError {
                 Self::new(IpcErrorKind::Recoverable, "campaign_corrupt", message)
             }
             DbError::SchemaTooNew => Self::user("campaign_too_new", message),
+            // The saved rules process comes from a newer build (ADR-0051): update, do not downgrade.
+            DbError::RuntimeTooNew { .. } => Self::user("campaign_too_new", message),
             DbError::AlreadyExists(_) => Self::user("already_exists", message),
             DbError::NotFound(_) => Self::user("not_found", message),
             DbError::NoBackup(_) => Self::user("no_backup", message),

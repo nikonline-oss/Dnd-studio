@@ -1,0 +1,352 @@
+/* Split from app/styles.css (workboard: «стили»). Order matters: index.css imports these in cascade order. */
+
+/* ---------- Declarative character sheet ---------- */
+
+.sheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  container-type: inline-size;
+}
+
+.sheet-section,
+.sheet-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+/* Cards in a grid (e.g. one per ability): centred, the value large. */
+.sheet-grid > .sheet-section {
+  align-items: stretch;
+  padding: var(--space-2);
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  text-align: center;
+}
+
+.sheet-grid > .sheet-section > .sheet-section-title {
+  color: var(--color-text);
+}
+
+.sheet-grid > .sheet-section .sheet-field-number input {
+  font-size: 18px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.sheet-grid > .sheet-section .sheet-computed-value {
+  font-size: 20px;
+}
+
+/* Lines in a grid (e.g. a saving throw: proficiency, bonus, roll): one compact row each. */
+.sheet-grid > .sheet-row {
+  flex-wrap: nowrap;
+  align-items: center;
+  min-height: 36px;
+  padding: 2px 4px 2px var(--space-2);
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.sheet-grid > .sheet-row > * {
+  flex: 0 0 auto;
+}
+
+.sheet-grid > .sheet-row > .sheet-field {
+  flex: 1 1 auto;
+}
+
+.sheet-grid > .sheet-row .sheet-field-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sheet-grid > .sheet-row .sheet-computed {
+  flex-direction: row;
+  align-items: baseline;
+  justify-content: flex-end;
+  min-width: 4ch;
+}
+
+.sheet-grid > .sheet-row .sheet-computed .sheet-field-label,
+.sheet-grid > .sheet-row .sheet-roll-text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.sheet-section-title {
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.sheet-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+
+.sheet-row > * {
+  flex: 1 1 120px;
+  min-width: 0;
+}
+
+/* At most `--sheet-cols` columns (the layout's `columns`), fewer when a column would get narrower
+   than `--sheet-min`: the same sheet fits the inspector and a full tab. */
+.sheet-grid {
+  --sheet-min: 140px;
+  display: grid;
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(
+      max(
+        var(--sheet-min),
+        calc((100% - (var(--sheet-cols) - 1) * var(--space-2)) / var(--sheet-cols))
+      ),
+      1fr
+    )
+  );
+  gap: var(--space-2);
+}
+
+.sheet-grid:has(> .sheet-row) {
+  --sheet-min: 220px;
+  gap: 4px var(--space-2);
+}
+
+.sheet-field,
+.sheet-computed,
+.sheet-resource {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sheet-field input,
+.sheet-field select,
+.sheet-field textarea {
+  width: 100%;
+  min-width: 0;
+}
+
+.sheet-field-number input {
+  font-variant-numeric: tabular-nums;
+}
+
+.sheet-number {
+  display: flex;
+  min-width: 0;
+}
+
+.sheet-number input {
+  flex: 1 1 auto;
+  border-radius: 0;
+}
+
+.sheet-step {
+  flex: none;
+  width: 24px;
+  min-height: 0;
+  padding: 0;
+  color: var(--color-text-muted);
+  box-shadow: none;
+}
+
+.sheet-step:first-child {
+  border-right: 0;
+  border-radius: var(--radius) 0 0 var(--radius);
+}
+
+.sheet-step:last-child {
+  border-left: 0;
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+.sheet-field input[aria-invalid='true'] {
+  border-color: var(--color-danger);
+}
+
+.sheet-field-checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+
+.sheet-field-checkbox input {
+  flex: none;
+  width: auto;
+}
+
+/* A roll button in a row keeps its whole text; the fields around it give way. */
+.sheet-row > .sheet-roll {
+  flex: 0 0 auto;
+}
+
+.sheet-readonly .sheet-field-checkbox {
+  justify-content: space-between;
+}
+
+.sheet-field-label {
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.sheet-field-checkbox .sheet-field-label {
+  color: inherit;
+  font-size: inherit;
+}
+
+.sheet-field-value,
+.sheet-computed-value,
+.sheet-resource-value {
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.sheet-field-textarea .sheet-field-value {
+  white-space: pre-wrap;
+}
+
+.sheet-computed-value {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.sheet-resource meter {
+  width: 100%;
+  height: 10px;
+}
+
+.sheet-resource-value {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/* Roll buttons stand out: accent outline, a die, the formula with the character's numbers. */
+.sheet-roll {
+  justify-content: center;
+  min-width: 0;
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
+  border-color: var(--color-accent);
+  box-shadow: none;
+}
+
+.sheet-roll:hover:not(:disabled) {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-accent-contrast);
+}
+
+.sheet-roll-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sheet-roll-dice {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sheet-tablist {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.sheet-tablist [role='tab'] {
+  min-height: 26px;
+  margin-bottom: -1px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius) var(--radius) 0 0;
+  box-shadow: none;
+  color: var(--color-text-muted);
+}
+
+.sheet-tablist [role='tab'][aria-selected='true'] {
+  background: var(--color-surface);
+  border-color: var(--color-border) var(--color-border) var(--color-surface);
+  color: var(--color-text);
+}
+
+.sheet-tabpanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+}
+
+.sheet-list-row {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+
+.sheet-list-row > :not(.sheet-list-remove) {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.sheet-list-remove {
+  flex: none;
+  width: 28px;
+  padding: 0;
+}
+
+.sheet-list-add {
+  align-self: flex-start;
+}
+
+.sheet-text {
+  color: var(--color-text-muted);
+}
+
+.sheet-unsupported {
+  padding: var(--space-1) var(--space-2);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius);
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+/* ADR-0062: the adjusted value next to the stored one. */
+.sheet-field-effective {
+  margin-left: 6px;
+  padding: 0 4px;
+  border-radius: var(--radius);
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.sheet-textual {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.sheet-textual input {
+  flex: 1 1 auto;
+  min-width: 0;
+}

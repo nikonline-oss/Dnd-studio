@@ -203,6 +203,7 @@ fn temporary_and_permanent_conditions_are_unioned_without_mutation() {
         resource: None,
         dice: None,
         heal: false,
+        reveal: Vec::new(),
         duration: EffectDuration::RealTime { until_ts: 1000 },
         version: Version::INITIAL,
     };

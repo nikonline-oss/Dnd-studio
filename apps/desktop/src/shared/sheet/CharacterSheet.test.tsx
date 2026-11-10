@@ -244,7 +244,10 @@ describe('CharacterSheet', () => {
     renderSheet(d20Sheet, { layout, schema: undefined, data: { free: 5 } });
     expect(screen.getByRole('note')).toHaveTextContent('Unsupported sheet element: hologram');
     expect(screen.getByRole('button', { name: 'Roll: nope' })).toBeDisabled();
-    expect(screen.getByText('Not found: mana')).toBeInTheDocument();
+    // A resource the recipient may not read leaves no trace at all (ADR-0049): not even a
+    // placeholder, which would still tell the reader that something is there.
+    expect(screen.queryByText('Not found: mana')).not.toBeInTheDocument();
+    expect(screen.queryByText('mana')).not.toBeInTheDocument();
     expect(screen.getByRole('status', { name: 'Nothing' })).toHaveTextContent('—');
     // Without a schema the widget comes from the value.
     expect(screen.getByLabelText('Free')).toHaveValue('5');
@@ -272,5 +275,25 @@ describe('CharacterSheet', () => {
     rerender(<CharacterSheet {...props} data={next} />);
     expect(screen.getByLabelText('f0')).toHaveValue('5');
     expect(screen.getByLabelText('f199')).toBe(before);
+  });
+
+  it('shows the adjusted value next to the stored one (ADR-0062)', () => {
+    renderSheet(d20Sheet, { adjusted: { level: 5 } });
+    // Stored level is 3 in the fixture; the rules read 5 while an item is active.
+    expect(screen.getByLabelText('Level')).toHaveValue('3');
+    const badge = screen.getByTitle(/Rules use 5; the sheet stores 3/);
+    expect(badge).toHaveTextContent('→ 5');
+  });
+
+  it('shows the adjusted value on a read-only sheet', () => {
+    renderSheet(d20Sheet, { canEdit: false, adjusted: { level: 5 } });
+    const badge = screen.getByTitle(/Rules use 5; the sheet stores 3/);
+    expect(badge).toHaveTextContent('→ 5');
+    expect(badge.closest('.sheet-field-value')).toHaveTextContent('3');
+  });
+
+  it('draws no badge when nothing is adjusted', () => {
+    renderSheet(d20Sheet, { adjusted: { level: 3 } });
+    expect(screen.queryByTitle(/Rules use/)).not.toBeInTheDocument();
   });
 });

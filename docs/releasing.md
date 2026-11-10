@@ -1,8 +1,20 @@
 # Релизы и автообновление
 
+Ревизия 2026-11-08: workflow реализован, но в `tauri.release.conf.json` ещё шаблон публичного
+ключа. Готовность к выпуску проверяется одним вызовом:
+
+```bash
+bash tools/ci/check-release.sh          # отчёт, локальная работа не блокируется
+bash tools/ci/check-release.sh --strict # то же, но любой пропуск — ошибка (так делает workflow)
+```
+
+Проверяются ключ обновлений, отсутствие `OWNER/REPO` в endpoint, `createUpdaterArtifacts`,
+совпадение версий `Cargo.toml` и `apps/desktop/package.json`, раздел версии в `CHANGELOG.md`.
+Состояние секретов и опубликованных релизов по локальному репозиторию не установлено.
+
 Релизный workflow (`.github/workflows/release.yml`) собирает установщики по тегу `vX.Y.Z` и кладёт их
 в **черновик** GitHub Release вместе с `latest.json` для автообновления (ADR-0012, ADR-0013).
-Пока подпись обновлений не настроена, workflow намеренно падает на шаге «Check updater configuration».
+Пока подпись обновлений не настроена, workflow намеренно падает на шаге «Check release readiness».
 
 ## Однократная настройка
 
@@ -29,7 +41,8 @@
 
 1. Поднимите версию в `Cargo.toml` (`[workspace.package] version`) и `apps/desktop/package.json`.
 2. `git tag vX.Y.Z && git push origin vX.Y.Z`.
-3. Дождитесь workflow, проверьте черновик релиза и установщики, опубликуйте релиз.
+3. `git tag vX.Y.Z && git push origin vX.Y.Z`.
+4. Дождитесь workflow, проверьте черновик релиза и установщики, опубликуйте релиз.
 
 Клиент проверяет обновления через минуту после запуска и затем раз в 24 часа по адресу
 `releases/latest/download/latest.json` — то есть видит только последний **опубликованный** релиз,

@@ -9,3 +9,9 @@ apps/desktop/src/shared/ipc/bindings.ts
 apps/desktop/src-tauri/gen/
 # Worktrees of parallel Claude Code sessions live here; never format them from this checkout.
 .claude/
+# Runtime state written by the agent harness, not project source.
+.codewhale/
+# Runtime state written by the workboard CLI (`tools/workboard`), not project source.
+docs/workboard/tasks.json
+# Local chat exports are private scratch data, not project source.
+.chat-extract/

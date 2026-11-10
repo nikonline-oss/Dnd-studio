@@ -70,7 +70,8 @@ export function MenuBar({ breadcrumbs }: { breadcrumbs: string[] }) {
             },
             {
               label: t('campaign.export'),
-              // A session's campaign lives on the server (bringing it home: stage 4).
+              // A hosted campaign's archive comes home when the session is stopped; in local play
+              // this menu entry is the export.
               disabled: exportArchive.isPending || remote !== null,
               onSelect: () => {
                 exportArchive.mutate(undefined, {

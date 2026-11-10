@@ -1253,6 +1253,7 @@ version = "0.0.1"
 dependencies = [
  "dnd-game-core",
  "dnd-protocol",
+ "getrandom 0.4.3",
  "insta",
  "proptest",
  "serde",
@@ -1345,11 +1346,14 @@ version = "0.0.1"
 dependencies = [
  "dnd-db",
  "dnd-game-core",
+ "dnd-plugin",
  "dnd-protocol",
  "dnd-session-server",
  "futures-util",
  "reqwest",
+ "ring",
  "rustls",
+ "semver",
  "serde",
  "serde_json",
  "sha2 0.11.1",
@@ -1362,11 +1366,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "dnd-perf-harness"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "dnd-db",
+ "dnd-game-core",
+ "dnd-protocol",
+ "serde_json",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
 name = "dnd-plugin"
 version = "0.0.1"
 dependencies = [
  "dnd-protocol",
  "jsonschema",
+ "ring",
  "semver",
  "serde",
  "serde_json",
@@ -1381,6 +1399,10 @@ name = "dnd-plugin-tool"
 version = "0.0.1"
 dependencies = [
  "anyhow",
+ "dnd-plugin",
+ "ring",
+ "serde_json",
+ "tempfile",
 ]
 
 [[package]]

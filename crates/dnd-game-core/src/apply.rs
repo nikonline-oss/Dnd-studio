@@ -1,8 +1,8 @@
 //! `apply`: intent → events. Pure: never mutates state, never performs I/O.
 
 use dnd_protocol::{
-    Event, Grid, Intent, IntentEnvelope, MAX_CELL_SIZE, MIN_CELL_SIZE, MapDto, RejectReason,
-    TokenDto, Version, VersionPolicy,
+    ActionResolution, Event, Grid, Intent, IntentEnvelope, MAX_CELL_SIZE, MIN_CELL_SIZE, MapDto,
+    RejectReason, TokenDto, Version, VersionPolicy,
 };
 
 use crate::evolve::evolve;
@@ -18,61 +18,199 @@ pub const MAX_NAME_LEN: usize = 200;
 /// Maximum length of the campaign description, in characters.
 pub const MAX_DESCRIPTION_LEN: usize = 20_000;
 
+/// How many resolution rounds one intent may take (ADR-0052). A round runs the follow-up stages
+/// until they stop producing events; a rule that keeps generating new ones would otherwise spin
+/// the session. Hitting the limit cancels what is still waiting and is recorded in the trace.
+pub const MAX_RESOLUTION_ROUNDS: u32 = 8;
+
+/// How many events one stage produced in one [`apply_traced`], cumulatively.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct StageTrace {
+    pub stage: &'static str,
+    pub events: usize,
+}
+
+/// Deterministic record of what one intent caused (ADR-0052): the stages that fired, how many
+/// resolution rounds ran, and whether the step limit was reached. Diagnostics only — it never
+/// carries game data and is not part of the protocol.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ExecutionTrace {
+    pub rounds: u32,
+    pub stages: Vec<StageTrace>,
+    /// The queue hit [`MAX_RESOLUTION_ROUNDS`]; waiting states were cancelled.
+    pub limit_reached: bool,
+}
+
+impl ExecutionTrace {
+    fn add(&mut self, stage: &'static str, events: usize) {
+        if events == 0 {
+            return;
+        }
+        if let Some(entry) = self.stages.iter_mut().find(|entry| entry.stage == stage) {
+            entry.events += events;
+        } else {
+            self.stages.push(StageTrace { stage, events });
+        }
+    }
+
+    /// Events produced by `stage` (0 if it never fired).
+    #[must_use]
+    pub fn stage(&self, stage: &str) -> usize {
+        self.stages
+            .iter()
+            .find(|entry| entry.stage == stage)
+            .map_or(0, |entry| entry.events)
+    }
+}
+
+/// [`apply`] with the deterministic trace of its stages (ADR-0052).
+pub fn apply_traced(
+    state: &GameState,
+    envelope: &IntentEnvelope,
+    actor: &Actor,
+    rng: &mut dyn GameRng,
+) -> Result<(Vec<Event>, ExecutionTrace), RuleError> {
+    let mut trace = ExecutionTrace::default();
+    // Real-time effects due by the envelope's timestamp expire first (the core has no clock).
+    let mut events = crate::effects::expire_by_clock(state, envelope.ts_ms);
+    trace.add("clock_effects", events.len());
+    let mut work = state.clone();
+    for event in &events {
+        evolve(&mut work, event);
+    }
+    let decided = decide(&work, envelope, actor, rng)?;
+    trace.add("intent", decided.len());
+    events.extend(decided);
+    // A turn-end effect can only expire when effects exist or this batch adds one (ADR-0053):
+    // the clone is skipped on the hot path otherwise.
+    let expired = if work.effects.is_empty()
+        && !events
+            .iter()
+            .any(|event| matches!(event, Event::TokenEffectApplied { .. }))
+    {
+        Vec::new()
+    } else {
+        let mut effect_state = work.clone();
+        for event in &events {
+            evolve(&mut effect_state, event);
+        }
+        crate::effects::expire_turn_end(&effect_state)
+    };
+    trace.add("turn_effects", expired.len());
+    events.extend(expired);
+    let maintained = crate::maintained::cleanup(&work, &events);
+    trace.add("maintained", maintained.len());
+    events.extend(maintained);
+    let bindings = crate::triggers::sync_board_bindings(&work, &envelope.intent, &events, rng)?;
+    trace.add("board_bindings", bindings.len());
+    events.extend(bindings);
+    let reactions = crate::triggers::react(&work, &envelope.intent, &events, envelope.ts_ms, rng);
+    trace.add("trigger_reactions", reactions.len());
+    events.extend(reactions);
+    let followups = crate::mechanics::after(&work, &events, rng);
+    trace.add("action_followups", followups.len());
+    events.extend(followups);
+
+    // The follow-up stages feed each other: a continuation may be answered by a save roll, whose
+    // result resumes a trigger that starts another action. Run them as rounds until they settle
+    // instead of repeating individual calls by hand (ADR-0052).
+    let mut settled = false;
+    while trace.rounds < MAX_RESOLUTION_ROUNDS {
+        let before = events.len();
+        let maintained = crate::maintained::cleanup(&work, &events);
+        trace.add("maintained", maintained.len());
+        events.extend(maintained);
+        let pending = crate::interruptions::cleanup(&work, &events, envelope.ts_ms, rng);
+        trace.add("interruptions", pending.len());
+        events.extend(pending);
+        let scripts = crate::triggers::resume(&work, &events, envelope.ts_ms, rng);
+        trace.add("trigger_resume", scripts.len());
+        events.extend(scripts);
+        let saves = crate::saves::cleanup(&work, &events, envelope.ts_ms, rng);
+        trace.add("saves", saves.len());
+        events.extend(saves);
+        trace.rounds += 1;
+        if events.len() == before {
+            settled = true;
+            break;
+        }
+    }
+    if !settled {
+        trace.limit_reached = true;
+        cancel_waiting(&work, &mut events, envelope.ts_ms, rng, &mut trace);
+    }
+
+    let items = crate::items::cleanup(&work, &events)?;
+    trace.add("items", items.len());
+    events.extend(items);
+    let summaries = crate::roll_requests::summaries(state, &events, rng);
+    trace.add("roll_summaries", summaries.len());
+    events.extend(summaries);
+    let views = crate::rules_view::after(state, &events);
+    trace.add("rules_view", views.len());
+    events.extend(views);
+    Ok((events, trace))
+}
+
 /// Decides whether `envelope` may be applied to `state` by `actor` and returns the resulting events.
 ///
 /// Checks run in this order: permissions, existence, version (ADR-0003), value validation.
 /// Apply the returned events with [`crate::evolve`] to obtain the next state.
 ///
-/// Triggers that the intent sets off add their events to the same batch (ADR-0024).
+/// Triggers that the intent sets off add their events to the same batch (ADR-0024). The stages
+/// and their order are fixed by ADR-0052; use [`apply_traced`] when the diagnostics are needed.
 pub fn apply(
     state: &GameState,
     envelope: &IntentEnvelope,
     actor: &Actor,
     rng: &mut dyn GameRng,
 ) -> Result<Vec<Event>, RuleError> {
-    // Real-time effects due by the envelope's timestamp expire first (the core has no clock).
-    let mut events = crate::effects::expire_by_clock(state, envelope.ts_ms);
-    let mut work = state.clone();
-    for event in &events {
-        evolve(&mut work, event);
+    apply_traced(state, envelope, actor, rng).map(|(events, _)| events)
+}
+
+/// Cancels what is still waiting after the resolution limit (ADR-0052): actions and saves get a
+/// cancellation notice, movements and trigger continuations are dropped from the runtime.
+fn cancel_waiting(
+    before: &GameState,
+    events: &mut Vec<Event>,
+    at: i64,
+    rng: &mut dyn GameRng,
+    trace: &mut ExecutionTrace,
+) {
+    let mut state = before.clone();
+    for event in events.iter() {
+        evolve(&mut state, event);
     }
-    events.extend(decide(&work, envelope, actor, rng)?);
-    let mut effect_state = work.clone();
-    for event in &events {
-        evolve(&mut effect_state, event);
+    for stack in state.plugin_runtime.action_stacks.clone() {
+        if let Ok(cancelled) =
+            crate::interruptions::cancel(&state, stack.id, ActionResolution::Invalid, at, rng)
+        {
+            for event in &cancelled {
+                evolve(&mut state, event);
+            }
+            trace.add("limit_cancelled_actions", 1);
+            events.extend(cancelled);
+        }
     }
-    events.extend(crate::effects::expire_turn_end(&effect_state));
-    let maintained = crate::maintained::cleanup(&work, &events);
-    events.extend(maintained);
-    let bindings = crate::triggers::sync_board_bindings(&work, &envelope.intent, &events, rng)?;
-    events.extend(bindings);
-    let reactions = crate::triggers::react(&work, &envelope.intent, &events, envelope.ts_ms, rng);
-    events.extend(reactions);
-    events.extend(crate::roll_requests::summaries(state, &events, rng));
-    let followups = crate::mechanics::after(&work, &events, rng);
-    events.extend(followups);
-    let maintained = crate::maintained::cleanup(&work, &events);
-    events.extend(maintained);
-    let pending = crate::interruptions::cleanup(&work, &events, envelope.ts_ms, rng);
-    events.extend(pending);
-    let scripts = crate::triggers::resume(&work, &events, envelope.ts_ms, rng);
-    events.extend(scripts);
-    let maintained = crate::maintained::cleanup(&work, &events);
-    events.extend(maintained);
-    let pending = crate::interruptions::cleanup(&work, &events, envelope.ts_ms, rng);
-    events.extend(pending);
-    let scripts = crate::triggers::resume(&work, &events, envelope.ts_ms, rng);
-    events.extend(scripts);
-    let saves = crate::saves::cleanup(&work, &events, envelope.ts_ms, rng);
-    events.extend(saves);
-    let scripts = crate::triggers::resume(&work, &events, envelope.ts_ms, rng);
-    events.extend(scripts);
-    events.extend(crate::maintained::cleanup(&work, &events));
-    let items = crate::items::cleanup(&work, &events)?;
-    events.extend(items);
-    let views = crate::rules_view::after(state, &events);
-    events.extend(views);
-    Ok(events)
+    for group in state.plugin_runtime.saves.clone() {
+        if let Ok(cancelled) = crate::saves::cancel(&state, group.id, rng) {
+            for event in &cancelled {
+                evolve(&mut state, event);
+            }
+            trace.add("limit_cancelled_saves", 1);
+            events.extend(cancelled);
+        }
+    }
+    let dropped =
+        !state.plugin_runtime.movements.is_empty() || !state.plugin_runtime.trigger_runs.is_empty();
+    if dropped {
+        state.plugin_runtime.movements.clear();
+        state.plugin_runtime.trigger_runs.clear();
+        events.push(Event::PluginRuntimeUpdated {
+            runtime: Box::new(state.plugin_runtime.clone()),
+        });
+        trace.add("limit_dropped_continuations", 1);
+    }
 }
 
 /// The events of the intent itself.
@@ -165,6 +303,7 @@ fn decide(
         | Intent::InstantiateItem { .. }
         | Intent::UpdateItem { .. }
         | Intent::TransferItem { .. }
+        | Intent::DuplicateItem { .. }
         | Intent::DeleteItem { .. } => crate::items::apply(state, intent)
             .unwrap_or_else(|| Err(RejectReason::invalid("intent"))),
         Intent::ResolveActionSave { .. } | Intent::CancelActionSaves { .. } => {
@@ -174,8 +313,19 @@ fn decide(
             crate::game_time::advance_inner(state, crate::calendar::delta(state, *amount, *unit)?)
         }
         Intent::AdvanceGameTime { seconds } => crate::game_time::advance(state, *seconds),
-        Intent::UpdateCampaignMeta { name, description } => {
-            if name.is_none() && description.is_none() {
+        Intent::UpdateCampaignMeta {
+            name,
+            description,
+            token_inspector,
+            item_states,
+            visibility,
+        } => {
+            if name.is_none()
+                && description.is_none()
+                && token_inspector.is_none()
+                && item_states.is_none()
+                && visibility.is_none()
+            {
                 return Err(RejectReason::invalid("intent"));
             }
             let mut campaign = state.campaign.clone();
@@ -188,6 +338,15 @@ fn decide(
                 }
                 campaign.description.clone_from(description);
             }
+            if let Some(policy) = token_inspector {
+                campaign.token_inspector = valid_token_inspector(policy)?;
+            }
+            if let Some(states) = item_states {
+                campaign.item_states = valid_item_states(states)?;
+            }
+            if let Some(policy) = visibility {
+                campaign.visibility = valid_visibility(policy)?;
+            }
             campaign.version = bump(campaign.version)?;
             Ok(vec![Event::CampaignMetaUpdated { campaign }])
         }
@@ -195,6 +354,7 @@ fn decide(
         Intent::CreateMap {
             id,
             name,
+            description,
             background_asset_id,
             width,
             height,
@@ -210,6 +370,7 @@ fn decide(
             let map = MapDto {
                 id: *id,
                 name: valid_name(name, "name")?,
+                description: valid_map_description(description)?,
                 background_asset_id: *background_asset_id,
                 width: valid_map_size(*width, "width")?,
                 height: valid_map_size(*height, "height")?,
@@ -223,15 +384,23 @@ fn decide(
         Intent::UpdateMap {
             id,
             name,
+            description,
             grid,
             visible_to_players,
         } => {
-            if name.is_none() && grid.is_none() && visible_to_players.is_none() {
+            if name.is_none()
+                && description.is_none()
+                && grid.is_none()
+                && visible_to_players.is_none()
+            {
                 return Err(RejectReason::invalid("intent"));
             }
             let mut map = state.maps.get(id).cloned().ok_or(RejectReason::NotFound)?;
             if let Some(name) = name {
                 map.name = valid_name(name, "name")?;
+            }
+            if let Some(description) = description {
+                map.description = valid_map_description(description)?;
             }
             if let Some(grid) = grid {
                 map.grid = valid_grid(*grid)?;
@@ -284,6 +453,7 @@ fn decide(
                 layer: *layer,
                 disposition: *disposition,
                 visible: *visible,
+                inspector: None,
                 version: Version::INITIAL,
             };
             Ok(vec![Event::TokenCreated { token }])
@@ -297,6 +467,7 @@ fn decide(
             layer,
             visible,
             disposition,
+            inspector,
         } => {
             if name.is_none()
                 && rotation.is_none()
@@ -304,6 +475,7 @@ fn decide(
                 && layer.is_none()
                 && visible.is_none()
                 && disposition.is_none()
+                && inspector.is_none()
             {
                 return Err(RejectReason::invalid("intent"));
             }
@@ -329,6 +501,11 @@ fn decide(
             }
             if let Some(disposition) = disposition {
                 token.disposition = *disposition;
+            }
+            if let Some(policy) = inspector {
+                let policy = valid_token_inspector(policy)?;
+                // An empty policy is how a token goes back to following the campaign.
+                token.inspector = (!policy.is_empty()).then_some(policy);
             }
             token.version = bump(token.version)?;
             Ok(vec![Event::TokenUpdated { token }])
@@ -500,6 +677,7 @@ pub fn current_version(state: &GameState, intent: &Intent) -> Result<Version, Re
         Intent::UpdateItem { id, .. }
         | Intent::TransferItem { id, .. }
         | Intent::DeleteItem { id } => state.items.get(id).map(|i| i.version),
+        Intent::DuplicateItem { .. } => None,
         Intent::UpdateCampaignMeta { .. } => Some(state.campaign.version),
         Intent::UpdateMap { id, .. } | Intent::DeleteMap { id } => {
             state.maps.get(id).map(|m| m.version)
@@ -595,6 +773,95 @@ pub fn current_version(state: &GameState, intent: &Intent) -> Result<Version, Re
         }
     };
     version.ok_or(RejectReason::NotFound)
+}
+
+/// The GM's visibility switches: plain sheet paths, bounded (ADR-0063). Duplicates are refused,
+/// because two rules for one path would make the deepest-path rule ambiguous.
+fn valid_visibility(
+    policy: &dnd_protocol::VisibilityPolicy,
+) -> Result<dnd_protocol::VisibilityPolicy, RejectReason> {
+    if policy.sheet.len() > 512
+        || policy.sheet.iter().any(|rule| {
+            let plain = !rule.path.is_empty()
+                && rule.path.chars().count() <= 200
+                && rule.path.split('.').all(|part| {
+                    !part.is_empty() && part.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
+                });
+            !plain
+        })
+    {
+        return Err(RejectReason::invalid("visibility"));
+    }
+    let mut paths = std::collections::BTreeSet::new();
+    for rule in &policy.sheet {
+        if !paths.insert(rule.path.clone()) {
+            return Err(RejectReason::invalid("visibility"));
+        }
+    }
+    Ok(policy.clone())
+}
+
+/// Campaign item states: bounded, plain ids, no duplicates (ADR-0062). An empty list is how the
+/// campaign goes back to the built-in states.
+fn valid_item_states(
+    states: &[dnd_protocol::ItemStateDef],
+) -> Result<Vec<dnd_protocol::ItemStateDef>, RejectReason> {
+    if states.len() > dnd_protocol::MAX_ITEM_STATES {
+        return Err(RejectReason::invalid("item_states"));
+    }
+    let mut ids = std::collections::BTreeSet::new();
+    let mut clean = Vec::with_capacity(states.len());
+    for state in states {
+        let id = state.id.trim();
+        if id.is_empty()
+            || id.chars().count() > dnd_protocol::MAX_ITEM_STATE_LEN
+            || !id
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+            || !ids.insert(id.to_owned())
+        {
+            return Err(RejectReason::invalid("item_states"));
+        }
+        clean.push(dnd_protocol::ItemStateDef {
+            id: id.to_owned(),
+            label: state.label.clone(),
+            active: state.active,
+        });
+    }
+    Ok(clean)
+}
+
+/// A token inspector policy with duplicates removed and both lists bounded (ADR-0061).
+///
+/// `reveal` and `conceal` may name the same field: `conceal` wins, which is how a GM closes a
+/// field the base policy or a broad `reveal` opens.
+fn valid_token_inspector(
+    policy: &dnd_protocol::TokenInspectorPolicy,
+) -> Result<dnd_protocol::TokenInspectorPolicy, RejectReason> {
+    if policy.reveal.len() > dnd_protocol::TokenField::ALL.len()
+        || policy.conceal.len() > dnd_protocol::TokenField::ALL.len()
+    {
+        return Err(RejectReason::invalid("token_inspector"));
+    }
+    let clean = |list: &[dnd_protocol::TokenField]| {
+        let mut fields: Vec<_> = list.to_vec();
+        fields.sort_unstable();
+        fields.dedup();
+        fields
+    };
+    Ok(dnd_protocol::TokenInspectorPolicy {
+        reveal: clean(&policy.reveal),
+        conceal: clean(&policy.conceal),
+    })
+}
+
+/// The inspector text of a map: trimmed, may be empty, bounded like the campaign description.
+fn valid_map_description(description: &str) -> Result<String, RejectReason> {
+    let trimmed = description.trim();
+    if trimmed.chars().count() > MAX_DESCRIPTION_LEN {
+        return Err(RejectReason::invalid("description"));
+    }
+    Ok(trimmed.to_owned())
 }
 
 pub(crate) fn valid_name(name: &str, field: &str) -> Result<String, RejectReason> {
@@ -714,4 +981,50 @@ pub(crate) fn on_map(map: &MapDto, x: i64, y: i64) -> Result<(i64, i64), RejectR
         return Err(RejectReason::invalid("y"));
     }
     Ok((x, y))
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use super::*;
+    use dnd_protocol::{IntentId, MovementMode, PendingMovement, PluginRuntime, TokenId};
+
+    /// The limit path drops continuations that are waiting for a person, not a rule (ADR-0052).
+    /// Cancelling actions and saves delegates to `interruptions::cancel`/`saves::cancel`, which
+    /// their own tests cover.
+    #[test]
+    fn reaching_the_limit_clears_continuations_with_one_runtime_event() {
+        let mut state = GameState::new("Campaign");
+        state.plugin_runtime = PluginRuntime {
+            movements: vec![PendingMovement {
+                id: IntentId::new_v7(),
+                token: TokenId::new_v7(),
+                destination_x: 0,
+                destination_y: 0,
+                mode: MovementMode::Voluntary,
+                offers: Vec::new(),
+                handled: Vec::new(),
+            }],
+            ..PluginRuntime::default()
+        };
+        let mut events = Vec::new();
+        let mut trace = ExecutionTrace {
+            rounds: MAX_RESOLUTION_ROUNDS,
+            limit_reached: true,
+            ..ExecutionTrace::default()
+        };
+        let mut rng = crate::rng::SplitMix64::new(1);
+        cancel_waiting(&state, &mut events, 0, &mut rng, &mut trace);
+        assert_eq!(events.len(), 1);
+        let Event::PluginRuntimeUpdated { runtime } = &events[0] else {
+            panic!("expected a runtime update");
+        };
+        assert!(runtime.movements.is_empty());
+        assert_eq!(trace.stage("limit_dropped_continuations"), 1);
+        assert!(
+            state.plugin_runtime.movements.len() == 1,
+            "the input is untouched"
+        );
+    }
 }

@@ -16,7 +16,6 @@
     "files": "Folder contents",
     "empty": "This folder is empty",
     "selectFile": "Select a picture or sound from the list",
-    "open": "Open",
     "localPlay": "Play",
     "localPause": "Pause",
     "localVolume": "Volume",
@@ -24,12 +23,18 @@
     "itemName": "Name",
     "moveTo": "Move to folder…",
     "newFolder": "New folder",
-    "save": "Save"
+    "save": "Save",
+    "openLibrary": "Open pictures"
   },
   "common": {
     "confirmDelete": "Delete?",
     "cancel": "Cancel",
-    "commands": "Commands"
+    "commands": "Commands",
+    "create": "Create",
+    "close": "Close",
+    "edit": "Edit",
+    "add": "Add",
+    "save": "Save"
   },
   "app": {
     "title": "DndStudio"
@@ -97,7 +102,9 @@
     "visibleToPlayers": "Visible to players",
     "cells": "cells",
     "rename": "Rename token",
-    "select": "Select token"
+    "select": "Select token",
+    "unknown": "Unknown",
+    "position": "Position"
   },
   "errors": {
     "unknown": "Something went wrong",
@@ -267,7 +274,36 @@
     "gridOffsetX": "Offset X",
     "gridOffsetY": "Offset Y",
     "gridApply": "Apply grid",
-    "noBackground": "No background image"
+    "noBackground": "No background image",
+    "description": "Description",
+    "descriptionHint": "Everyone at the table sees this in the inspector",
+    "descriptionPlaceholder": "What is here, why the party came…",
+    "descriptionSave": "Save description",
+    "policy": {
+      "title": "What players see",
+      "hint": "Default inspector rows for the whole campaign.",
+      "tokenHint": "For token “{{name}}” only: inherit, open or close.",
+      "fields": {
+        "name": "Name",
+        "size": "Size",
+        "disposition": "Disposition",
+        "character": "Character",
+        "conditions": "Conditions",
+        "effects": "Effects",
+        "position": "Position"
+      },
+      "choice": {
+        "inherit": "Campaign default",
+        "open": "Open",
+        "close": "Close"
+      },
+      "fieldLabel": "Players:",
+      "effectHint": "Active effects open: {{fields}}. They cannot be closed while the effect lasts."
+    },
+    "playerTabs": {
+      "characters": "Character",
+      "selection": "Selection"
+    }
   },
   "errorBoundary": {
     "message": "“{{name}}” crashed. The rest of the app keeps working.",
@@ -335,7 +371,11 @@
     "rawSheet": "Sheet as JSON",
     "openSheet": "Open character sheet",
     "delete": "Delete character",
-    "deleteConfirm": "Delete character “{{name}}”? Linked tokens and initiative entries will remain without a sheet; character cards on boards will be removed."
+    "deleteConfirm": "Delete character “{{name}}”? Linked tokens and initiative entries will remain without a sheet; character cards on boards will be removed.",
+    "name": "Name",
+    "npcHint": "A non-player character belongs to the GM and has no owner.",
+    "pcHint": "A player character belongs to you; the GM sees it in the roster.",
+    "hiddenName": "Unknown"
   },
   "journal": {
     "title": "Journal",
@@ -378,7 +418,8 @@
     "importNothing": "No Markdown or CSV files in this folder",
     "destination": "Destination folder",
     "disallowPlayerEditing": "Disallow player editing",
-    "root": "Root"
+    "root": "Root",
+    "insertCompendiumLink": "Compendium link"
   },
   "chat": {
     "input": "Message",
@@ -529,7 +570,8 @@
     "missing": "Not found: {{id}}",
     "decrease": "Decrease {{label}}",
     "increase": "Increase {{label}}",
-    "openTab": "Open the sheet in a tab"
+    "openTab": "Open the sheet in a tab",
+    "effectiveHint": "Rules use {{effective}}; the sheet stores {{stored}}"
   },
   "plugins": {
     "title": "Plugins",
@@ -576,7 +618,8 @@
     "waitingAction": "Waiting for participants or the GM",
     "continueAction": "Continue action",
     "cancelActionStack": "Cancel chain",
-    "reservedCosts": "Reserved until resolution: {{costs}}"
+    "reservedCosts": "Reserved until resolution: {{costs}}",
+    "dropHint": "Drop a .dndplugin file to install it"
   },
   "rolls": {
     "title": "Rolls to make",
@@ -740,7 +783,53 @@
     "openTab": "Open in a tab",
     "library": "Item library",
     "details": "Item details",
-    "give": "Give"
+    "give": "Give",
+    "noType": "No type",
+    "create": "Add item",
+    "description": "Description",
+    "filter": "Owner",
+    "filterAll": "All",
+    "state": "State",
+    "stateDefault": "Default",
+    "inactive": "inactive",
+    "effects": "What it gives its owner",
+    "noEffects": "Nothing yet",
+    "removeEffect": "Remove effect",
+    "effectPath": "Sheet field",
+    "effectAdd": "Amount",
+    "addEffect": "Add effect",
+    "grants": "Conditions and curses",
+    "duplicate": "Duplicate",
+    "freeItem": "Free-form item: no plugin schema",
+    "newName": "New item",
+    "newDescription": "Short description",
+    "statesTitle": "Item states",
+    "statesDescription": "What an item can be and whether it works in that state.",
+    "statesHint": "An item in a working state gives its bonuses and conditions; in any other it just sits in the inventory.",
+    "stateLabel": "Name of state {{id}}",
+    "stateWorks": "works",
+    "removeState": "Remove state {{id}}",
+    "newStateId": "Code (latin)",
+    "newStateLabel": "Name",
+    "addState": "Add state",
+    "resetStates": "Restore the built-in set",
+    "noActiveState": "No state works: items will not give any effect.",
+    "filterByOwner": "Filter by owner",
+    "dropHere": "Drop an item here to hand it over",
+    "skillsTitle": "Skills",
+    "newItem": "New item",
+    "newSkill": "New skill",
+    "editTitle": "Edit “{{name}}”",
+    "effectsTitle": "What “{{name}}” gives",
+    "ownerTitle": "Hand “{{name}}” to",
+    "effectsHint": "A bonus to the owner's sheet field while the entry works.",
+    "values": "Custom values",
+    "valuesHint": "Numbers for rules and plugins, read as @item.key.",
+    "valueKey": "Key (latin)",
+    "valueAmount": "Value",
+    "removeValue": "Remove value",
+    "data": "Data",
+    "dataTitle": "Data of “{{name}}”"
   },
   "picker": {
     "title": "Pick an element",
@@ -950,7 +1039,9 @@
     "empty": "No audio files in this folder yet",
     "playOnce": "Play once for everyone",
     "playLoop": "Play music for everyone",
-    "stop": "Stop for everyone"
+    "stop": "Stop for everyone",
+    "open": "Open music",
+    "openLibrary": "Open music"
   },
   "library": {
     "title": "Library",
@@ -958,10 +1049,12 @@
     "emptyMessage": "Your campaign library is ready for its first story.",
     "assetActions": "Actions for {{name}}",
     "moveAssetRoot": "Move to library root",
-    "resizeSections": "Resize {{first}} and {{second}}",
+    "tree": "Campaign library",
     "folders": "Library folders",
     "root": "Root",
     "addFolder": "Create folder",
+    "addPictureFolder": "New picture folder",
+    "addAudioFolder": "New audio folder",
     "folderName": "Folder name",
     "renameFolder": "Rename “{{name}}”",
     "deleteFolder": "Delete “{{name}}”",
@@ -1143,5 +1236,38 @@
       "year": "years",
       "round": "rounds"
     }
+  },
+  "safeMode": {
+    "activeTitle": "Safe Mode",
+    "activeBody": "The campaign is open without its rules: plugins, triggers and saved pending actions do not run. Nothing is deleted — a normal open restores everything.",
+    "leave": "Open normally",
+    "suggestTitle": "The app failed to shut down several times in a row",
+    "suggestBody": "An installed plugin may be the cause. Open the campaign in Safe Mode to fix data or remove the package.",
+    "open": "Open safely",
+    "dismiss": "Not now"
+  },
+  "catalog": {
+    "title": "Plugin catalog",
+    "gmOnly": "Only the GM can browse the catalog.",
+    "setupTitle": "Catalog is not set up",
+    "setupBody": "Enter the catalog address and its public key. Packages from the catalog are not installed without a verified signature.",
+    "address": "Catalog address",
+    "publicKey": "Public key (hex)",
+    "search": "Search the catalog",
+    "empty": "Nothing found.",
+    "signed": "Signed by catalog {{key}}",
+    "revoked": "Revoked",
+    "incompatible": "Incompatible with this version",
+    "installed": "Installed {{version}}",
+    "dependsOn": "Depends on: {{list}}",
+    "update": "Update"
+  },
+  "visibility": {
+    "title": "What players see",
+    "description": "Fields of other people's characters, the name and the icon. Owners and GM roles see everything.",
+    "hint": "A hidden field never reaches players: no number, no health bar either.",
+    "name": "Character name",
+    "icon": "Token icon",
+    "noSystem": "Without a system plugin there is nothing to configure."
   }
 }

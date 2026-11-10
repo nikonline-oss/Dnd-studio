@@ -110,10 +110,11 @@ impl Intent {
             | Self::InstantiateItem { .. }
             | Self::UpdateItem { .. }
             | Self::TransferItem { .. }
-            | Self::DeleteItem { .. }
-            | Self::UpdateCampaignMeta { .. } => Vec::new(),
+            | Self::DuplicateItem { .. }
+            | Self::DeleteItem { .. } => Vec::new(),
             Self::AdvanceGameTime { seconds } => vec![("seconds", *seconds)],
-            Self::CreatePlaylist { .. }
+            Self::UpdateCampaignMeta { .. }
+            | Self::CreatePlaylist { .. }
             | Self::UpdatePlaylist { .. }
             | Self::MovePlaylist { .. }
             | Self::DeletePlaylist { .. }
@@ -213,6 +214,7 @@ impl Intent {
         match self {
             Self::RequestRolls { id, .. } => Some(id.0),
             Self::CreateItem { id, .. } | Self::InstantiateItem { id, .. } => Some(id.0),
+            Self::DuplicateItem { new_id, .. } => Some(new_id.0),
             Self::CreateMap { id, .. } => Some(id.0),
             Self::CreateToken { id, .. } => Some(id.0),
             Self::CreateCharacter { id, .. } => Some(id.0),

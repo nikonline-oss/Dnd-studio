@@ -10,7 +10,7 @@ use dnd_db::{
     ARCHIVE_FORMAT, ArchiveLimits, ArchiveManifest, CampaignDb, CampaignEngine, LocalUser,
     read_archive, write_archive,
 };
-use dnd_game_core::{Actor, IntentWindow};
+use dnd_game_core::{Actor, IntentWindow, SplitMix64};
 use dnd_protocol::arbitrary::v7;
 use dnd_protocol::*;
 use dnd_session_server::{Config, CreatedSession, Joined, Limits, Server};
@@ -78,9 +78,10 @@ async fn campaign_archive(dir: &Path) -> Vec<u8> {
     let db = CampaignDb::create(&folder.join("campaign.sqlite"), "Lost Mine", &gm, 0)
         .await
         .unwrap();
-    let mut engine = CampaignEngine::load(db, IntentWindow::DEFAULT, 1, 0)
-        .await
-        .unwrap();
+    let mut engine =
+        CampaignEngine::load(db, IntentWindow::DEFAULT, Box::new(SplitMix64::new(1)), 0)
+            .await
+            .unwrap();
     let actor = Actor {
         user_id: gm.id,
         role: Role::Gm,
@@ -107,6 +108,7 @@ async fn campaign_archive(dir: &Path) -> Vec<u8> {
     let map = |n, asset: &AssetDto, visible| Intent::CreateMap {
         id: MapId(v7(n)),
         name: format!("Map {n}"),
+        description: String::new(),
         background_asset_id: Some(asset.id),
         width: 1000,
         height: 1000,
@@ -1129,6 +1131,7 @@ async fn gm_and_player_play_through_the_server() {
             intent: Intent::UpdateMap {
                 id: MapId(v7(HIDDEN_MAP)),
                 name: None,
+                description: None,
                 grid: None,
                 visible_to_players: Some(true),
             },
@@ -1618,6 +1621,14 @@ async fn the_root_says_the_server_works() {
 /// The next message `pick` accepts from `ws`, also draining `other` into its stash: a socket
 /// nobody reads eventually fills its send buffer (the plugin rules batch is large), and then
 /// that connection's own intents stop reaching the session.
+async fn until<T>(ws: &mut Ws, mut pick: impl FnMut(ServerMessage) -> Option<T>) -> T {
+    loop {
+        if let Some(found) = pick(ws.next().await) {
+            return found;
+        }
+    }
+}
+
 async fn until_draining<T>(
     ws: &mut Ws,
     other: &mut Ws,
@@ -1900,5 +1911,175 @@ async fn gm_ordinary_messages_keep_the_configured_transport_limit() {
     text.push_str(&" ".repeat(1024));
     ws.send_raw(text).await;
     assert_eq!(ws.closed().await, "message_too_large");
+    h.server.stop().await.unwrap();
+}
+
+// --- A4.2 / ADR-0053: a resync replays what was missed instead of a whole snapshot ---
+
+/// Sends `Resync { last_seq }` and returns the next message (snapshot or events).
+async fn resync(ws: &mut Ws, last_seq: Seq) -> ServerMessage {
+    ws.send(ClientMessage::Resync { last_seq }).await;
+    ws.next().await
+}
+
+#[tokio::test]
+async fn resync_replays_the_missed_events_as_one_contiguous_batch() {
+    let h = Harness::start(relaxed()).await;
+    let created = h.create().await;
+    let gm = h.join_gm(&created).await;
+    let mut gm_ws = h.connect(created.session_id, &gm.token).await;
+    let start = gm_ws.snapshot().await.seq;
+
+    for n in 0..3u128 {
+        let id = gm_ws
+            .intent(Intent::CreateMap {
+                id: MapId(v7(0x40a0 + n)),
+                name: format!("Map {n}"),
+                description: String::new(),
+                background_asset_id: None,
+                width: 4000,
+                height: 3000,
+                grid: Grid::default(),
+                visible_to_players: true,
+            })
+            .await;
+        until(&mut gm_ws, |m| match m {
+            ServerMessage::Accepted(a) if a.intent_id == id => Some(()),
+            _ => None,
+        })
+        .await;
+    }
+
+    // A fresh connection starts with a snapshot; the resync then asks from the old seq.
+    let mira = h.join_player(&created, "Mira").await;
+    let mut player = h.connect(created.session_id, &mira.token).await;
+    let snapshot = player.snapshot().await;
+    let expected = snapshot.seq;
+
+    let Some(ServerMessage::Events(delta)) = Some(resync(&mut player, start).await) else {
+        panic!("expected a delta, got a snapshot");
+    };
+    assert_eq!(
+        delta.seq,
+        start.next(),
+        "the batch starts where the client stopped"
+    );
+    assert_eq!(delta.last_seq(), expected, "and reaches the current state");
+    assert!(
+        delta.events.len() as i64 >= 3,
+        "every missed event is replayed: {delta:?}"
+    );
+    // The player's view is filtered: nothing of the maps is hidden from players here, but the
+    // batch must still be a batch of events, not a placeholder for everything.
+    assert!(
+        delta
+            .events
+            .iter()
+            .filter(|e| matches!(e, Event::MapCreated { .. }))
+            .count()
+            >= 3
+    );
+    h.server.stop().await.unwrap();
+}
+
+#[tokio::test]
+async fn resync_without_usable_history_sends_a_snapshot() {
+    let h = Harness::start(relaxed()).await;
+    let created = h.create().await;
+    let gm = h.join_gm(&created).await;
+    let mut gm_ws = h.connect(created.session_id, &gm.token).await;
+    let id = gm_ws
+        .intent(Intent::CreateMap {
+            id: MapId(v7(0x40b0)),
+            name: "Later".into(),
+            description: String::new(),
+            background_asset_id: None,
+            width: 4000,
+            height: 3000,
+            grid: Grid::default(),
+            visible_to_players: true,
+        })
+        .await;
+    until(&mut gm_ws, |m| match m {
+        ServerMessage::Accepted(a) if a.intent_id == id => Some(()),
+        _ => None,
+    })
+    .await;
+
+    // A second connection has no pending broadcasts: its next message is the resync answer.
+    let mut fresh = h.connect(created.session_id, &gm.token).await;
+    fresh.snapshot().await;
+    // Zero means "I have nothing": the server cannot replay from the start of time.
+    assert!(matches!(
+        resync(&mut fresh, Seq(0)).await,
+        ServerMessage::Snapshot(_)
+    ));
+    // A sequence from the future is not a delta either.
+    assert!(matches!(
+        resync(&mut fresh, Seq(1_000_000)).await,
+        ServerMessage::Snapshot(_)
+    ));
+    h.server.stop().await.unwrap();
+}
+
+#[tokio::test]
+async fn a_visibility_change_between_resync_ends_falls_back_to_a_snapshot() {
+    let h = Harness::start(relaxed()).await;
+    let created = h.create().await;
+    let gm = h.join_gm(&created).await;
+    let mut gm_ws = h.connect(created.session_id, &gm.token).await;
+    let before = gm_ws.snapshot().await.seq;
+
+    // A map that is hidden, then revealed: the players' view changes shape, which a patch
+    // cannot express (ADR-0022), so the resync must answer with a view instead of a delta.
+    let map = MapId(v7(0x40c0));
+    let create = gm_ws
+        .intent(Intent::CreateMap {
+            id: map,
+            name: "Secret".into(),
+            description: String::new(),
+            background_asset_id: None,
+            width: 4000,
+            height: 3000,
+            grid: Grid::default(),
+            visible_to_players: false,
+        })
+        .await;
+    until(&mut gm_ws, |m| match m {
+        ServerMessage::Accepted(a) if a.intent_id == create => Some(()),
+        _ => None,
+    })
+    .await;
+    let update = IntentId::new_v7();
+    gm_ws
+        .send(ClientMessage::Intent(Box::new(IntentEnvelope {
+            intent_id: update,
+            expected_version: Some(Version(1)),
+            ts_ms: 0,
+            intent: Intent::UpdateMap {
+                id: map,
+                name: None,
+                description: None,
+                grid: None,
+                visible_to_players: Some(true),
+            },
+        })))
+        .await;
+    until(&mut gm_ws, |m| match m {
+        ServerMessage::Accepted(a) if a.intent_id == update => Some(()),
+        _ => None,
+    })
+    .await;
+
+    // The player connects after the change, so nothing is pending on its socket.
+    let mira = h.join_player(&created, "Mira").await;
+    let mut player = h.connect(created.session_id, &mira.token).await;
+    let snap = player.snapshot().await;
+    let answer = resync(&mut player, before).await;
+    assert!(
+        matches!(answer, ServerMessage::Snapshot(_)),
+        "from {before} to {}: {answer:?}",
+        snap.seq
+    );
     h.server.stop().await.unwrap();
 }

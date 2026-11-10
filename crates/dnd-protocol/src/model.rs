@@ -15,7 +15,140 @@ pub struct CampaignMeta {
     pub game_clock: GameClock,
     pub name: String,
     pub description: String,
+    /// Which token fields players see in the inspector by default (ADR-0061).
+    #[serde(default)]
+    pub token_inspector: TokenInspectorPolicy,
+    /// States an item may be in (ADR-0062). Empty means the built-in set.
+    #[serde(default)]
+    pub item_states: Vec<crate::ItemStateDef>,
+    /// What players may read of other people's characters and tokens (ADR-0063).
+    #[serde(default)]
+    pub visibility: VisibilityPolicy,
     pub version: Version,
+}
+
+/// One sheet field's visibility, overriding the system schema's `visible_to_players`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct FieldVisibility {
+    /// Dotted sheet path, e.g. `hp.current`; a deeper path wins over a shallower one.
+    pub path: String,
+    pub visible: bool,
+}
+
+/// The GM's switches over what players read (ADR-0063): sheet fields, the character's name and the
+/// token's picture. Absent (`None`) means the system's own default.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct VisibilityPolicy {
+    #[serde(default)]
+    pub sheet: Vec<FieldVisibility>,
+    #[serde(default)]
+    pub name: Option<bool>,
+    #[serde(default)]
+    pub icon: Option<bool>,
+}
+
+impl VisibilityPolicy {
+    /// Whether a sheet field is public: the deepest matching override, else the schema's flag.
+    #[must_use]
+    pub fn sheet_field(&self, path: &str, schema_default: bool) -> bool {
+        self.sheet
+            .iter()
+            .filter(|rule| path == rule.path || path.starts_with(&format!("{}.", rule.path)))
+            .max_by_key(|rule| rule.path.matches('.').count() + rule.path.len())
+            .map_or(schema_default, |rule| rule.visible)
+    }
+
+    #[must_use]
+    pub fn name_public(&self) -> bool {
+        self.name.unwrap_or(true)
+    }
+
+    #[must_use]
+    pub fn icon_public(&self) -> bool {
+        self.icon.unwrap_or(true)
+    }
+}
+
+impl CampaignMeta {
+    /// The states this campaign uses, built-in ones included.
+    #[must_use]
+    pub fn item_states(&self) -> Vec<crate::ItemStateDef> {
+        if self.item_states.is_empty() {
+            crate::ItemStateDef::builtin()
+        } else {
+            self.item_states.clone()
+        }
+    }
+}
+
+/// A row of the token inspector (ADR-0061). Closed list: a client that does not know a value
+/// ignores it, so adding a field needs no protocol bump beyond the one that introduced it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub enum TokenField {
+    Name,
+    Size,
+    Disposition,
+    Character,
+    Conditions,
+    Effects,
+    Position,
+}
+
+impl TokenField {
+    /// Every field, in the order the inspector draws them.
+    pub const ALL: [Self; 7] = [
+        Self::Name,
+        Self::Size,
+        Self::Disposition,
+        Self::Character,
+        Self::Conditions,
+        Self::Effects,
+        Self::Position,
+    ];
+
+    /// The built-in base policy: identity and size, the link to a sheet, and conditions.
+    pub const BASE: [Self; 4] = [Self::Name, Self::Size, Self::Character, Self::Conditions];
+}
+
+/// Which token fields an inspector shows (ADR-0061). `conceal` beats `reveal`; a temporary
+/// reveal carried by an active effect beats both.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct TokenInspectorPolicy {
+    /// Fields opened on top of the base policy.
+    #[serde(default)]
+    pub reveal: Vec<TokenField>,
+    /// Fields closed even though the base policy or `reveal` opens them.
+    #[serde(default)]
+    pub conceal: Vec<TokenField>,
+}
+
+impl TokenInspectorPolicy {
+    /// The policy a campaign starts with: [`TokenField::BASE`] open, nothing closed.
+    #[must_use]
+    pub fn base() -> Self {
+        Self {
+            reveal: TokenField::BASE.to_vec(),
+            conceal: Vec::new(),
+        }
+    }
+
+    /// True when the policy is the same as a campaign that never set one.
+    #[must_use]
+    pub fn is_base(&self) -> bool {
+        self.reveal == TokenField::BASE && self.conceal.is_empty()
+    }
+
+    /// True when the policy changes nothing: no reveal beyond the base set, no conceal.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.reveal.is_empty() && self.conceal.is_empty()
+    }
 }
 
 /// Grid geometry of a map.
@@ -59,6 +192,10 @@ impl Default for Grid {
 pub struct MapDto {
     pub id: MapId,
     pub name: String,
+    /// Free text the whole table reads in the inspector (the mission, the mood, what is here).
+    /// Maps created before the field existed have an empty one.
+    #[serde(default)]
+    pub description: String,
     pub background_asset_id: Option<AssetId>,
     /// Logical width (ADR-0016); fixed at creation. The background image is stretched onto it.
     #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
@@ -119,7 +256,24 @@ pub struct TokenDto {
     #[serde(default)]
     pub disposition: TokenDisposition,
     pub visible: bool,
+    /// Per-token override of the campaign's inspector policy (ADR-0061); `None` follows the
+    /// campaign. Never sent to players: they receive the resolved field list instead.
+    #[serde(default)]
+    pub inspector: Option<TokenInspectorPolicy>,
     pub version: Version,
+}
+
+/// Fields of one visible token as one recipient may see them (ADR-0061).
+///
+/// This is a presentation policy, not a confidentiality boundary: values that the map itself
+/// needs (name, size, position) still travel in [`TokenDto`]. Hiding a field hides the inspector
+/// row; it does not make a modified client forget the value.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct TokenInspectorView {
+    pub token: TokenId,
+    /// Fields to draw, in inspector order and without duplicates.
+    pub fields: Vec<TokenField>,
 }
 
 /// Player character or non-player character.
@@ -448,7 +602,7 @@ pub enum ChatKind {
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum ChatVisibility {
     All,
-    /// Hidden GM rolls: GM and Co-GM only (filtering per recipient — stage 4).
+    /// Hidden GM rolls: GM and Co-GM only; filtered for each recipient by the server.
     Gm,
 }
 

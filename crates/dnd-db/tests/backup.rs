@@ -31,6 +31,9 @@ async fn pending_projection_migration_marks_only_locally_recorded_operations() {
         intent: Intent::UpdateCampaignMeta {
             name: Some("Offline".into()),
             description: None,
+            token_inspector: None,
+            item_states: None,
+            visibility: None,
         },
     };
     let second = IntentEnvelope {

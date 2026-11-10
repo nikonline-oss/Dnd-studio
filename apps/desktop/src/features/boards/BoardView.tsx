@@ -937,6 +937,7 @@ export function BoardView({
                 kind: 'update_map',
                 id: mapRename.id,
                 name,
+                description: null,
                 grid: null,
                 visible_to_players: null,
               },

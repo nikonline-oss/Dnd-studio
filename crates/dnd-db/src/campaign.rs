@@ -30,6 +30,9 @@ struct StoredFog {
 
 const META_NAME: &str = "campaign.name";
 const META_DESCRIPTION: &str = "campaign.description";
+const META_TOKEN_INSPECTOR: &str = "campaign.token_inspector";
+const META_ITEM_STATES: &str = "campaign.item_states";
+const META_VISIBILITY: &str = "campaign.visibility";
 const META_VERSION: &str = "campaign.version";
 const META_LOCAL_USER: &str = "local.user_id";
 /// The campaign's system plugin (ADR-0023); empty for none.
@@ -41,6 +44,15 @@ pub struct LocalUser {
     pub id: UserId,
     pub name: String,
     pub role: Role,
+}
+
+/// One event read back from `event_log` (ADR-0053): its own sequence number and the first
+/// sequence number of the batch it was committed in, when the campaign recorded one.
+#[derive(Clone, Debug, PartialEq)]
+pub struct StoredEvent {
+    pub seq: Seq,
+    pub batch: Option<Seq>,
+    pub event: dnd_protocol::Event,
 }
 
 /// One accepted batch of events, as written to `event_log`.
@@ -308,6 +320,30 @@ impl CampaignDb {
         Ok(Seq(seq))
     }
 
+    /// Stored events with `after < seq <= until`, oldest first (ADR-0053). Used to rebuild a
+    /// recipient's delta after a reconnect instead of sending a whole snapshot.
+    pub async fn events_between(&self, after: Seq, until: Seq) -> DbResult<Vec<StoredEvent>> {
+        let rows = sqlx::query(
+            "SELECT seq, batch_seq, event FROM event_log WHERE seq > ? AND seq <= ? ORDER BY seq",
+        )
+        .bind(after.0)
+        .bind(until.0)
+        .fetch_all(&self.pool)
+        .await?;
+        rows.into_iter()
+            .map(|row| {
+                let seq = Seq(row.try_get::<i64, _>("seq")?);
+                let event: dnd_protocol::Event =
+                    serde_json::from_str(&row.try_get::<String, _>("event")?)?;
+                Ok(StoredEvent {
+                    seq,
+                    batch: row.try_get::<Option<i64>, _>("batch_seq")?.map(Seq),
+                    event,
+                })
+            })
+            .collect()
+    }
+
     /// Accepted intents for the idempotency window after a restart (ADR-0015): at most `limit`,
     /// recorded at or after `since_ms`, most recent ones, returned oldest first.
     pub async fn recent_intents(&self, limit: usize, since_ms: i64) -> DbResult<Vec<RecentIntent>> {
@@ -524,6 +560,21 @@ impl CampaignDb {
             description: get_meta(&self.pool, META_DESCRIPTION)
                 .await?
                 .unwrap_or_default(),
+            token_inspector: get_meta(&self.pool, META_TOKEN_INSPECTOR)
+                .await?
+                .map(|value| serde_json::from_str(&value))
+                .transpose()?
+                .unwrap_or_else(dnd_protocol::TokenInspectorPolicy::base),
+            item_states: get_meta(&self.pool, META_ITEM_STATES)
+                .await?
+                .map(|value| serde_json::from_str(&value))
+                .transpose()?
+                .unwrap_or_default(),
+            visibility: get_meta(&self.pool, META_VISIBILITY)
+                .await?
+                .map(|value| serde_json::from_str(&value))
+                .transpose()?
+                .unwrap_or_default(),
             version: Version(
                 get_meta(&self.pool, META_VERSION)
                     .await?
@@ -637,23 +688,17 @@ impl CampaignDb {
         .fetch_all(&self.pool)
         .await?
         {
-            let character = CharacterDto {
-                id: CharacterId(uuid_from_str(
-                    "characters.id",
-                    &row.try_get::<String, _>("id")?,
-                )?),
-                kind: enum_from_str("characters.kind", &row.try_get::<String, _>("kind")?)?,
+            let character = crate::character_store::StoredCharacter {
+                id: row.try_get("id")?,
+                kind: row.try_get("kind")?,
                 name: row.try_get("name")?,
-                owner: opt_uuid_from_str(
-                    "characters.owner_user_id",
-                    row.try_get("owner_user_id")?,
-                )?
-                .map(UserId),
-                status: enum_from_str("characters.status", &row.try_get::<String, _>("status")?)?,
-                sheet_json: row.try_get("sheet_data")?,
-                conditions: serde_json::from_str(&row.try_get::<String, _>("conditions")?)?,
-                version: Version(row.try_get("version")?),
-            };
+                owner: row.try_get("owner_user_id")?,
+                status: row.try_get("status")?,
+                sheet: row.try_get("sheet_data")?,
+                conditions: row.try_get("conditions")?,
+                version: row.try_get("version")?,
+            }
+            .into_character()?;
             state.characters.insert(character.id, character);
         }
         for row in sqlx::query(
@@ -783,7 +828,7 @@ impl CampaignDb {
             .fetch_optional(&self.pool)
             .await?
         {
-            state.plugin_runtime = serde_json::from_str(&row.try_get::<String, _>("dto")?)?;
+            state.plugin_runtime = crate::runtime_store::decode(&row.try_get::<String, _>("dto")?)?;
         }
         for row in sqlx::query("SELECT dto FROM installed_plugins ORDER BY id")
             .fetch_all(&self.pool)
@@ -889,8 +934,8 @@ impl CampaignDb {
             for event in &record.batch.events {
                 sqlx::query(
                     "INSERT INTO event_log \
-                     (seq, intent_id, intent_hash, actor_user_id, event, created_at) \
-                     VALUES (?, ?, ?, ?, ?, ?)",
+                     (seq, intent_id, intent_hash, actor_user_id, event, created_at, batch_seq) \
+                     VALUES (?, ?, ?, ?, ?, ?, ?)",
                 )
                 .bind(seq.0)
                 .bind(record.batch.caused_by.map(|i| i.to_string()))
@@ -898,6 +943,7 @@ impl CampaignDb {
                 .bind(record.actor.map(|u| u.to_string()))
                 .bind(serde_json::to_string(event)?)
                 .bind(record.at_ms)
+                .bind(record.batch.seq.0)
                 .execute(&mut *tx)
                 .await?;
                 project_event(&mut tx, event, record.at_ms).await?;
@@ -1089,7 +1135,7 @@ async fn project_event(conn: &mut SqliteConnection, event: &Event, at_ms: i64) -
         }
         Event::PluginRuntimeUpdated { runtime } => {
             sqlx::query("INSERT INTO plugin_runtime (id, dto) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET dto = excluded.dto")
-                .bind(serde_json::to_string(runtime)?).execute(conn).await?;
+                .bind(crate::runtime_store::encode(runtime)?).execute(conn).await?;
             Ok(())
         }
         Event::PluginInstalled { plugin } => {
@@ -1413,6 +1459,7 @@ async fn insert_chat_message(
 }
 
 async fn upsert_character(conn: &mut SqliteConnection, c: &CharacterDto) -> DbResult<()> {
+    let stored = crate::character_store::StoredCharacter::from_character(c)?;
     sqlx::query(
         "INSERT INTO characters (id, kind, name, owner_user_id, status, sheet_data, conditions, \
          version) VALUES (?, ?, ?, ?, ?, ?, ?, ?) \
@@ -1421,14 +1468,14 @@ async fn upsert_character(conn: &mut SqliteConnection, c: &CharacterDto) -> DbRe
              status = excluded.status, sheet_data = excluded.sheet_data, \
              conditions = excluded.conditions, version = excluded.version",
     )
-    .bind(c.id.to_string())
-    .bind(enum_to_str(&c.kind)?)
-    .bind(&c.name)
-    .bind(c.owner.map(|u| u.to_string()))
-    .bind(enum_to_str(&c.status)?)
-    .bind(&c.sheet_json)
-    .bind(serde_json::to_string(&c.conditions)?)
-    .bind(c.version.0)
+    .bind(&stored.id)
+    .bind(&stored.kind)
+    .bind(&stored.name)
+    .bind(&stored.owner)
+    .bind(&stored.status)
+    .bind(&stored.sheet)
+    .bind(&stored.conditions)
+    .bind(stored.version)
     .execute(conn)
     .await?;
     Ok(())
@@ -1443,6 +1490,49 @@ async fn write_campaign_meta(conn: &mut SqliteConnection, campaign: &CampaignMet
     .await?;
     set_meta(conn, META_NAME, &campaign.name).await?;
     set_meta(conn, META_DESCRIPTION, &campaign.description).await?;
+    if campaign.token_inspector.is_base() {
+        // The base policy is the absence of the key: a campaign created before ADR-0061 and one
+        // that never changed the policy look the same.
+        sqlx::query("DELETE FROM campaign_meta WHERE key = ?")
+            .bind(META_TOKEN_INSPECTOR)
+            .execute(&mut *conn)
+            .await?;
+    } else {
+        set_meta(
+            conn,
+            META_TOKEN_INSPECTOR,
+            &serde_json::to_string(&campaign.token_inspector)?,
+        )
+        .await?;
+    }
+    if campaign.item_states.is_empty() {
+        // The built-in states are the absence of the key (ADR-0062).
+        sqlx::query("DELETE FROM campaign_meta WHERE key = ?")
+            .bind(META_ITEM_STATES)
+            .execute(&mut *conn)
+            .await?;
+    } else {
+        set_meta(
+            conn,
+            META_ITEM_STATES,
+            &serde_json::to_string(&campaign.item_states)?,
+        )
+        .await?;
+    }
+    if campaign.visibility == Default::default() {
+        // No switches means the system's own defaults (ADR-0063).
+        sqlx::query("DELETE FROM campaign_meta WHERE key = ?")
+            .bind(META_VISIBILITY)
+            .execute(&mut *conn)
+            .await?;
+    } else {
+        set_meta(
+            conn,
+            META_VISIBILITY,
+            &serde_json::to_string(&campaign.visibility)?,
+        )
+        .await?;
+    }
     set_meta(conn, META_VERSION, &campaign.version.0.to_string()).await
 }
 
@@ -1469,17 +1559,19 @@ async fn get_meta(pool: &SqlitePool, key: &str) -> DbResult<Option<String>> {
 
 async fn upsert_map(conn: &mut SqliteConnection, map: &MapDto) -> DbResult<()> {
     sqlx::query(
-        "INSERT INTO maps (id, name, background_asset_id, width, height, grid_kind, \
+        "INSERT INTO maps (id, name, description, background_asset_id, width, height, grid_kind, \
              grid_cell_size, grid_offset_x, grid_offset_y, visible_to_players, version) \
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) \
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) \
          ON CONFLICT (id) DO UPDATE SET \
-             name = excluded.name, background_asset_id = excluded.background_asset_id, \
+             name = excluded.name, description = excluded.description, \
+             background_asset_id = excluded.background_asset_id, \
              grid_kind = excluded.grid_kind, grid_cell_size = excluded.grid_cell_size, \
              grid_offset_x = excluded.grid_offset_x, grid_offset_y = excluded.grid_offset_y, \
              visible_to_players = excluded.visible_to_players, version = excluded.version",
     )
     .bind(map.id.to_string())
     .bind(&map.name)
+    .bind(&map.description)
     .bind(map.background_asset_id.map(|a| a.to_string()))
     .bind(map.width)
     .bind(map.height)
@@ -1497,14 +1589,14 @@ async fn upsert_map(conn: &mut SqliteConnection, map: &MapDto) -> DbResult<()> {
 async fn upsert_token(conn: &mut SqliteConnection, token: &TokenDto) -> DbResult<()> {
     sqlx::query(
         "INSERT INTO tokens (id, map_id, character_id, asset_id, name, x, y, rotation, scale, \
-             layer, disposition, visible, version) \
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) \
+             layer, disposition, visible, inspector, version) \
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) \
          ON CONFLICT (id) DO UPDATE SET \
              map_id = excluded.map_id, character_id = excluded.character_id, \
              asset_id = excluded.asset_id, name = excluded.name, x = excluded.x, y = excluded.y, \
              rotation = excluded.rotation, scale = excluded.scale, layer = excluded.layer, \
              disposition = excluded.disposition, visible = excluded.visible, \
-             version = excluded.version",
+             inspector = excluded.inspector, version = excluded.version",
     )
     .bind(token.id.to_string())
     .bind(token.map_id.to_string())
@@ -1518,6 +1610,13 @@ async fn upsert_token(conn: &mut SqliteConnection, token: &TokenDto) -> DbResult
     .bind(enum_to_str(&token.layer)?)
     .bind(enum_to_str(&token.disposition)?)
     .bind(token.visible)
+    .bind(
+        token
+            .inspector
+            .as_ref()
+            .map(serde_json::to_string)
+            .transpose()?,
+    )
     .bind(token.version.0)
     .execute(conn)
     .await?;
@@ -1528,6 +1627,7 @@ fn map_from_row(row: &SqliteRow) -> DbResult<MapDto> {
     Ok(MapDto {
         id: MapId(uuid_from_str("maps.id", &row.try_get::<String, _>("id")?)?),
         name: row.try_get("name")?,
+        description: row.try_get("description")?,
         background_asset_id: opt_uuid_from_str(
             "maps.background_asset_id",
             row.try_get("background_asset_id")?,
@@ -1574,6 +1674,10 @@ fn token_from_row(row: &SqliteRow) -> DbResult<TokenDto> {
             &row.try_get::<String, _>("disposition")?,
         )?,
         visible: row.try_get("visible")?,
+        inspector: row
+            .try_get::<Option<String>, _>("inspector")?
+            .map(|value| serde_json::from_str(&value))
+            .transpose()?,
         version: Version(row.try_get("version")?),
     })
 }

@@ -12,11 +12,13 @@ import { CompactAudioPlayers } from '@/shared/ui/SessionAudioPlayer';
 import { MenuBar } from './MenuBar';
 import { StatusBar } from './StatusBar';
 import { BoardList } from '@/features/boards/BoardList';
+import { PlayerInspector } from './PlayerInspector';
 import { BoardView } from '@/features/boards/BoardView';
 import { CompendiumList } from '@/features/compendium/CompendiumList';
 import { CompendiumView } from '@/features/compendium/CompendiumView';
 import { LibraryPanel } from './LibraryPanel';
 import { OfflineEdits } from '@/features/connect/OfflineEdits';
+import { SafeMode } from '@/features/safety/SafeMode';
 import { ActionWindows } from '@/features/plugins/ActionWindows';
 import { MaintainedEffects } from '@/features/plugins/MaintainedEffects';
 import { PluginReactions } from '@/features/plugins/PluginReactions';
@@ -32,6 +34,7 @@ import { JournalEditor } from '@/features/journal/JournalEditor';
 import { GmPanel } from './GmPanel';
 import { PluginSettingsView } from '@/features/plugins/PluginSettingsView';
 import { PluginsView } from '@/features/plugins/PluginsView';
+import { CatalogView } from '@/features/catalog/CatalogView';
 import { InitiativePanel } from '@/features/initiative/InitiativePanel';
 import { LogPanel } from '@/features/logs/LogPanel';
 import { MapInspector } from '@/features/map/MapInspector';
@@ -53,13 +56,31 @@ const BOTTOM_TAB_ICONS = { chat: 'send', initiative: 'dice', logs: 'book' } as c
 const MapView = lazy(() => import('@/features/map/MapView').then((m) => ({ default: m.MapView })));
 
 /** Side panel views per preset; players get no map list (§5: the map is chosen for them). */
-const GM_VIEWS: SideView[] = ['boards', 'characters', 'library', 'plugins', 'compendia', 'items'];
-const PLAYER_VIEWS: SideView[] = ['characters', 'library', 'boards', 'compendia', 'items'];
+const GM_VIEWS: SideView[] = [
+  'boards',
+  'characters',
+  'library',
+  'plugins',
+  'catalog',
+  'compendia',
+  'items',
+  'skills',
+];
+const PLAYER_VIEWS: SideView[] = [
+  'characters',
+  'library',
+  'boards',
+  'compendia',
+  'items',
+  'skills',
+];
 const VIEW_ICONS = {
   items: 'book',
+  skills: 'bolt',
   characters: 'users',
   library: 'book',
   plugins: 'puzzle',
+  catalog: 'download',
   boards: 'board',
   triggers: 'bolt',
   compendia: 'book',
@@ -112,6 +133,7 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
     plugin: t('plugins.title'),
     gm_panel: t('gm.title'),
     items: t('items.title'),
+    skills: t('items.skillsTitle'),
     compendium: t('compendia.title'),
     images: t('images.title'),
     audio: t('audio.title'),
@@ -208,6 +230,8 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
       </ErrorBoundary>
     ) : paneKind === 'items' ? (
       <ItemsView />
+    ) : paneKind === 'skills' ? (
+      <ItemsView kind="skill" />
     ) : paneKind === 'gm_panel' ? (
       <ErrorBoundary name={t('gm.title')}>
         <GmPanel />
@@ -284,26 +308,23 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
               </ErrorBoundary>
             ) : sideView === 'library' ? (
               <ErrorBoundary name={t('library.title')}>
-                <LibraryPanel isGm={isGm} />
+                <LibraryPanel />
               </ErrorBoundary>
             ) : sideView === 'boards' ? (
               <ErrorBoundary name={t('boards.title')}>
                 <BoardList />
               </ErrorBoundary>
             ) : sideView === 'items' ? (
-              <>
-                <button
-                  onClick={() => {
-                    useSelection.getState().splitTab({ kind: 'items', id: 'items' });
-                  }}
-                >
-                  {t('items.openTab')}
-                </button>
-                <ItemsView />
-              </>
+              <ItemsView />
+            ) : sideView === 'skills' ? (
+              <ItemsView kind="skill" />
             ) : sideView === 'plugins' ? (
               <ErrorBoundary name={t('plugins.title')}>
                 <PluginsView />
+              </ErrorBoundary>
+            ) : sideView === 'catalog' ? (
+              <ErrorBoundary name={t('catalog.title')}>
+                <CatalogView />
               </ErrorBoundary>
             ) : (
               <ErrorBoundary name={t('compendia.title')}>
@@ -415,10 +436,10 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
                 </ErrorBoundary>
               </>
             ) : (
-              // Player preset (§5): the character sheet next to the map and chat.
+              // Player preset (§5): the character sheet next to the map and chat, plus the
+              // selected token or open map (ADR-0061).
               <ErrorBoundary name={t('characters.title')}>
-                <CharacterList />
-                <CharacterEditor />
+                <PlayerInspector />
               </ErrorBoundary>
             )}
           </Panel>
@@ -455,6 +476,7 @@ export function AppShell({ campaign }: { campaign: CampaignInfo }) {
           }}
         />
       )}
+      <SafeMode campaign={campaign} />
       <OfflineEdits isGm={campaign.role === 'gm'} campaignPath={campaign.path} />
       <ErrorBoundary name={t('presentation.title')}>
         <ImagePresentation key={campaign.path} />

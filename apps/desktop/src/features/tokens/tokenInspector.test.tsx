@@ -4,7 +4,14 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it } from 'vitest';
 import { TokenInspector } from './TokenInspector';
-import type { CampaignInfo, IntentEnvelope, Role, Snapshot, TokenDto } from '@/shared/ipc/client';
+import type {
+  CampaignInfo,
+  IntentEnvelope,
+  Role,
+  Snapshot,
+  TokenDto,
+  TokenField,
+} from '@/shared/ipc/client';
 import { useSelection } from '@/shared/state/selection';
 
 const token: TokenDto = {
@@ -22,7 +29,7 @@ const token: TokenDto = {
   version: 4,
 };
 
-function setup(role: Role, linked = true) {
+function setup(role: Role, linked = true, fields?: TokenField[]) {
   const selectedToken = linked ? token : { ...token, character_id: null };
   const snapshot: Snapshot = {
     seq: 1,
@@ -55,6 +62,7 @@ function setup(role: Role, linked = true) {
     combats: [],
     combatants: [],
     chat: [],
+    ...(fields ? { token_inspector: [{ token: 't1', fields }] } : {}),
   };
   const info: CampaignInfo = { name: 'C', path: '/c', user_id: 'u1', role };
   const sent: IntentEnvelope[] = [];
@@ -106,8 +114,8 @@ describe('TokenInspector', () => {
 
   it('GM changes the layer, size and visibility with the token version', async () => {
     const sent = setup('gm');
-    await userEvent.selectOptions(await screen.findByLabelText('Layer'), 'gm');
-    await userEvent.selectOptions(screen.getByLabelText('Size'), '2');
+    await userEvent.selectOptions(await screen.findByRole('combobox', { name: 'Layer' }), 'gm');
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Size' }), '2');
     await userEvent.click(screen.getByRole('checkbox', { name: /Visible to players/ }));
     await waitFor(() => {
       expect(sent).toHaveLength(3);
@@ -122,7 +130,10 @@ describe('TokenInspector', () => {
 
   it('GM changes the disposition with the token version', async () => {
     const sent = setup('gm');
-    await userEvent.selectOptions(await screen.findByLabelText('Disposition'), 'enemy');
+    await userEvent.selectOptions(
+      await screen.findByRole('combobox', { name: 'Disposition' }),
+      'enemy',
+    );
     await waitFor(() => {
       expect(sent).toHaveLength(1);
     });
@@ -136,7 +147,7 @@ describe('TokenInspector', () => {
 
   it('GM renames on blur; an unchanged name sends nothing', async () => {
     const sent = setup('gm');
-    const name = await screen.findByLabelText('Name');
+    const name = await screen.findByRole('textbox', { name: 'Name' });
     await userEvent.click(name);
     await userEvent.tab();
     expect(sent).toHaveLength(0);
@@ -163,10 +174,26 @@ describe('TokenInspector', () => {
     expect(useSelection.getState()).toMatchObject({ tokenId: null, inspect: 'map' });
   });
 
+  it('a player draws only the rows the server opened', async () => {
+    setup('player', true, ['size']);
+    expect(await screen.findByText('Unknown')).toBeInTheDocument();
+    expect(screen.queryByText('Restless Knight')).not.toBeInTheDocument();
+    expect(screen.queryByText('Token of Knight')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Open character sheet' })).not.toBeInTheDocument();
+    expect(screen.getByText('1 cell')).toBeInTheDocument();
+  });
+
+  it('a player sees the position row when the policy opens it', async () => {
+    setup('player', true, ['name', 'character', 'position']);
+    expect(await screen.findByText('Restless Knight')).toBeInTheDocument();
+    expect(screen.getByText('Position')).toBeInTheDocument();
+    expect(screen.queryByText('Size')).not.toBeInTheDocument();
+  });
+
   it('players see the token read-only', async () => {
     setup('player');
     expect(await screen.findByText('Restless Knight')).toBeInTheDocument();
-    expect(screen.queryByLabelText('Layer')).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Layer' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
   });
 });

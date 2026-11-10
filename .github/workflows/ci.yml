@@ -51,7 +51,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      # Built and smoke-tested only; publishing to GHCR comes with stage 4.
+      # Built and smoke-tested here; tags publish through publish-server.yml.
       - name: Build
         run: docker build -f apps/session-server/Dockerfile -t dnd-session-server:ci .
       - name: Smoke test
